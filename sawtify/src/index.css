@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans-latin: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-sans-arabic: 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-num: 'Outfit', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  html[lang="fr"] {
+    font-family: var(--font-sans-latin);
+    font-feature-settings: "tnum" on, "cv02" on, "cv03" on, "cv04" on;
+  }
+
+  html[lang="ar"] {
+    font-family: var(--font-sans-arabic);
+    font-feature-settings: "tnum" on;
+  }
+
+  /* Specific ultra-clean numerals styling */
+  .font-num {
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.02em;
+  }
+
+  body {
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Smooth directional transitions & micro-fades */
+.lang-fade-enter {
+  animation: langFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes langFadeIn {
+  from {
+    opacity: 0.82;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hide scrollbars cleanly */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
