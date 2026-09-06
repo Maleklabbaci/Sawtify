@@ -15,7 +15,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 interface TTSStudioProps {
   balance: number;
-  onDeductPoints: (cost: number, record: GenerationRecord) => boolean;
+  onDeductPoints: (cost: number, record: GenerationRecord) => Promise<boolean>;
   onOpenRecharge: () => void;
 }
 
@@ -208,7 +208,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
         createdAt: new Date().toISOString()
       };
 
-      onDeductPoints(POINTS_COST, record);
+      const deducted = await onDeductPoints(POINTS_COST, record);
+      if (!deducted) {
+        // Le serveur a refusé (solde insuffisant côté DB, session expirée, etc.) :
+        // on ne laisse pas l'utilisateur croire que l'audio est "gratuit" côté compte.
+        setInsufficientAlert(true);
+      }
 
       // Trigger high-performance MP3 conversion
       setIsConvertingMp3(true);

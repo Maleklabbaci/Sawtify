@@ -22,7 +22,8 @@ function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'none' | 'login' | 'signin'>('none');
-  const [balance, setBalance] = useState<number>(50);
+  const [balance, setBalance] = useState<number>(0);
+  const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>('studio');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -42,6 +43,26 @@ function AppContent() {
     }
   ]);
 
+  // Recharge le solde de points ET l'historique réels depuis Supabase
+  // (profiles.credits_balance / voice_generations), au lieu de repartir d'un
+  // état local qui se réinitialisait à chaque reload de page.
+  const refreshAccountData = React.useCallback(async () => {
+    setIsBalanceLoading(true);
+    try {
+      const { fetchMyBalance, fetchMyGenerations } = await import('./services/supabaseClient');
+      const [realBalance, realGenerations] = await Promise.all([
+        fetchMyBalance(),
+        fetchMyGenerations(),
+      ]);
+      if (realBalance !== null) setBalance(realBalance);
+      setGenerations(realGenerations);
+    } catch (e) {
+      console.warn('[Sawtify] Impossible de charger le compte depuis Supabase:', e);
+    } finally {
+      setIsBalanceLoading(false);
+    }
+  }, []);
+
   // Détecte la session Supabase réelle (au retour de la redirection Google OAuth,
   // et si l'utilisateur revient plus tard avec une session déjà valide).
   // Chargé en dynamique pour ne pas alourdir le bundle initial de la landing page.
@@ -53,6 +74,9 @@ function AppContent() {
         if (data.session) {
           setIsLoggedIn(true);
           setActiveTab('studio');
+          refreshAccountData();
+        } else {
+          setIsBalanceLoading(false);
         }
       });
 
@@ -61,6 +85,7 @@ function AppContent() {
           setIsLoggedIn(true);
           setAuthModalMode('none');
           setActiveTab('studio');
+          refreshAccountData();
           showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
         }
         if (event === 'SIGNED_OUT') {
@@ -98,13 +123,50 @@ function AppContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleDeductPoints = (cost: number, record: GenerationRecord): boolean => {
-    if (balance < cost) return false;
-    const remaining = balance - cost;
-    setBalance(remaining);
-    setGenerations((prev) => [record, ...prev]);
-    showToast(t.toastDeducted.replace('{balance}', remaining.toString()));
-    return true;
+  // Déduit les points via la fonction RPC Postgres atomique (deduct_user_credits) :
+  // la base de données est la seule source de vérité pour le solde, et la
+  // génération est enregistrée dans voice_generations dans la même transaction.
+  // Ça règle les deux bugs signalés : le solde ne "revient" plus après un reload
+  // (il n'a jamais changé que localement avant), et l'historique persiste.
+  const handleDeductPoints = async (cost: number, record: GenerationRecord): Promise<boolean> => {
+    try {
+      const { deductCreditsRPC } = await import('./services/supabaseClient');
+      const result = await deductCreditsRPC({
+        amount: cost,
+        voiceId: record.voiceId,
+        voiceName: record.voiceName,
+        prompt: record.text,
+        charCount: record.text.length,
+        durationSec: record.durationSec,
+        latencyMs: record.latencyMs,
+      });
+
+      if (!result.success) {
+        showToast(
+          language === 'ar'
+            ? 'رصيد غير كافٍ أو خطأ في الخادم'
+            : (result.error === 'Insufficient credits balance'
+                ? 'Solde insuffisant côté serveur.'
+                : 'Erreur lors de la déduction des points.')
+        );
+        // Le serveur est la source de vérité : si dispo dans la réponse, on réaligne l'UI dessus.
+        if (typeof result.balance === 'number') setBalance(result.balance);
+        return false;
+      }
+
+      const remaining = result.remaining_balance ?? balance - cost;
+      setBalance(remaining);
+      setGenerations((prev) => [
+        { ...record, id: result.generation_id || record.id },
+        ...prev,
+      ]);
+      showToast(t.toastDeducted.replace('{balance}', remaining.toString()));
+      return true;
+    } catch (e) {
+      console.error('[Sawtify] Erreur handleDeductPoints:', e);
+      showToast(language === 'ar' ? 'خطأ في الاتصال بالخادم' : 'Erreur de connexion au serveur.');
+      return false;
+    }
   };
 
   const handleRechargeSuccess = (pack: CreditPack, method: 'edahabia' | 'cib', record: PurchaseRecord) => {
