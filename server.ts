@@ -37,15 +37,10 @@ const INVOICE_REGISTRY = new Map<string | number, {
   status: 'pending' | 'completed' | 'paid' | 'failed';
   paymentUrl?: string;
   createdAt: string;
-  // Ajoutés pour la persistance réelle du solde (voir creditIfPaid ci-dessous) :
   userId?: string;
   credited?: boolean;
 }>();
 
-/**
- * Identifie l'utilisateur Supabase à partir du header "Authorization: Bearer <access_token>"
- * envoyé par le front. Sans ça, impossible de savoir à qui créditer les points en toute sécurité.
- */
 async function getUserIdFromAuthHeader(req: express.Request): Promise<string | null> {
   try {
     const authHeader = req.get('authorization') || req.get('Authorization') || '';
@@ -65,13 +60,6 @@ function mapGateway(method: string | undefined): string {
   return VALID_GATEWAYS.has(m) ? m : 'slickpay';
 }
 
-/**
- * Seule fonction qui crédite réellement des points : elle relit toujours le montant/points
- * "de vérité" depuis la table credit_packs (jamais ce que le client a envoyé), et appelle
- * la RPC atomique credit_user_balance (idempotente via gateway_reference). Appelée depuis
- * check-status, confirm-payment et le webhook — peu importe lequel détecte le paiement en
- * premier, les points ne sont crédités qu'une seule fois.
- */
 async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boolean; newBalance?: number; error?: string }> {
   const entry = INVOICE_REGISTRY.get(String(invoiceId));
   if (!entry) return { credited: false, error: 'invoice_unknown' };
@@ -100,9 +88,6 @@ async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boo
   return { credited: true, newBalance: data?.new_balance };
 }
 
-/**
- * Converts 24kHz 16-bit Mono raw PCM bytes into a standard RIFF/WAV Buffer.
- */
 function pcmToWavBuffer(
   pcmBuffer: Buffer,
   sampleRate = 24000,
@@ -114,32 +99,23 @@ function pcmToWavBuffer(
   const dataLength = pcmBuffer.length;
   const header = Buffer.alloc(44);
 
-  // RIFF Chunk Descriptor
   header.write("RIFF", 0);
   header.writeUInt32LE(36 + dataLength, 4);
   header.write("WAVE", 8);
-
-  // "fmt " sub-chunk
   header.write("fmt ", 12);
-  header.writeUInt32LE(16, 16); // Subchunk1Size
-  header.writeUInt16LE(1, 20); // AudioFormat (1 = PCM)
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
   header.writeUInt16LE(numChannels, 22);
   header.writeUInt32LE(sampleRate, 24);
   header.writeUInt32LE(byteRate, 28);
   header.writeUInt16LE(blockAlign, 32);
   header.writeUInt16LE(bitsPerSample, 34);
-
-  // "data" sub-chunk
   header.write("data", 36);
   header.writeUInt32LE(dataLength, 40);
 
   return Buffer.concat([header, pcmBuffer]);
 }
 
-/**
- * Generates a smooth, natural-sounding vocal fallback WAV (24kHz 16-bit mono)
- * to guarantee that the frontend NEVER receives an empty audio payload or silent 500.
- */
 function generateSmoothVocalWavBuffer(durationSec = 2.5, baseFreq = 160): Buffer {
   const sampleRate = 24000;
   const totalSamples = Math.floor(sampleRate * Math.max(1.2, Math.min(durationSec, 15)));
@@ -149,16 +125,11 @@ function generateSmoothVocalWavBuffer(durationSec = 2.5, baseFreq = 160): Buffer
     const t = i / sampleRate;
     const cadence = Math.sin(t * 3.5) * 12.0;
     const f0 = baseFreq + cadence;
-
-    // Harmonic formants mimicking natural vocal resonance
     const s1 = Math.sin(2.0 * Math.PI * f0 * t) * 0.45;
     const s2 = Math.sin(2.0 * Math.PI * (f0 * 2.1) * t) * 0.25;
     const s3 = Math.sin(2.0 * Math.PI * (f0 * 3.2) * t) * 0.15;
-
-    // Breathing syllabic envelope
     const syllable = 0.5 * (1.0 + Math.cos(2.0 * Math.PI * t * 3.2));
     const envelope = Math.sin((Math.PI * i) / totalSamples) * syllable;
-
     let sampleVal = Math.floor((s1 + s2 + s3) * envelope * 24000.0);
     sampleVal = Math.max(-32768, Math.min(32767, sampleVal));
     pcmBuffer.writeInt16LE(sampleVal, i * 2);
@@ -168,35 +139,26 @@ function generateSmoothVocalWavBuffer(durationSec = 2.5, baseFreq = 160): Buffer
 }
 
 const GEMINI_VOICE_MAP: Record<string, string> = {
-  // Algerian Dardja voices mapped to exact Gemini TTS voices (male to male, female to female)
-  voice_amin: "Puck",       // Male
-  voice_yasmin: "Kore",     // Female
-  voice_khalid: "Charon",   // Male
-  voice_maryam: "Zephyr",   // Female
-  voice_rashid: "Fenrir",   // Male
-  voice_layla: "Aoede",     // Female
-  voice_bilal: "Orus",      // Male
-  voice_nour: "Sulafat",    // Female
-  voice_faycal: "Leda",     // Male
+  // Voix Masculines (Hommes)
+  voice_amin: "Puck",
+  voice_khalid: "Charon",
+  voice_rashid: "Fenrir",
+  voice_bilal: "Orus",
+  voice_faycal: "Orus",
+
+  // Voix Féminines (Femmes)
+  voice_yasmin: "Kore",
+  voice_maryam: "Zephyr",
+  voice_layla: "Aoede",
+  voice_nour: "Sulafat",
 
   // Direct Gemini TTS voice names
-  Puck: "Puck",
-  Kore: "Kore",
-  Charon: "Charon",
-  Zephyr: "Zephyr",
-  Fenrir: "Fenrir",
-  Aoede: "Aoede",
-  Orus: "Orus",
-  Sulafat: "Sulafat",
-  Leda: "Leda",
+  Puck: "Puck", Kore: "Kore", Charon: "Charon", Zephyr: "Zephyr",
+  Fenrir: "Fenrir", Aoede: "Aoede", Orus: "Orus", Sulafat: "Sulafat", Leda: "Leda",
 
-  // Legacy mappings for backwards compatibility
-  voice_dz_amine: "Puck",
-  voice_dz_yasmine: "Kore",
-  voice_ar_sofiane: "Charon",
-  voice_fr_ines: "Zephyr",
-  voice_dz_rachid: "Fenrir",
-  voice_en_lina: "Aoede",
+  // Legacy mappings
+  voice_dz_amine: "Puck", voice_dz_yasmine: "Kore", voice_ar_sofiane: "Charon",
+  voice_fr_ines: "Zephyr", voice_dz_rachid: "Fenrir", voice_en_lina: "Aoede",
 };
 
 const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
@@ -209,8 +171,6 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
   voice_bilal: "صحا خاوتي، مع صوتيفي ما تزيدش تشقى تسجل، الصوت يخرج طبيعي وسلس كأنو متحدث جزائري حقيقي معاك في الستوديو.",
   voice_nour: "مرحباً بيكم، تمتعوا بنطق دارجة واضحة ومفهومة عند كامل الجزائريين، بنبرة خفيفة ومريحة تسمعها بلا ما تعيا.",
   voice_faycal: "واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر دارجة جزائرية احترافية للمشروع ولا السلعة ديالك، راك في المكان الصحيح.",
-
-  // Legacy scripts
   voice_dz_amine: "سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي مئة بالمئة بلا أي نبرة آلية وبأعلى جودة.",
   voice_dz_yasmine: "مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق، صوت دافئ وبلا أي روبوتيك.",
   voice_ar_sofiane: "السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي ومخارج حروف واضحة ومتقنة.",
@@ -220,6 +180,36 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
 };
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
+
+/**
+ * Normalise le texte avant de l'envoyer à Gemini TTS.
+ * Les chiffres et mots latins au milieu de l'arabe sont la cause #1 des bugs de prononciation.
+ * On ajoute aussi des virgules absentes pour forcer les respirations naturelles.
+ */
+function normalizeTextForTTS(text: string): string {
+  let normalized = text;
+  normalized = normalized.replace(/([0-9])([ا-ي])/g, '$1 $2');
+  normalized = normalized.replace(/([ا-ي])([0-9])/g, '$1 $2');
+  normalized = normalized.replace(/([a-zA-Z])([ا-ي])/g, '$1 $2');
+  normalized = normalized.replace(/([ا-ي])([a-zA-Z])/g, '$1 $2');
+
+  const words = normalized.split(' ');
+  if (words.length > 10) {
+    let punctuatedText = "";
+    let wordCount = 0;
+    for (const word of words) {
+      punctuatedText += word + " ";
+      wordCount++;
+      const lastChar = word[word.length - 1];
+      const hasPunctuation = ['.', ',', '،', '!', '؟', '?'].includes(lastChar);
+      if (!hasPunctuation && wordCount % 8 === 0) {
+        punctuatedText += "، ";
+      }
+    }
+    normalized = punctuatedText.trim();
+  }
+  return normalized;
+}
 
 async function synthesizeWithRetry(
   rawText: string,
@@ -233,49 +223,36 @@ async function synthesizeWithRetry(
     return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée" };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
   let lastError: any = null;
 
-  let paceDirective = "";
+  // 1. Nettoyer et normaliser le texte
+  const cleanText = normalizeTextForTTS(rawText.replace(/\[.*?\]/g, " ").replace(/\s+/g, " ").trim());
+
+  // 2. Déterminer le genre de la voix (CRUCIAL pour la grammaire arabe)
+  const femaleVoices = ["Kore", "Zephyr", "Aoede", "Sulafat", "Leda"];
+  const isFemale = femaleVoices.includes(selectedVoiceName);
+
+  // 3. Prompt Studio-Grade 100% en Arabe Darija
+  let performancePrompt = isFemale 
+    ? "أنت ممثلة صوت جزائرية محترفة. اقرئي النص التالي بدارجة جزائرية أصيلة، بصوت أنثوي دافئ وطبيعي. تنفسي بشكل طبيعي بين الجمل (عند الفواصل والنقاط)، وتجنبي تماماً النبرة الآلية أو الصوت الروبوتي." 
+    : "أنت ممثل صوت جزائري محترف. اقرأ النص التالي بدارجة جزائرية أصيلة، بصوت ذكوري واثق وطبيعي. تتنفس بشكل طبيعي بين الجمل (عند الفواصل والنقاط)، وتجنب تماماً النبرة الآلية أو الصوت الروبوتي.";
+
+  // 4. Ajustements Vitesse et Pitch
   if (speed >= 1.15) {
-    paceDirective = `\n- PACE & TEMPO: Deliver with brisk, fast-paced, fluent conversational speed (${speed.toFixed(1)}x pace) without clipping phonemes.`;
+    performancePrompt += " اقرأ بسرعة فائقة وحيوية.";
   } else if (speed <= 0.88) {
-    paceDirective = `\n- PACE & TEMPO: Deliver with a relaxed, slow, steady and articulated pace (${speed.toFixed(1)}x pace).`;
+    performancePrompt += " اقرأ ببطء، تريث، ووضوح تام.";
+  } else {
+    performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   }
 
-  let pitchDirective = "";
   if (pitch >= 1.1) {
-    pitchDirective = `\n- PITCH & VOCAL REGISTER: Speak in a slightly higher, brighter, energized vocal register (${pitch.toFixed(1)} pitch).`;
+    performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية.";
   } else if (pitch <= 0.9) {
-    pitchDirective = `\n- PITCH & VOCAL REGISTER: Speak in a slightly deeper, lower, resonant vocal register (${pitch.toFixed(1)} pitch).`;
+    performancePrompt += isFemale ? " اعمقي الصوت قليلاً لمزيد من الجدية." : " اعمق الصوت قليلاً لمزيد من الجدية.";
   }
 
-  // Master studio-grade system prompt imposing natural human breathing, expressive prosody, and anti-robotic execution
-  const enrichedSpeechPrompt = `[SYSTEM DIRECTIVE: STUDIO-GRADE ZERO-ROBOTIC HUMAN VOICE SYNTHESIS]
-You are an award-winning voice artist and native speaker performing inside an acoustically treated, high-end recording studio.
-Your absolute directive is to deliver this text with 100% human authenticity, organic respiratory flow, and rich expressive intonation.
-
-MANDATORY PERFORMANCE DIRECTIVES:
-
-1. STRICT ZERO-ROBOTIC & ANTI-MONOTONE DELIVERY:
-   - STRICTLY FORBIDDEN: Monotone delivery, flat pitch plateaus, robotic drone, unnatural synthetic pitch quantization, mechanical metronomic cadence, and artificial staccato syllable clipping.
-   - Infuse continuous, subtle micro-modulations in fundamental frequency (F0), amplitude, and vocal texture that naturally reflect human thought, physiological breath, and emotional nuance.
-
-2. HUMAN-LIKE CADENCE & DIAPHRAGMATIC BREATHING PATTERNS:
-   - Model the physiological reality of human speech: inhale and exhale with organic, lifelike respiratory patterns.
-   - Insert subtle, natural micro-pauses for breath between thoughts, clauses, punctuation marks, and rhetorical beats.
-   - Group words organically into coherent breath-groups, ensuring fluid, lifelike prosodic contours rather than unbroken machine-generated streams.
-
-3. DYNAMIC EXPRESSIVE INTONATION & VOCAL PRESENCE:
-   - Deliver with authentic conversational prosody, natural melodic contours, and living pitch variance (including authentic Algerian Arabic / دارجة جزائرية where appropriate).
-   - Naturally emphasize core concepts, key nouns, and communicative pivots with subtle vocal warmth, dynamic energy, and vocal smile.
-   - Ensure transitions between sounds and words are smooth, organic, and connected.
-
-4. IMPECCABLE PHONETIC ARTICULATION:
-   - Articulate all consonants, vowels, and phonemes with effortless organic clarity, avoiding both robotic over-enunciation and slurred mumbling.
-   - Radiate genuine human presence, credibility, and warmth throughout the entire performance.${paceDirective}${pitchDirective}]:
-
-${rawText}`;
+  const enrichedSpeechPrompt = `${performancePrompt}\n\nالنص:\n${cleanText}`;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -287,7 +264,6 @@ ${rawText}`;
         headers: {
           "Content-Type": "application/json"
         },
-        
         body: JSON.stringify({
           contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
           generationConfig: {
@@ -334,8 +310,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  // CORS : nécessaire car le frontend (Cloudflare Pages) et ce backend (Render)
-  // sont sur des domaines différents. FRONTEND_URL = ton URL Cloudflare Pages finale.
   const FRONTEND_URL = process.env.FRONTEND_URL || "*";
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", FRONTEND_URL);
@@ -345,26 +319,22 @@ async function startServer() {
     next();
   });
 
-  // Cross-Origin Isolation headers for WebAssembly / ffmpeg.wasm SharedArrayBuffer
   app.use((req, res, next) => {
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
     next();
   });
 
-  // 1. Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", service: "sawtify-tts-server", voices_count: 9 });
   });
 
-  // 2. High-Performance Natural Voice Preview Endpoint (No credit deduction, no robotic browser voice)
   const handleTTSPreview = async (req: express.Request, res: express.Response) => {
     const voiceId = (req.query.voice_id as string) || "voice_amin";
     const speed = parseFloat(req.query.speed as string) || 1.0;
     const pitch = parseFloat(req.query.pitch as string) || 1.0;
     const cacheKey = `${voiceId}_${speed.toFixed(1)}_${pitch.toFixed(1)}`;
     
-    // Check in-memory preview cache
     if (PREVIEW_AUDIO_CACHE.has(cacheKey)) {
       const cachedDataUri = PREVIEW_AUDIO_CACHE.get(cacheKey)!;
       return res.json({
@@ -403,7 +373,6 @@ async function startServer() {
   app.get("/api/v1/tts/preview", handleTTSPreview);
   app.get("/api/tts/preview", handleTTSPreview);
 
-  // 3. Real Gemini 3.1 Flash TTS Endpoint with retry and robust zero-fail fallback
   const handleTTSGenerate = async (req: express.Request, res: express.Response) => {
     const startTime = Date.now();
     const { text, voice, voice_id, speed = 1.0, pitch = 1.0 } = req.body;
@@ -417,8 +386,9 @@ async function startServer() {
       });
     }
 
-    // Clean emotion tags
-    const cleanText = text.replace(/\[.*?\]/g, " ").trim();
+    // Normaliser le texte proprement (Anti-bug chiffres et mots latins)
+    const rawCleaned = text.replace(/\[.*?\]/g, " ").replace(/\s+/g, " ").trim();
+    const cleanText = normalizeTextForTTS(rawCleaned);
     const emotionTags = (text.match(/\[(.*?)\]/g) || []).map((t: string) => t.replace(/[\[\]]/g, ""));
     const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
 
@@ -432,7 +402,6 @@ async function startServer() {
       wavBase64 = wavBuffer.toString("base64");
       durationSeconds = Math.round((pcmBuffer.length / 48000) * 10) / 10;
     } else {
-      // Graceful fallback: generate smooth natural harmonic audio to prevent empty output / 500 error
       const femaleVoices = ["Kore", "Zephyr", "Aoede", "Sulafat"];
       const basePitchFreq = femaleVoices.includes(selectedVoiceName) ? 210 : 150;
       const fallbackBuf = generateSmoothVocalWavBuffer(durationSeconds, basePitchFreq * numPitch);
@@ -469,11 +438,8 @@ async function startServer() {
   // 4. SlickPay Algeria Payment API Routes
   // ==========================================
 
-  // A. Create SlickPay Invoice (SATIM / Edahabia / CIB)
   app.post("/api/slickpay/create-invoice", async (req, res) => {
     try {
-      // Une recharge doit être liée à un compte connu — sinon on ne saurait pas
-      // qui créditer une fois le paiement confirmé.
       const userId = await getUserIdFromAuthHeader(req);
       if (!userId) {
         return res.status(401).json({ success: false, error: "Authentification requise pour recharger des points." });
@@ -489,8 +455,6 @@ async function startServer() {
         paymentMethod = "edahabia"
       } = req.body;
 
-      // Source de vérité pour le prix/points : la table credit_packs, jamais les
-      // valeurs envoyées par le client (qui pourraient être falsifiées côté navigateur).
       let packName = "Pack Sawtify TTS";
       let numAmount = 0;
       let numPoints = 0;
@@ -518,7 +482,6 @@ async function startServer() {
 
       console.log(`[SlickPay] Création facture pour ${packName} (${numAmount} DZD, ${numPoints} pts)...`);
 
-      // Clean phone number for Algerian telecom standard (05, 06, 07)
       let cleanPhone = phone.replace(/[^0-9]/g, '');
       if (cleanPhone.startsWith('213') && cleanPhone.length > 9) {
         cleanPhone = '0' + cleanPhone.slice(3);
@@ -527,113 +490,48 @@ async function startServer() {
         cleanPhone = "0550123456";
       }
 
-      // Helper: Try to fetch default or first account UUID from SlickPay
       let defaultAccountUuid: string | undefined = undefined;
       let contactUuid: string | undefined = undefined;
 
-      // 1. Check Accounts from SlickPay
       try {
         const accRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/accounts", {
-          headers: {
-            "Authorization": `Bearer ${SLICKPAY_KEY}`,
-            "Accept": "application/json"
-          }
+          headers: { "Authorization": `Bearer ${SLICKPAY_KEY}`, "Accept": "application/json" }
         });
         if (accRes.ok) {
           const accData = await accRes.json();
           const list = accData.data || accData.accounts || (Array.isArray(accData) ? accData : []);
           if (list.length > 0) {
             defaultAccountUuid = list[0].uuid || list[0].id;
-            console.log(`[SlickPay] Compte marchand trouvé : ${defaultAccountUuid}`);
           }
         }
-      } catch (e) {
-        // accounts lookup failed
-      }
+      } catch (e) {}
 
-      // 2. Try creating or fetching contact
       try {
         const contactRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/contacts", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${SLICKPAY_KEY}`,
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
+          headers: { "Authorization": `Bearer ${SLICKPAY_KEY}`, "Content-Type": "application/json", "Accept": "application/json" },
           body: JSON.stringify({
-            firstname: firstname.trim() || "Client",
-            lastname: lastname.trim() || "Sawtify",
-            phone: cleanPhone,
-            email: email.trim() || "client@sawtify.dz",
-            address: address.trim() || "Alger",
-            adress: address.trim() || "Alger"
+            firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify",
+            phone: cleanPhone, email: email.trim() || "client@sawtify.dz",
+            address: address.trim() || "Alger", adress: address.trim() || "Alger"
           })
         });
         if (contactRes.ok) {
           const contactData = await contactRes.json();
           contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid;
-          console.log(`[SlickPay] Contact créé avec succès : ${contactUuid}`);
         }
-      } catch (e) {
-        // contact lookup failed
-      }
+      } catch (e) {}
 
-      // Standard items payload (Strictly mandatory for SlickPay)
-      const itemsList = [
-        {
-          name: `${packName} (+${numPoints} pts)`,
-          price: numAmount,
-          quantity: 1
-        }
-      ];
-
-      // Variation A: With resolved account & contact if available
-      const payloadA: any = {
-        amount: numAmount,
-        url: returnUrl,
-        firstname: firstname.trim() || "Client",
-        lastname: lastname.trim() || "Sawtify",
-        phone: cleanPhone,
-        email: email.trim() || "client@sawtify.dz",
-        address: address.trim() || "Alger",
-        adress: address.trim() || "Alger",
-        note: `Sawtify TTS - ${packName}`,
-        items: itemsList
-      };
+      const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
+      const payloadA: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger", note: `Sawtify TTS - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payloadA.account = defaultAccountUuid;
       if (contactUuid) payloadA.contact = contactUuid;
 
-      // Variation B: Standard Direct with webhook & qrcode
-      const payloadB: any = {
-        amount: numAmount,
-        url: returnUrl,
-        firstname: firstname.trim() || "Client",
-        lastname: lastname.trim() || "Sawtify",
-        phone: cleanPhone,
-        email: email.trim() || "client@sawtify.dz",
-        address: address.trim() || "Alger, Algérie",
-        note: `Recharge ${numPoints} points`,
-        items: itemsList,
-        qrcode: false
-      };
+      const payloadB: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger, Algérie", note: `Recharge ${numPoints} points`, items: itemsList, qrcode: false };
+      const payloadC: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: "Alger", note: `Test Sawtify ${numPoints} pts`, items: itemsList };
 
-      // Variation C: Dev Sandbox
-      const payloadC: any = {
-        amount: numAmount,
-        url: returnUrl,
-        firstname: firstname.trim() || "Client",
-        lastname: lastname.trim() || "Sawtify",
-        phone: cleanPhone,
-        email: email.trim() || "client@sawtify.dz",
-        address: "Alger",
-        note: `Test Sawtify ${numPoints} pts`,
-        items: itemsList
-      };
-
-      // Attempt calls in order of priority based on configuration
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
       const isDevConfigured = SLICKPAY_BASE_URL.includes('devapi');
-
       const callConfigs = isDevConfigured
         ? [
             { url: "https://devapi.slick-pay.com/api/v2/users/invoices", key: SLICKPAY_KEY, payload: payloadC, desc: "DevAPI (User Key)" },
@@ -651,292 +549,114 @@ async function startServer() {
 
       for (const config of callConfigs) {
         try {
-          const spRes = await fetch(config.url, {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${config.key}`,
-              "Content-Type": "application/json",
-              "Accept": "application/json"
-            },
-            body: JSON.stringify(config.payload)
-          });
-
+          const spRes = await fetch(config.url, { method: "POST", headers: { "Authorization": `Bearer ${config.key}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(config.payload) });
           const spText = await spRes.text();
           let spData: any;
-          try {
-            spData = JSON.parse(spText);
-          } catch {
-            spData = { message: spText };
-          }
+          try { spData = JSON.parse(spText); } catch { spData = { message: spText }; }
 
           if (spRes.ok && spData && (spData.success === 1 || spData.id || spData.url)) {
             console.log(`[SlickPay] Facture créée avec succès via ${config.desc}`);
             successfulInvoice = spData;
             break;
-          } else {
-            lastResult = spData;
-          }
-        } catch (callErr: any) {
-          // Graceful next retry
-        }
+          } else { lastResult = spData; }
+        } catch (callErr: any) {}
       }
 
       if (successfulInvoice) {
         const invoiceId = successfulInvoice.id || `INV_${Date.now()}`;
         const paymentUrl = successfulInvoice.url || "";
+        INVOICE_REGISTRY.set(String(invoiceId), { invoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", paymentUrl, createdAt: new Date().toISOString(), userId });
 
-        // Register in server memory
-        INVOICE_REGISTRY.set(String(invoiceId), {
-          invoiceId,
-          packId,
-          packName,
-          points: numPoints,
-          amountDZD: numAmount,
-          paymentMethod,
-          status: "pending",
-          paymentUrl,
-          createdAt: new Date().toISOString(),
-          userId,
-        });
-
-        // Sync to Supabase if configured
         if (supabaseClient) {
           try {
-            await supabaseClient.from("invoices").upsert({
-              id: String(invoiceId),
-              pack_id: packId,
-              pack_name: packName,
-              amount_dzd: numAmount,
-              points_credited: numPoints,
-              payment_method: paymentMethod,
-              status: "pending",
-              payment_url: paymentUrl,
-              created_at: new Date().toISOString()
-            });
-            console.log(`[Supabase] Facture ${invoiceId} enregistrée.`);
-          } catch (sbErr) {
-            console.warn("[Supabase] Upsert warning (table peut être absente):", sbErr);
-          }
+            await supabaseClient.from("invoices").upsert({ id: String(invoiceId), pack_id: packId, pack_name: packName, amount_dzd: numAmount, points_credited: numPoints, payment_method: paymentMethod, status: "pending", payment_url: paymentUrl, created_at: new Date().toISOString() });
+          } catch (sbErr) {}
         }
-
-        return res.json({
-          success: true,
-          status: "created",
-          invoiceId,
-          paymentUrl,
-          message: successfulInvoice.message || "Facture SlickPay créée avec succès",
-          raw: successfulInvoice
-        });
+        return res.json({ success: true, status: "created", invoiceId, paymentUrl, message: successfulInvoice.message || "Facture SlickPay créée avec succès", raw: successfulInvoice });
       }
 
-      // Fallback: If SlickPay returned an error, provide clear diagnostics & mock-ready invoice
-      console.warn("[SlickPay] Impossible de joindre l'API SlickPay en direct. Dernier retour:", lastResult);
       const fallbackInvoiceId = `SLICK_${Date.now().toString(36).toUpperCase()}`;
-      INVOICE_REGISTRY.set(fallbackInvoiceId, {
-        invoiceId: fallbackInvoiceId,
-        packId,
-        packName,
-        points: numPoints,
-        amountDZD: numAmount,
-        paymentMethod,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        userId,
-      });
-
-      return res.json({
-        success: true,
-        status: "fallback_ready",
-        invoiceId: fallbackInvoiceId,
-        paymentUrl: `${protocol}://${host}/?payment_status=success&pack_id=${packId}&points=${numPoints}`,
-        message: "Session de paiement initialisée",
-        diagnostics: lastResult
-      });
+      INVOICE_REGISTRY.set(fallbackInvoiceId, { invoiceId: fallbackInvoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", createdAt: new Date().toISOString(), userId });
+      return res.json({ success: true, status: "fallback_ready", invoiceId: fallbackInvoiceId, paymentUrl: `${protocol}://${host}/?payment_status=success&pack_id=${packId}&points=${numPoints}`, message: "Session de paiement initialisée", diagnostics: lastResult });
 
     } catch (err: any) {
-      console.error("[SlickPay Server Error]:", err);
-      return res.status(500).json({
-        success: false,
-        error: err.message || "Erreur serveur lors de la création de la facture"
-      });
+      return res.status(500).json({ success: false, error: err.message || "Erreur serveur lors de la création de la facture" });
     }
   });
 
-  // B. Check SlickPay Invoice Status
   app.get("/api/slickpay/check-status/:invoiceId", async (req, res) => {
     const { invoiceId } = req.params;
-    console.log(`[SlickPay] Vérification statut facture: ${invoiceId}...`);
-
-    // Check local memory first
     const localRecord = INVOICE_REGISTRY.get(String(invoiceId));
-
     try {
-      // Query SlickPay API
-      const endpoints = [
-        `${SLICKPAY_BASE_URL}/users/invoices/${invoiceId}`,
-        `https://prodapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`,
-        `https://devapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`
-      ];
-
+      const endpoints = [`${SLICKPAY_BASE_URL}/users/invoices/${invoiceId}`, `https://prodapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`, `https://devapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`];
       for (const ep of endpoints) {
         try {
-          const spRes = await fetch(ep, {
-            headers: {
-              "Authorization": `Bearer ${SLICKPAY_KEY}`,
-              "Accept": "application/json"
-            }
-          });
-
+          const spRes = await fetch(ep, { headers: { "Authorization": `Bearer ${SLICKPAY_KEY}`, "Accept": "application/json" } });
           if (spRes.ok) {
             const data = await spRes.json();
             const invoiceData = data.invoice || data.data || data;
             const status = (invoiceData.status || "").toLowerCase();
             const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
-
             let creditResult: { credited: boolean; newBalance?: number } | undefined;
-            if (isPaid && localRecord) {
-              localRecord.status = "completed";
-              INVOICE_REGISTRY.set(String(invoiceId), localRecord);
-              creditResult = await creditIfPaid(invoiceId);
-            }
-
-            return res.json({
-              success: true,
-              invoiceId,
-              status: isPaid ? "completed" : status || "pending",
-              isPaid,
-              newBalance: creditResult?.newBalance,
-              data: invoiceData
-            });
+            if (isPaid && localRecord) { localRecord.status = "completed"; INVOICE_REGISTRY.set(String(invoiceId), localRecord); creditResult = await creditIfPaid(invoiceId); }
+            return res.json({ success: true, invoiceId, status: isPaid ? "completed" : status || "pending", isPaid, newBalance: creditResult?.newBalance, data: invoiceData });
           }
-        } catch (e) {
-          // ignore loop attempt
-        }
+        } catch (e) {}
       }
-    } catch (err) {
-      console.warn("[SlickPay Status Check Warning]:", err);
-    }
-
-    return res.json({
-      success: true,
-      invoiceId,
-      status: localRecord?.status || "pending",
-      isPaid: localRecord?.status === "completed" || localRecord?.status === "paid"
-    });
+    } catch (err) {}
+    return res.json({ success: true, invoiceId, status: localRecord?.status || "pending", isPaid: localRecord?.status === "completed" || localRecord?.status === "paid" });
   });
 
-  // C. Confirm Instant Payment & Update Points in Supabase
   app.post("/api/slickpay/confirm-payment", async (req, res) => {
     try {
       const { invoiceId } = req.body;
-      if (!invoiceId) {
-        return res.status(400).json({ success: false, error: "invoiceId manquant." });
-      }
-
+      if (!invoiceId) return res.status(400).json({ success: false, error: "invoiceId manquant." });
       const entry = INVOICE_REGISTRY.get(String(invoiceId));
-      if (!entry) {
-        return res.status(404).json({ success: false, error: "Facture inconnue." });
-      }
-
-      // Seul l'utilisateur qui a créé cette facture peut la confirmer.
+      if (!entry) return res.status(404).json({ success: false, error: "Facture inconnue." });
       const requesterId = await getUserIdFromAuthHeader(req);
-      if (!requesterId || requesterId !== entry.userId) {
-        return res.status(403).json({ success: false, error: "Cette facture n'appartient pas à cet utilisateur." });
-      }
-
+      if (!requesterId || requesterId !== entry.userId) return res.status(403).json({ success: false, error: "Cette facture n'appartient pas à cet utilisateur." });
       const result = await creditIfPaid(invoiceId);
-      if (!result.credited) {
-        return res.status(500).json({ success: false, error: result.error || "Impossible de créditer les points." });
-      }
-
-      return res.json({
-        success: true,
-        message: "Paiement validé avec succès",
-        newBalance: result.newBalance,
-        record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD }
-      });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+      if (!result.credited) return res.status(500).json({ success: false, error: result.error || "Impossible de créditer les points." });
+      return res.json({ success: true, message: "Paiement validé avec succès", newBalance: result.newBalance, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
+    } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
   });
 
-  // D. SlickPay Webhook Receiver
   app.post("/api/slickpay/webhook", async (req, res) => {
     try {
-      console.log("[SlickPay Webhook Received]:", JSON.stringify(req.body));
       const { id, invoice_id, status, event } = req.body;
       const targetId = id || invoice_id;
-
       if (targetId) {
         const isCompleted = status === "completed" || status === "paid" || event === "invoice.paid";
         const local = INVOICE_REGISTRY.get(String(targetId));
-        if (local) {
-          local.status = isCompleted ? "completed" : "pending";
-          INVOICE_REGISTRY.set(String(targetId), local);
-        }
-
-        if (supabaseClient) {
-          try {
-            await supabaseClient.from("invoices").update({
-              status: isCompleted ? "paid" : status || "updated",
-              updated_at: new Date().toISOString()
-            }).eq("id", String(targetId));
-          } catch (e) {}
-        }
-
-        if (isCompleted) {
-          await creditIfPaid(targetId);
-        }
+        if (local) { local.status = isCompleted ? "completed" : "pending"; INVOICE_REGISTRY.set(String(targetId), local); }
+        if (supabaseClient) { try { await supabaseClient.from("invoices").update({ status: isCompleted ? "paid" : status || "updated", updated_at: new Date().toISOString() }).eq("id", String(targetId)); } catch (e) {} }
+        if (isCompleted) { await creditIfPaid(targetId); }
       }
-
       return res.json({ received: true });
-    } catch (webhookErr: any) {
-      console.error("[SlickPay Webhook Error]:", webhookErr);
-      return res.status(200).json({ received: true, warning: webhookErr.message });
-    }
+    } catch (webhookErr: any) { return res.status(200).json({ received: true, warning: webhookErr.message }); }
   });
 
-  // E. Supabase Sync / Purchases History Endpoint
   app.get("/api/supabase/purchases", async (req, res) => {
     if (supabaseClient) {
       try {
-        const { data, error } = await supabaseClient
-          .from("purchases")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(20);
-
-        if (!error && data) {
-          return res.json({ success: true, purchases: data });
-        }
-      } catch (err) {
-        console.warn("[Supabase History Warning]:", err);
-      }
+        const { data, error } = await supabaseClient.from("purchases").select("*").order("created_at", { ascending: false }).limit(20);
+        if (!error && data) return res.json({ success: true, purchases: data });
+      } catch (err) {}
     }
-
     const memoryPurchases = Array.from(INVOICE_REGISTRY.values());
     return res.json({ success: true, purchases: memoryPurchases });
   });
 
-  // Vite middleware for development vs static build for production
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  app.listen(PORT, "0.0.0.0", () => { console.log(`Server running on http://localhost:${PORT}`); });
 }
 
 startServer();
-
