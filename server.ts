@@ -219,20 +219,32 @@ ${rawText}`;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[TTS] Appel Gemini 3.1 Flash TTS (tentative ${attempt}) avec voix: ${selectedVoiceName}, vitesse: ${speed}x, pitch: ${pitch}...`);
-      const response = await (ai.models as any).generateContent({
-        model: "gemini-3.1-flash-tts-preview",
-        contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
-        config: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: selectedVoiceName },
-            },
-          },
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
         },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: selectedVoiceName },
+              },
+            },
+          }
+        })
       });
 
-      const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`Gemini API Error (${response.status}): ${errBody}`);
+      }
+
+      const responseJson = await response.json();
+      const pcmBase64 = responseJson.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
       if (pcmBase64 && pcmBase64.length > 50) {
         console.log(`[TTS] Succès Gemini TTS: ${pcmBase64.length} caractères base64 reçus.`);
