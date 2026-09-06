@@ -1,13 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { Header } from './components/Header';
-import { TTSStudio } from './components/TTSStudio';
-import { HistoryList } from './components/HistoryList';
-import { PricingPage } from './components/PricingPage';
 import { LandingPage } from './components/LandingPage';
-import { LoginModal } from './components/LoginModal';
-import { SigninModal } from './components/SigninModal';
 import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+
+// Chargées à la demande seulement : évite d'embarquer ffmpeg.wasm, Supabase, etc.
+// dans le bundle initial affiché avant même la connexion (page trop longue à charger).
+const TTSStudio = lazy(() => import('./components/TTSStudio').then(m => ({ default: m.TTSStudio })));
+const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
+const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
+const LoginModal = lazy(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })));
+const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ default: m.SigninModal })));
+
+const ViewFallback = () => (
+  <div className="flex items-center justify-center py-24">
+    <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
@@ -32,6 +41,39 @@ function AppContent() {
       createdAt: new Date().toISOString()
     }
   ]);
+
+  // Détecte la session Supabase réelle (au retour de la redirection Google OAuth,
+  // et si l'utilisateur revient plus tard avec une session déjà valide).
+  // Chargé en dynamique pour ne pas alourdir le bundle initial de la landing page.
+  React.useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    import('./services/supabaseClient').then(({ supabase }) => {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setIsLoggedIn(true);
+          setActiveTab('studio');
+        }
+      });
+
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          setIsLoggedIn(true);
+          setAuthModalMode('none');
+          setActiveTab('studio');
+          showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
+        }
+        if (event === 'SIGNED_OUT') {
+          setIsLoggedIn(false);
+        }
+      });
+
+      unsubscribe = () => listener.subscription.unsubscribe();
+    });
+
+    return () => unsubscribe?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Check for SlickPay redirect return params
   React.useEffect(() => {
@@ -72,18 +114,11 @@ function AppContent() {
     showToast(t.toastRecharged.replace('{points}', pack.points.toString()).replace('{method}', methodLabel));
   };
 
-  // If not logged in, render the Landing Page with Login/Signin modals
+  // If not logged in, render either the Landing Page or a full-page Login/Signin screen
   if (!isLoggedIn) {
-    return (
-      <>
-        <LandingPage
-          onLoginClick={() => setAuthModalMode('login')}
-          onSigninClick={() => setAuthModalMode('signin')}
-          language={language}
-          setLanguage={setLanguage}
-        />
-
-        {authModalMode === 'login' && (
+    if (authModalMode === 'login') {
+      return (
+        <Suspense fallback={<ViewFallback />}>
           <LoginModal
             onClose={() => setAuthModalMode('none')}
             onLoginSuccess={() => {
@@ -95,9 +130,13 @@ function AppContent() {
             onSwitchToSignin={() => setAuthModalMode('signin')}
             language={language}
           />
-        )}
+        </Suspense>
+      );
+    }
 
-        {authModalMode === 'signin' && (
+    if (authModalMode === 'signin') {
+      return (
+        <Suspense fallback={<ViewFallback />}>
           <SigninModal
             onClose={() => setAuthModalMode('none')}
             onSigninSuccess={() => {
@@ -109,7 +148,18 @@ function AppContent() {
             onSwitchToLogin={() => setAuthModalMode('login')}
             language={language}
           />
-        )}
+        </Suspense>
+      );
+    }
+
+    return (
+      <>
+        <LandingPage
+          onLoginClick={() => setAuthModalMode('login')}
+          onSigninClick={() => setAuthModalMode('signin')}
+          language={language}
+          setLanguage={setLanguage}
+        />
 
         {toastMessage && (
           <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-mono px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5">
@@ -151,32 +201,34 @@ function AppContent() {
         }`}
       >
         
-        {/* View 1: Studio Vocal */}
-        {activeTab === 'studio' && (
-          <TTSStudio
-            balance={balance}
-            onDeductPoints={handleDeductPoints}
-            onOpenRecharge={() => setActiveTab('pricing')}
-          />
-        )}
+        <Suspense fallback={<ViewFallback />}>
+          {/* View 1: Studio Vocal */}
+          {activeTab === 'studio' && (
+            <TTSStudio
+              balance={balance}
+              onDeductPoints={handleDeductPoints}
+              onOpenRecharge={() => setActiveTab('pricing')}
+            />
+          )}
 
-        {/* View 2: Historique */}
-        {activeTab === 'history' && (
-          <HistoryList
-            generations={generations}
-            onNavigateToStudio={() => setActiveTab('studio')}
-          />
-        )}
+          {/* View 2: Historique */}
+          {activeTab === 'history' && (
+            <HistoryList
+              generations={generations}
+              onNavigateToStudio={() => setActiveTab('studio')}
+            />
+          )}
 
-        {/* View 3: Tarifs & Packs de Prix (Pricing Page) */}
-        {activeTab === 'pricing' && (
-          <PricingPage
-            balance={balance}
-            onRechargeSuccess={handleRechargeSuccess}
-            purchases={purchases}
-            language={language}
-          />
-        )}
+          {/* View 3: Tarifs & Packs de Prix (Pricing Page) */}
+          {activeTab === 'pricing' && (
+            <PricingPage
+              balance={balance}
+              onRechargeSuccess={handleRechargeSuccess}
+              purchases={purchases}
+              language={language}
+            />
+          )}
+        </Suspense>
 
       </main>
 
@@ -191,6 +243,7 @@ function AppContent() {
           <div className="flex items-center gap-4 text-slate-400">
             <button
               onClick={() => {
+                import('./services/supabaseClient').then(({ signOutFromSupabase }) => signOutFromSupabase());
                 setIsLoggedIn(false);
                 showToast(language === 'ar' ? 'تم تسجيل الخروج بنجاح' : 'Déconnexion réussie');
               }}

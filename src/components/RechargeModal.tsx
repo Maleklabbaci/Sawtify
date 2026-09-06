@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, CreditCard, ShieldCheck, ArrowRight, Lock, ExternalLink, QrCode, RefreshCw, AlertCircle } from 'lucide-react';
 import { CreditPack, PurchaseRecord } from '../types';
+import { API_BASE_URL } from '../config/apiBase';
 import { getCreditPacks } from '../data/voices';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -81,7 +82,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
     setStatusMessage(language === 'ar' ? 'جاري الاتصال ببوابة SlickPay الجزائر...' : 'Connexion à la passerelle SlickPay Algérie...');
 
     try {
-      const response = await fetch('/api/slickpay/create-invoice', {
+      const response = await fetch(`${API_BASE_URL}/api/slickpay/create-invoice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,7 +128,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
 
     pollIntervalRef.current = window.setInterval(async () => {
       try {
-        const res = await fetch(`/api/slickpay/check-status/${invId}`);
+        const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invId}`);
         const statusData = await res.json();
         
         if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
@@ -150,7 +151,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
     
     // Call server to confirm and persist in Supabase
     try {
-      await fetch('/api/slickpay/confirm-payment', {
+      await fetch(`${API_BASE_URL}/api/slickpay/confirm-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +193,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
     if (!invoiceId) return;
     setIsProcessing(true);
     try {
-      const res = await fetch(`/api/slickpay/check-status/${invoiceId}`);
+      const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`);
       const statusData = await res.json();
       if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
         handlePaymentSuccess();

@@ -32,8 +32,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div className="min-h-screen text-slate-900 font-sans selection:bg-purple-500/20 selection:text-purple-900 text-left relative overflow-x-hidden bg-transparent" dir="ltr">
       
-      {/* Immersive 100% Fixed Video Background */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+      {/* Video confinée au Hero (absolute, pas fixed) : évite le bug de scroll sur mobile
+          où "position: fixed" + barre d'adresse dynamique fait clignoter/sauter la vidéo */}
+      <div className="absolute top-0 left-0 right-0 h-[820px] max-h-[100vh] pointer-events-none z-0 overflow-hidden">
         <video
           ref={videoRef}
           src="https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4"
@@ -41,8 +42,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           muted
           loop
           playsInline
-          className="w-full h-full object-cover scale-105 will-change-transform"
+          preload="metadata"
+          poster="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg"
+          className="absolute inset-0 w-full h-full object-cover"
         />
+        {/* Fondu vers le fond de page pour une transition propre en bas du hero */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/95" />
       </div>
 
       {/* Top Header */}

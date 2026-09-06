@@ -345,144 +345,122 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
         </div>
       )}
 
-      {/* Main Studio Grid: 5 Cols Left (Voice Library & Parameters), 7 Cols Right (Script & Waveform) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* LEFT COLUMN: Organized Voice Selector & Audio Modulators */}
-        <div className="lg:col-span-5 space-y-4">
-          
-          {/* Active Voice Summary & Modulator Card */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs space-y-4">
+
+      {/* SCRIPT EDITOR — désormais en pleine largeur, priorité au texte */}
+      <div>
+          {/* Main White Studio Canvas */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs relative transition-all duration-200 focus-within:border-purple-500/60 focus-within:ring-4 focus-within:ring-purple-500/5 space-y-4">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
-                <Sliders className="w-4 h-4 text-purple-600" />
-                <span>{t.activeVoiceHeader}</span>
+            {/* Top Toolbar: Emotion Tags & Presets */}
+            <div className="flex items-center justify-between gap-2 flex-wrap pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-slate-400 font-mono mr-1">{t.emotionLabel}</span>
+                {styleTags.map((tagObj) => (
+                  <button
+                    key={tagObj.tag}
+                    type="button"
+                    id={`tag-btn-${tagObj.tag.replace(/[\[\]]/g, '')}`}
+                    onClick={() => handleInsertTag(tagObj.tag)}
+                    title={tagObj.desc}
+                    className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-700 hover:text-purple-800 transition-all duration-150 cursor-pointer"
+                  >
+                    {tagObj.tag}
+                  </button>
+                ))}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200/70 font-semibold">
-                  {currentVoice.gender === 'female' ? t.voiceGenderFemale : t.voiceGenderMale}
-                </span>
+
+              {/* Presets dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowPresets(!showPresets)}
+                  className="text-[11px] text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg hover:bg-slate-100 border border-slate-200 transition cursor-pointer flex items-center gap-1 font-medium"
+                >
+                  <Sparkles className="w-3 h-3 text-purple-600" />
+                  <span>{t.scriptTemplatesBtn}</span>
+                </button>
+
+                {showPresets && (
+                  <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl p-2 shadow-lg z-20 space-y-1 animate-in fade-in`}>
+                    {samplePrompts.map((sample, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setText(sample.text);
+                          setShowPresets(false);
+                        }}
+                        className={`w-full ${isRTL ? 'text-right' : 'text-left'} p-2 rounded-xl text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer`}
+                      >
+                        {sample.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Active Voice Spotlight Header */}
-            <div className="flex items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs relative shrink-0">
-                  <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-5 h-5 text-purple-600" />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-500 border-2 border-white rounded-full" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-bold text-sm text-slate-900 truncate">
-                      {currentVoice.name}
-                    </h3>
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {currentVoice.dialect}
-                  </p>
-                </div>
+            {/* Immersive Textarea */}
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                id="script-input-textarea"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={7}
+                placeholder={t.scriptPlaceholder}
+                className="w-full p-2 text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none text-base sm:text-lg leading-relaxed resize-y font-normal"
+              />
+
+              <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} bottom-0 flex items-center gap-1.5`}>
+                <button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                  title={t.copyScriptTooltip}
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-purple-600" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Telemetry & Main Action */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
+                <span>•</span>
+                <span className="text-slate-700 font-medium">{t.costLabel} : <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
               </div>
 
-              {/* Sample Audition button */}
+              {/* Primary Generation CTA */}
               <button
-                type="button"
-                onClick={(e) => handlePreviewVoice(e, currentVoice)}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all duration-150 cursor-pointer shrink-0 ${
-                  previewingVoiceId === currentVoice.id
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs'
-                }`}
-                title={t.listenPreviewTooltip}
+                id="btn-generate-voice"
+                onClick={handleGenerate}
+                disabled={isGenerating || !text.trim()}
+                className="w-full sm:w-auto px-7 py-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2.5 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-purple-600/20 hover:shadow-md hover:shadow-purple-600/30 text-sm"
               >
-                {previewingVoiceId === currentVoice.id ? (
-                  <Volume2 className="w-4 h-4 animate-pulse" />
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    <span>{t.generatingBtn}</span>
+                  </>
                 ) : (
-                  <Play className={`w-4 h-4 ${isRTL ? 'mr-0.5' : 'ml-0.5'}`} />
+                  <>
+                    <Volume2 className="w-4 h-4" />
+                    <span>{t.generateBtn}</span>
+                  </>
                 )}
               </button>
             </div>
 
-            {/* Structured Sliders for Speed and Pitch */}
-            <div className="space-y-3 pt-1">
-              {/* Diction Speed */}
-              <div className="p-3 bg-white border border-slate-200/70 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">{t.speedLabel}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-num font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
-                      {speed.toFixed(1)}x
-                    </span>
-                    {speed !== 1.0 && (
-                      <button
-                        type="button"
-                        onClick={() => setSpeed(1.0)}
-                        className="text-slate-400 hover:text-slate-700 transition cursor-pointer"
-                        title={t.resetTooltip}
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <input
-                  id="slider-speed"
-                  type="range"
-                  min="0.7"
-                  max="1.5"
-                  step="0.1"
-                  value={speed}
-                  onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                />
-                <div className="flex justify-between text-[11px] text-slate-400 font-medium">
-                  <span>{t.speedSlow}</span>
-                  <span>{t.speedNormal}</span>
-                  <span>{t.speedFast}</span>
-                </div>
-              </div>
-
-              {/* Vocal Pitch */}
-              <div className="p-3 bg-white border border-slate-200/70 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">{t.pitchLabel}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-num font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
-                      {pitch.toFixed(1)}
-                    </span>
-                    {pitch !== 1.0 && (
-                      <button
-                        type="button"
-                        onClick={() => setPitch(1.0)}
-                        className="text-slate-400 hover:text-slate-700 transition cursor-pointer"
-                        title={t.resetTooltip}
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <input
-                  id="slider-pitch"
-                  type="range"
-                  min="0.8"
-                  max="1.3"
-                  step="0.1"
-                  value={pitch}
-                  onChange={(e) => setPitch(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                />
-                <div className="flex justify-between text-[11px] text-slate-400 font-medium">
-                  <span>{t.pitchDeep}</span>
-                  <span>{t.pitchNatural}</span>
-                  <span>{t.pitchHigh}</span>
-                </div>
-              </div>
-            </div>
-
           </div>
+      </div>
 
+      {/* Catalogue de voix + réglages/lecteur, sous l'éditeur */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        {/* LEFT COLUMN: Catalogue de voix (plus large, liste plus lisible) */}
+        <div className="lg:col-span-7 space-y-4">
           {/* Organized Voice Catalog / Selector */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
             
@@ -643,119 +621,141 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
             </div>
 
           </div>
-
         </div>
 
-        {/* RIGHT COLUMN: Script Editor & Waveform Studio */}
-        <div className="lg:col-span-7 space-y-4">
-          
-          {/* Main White Studio Canvas */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs relative transition-all duration-200 focus-within:border-purple-500/60 focus-within:ring-4 focus-within:ring-purple-500/5 space-y-4">
+        {/* RIGHT COLUMN: Réglages de la voix active + lecteur audio */}
+        <div className="lg:col-span-5 space-y-4">
+          {/* Active Voice Summary & Modulator Card */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs space-y-4">
             
-            {/* Top Toolbar: Emotion Tags & Presets */}
-            <div className="flex items-center justify-between gap-2 flex-wrap pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] text-slate-400 font-mono mr-1">{t.emotionLabel}</span>
-                {styleTags.map((tagObj) => (
-                  <button
-                    key={tagObj.tag}
-                    type="button"
-                    id={`tag-btn-${tagObj.tag.replace(/[\[\]]/g, '')}`}
-                    onClick={() => handleInsertTag(tagObj.tag)}
-                    title={tagObj.desc}
-                    className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-700 hover:text-purple-800 transition-all duration-150 cursor-pointer"
-                  >
-                    {tagObj.tag}
-                  </button>
-                ))}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                <Sliders className="w-4 h-4 text-purple-600" />
+                <span>{t.activeVoiceHeader}</span>
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200/70 font-semibold">
+                  {currentVoice.gender === 'female' ? t.voiceGenderFemale : t.voiceGenderMale}
+                </span>
+              </div>
+            </div>
 
-              {/* Presets dropdown */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowPresets(!showPresets)}
-                  className="text-[11px] text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg hover:bg-slate-100 border border-slate-200 transition cursor-pointer flex items-center gap-1 font-medium"
-                >
-                  <Sparkles className="w-3 h-3 text-purple-600" />
-                  <span>{t.scriptTemplatesBtn}</span>
-                </button>
-
-                {showPresets && (
-                  <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl p-2 shadow-lg z-20 space-y-1 animate-in fade-in`}>
-                    {samplePrompts.map((sample, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setText(sample.text);
-                          setShowPresets(false);
-                        }}
-                        className={`w-full ${isRTL ? 'text-right' : 'text-left'} p-2 rounded-xl text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer`}
-                      >
-                        {sample.title}
-                      </button>
-                    ))}
+            {/* Active Voice Spotlight Header */}
+            <div className="flex items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs relative shrink-0">
+                  <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-5 h-5 text-purple-600" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-500 border-2 border-white rounded-full" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-sm text-slate-900 truncate">
+                      {currentVoice.name}
+                    </h3>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Immersive Textarea */}
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                id="script-input-textarea"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={7}
-                placeholder={t.scriptPlaceholder}
-                className="w-full p-2 text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none text-base sm:text-lg leading-relaxed resize-y font-normal"
-              />
-
-              <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} bottom-0 flex items-center gap-1.5`}>
-                <button
-                  type="button"
-                  onClick={handleCopyPrompt}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                  title={t.copyScriptTooltip}
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-purple-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Telemetry & Main Action */}
-            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3 text-xs text-slate-500">
-                <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
-                <span>•</span>
-                <span className="text-slate-700 font-medium">{t.costLabel} : <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                    {currentVoice.dialect}
+                  </p>
+                </div>
               </div>
 
-              {/* Primary Generation CTA */}
+              {/* Sample Audition button */}
               <button
-                id="btn-generate-voice"
-                onClick={handleGenerate}
-                disabled={isGenerating || !text.trim()}
-                className="w-full sm:w-auto px-7 py-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2.5 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-purple-600/20 hover:shadow-md hover:shadow-purple-600/30 text-sm"
+                type="button"
+                onClick={(e) => handlePreviewVoice(e, currentVoice)}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all duration-150 cursor-pointer shrink-0 ${
+                  previewingVoiceId === currentVoice.id
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs'
+                }`}
+                title={t.listenPreviewTooltip}
               >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    <span>{t.generatingBtn}</span>
-                  </>
+                {previewingVoiceId === currentVoice.id ? (
+                  <Volume2 className="w-4 h-4 animate-pulse" />
                 ) : (
-                  <>
-                    <Volume2 className="w-4 h-4" />
-                    <span>{t.generateBtn}</span>
-                  </>
+                  <Play className={`w-4 h-4 ${isRTL ? 'mr-0.5' : 'ml-0.5'}`} />
                 )}
               </button>
             </div>
 
-          </div>
+            {/* Structured Sliders for Speed and Pitch */}
+            <div className="space-y-3 pt-1">
+              {/* Diction Speed */}
+              <div className="p-3 bg-white border border-slate-200/70 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-medium">{t.speedLabel}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-num font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
+                      {speed.toFixed(1)}x
+                    </span>
+                    {speed !== 1.0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSpeed(1.0)}
+                        className="text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                        title={t.resetTooltip}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  id="slider-speed"
+                  type="range"
+                  min="0.7"
+                  max="1.5"
+                  step="0.1"
+                  value={speed}
+                  onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+                <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+                  <span>{t.speedSlow}</span>
+                  <span>{t.speedNormal}</span>
+                  <span>{t.speedFast}</span>
+                </div>
+              </div>
 
+              {/* Vocal Pitch */}
+              <div className="p-3 bg-white border border-slate-200/70 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-medium">{t.pitchLabel}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-num font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
+                      {pitch.toFixed(1)}
+                    </span>
+                    {pitch !== 1.0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPitch(1.0)}
+                        className="text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                        title={t.resetTooltip}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  id="slider-pitch"
+                  type="range"
+                  min="0.8"
+                  max="1.3"
+                  step="0.1"
+                  value={pitch}
+                  onChange={(e) => setPitch(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+                <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+                  <span>{t.pitchDeep}</span>
+                  <span>{t.pitchNatural}</span>
+                  <span>{t.pitchHigh}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
           {/* Dynamic Audio Player & Waveform Studio */}
           {currentAudioUrl && (
             <div 
@@ -896,7 +896,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
               </div>
             </div>
           )}
-
         </div>
 
       </div>

@@ -7,13 +7,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// User-provided API Keys and Supabase credentials
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AQ.Ab8RN6Kjo1RlE-goCvcRroTAJpPGSY-m-KqtgnPLXloSF-FmEA";
-const SLICKPAY_KEY = process.env.SLICKPAY_PUBLIC_KEY || "47454|i8k7DouF1KAvrkFCbLapw2z15eVP7zzuFvBDTPbK";
+// Clés API — définies UNIQUEMENT via variables d'environnement (jamais en dur dans le code)
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const SLICKPAY_KEY = process.env.SLICKPAY_PUBLIC_KEY || "";
 const SLICKPAY_BASE_URL = process.env.SLICKPAY_BASE_URL || "https://prodapi.slick-pay.com/api/v2";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://jjpcvevdztletxgmmzqr.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqcGN2ZXZkenRsZXR4Z21tenFyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODU5ODA3MCwiZXhwIjoyMTA0MTc0MDcwfQ.hMJhlq0PjQQ6pk7U5HPNPtpqmcNp-EiYnn6gdWvzGKg";
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante — la génération TTS échouera.");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants.");
+if (!SLICKPAY_KEY) console.warn("[Config] SLICKPAY_PUBLIC_KEY manquante — les paiements échoueront.");
 
 let supabaseClient: any = null;
 try {
@@ -251,9 +255,20 @@ ${rawText}`;
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
+
+  // CORS : nécessaire car le frontend (Cloudflare Pages) et ce backend (Render)
+  // sont sur des domaines différents. FRONTEND_URL = ton URL Cloudflare Pages finale.
+  const FRONTEND_URL = process.env.FRONTEND_URL || "*";
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", FRONTEND_URL);
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    if (req.method === "OPTIONS") return res.sendStatus(200);
+    next();
+  });
 
   // Cross-Origin Isolation headers for WebAssembly / ffmpeg.wasm SharedArrayBuffer
   app.use((req, res, next) => {

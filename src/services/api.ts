@@ -1,4 +1,5 @@
 import { generateSyntheticTTS } from '../utils/audioGenerator';
+import { API_BASE_URL } from '../config/apiBase';
 
 export interface TTSApiRequest {
   text: string;
@@ -49,7 +50,7 @@ function dataUriToBlob(dataUri: string): { blob: Blob; url: string } {
  */
 export async function requestVoicePreview(voiceId: string, speed: number = 1.0, pitch: number = 1.0): Promise<string> {
   try {
-    const res = await fetch(`/api/v1/tts/preview?voice_id=${encodeURIComponent(voiceId)}&speed=${speed}&pitch=${pitch}`);
+    const res = await fetch(`${API_BASE_URL}/api/v1/tts/preview?voice_id=${encodeURIComponent(voiceId)}&speed=${speed}&pitch=${pitch}`);
     if (res.ok) {
       const data = await res.json();
       if (data.audio_url) {
@@ -75,7 +76,7 @@ export async function requestVoicePreview(voiceId: string, speed: number = 1.0, 
  */
 export async function requestTTSGeneration(params: TTSApiRequest, currentBalance: number): Promise<TTSApiResponse> {
   const startTime = performance.now();
-  const endpoint = '/api/v1/tts/generate';
+  const endpoint = `${API_BASE_URL}/api/v1/tts/generate`;
 
   try {
     const response = await fetch(endpoint, {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getCreditPacks } from '../data/voices';
+import { API_BASE_URL } from '../config/apiBase';
 import { CreditPack, PurchaseRecord } from '../types';
 
 interface PricingPageProps {
@@ -64,7 +65,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     if (invoiceId && !isSuccess) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/slickpay/check-status/${invoiceId}`);
+          const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`);
           if (res.ok) {
             const data = await res.json();
             if (data.isPaid || data.status === 'completed' || data.status === 'paid') {
@@ -104,7 +105,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     setStatusMessage('');
 
     try {
-      const res = await fetch('/api/slickpay/create-invoice', {
+      const res = await fetch(`${API_BASE_URL}/api/slickpay/create-invoice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,7 +147,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     if (!invoiceId) return;
     setIsProcessing(true);
     try {
-      const res = await fetch(`/api/slickpay/check-status/${invoiceId}`);
+      const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`);
       const statusData = await res.json();
       if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
         handlePaymentSuccess();
