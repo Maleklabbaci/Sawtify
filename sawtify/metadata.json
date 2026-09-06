@@ -1,6 +1,0 @@
-{
-  "name": "SAWTIFY - Ai voice over",
-  "description": "Plateforme Text-to-Speech ultra-rapide Pay-as-you-go avec paiement CIB & Edahabia, et conversion client-side WAV vers MP3 via ffmpeg.wasm",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
