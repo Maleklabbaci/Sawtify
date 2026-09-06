@@ -108,11 +108,13 @@ function AppContent() {
       const pointsParam = urlParams.get('points');
 
       if (paymentStatus === 'success' && pointsParam) {
-        const addedPoints = parseInt(pointsParam, 10) || 100;
-        setBalance(prev => prev + addedPoints);
+        // On ne fait plus confiance aux paramètres de l'URL pour le montant : on
+        // affiche juste un toast, puis on relit le vrai solde depuis Supabase
+        // (le crédit réel a déjà été appliqué côté serveur via check-status/webhook).
         setIsLoggedIn(true);
-        showToast(language === 'ar' ? `تم استلام الدفع بنجاح! +${addedPoints} نقطة` : `Paiement validé avec succès ! +${addedPoints} points ajoutés.`);
-        
+        refreshAccountData();
+        showToast(language === 'ar' ? 'تم استلام الدفع بنجاح!' : 'Paiement validé avec succès !');
+
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch (e) {}
@@ -170,7 +172,10 @@ function AppContent() {
   };
 
   const handleRechargeSuccess = (pack: CreditPack, method: 'edahabia' | 'cib', record: PurchaseRecord) => {
-    setBalance((prev) => prev + pack.points);
+    // Le crédit réel a déjà été fait côté serveur (RPC credit_user_balance) au moment où
+    // le paiement a été confirmé. On relit juste le vrai solde depuis Supabase — plus de
+    // "+points" ajouté en local uniquement, qui disparaissait au reload suivant.
+    refreshAccountData();
     setPurchases((prev) => [record, ...prev]);
     const methodLabel = method === 'edahabia' ? (language === 'ar' ? 'البطاقة الذهبية' : 'Edahabia') : 'CIB';
     showToast(t.toastRecharged.replace('{points}', pack.points.toString()).replace('{method}', methodLabel));

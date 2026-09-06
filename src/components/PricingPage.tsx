@@ -105,14 +105,22 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     setStatusMessage('');
 
     try {
+      const { getMyAccessToken } = await import('../services/supabaseClient');
+      const accessToken = await getMyAccessToken();
+      if (!accessToken) {
+        setIsProcessing(false);
+        setStatusMessage(language === 'ar' ? 'يجب تسجيل الدخول لإعادة شحن النقاط' : 'Connecte-toi pour recharger tes points.');
+        return;
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/slickpay/create-invoice`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           packId: selectedPack.id,
-          packName: selectedPack.name,
-          amount: selectedPack.priceDZD,
-          points: selectedPack.points,
           paymentMethod,
           firstname,
           lastname,

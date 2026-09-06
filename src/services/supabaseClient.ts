@@ -21,6 +21,10 @@ export async function signInWithGoogle() {
     provider: 'google',
     options: {
       redirectTo: window.location.origin,
+      // Force Google à réafficher le sélecteur de compte à chaque clic, au lieu de
+      // ré-utiliser silencieusement le dernier compte Google connecté dans ce navigateur.
+      // Sans ça, on ne peut pas tester/se connecter avec un autre compte.
+      queryParams: { prompt: 'select_account' },
     },
   });
   if (error) throw error;
@@ -28,6 +32,16 @@ export async function signInWithGoogle() {
 
 export async function signOutFromSupabase() {
   await supabase.auth.signOut();
+}
+
+/**
+ * Jeton de session Supabase de l'utilisateur connecté, à envoyer en
+ * "Authorization: Bearer <token>" vers le backend (server.ts) pour qu'il sache
+ * qui créditer après un paiement (voir /api/slickpay/create-invoice & confirm-payment).
+ */
+export async function getMyAccessToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
 }
 
 /**

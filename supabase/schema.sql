@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL UNIQUE,
     full_name TEXT,
-    credits_balance INTEGER NOT NULL DEFAULT 100 CHECK (credits_balance >= 0),
+    credits_balance INTEGER NOT NULL DEFAULT 50 CHECK (credits_balance >= 0),
     total_generated_audios INTEGER NOT NULL DEFAULT 0,
     phone_number TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -251,7 +251,7 @@ BEGIN
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', 'Utilisateur Sawtify'),
-        100 -- 100 complimentary welcome credits
+        50 -- 50 points de bienvenue offerts (aligné avec le message affiché au signup)
     );
     RETURN NEW;
 END;

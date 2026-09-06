@@ -37,7 +37,68 @@ const INVOICE_REGISTRY = new Map<string | number, {
   status: 'pending' | 'completed' | 'paid' | 'failed';
   paymentUrl?: string;
   createdAt: string;
+  // Ajoutés pour la persistance réelle du solde (voir creditIfPaid ci-dessous) :
+  userId?: string;
+  credited?: boolean;
 }>();
+
+/**
+ * Identifie l'utilisateur Supabase à partir du header "Authorization: Bearer <access_token>"
+ * envoyé par le front. Sans ça, impossible de savoir à qui créditer les points en toute sécurité.
+ */
+async function getUserIdFromAuthHeader(req: express.Request): Promise<string | null> {
+  try {
+    const authHeader = req.get('authorization') || req.get('Authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token || !supabaseClient) return null;
+    const { data, error } = await supabaseClient.auth.getUser(token);
+    if (error || !data?.user) return null;
+    return data.user.id as string;
+  } catch {
+    return null;
+  }
+}
+
+const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
+function mapGateway(method: string | undefined): string {
+  const m = (method || '').toLowerCase();
+  return VALID_GATEWAYS.has(m) ? m : 'slickpay';
+}
+
+/**
+ * Seule fonction qui crédite réellement des points : elle relit toujours le montant/points
+ * "de vérité" depuis la table credit_packs (jamais ce que le client a envoyé), et appelle
+ * la RPC atomique credit_user_balance (idempotente via gateway_reference). Appelée depuis
+ * check-status, confirm-payment et le webhook — peu importe lequel détecte le paiement en
+ * premier, les points ne sont crédités qu'une seule fois.
+ */
+async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boolean; newBalance?: number; error?: string }> {
+  const entry = INVOICE_REGISTRY.get(String(invoiceId));
+  if (!entry) return { credited: false, error: 'invoice_unknown' };
+  if (entry.credited) return { credited: true };
+  if (!entry.userId) return { credited: false, error: 'no_user_linked' };
+  if (!supabaseClient) return { credited: false, error: 'supabase_unavailable' };
+
+  const { data, error } = await supabaseClient.rpc('credit_user_balance', {
+    p_user_id: entry.userId,
+    p_pack_id: entry.packId,
+    p_gateway: mapGateway(entry.paymentMethod),
+    p_gateway_reference: String(invoiceId),
+    p_amount_dzd: entry.amountDZD,
+    p_points: entry.points,
+    p_payload: { source: 'sawtify_server', invoiceId },
+  });
+
+  if (error) {
+    console.error('[Supabase] credit_user_balance a échoué:', error.message);
+    return { credited: false, error: error.message };
+  }
+
+  entry.credited = true;
+  entry.status = 'completed';
+  INVOICE_REGISTRY.set(String(invoiceId), entry);
+  return { credited: true, newBalance: data?.new_balance };
+}
 
 /**
  * Converts 24kHz 16-bit Mono raw PCM bytes into a standard RIFF/WAV Buffer.
@@ -411,11 +472,15 @@ async function startServer() {
   // A. Create SlickPay Invoice (SATIM / Edahabia / CIB)
   app.post("/api/slickpay/create-invoice", async (req, res) => {
     try {
+      // Une recharge doit être liée à un compte connu — sinon on ne saurait pas
+      // qui créditer une fois le paiement confirmé.
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) {
+        return res.status(401).json({ success: false, error: "Authentification requise pour recharger des points." });
+      }
+
       const {
-        amount,
         packId,
-        packName = "Pack Sawtify TTS",
-        points = 100,
         firstname = "Client",
         lastname = "Sawtify",
         phone = "0550123456",
@@ -424,8 +489,28 @@ async function startServer() {
         paymentMethod = "edahabia"
       } = req.body;
 
-      const numAmount = Number(amount) || 500;
-      const numPoints = Number(points) || 100;
+      // Source de vérité pour le prix/points : la table credit_packs, jamais les
+      // valeurs envoyées par le client (qui pourraient être falsifiées côté navigateur).
+      let packName = "Pack Sawtify TTS";
+      let numAmount = 0;
+      let numPoints = 0;
+      if (supabaseClient) {
+        const { data: packRow, error: packErr } = await supabaseClient
+          .from("credit_packs")
+          .select("name, points, price_dzd")
+          .eq("id", packId)
+          .eq("is_active", true)
+          .single();
+        if (packErr || !packRow) {
+          return res.status(400).json({ success: false, error: "Pack de crédits inconnu ou inactif." });
+        }
+        packName = packRow.name;
+        numAmount = Number(packRow.price_dzd);
+        numPoints = Number(packRow.points);
+      } else {
+        return res.status(503).json({ success: false, error: "Service de paiement indisponible (Supabase non configuré)." });
+      }
+
       const host = req.get("host") || "localhost:3000";
       const protocol = req.protocol === "https" || host.includes("run.app") ? "https" : "http";
       const returnUrl = `${protocol}://${host}/?payment_status=success&pack_id=${packId}&points=${numPoints}`;
@@ -610,7 +695,8 @@ async function startServer() {
           paymentMethod,
           status: "pending",
           paymentUrl,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          userId,
         });
 
         // Sync to Supabase if configured
@@ -654,7 +740,8 @@ async function startServer() {
         amountDZD: numAmount,
         paymentMethod,
         status: "pending",
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        userId,
       });
 
       return res.json({
@@ -706,9 +793,11 @@ async function startServer() {
             const status = (invoiceData.status || "").toLowerCase();
             const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
 
+            let creditResult: { credited: boolean; newBalance?: number } | undefined;
             if (isPaid && localRecord) {
               localRecord.status = "completed";
               INVOICE_REGISTRY.set(String(invoiceId), localRecord);
+              creditResult = await creditIfPaid(invoiceId);
             }
 
             return res.json({
@@ -716,6 +805,7 @@ async function startServer() {
               invoiceId,
               status: isPaid ? "completed" : status || "pending",
               isPaid,
+              newBalance: creditResult?.newBalance,
               data: invoiceData
             });
           }
@@ -738,50 +828,32 @@ async function startServer() {
   // C. Confirm Instant Payment & Update Points in Supabase
   app.post("/api/slickpay/confirm-payment", async (req, res) => {
     try {
-      const { invoiceId, packId, points, amountDZD, paymentMethod } = req.body;
-      const numPoints = Number(points) || 100;
-      const numAmount = Number(amountDZD) || 500;
-
-      const recordId = `rec_${Date.now()}`;
-      const record = {
-        invoiceId: invoiceId || `INV_${Date.now()}`,
-        packId: packId || "pack_pro",
-        packName: packId === "pack_starter" ? "Pack Découverte" : packId === "pack_enterprise" ? "Pack Studio Pro" : "Pack Créateur",
-        points: numPoints,
-        amountDZD: numAmount,
-        paymentMethod: paymentMethod || "edahabia",
-        status: "completed" as const,
-        createdAt: new Date().toISOString()
-      };
-
-      if (invoiceId) {
-        INVOICE_REGISTRY.set(String(invoiceId), record);
+      const { invoiceId } = req.body;
+      if (!invoiceId) {
+        return res.status(400).json({ success: false, error: "invoiceId manquant." });
       }
 
-      // Record to Supabase
-      if (supabaseClient) {
-        try {
-          await supabaseClient.from("purchases").insert({
-            id: recordId,
-            transaction_id: String(invoiceId || recordId),
-            pack_id: record.packId,
-            pack_name: record.packName,
-            points_credited: numPoints,
-            amount_dzd: numAmount,
-            payment_method: paymentMethod || "edahabia",
-            status: "paid",
-            created_at: new Date().toISOString()
-          });
-          console.log(`[Supabase] Achat ${recordId} enregistré.`);
-        } catch (sbErr) {
-          console.warn("[Supabase] Insert purchase warning:", sbErr);
-        }
+      const entry = INVOICE_REGISTRY.get(String(invoiceId));
+      if (!entry) {
+        return res.status(404).json({ success: false, error: "Facture inconnue." });
+      }
+
+      // Seul l'utilisateur qui a créé cette facture peut la confirmer.
+      const requesterId = await getUserIdFromAuthHeader(req);
+      if (!requesterId || requesterId !== entry.userId) {
+        return res.status(403).json({ success: false, error: "Cette facture n'appartient pas à cet utilisateur." });
+      }
+
+      const result = await creditIfPaid(invoiceId);
+      if (!result.credited) {
+        return res.status(500).json({ success: false, error: result.error || "Impossible de créditer les points." });
       }
 
       return res.json({
         success: true,
         message: "Paiement validé avec succès",
-        record
+        newBalance: result.newBalance,
+        record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD }
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -810,6 +882,10 @@ async function startServer() {
               updated_at: new Date().toISOString()
             }).eq("id", String(targetId));
           } catch (e) {}
+        }
+
+        if (isCompleted) {
+          await creditIfPaid(targetId);
         }
       }
 

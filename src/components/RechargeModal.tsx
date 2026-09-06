@@ -82,14 +82,22 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
     setStatusMessage(language === 'ar' ? 'جاري الاتصال ببوابة SlickPay الجزائر...' : 'Connexion à la passerelle SlickPay Algérie...');
 
     try {
+      const { getMyAccessToken } = await import('../services/supabaseClient');
+      const accessToken = await getMyAccessToken();
+      if (!accessToken) {
+        setIsProcessing(false);
+        setStatusMessage(language === 'ar' ? 'يجب تسجيل الدخول لإعادة شحن النقاط' : 'Connecte-toi pour recharger tes points.');
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/slickpay/create-invoice`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
-          amount: selectedPack.priceDZD,
           packId: selectedPack.id,
-          packName: selectedPack.name,
-          points: selectedPack.points,
           firstname: fullName.split(' ')[0] || 'Client',
           lastname: fullName.split(' ').slice(1).join(' ') || 'Sawtify',
           phone: phone.replace(/\s+/g, ''),
@@ -149,18 +157,18 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
 
     const activeInvoiceId = invoiceId || `INV_DZ_${Date.now()}`;
     
-    // Call server to confirm and persist in Supabase
+    // Demande au serveur de créditer réellement les points (idempotent : si check-status
+    // ou le webhook l'ont déjà fait, celle-ci ne fait rien de plus).
     try {
+      const { getMyAccessToken } = await import('../services/supabaseClient');
+      const accessToken = await getMyAccessToken();
       await fetch(`${API_BASE_URL}/api/slickpay/confirm-payment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId: activeInvoiceId,
-          packId: selectedPack.id,
-          points: selectedPack.points,
-          amountDZD: selectedPack.priceDZD,
-          paymentMethod
-        })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ invoiceId: activeInvoiceId })
       });
     } catch (e) {
       console.warn('[Supabase Sync Warning]:', e);
