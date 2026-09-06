@@ -219,12 +219,14 @@ ${rawText}`;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[TTS] Appel Gemini 3.1 Flash TTS (tentative ${attempt}) avec voix: ${selectedVoiceName}, vitesse: ${speed}x, pitch: ${pitch}...`);
-      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent", {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey
+          "Content-Type": "application/json"
         },
+        
         body: JSON.stringify({
           contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
           generationConfig: {
