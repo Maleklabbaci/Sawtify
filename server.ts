@@ -52,6 +52,16 @@ async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boo
   return { credited: true, newBalance: data?.new_balance };
 }
 
+async function getUserBalance(userId: string): Promise<number | null> {
+  if (!supabaseClient) return null;
+  try {
+    const { data: profile } = await supabaseClient.from("profiles").select("credits_balance").eq("id", userId).single();
+    return profile ? profile.credits_balance : null;
+  } catch {
+    return null;
+  }
+}
+
 async function deductCredits(userId: string, amount: number): Promise<{ success: boolean; remaining?: number; error?: string }> {
   if (!supabaseClient) return { success: false, error: "Base de données inaccessible." };
   try {
@@ -162,6 +172,47 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
   return { pcmBuffer: null, error: lastError?.message || "Erreur de génération audio" };
 }
 
+/* ==========================================================================
+   LLM CALLER HELPER (AVEC FALLBACK ET LOGS COMPLETS)
+   ========================================================================== */
+
+async function callGeminiTextAPI(prompt: string, temperature = 0.7): Promise<string> {
+  const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+  let lastErr = "";
+
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      console.log(`[LLM] Tentative d'appel avec le modèle: ${model}`);
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature, maxOutputTokens: 1024 }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        let result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        result = result.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+        if (result) return result;
+      } else {
+        const errText = await response.text();
+        console.error(`[LLM Error ${model}] Status ${response.status}:`, errText);
+        lastErr = errText;
+      }
+    } catch (e: any) {
+      console.error(`[LLM Fetch Error ${model}]:`, e.message || e);
+      lastErr = e.message || String(e);
+    }
+  }
+
+  throw new Error(`Erreur API Gemini: ${lastErr}`);
+}
+
 async function startServer() {
   const app = express(); const PORT = Number(process.env.PORT) || 3000; app.use(express.json());
   const FRONTEND_URL = process.env.FRONTEND_URL || "*";
@@ -191,7 +242,7 @@ async function startServer() {
   app.post("/api/v1/tts/generate", handleTTSGenerate); app.post("/api/tts/generate", handleTTSGenerate);
 
   /* ==========================================================================
-     LLM SERVICES (GEMINI 2.0 FLASH - OPTIMISÉ POUR SAWTIFY DARIJA)
+     LLM SERVICES (PROMPT SAWTIFY DARIJA ÉLITE)
      ========================================================================== */
 
   const LLM_SYSTEM_PROMPT = `Tu es un expert linguiste en Darija Algérienne et concepteur-rédacteur polyvalent pour la synthèse vocale (TTS). Tu adaptes le ton selon le besoin (E-commerce, Services, Formations, Contenu Viral, B2B).
@@ -234,7 +285,7 @@ D. Appels à l'action (CTA au choix selon contexte) :
 5. FORMAT DE SORTIE :
 - Renvoie UNIQUEMENT le texte final à vocaliser, sans commentaires ni guillemets.`;
 
-  // 1. Route pour le "Bouton Magique" (Darija Text Enhancer) — Coût : 2 points
+  // 1. Route pour le "Bouton Magique" (2 points)
   const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
@@ -245,10 +296,11 @@ D. Appels à l'action (CTA au choix selon contexte) :
         return res.status(400).json({ error: "Texte manquant ou invalide" });
       }
 
+      // Vérification préalable du solde (sans déduire encore)
+      const currentBalance = await getUserBalance(userId);
       const pointsCost = 2;
-      const reduction = await deductCredits(userId, pointsCost);
-      if (!reduction.success) {
-        return res.status(402).json({ error: reduction.error || "Points insuffisants." });
+      if (currentBalance !== null && currentBalance < pointsCost) {
+        return res.status(402).json({ error: "Solde de points insuffisant." });
       }
 
       const enhancePrompt = `${LLM_SYSTEM_PROMPT}
@@ -261,37 +313,27 @@ TÂCHE SPÉCIFIQUE : Réécris le texte suivant en Darija Algérienne fluide et 
 Texte à réécrire :
 ${text}`;
 
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-      const response = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: enhancePrompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
-        })
-      });
+      const enhancedText = await callGeminiTextAPI(enhancePrompt, 0.7);
 
-      if (!response.ok) throw new Error("Erreur de connexion à l'API Gemini");
-
-      const data = await response.json();
-      let enhancedText = data.candidates?.[0]?.content?.parts?.[0]?.text || text;
-      enhancedText = enhancedText.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+      // Déduction UNIQUEMENT si l'appel IA a réussi !
+      const reduction = await deductCredits(userId, pointsCost);
+      const finalBalance = reduction.success ? reduction.remaining : currentBalance;
 
       return res.json({ 
         success: true, 
         enhanced_text: enhancedText, 
         points_cost: pointsCost,
-        remaining_balance: reduction.remaining
+        remaining_balance: finalBalance
       });
     } catch (err: any) {
-      console.error("[LLM Enhance Error]", err);
-      return res.status(500).json({ error: "Erreur lors de l'amélioration du texte" });
+      console.error("[LLM Enhance Error]", err.message || err);
+      return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" });
     }
   };
   app.post("/api/v1/llm/enhance", handleLLMEnhance);
   app.post("/api/llm/enhance", handleLLMEnhance);
 
-  // 2. Route pour le Générateur de Scripts TikTok / Reels — Coût : 5 points
+  // 2. Route pour le Générateur de Scripts (5 points)
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
@@ -302,10 +344,11 @@ ${text}`;
         return res.status(400).json({ error: "Nom du produit ou service manquant" });
       }
 
+      // Vérification préalable du solde (sans déduire encore)
+      const currentBalance = await getUserBalance(userId);
       const pointsCost = 5;
-      const reduction = await deductCredits(userId, pointsCost);
-      if (!reduction.success) {
-        return res.status(402).json({ error: reduction.error || "Points insuffisants." });
+      if (currentBalance !== null && currentBalance < pointsCost) {
+        return res.status(402).json({ error: "Solde de points insuffisant." });
       }
 
       const scriptPrompt = `${LLM_SYSTEM_PROMPT}
@@ -320,31 +363,21 @@ Le script doit OBLIGATOIREMENT suivre cette structure :
 Produit, service ou sujet pour le script :
 ${product} (Style souhaité: ${style || 'excited'})`;
 
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-      const response = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: scriptPrompt }] }],
-          generationConfig: { temperature: 0.85, maxOutputTokens: 1024 }
-        })
-      });
+      const scriptText = await callGeminiTextAPI(scriptPrompt, 0.85);
 
-      if (!response.ok) throw new Error("Erreur de connexion à l'API Gemini");
-
-      const data = await response.json();
-      let scriptText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      scriptText = scriptText.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+      // Déduction UNIQUEMENT si l'appel IA a réussi !
+      const reduction = await deductCredits(userId, pointsCost);
+      const finalBalance = reduction.success ? reduction.remaining : currentBalance;
 
       return res.json({ 
         success: true, 
         script: scriptText, 
         points_cost: pointsCost,
-        remaining_balance: reduction.remaining
+        remaining_balance: finalBalance
       });
     } catch (err: any) {
-      console.error("[LLM Script Generator Error]", err);
-      return res.status(500).json({ error: "Erreur lors de la génération du script" });
+      console.error("[LLM Script Generator Error]", err.message || err);
+      return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" });
     }
   };
   app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
