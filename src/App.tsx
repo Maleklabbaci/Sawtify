@@ -11,6 +11,7 @@ const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ d
 const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
 const LoginModal = lazy(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })));
 const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ default: m.SigninModal })));
+const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').then(m => ({ default: m.SetPasswordScreen })));
 
 const ViewFallback = () => (
   <div className="flex items-center justify-center py-24">
@@ -22,6 +23,8 @@ function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'none' | 'login' | 'signin'>('none');
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState<boolean>(false);
+  const [pendingUserEmail, setPendingUserEmail] = useState<string | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>('studio');
@@ -69,7 +72,7 @@ function AppContent() {
   React.useEffect(() => {
     let unsubscribe: (() => void) | undefined;
 
-    import('./services/supabaseClient').then(({ supabase }) => {
+    import('./services/supabaseClient').then(({ supabase, consumeSignupIntent }) => {
       supabase.auth.getSession().then(({ data }) => {
         if (data.session) {
           setIsLoggedIn(true);
@@ -86,7 +89,15 @@ function AppContent() {
           setAuthModalMode('none');
           setActiveTab('studio');
           refreshAccountData();
-          showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
+
+          // Si cette connexion vient du bouton "Créer un compte" (Google), on
+          // propose de créer un mot de passe pour pouvoir se reconnecter sans Google ensuite.
+          if (consumeSignupIntent()) {
+            setPendingUserEmail(session.user.email ?? null);
+            setNeedsPasswordSetup(true);
+          } else {
+            showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
+          }
         }
         if (event === 'SIGNED_OUT') {
           setIsLoggedIn(false);
@@ -180,6 +191,23 @@ function AppContent() {
     const methodLabel = method === 'edahabia' ? (language === 'ar' ? 'البطاقة الذهبية' : 'Edahabia') : 'CIB';
     showToast(t.toastRecharged.replace('{points}', pack.points.toString()).replace('{method}', methodLabel));
   };
+
+  // Étape post-inscription Google : proposer de créer un mot de passe,
+  // affichée en priorité sur tout le reste (déjà connecté, mais pas encore fini).
+  if (needsPasswordSetup) {
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <SetPasswordScreen
+          userEmail={pendingUserEmail}
+          language={language}
+          onDone={() => {
+            setNeedsPasswordSetup(false);
+            showToast(language === 'ar' ? 'تم إنشاء كلمة المرور! مرحباً بك في صوتيفي' : 'Mot de passe créé ! Bienvenue sur Sawtify');
+          }}
+        />
+      </Suspense>
+    );
+  }
 
   // If not logged in, render either the Landing Page or a full-page Login/Signin screen
   if (!isLoggedIn) {

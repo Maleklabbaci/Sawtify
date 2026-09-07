@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, ShieldCheck, Sparkles, Volume2, Zap, Mic, AlertCircle } from 'lucide-react';
-import { signInWithGoogle } from '../services/supabaseClient';
+import { ArrowLeft, ShieldCheck, Sparkles, Volume2, Zap, Mic, AlertCircle, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { signInWithGoogle, signInWithEmailPassword } from '../services/supabaseClient';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -42,18 +42,42 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [authError, setAuthError] = useState<string | null>(null);
   const features = isRTL ? FEATURES_AR : FEATURES_FR;
 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
+
   const handleGoogleAuth = async () => {
     setAuthError(null);
     setIsLoading(true);
     try {
       // Redirige vers Google ; au retour, App.tsx détecte la session via onAuthStateChange
-      await signInWithGoogle();
+      await signInWithGoogle('login');
     } catch (err: any) {
       console.error('Erreur de connexion Google:', err);
       setAuthError(
         isRTL ? 'تعذر الاتصال عبر Google. حاول مجدداً.' : 'Connexion Google impossible. Réessaie dans un instant.'
       );
       setIsLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+    setAuthError(null);
+    setIsEmailLoading(true);
+    try {
+      // La connexion réussie déclenche onAuthStateChange dans App.tsx, comme pour Google
+      await signInWithEmailPassword(email.trim(), password);
+    } catch (err: any) {
+      console.error('Erreur de connexion e-mail:', err);
+      setAuthError(
+        isRTL
+          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'
+          : 'E-mail ou mot de passe incorrect.'
+      );
+      setIsEmailLoading(false);
     }
   };
 
@@ -118,7 +142,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               {isRTL ? 'تسجيل الدخول إلى صوتيفي' : 'Connexion à Sawtify'}
             </h1>
             <p className="text-sm text-slate-500">
-              {isRTL ? 'استمر عبر حسابك في Google للمتابعة' : 'Continuez avec votre compte Google pour accéder à votre studio'}
+              {isRTL ? 'عبر Google أو بالبريد الإلكتروني وكلمة المرور' : 'Avec Google, ou avec ton e-mail et ton mot de passe'}
             </p>
           </div>
 
@@ -154,6 +178,68 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span>{isRTL ? 'الدخول السريع بدون كلمة مرور ولا نموذج للتعبئة' : "Connexion instantanée, sans mot de passe ni formulaire à remplir"}</span>
           </div>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+              {isRTL ? 'أو' : 'ou'}
+            </span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          {/* Connexion classique e-mail + mot de passe */}
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <div className="relative">
+              <Mail className="absolute top-1/2 -translate-y-1/2 left-3.5 w-4 h-4 text-slate-400" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={isRTL ? 'البريد الإلكتروني' : 'Adresse e-mail'}
+                className="w-full pl-10 pr-3.5 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                dir={isRTL ? 'rtl' : 'ltr'}
+                style={isRTL ? { paddingRight: '2.5rem', paddingLeft: '0.875rem' } : undefined}
+              />
+            </div>
+
+            <div className="relative">
+              <Lock className="absolute top-1/2 -translate-y-1/2 left-3.5 w-4 h-4 text-slate-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isRTL ? 'كلمة المرور' : 'Mot de passe'}
+                className="w-full pl-10 pr-10 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                dir={isRTL ? 'rtl' : 'ltr'}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute top-1/2 -translate-y-1/2 right-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              id="btn-email-login"
+              disabled={isEmailLoading || !email.trim() || !password}
+              className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {isEmailLoading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>{isRTL ? 'جاري الاتصال...' : 'Connexion en cours...'}</span>
+                </>
+              ) : (
+                <span>{isRTL ? 'تسجيل الدخول' : 'Se connecter'}</span>
+              )}
+            </button>
+          </form>
 
           <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
             <span>{isRTL ? 'ليس لديك حساب؟' : 'Pas encore de compte ?'}</span>{' '}

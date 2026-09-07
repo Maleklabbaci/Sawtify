@@ -15,8 +15,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
-// Lance la connexion Google (redirection OAuth gérée par Supabase)
-export async function signInWithGoogle() {
+const SIGNUP_INTENT_KEY = 'sawtify_signup_intent';
+
+// Lance la connexion Google (redirection OAuth gérée par Supabase).
+// intent='signup' marque qu'on vient de l'inscription : au retour, App.tsx
+// saura qu'il faut proposer de créer un mot de passe.
+export async function signInWithGoogle(intent: 'login' | 'signup' = 'login') {
+  if (intent === 'signup') {
+    sessionStorage.setItem(SIGNUP_INTENT_KEY, 'true');
+  } else {
+    sessionStorage.removeItem(SIGNUP_INTENT_KEY);
+  }
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -27,6 +36,28 @@ export async function signInWithGoogle() {
       queryParams: { prompt: 'select_account' },
     },
   });
+  if (error) throw error;
+}
+
+// À appeler une fois la session Google confirmée : dit si cette connexion
+// venait du bouton "Créer un compte" (donc s'il faut proposer un mot de passe).
+export function consumeSignupIntent(): boolean {
+  const isSignup = sessionStorage.getItem(SIGNUP_INTENT_KEY) === 'true';
+  sessionStorage.removeItem(SIGNUP_INTENT_KEY);
+  return isSignup;
+}
+
+// Connexion classique par e-mail + mot de passe (le mot de passe est celui
+// défini juste après l'inscription via Google, sur ce même e-mail Gmail).
+export async function signInWithEmailPassword(email: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+// Définit le mot de passe du compte connecté (appelé juste après le tout premier
+// Google Sign-In pour permettre ensuite une connexion classique email + mot de passe).
+export async function setAccountPassword(password: string) {
+  const { error } = await supabase.auth.updateUser({ password });
   if (error) throw error;
 }
 

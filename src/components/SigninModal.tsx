@@ -47,7 +47,7 @@ export const SigninModal: React.FC<SigninModalProps> = ({
     setIsLoading(true);
     try {
       // Redirige vers Google ; au retour, App.tsx détecte la session via onAuthStateChange
-      await signInWithGoogle();
+      await signInWithGoogle('signup');
     } catch (err: any) {
       console.error('Erreur d\'inscription Google:', err);
       setAuthError(
