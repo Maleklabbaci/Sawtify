@@ -4,7 +4,7 @@ import {
   Check, Copy, ArrowRight, RefreshCw, Sparkles,
   FileAudio, Zap, Mic, Radio, Headphones, Flame,
   AudioLines, Megaphone, RotateCcw, Sliders,
-  Layers
+  Layers, X
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags, getSamplePrompts } from '../data/voices';
@@ -12,7 +12,6 @@ import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview } from '../services/api';
 import { convertWavToMp3, formatBytes } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
-import { AudioPlayerDrawer } from './AudioPlayerDrawer';
 
 interface TTSStudioProps {
   balance: number;
@@ -139,7 +138,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setCompressionRatio(0);
 
     try {
-      const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(t => t.replace(/<unk>[\[\]]/g, ''));
+      const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(t => t.replace(/[\[\]]/g, ''));
       const response = await requestTTSGeneration({ text, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags }, balance);
       
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
@@ -203,21 +202,20 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let step = 0;
-    const bars = 48;
-    const barWidth = 3;
+    const bars = 32;
+    const barWidth = 2;
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (let i = 0; i < bars; i++) {
-        let height = 6;
-        if (isPlaying) { const wave = Math.sin((i + step) * 0.25) * 0.5 + 0.5; height = Math.max(4, wave * (canvas.height * 0.85)); } 
-        else if (currentAudioUrl) { const wave = Math.sin(i * 0.4) * 0.4 + 0.4; height = Math.max(4, wave * (canvas.height * 0.6)); }
+        let height = 4;
+        if (isPlaying) { const wave = Math.sin((i + step) * 0.25) * 0.5 + 0.5; height = Math.max(3, wave * (canvas.height * 0.85)); } 
+        else if (currentAudioUrl) { const wave = Math.sin(i * 0.4) * 0.4 + 0.4; height = Math.max(3, wave * (canvas.height * 0.5)); }
         const x = i * (barWidth + 2);
         const y = (canvas.height - height) / 2;
         const progressPercent = audioDuration > 0 ? currentTime / audioDuration : 0;
-        const isPlayed = i / bars <= progressPercent;
-        ctx.fillStyle = isPlayed ? '#7c3aed' : isPlaying ? '#9333ea' : '#cbd5e1';
+        ctx.fillStyle = i / bars <= progressPercent ? '#7c3aed' : '#cbd5e1';
         ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, height, 1.5);
+        ctx.roundRect(x, y, barWidth, height, 1);
         ctx.fill();
       }
       if (isPlaying) step++;
@@ -236,171 +234,155 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50/50">
       
+      {/* Alert */}
       {insufficientAlert && (
-        <div className="shrink-0 bg-rose-50 border-b border-rose-200 p-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span className="text-xs font-semibold text-rose-900">{t.insufficientTitle} ({balance} {t.pointsLabel})</span>
+        <div className="shrink-0 bg-rose-50 border-b border-rose-200 px-4 py-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            <span className="text-[11px] font-semibold text-rose-900">{t.insufficientTitle} ({balance} {t.pointsLabel})</span>
           </div>
-          <button onClick={onOpenRecharge} className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition cursor-pointer">{t.rechargeNowBtn}</button>
+          <button onClick={onOpenRecharge} className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-semibold transition cursor-pointer">{t.rechargeNowBtn}</button>
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 p-4 sm:p-5">
+      {/* MAIN */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 p-3">
 
-        {/* LEFT COLUMN: SCRIPT */}
-        <div className="flex-1 min-h-0 flex flex-col md:max-w-[55%]">
-          <div className="bg-white border border-slate-200/90 rounded-3xl flex-1 min-h-0 flex flex-col p-5 sm:p-6 shadow-xs transition focus-within:border-purple-500/60 focus-within:ring-4 focus-within:ring-purple-500/5">
+        {/* LEFT: SCRIPT */}
+        <div className="flex-1 min-h-0 flex flex-col lg:w-[55%]">
+          <div className="bg-white border border-slate-200/90 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/60 focus-within:ring-2 focus-within:ring-purple-500/5">
             
-            <div className="shrink-0 flex items-center justify-between gap-2 flex-wrap pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] text-slate-400 font-mono mr-1">{t.emotionLabel}</span>
-                {styleTags.map((tagObj) => (
-                  <button key={tagObj.tag} type="button" onClick={() => handleInsertTag(tagObj.tag)} title={tagObj.desc} className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-700 hover:text-purple-800 transition cursor-pointer">{tagObj.tag}</button>
-                ))}
-              </div>
-              <div className="relative">
-               1 <button type="button" onClick={() => setShowPresets(!showPresets)} className="text-[11px] text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg hover:bg-slate-100 border border-slate-200 transition cursor-pointer flex items-center gap-1 font-medium">
-                  <Sparkles className="w-3 h-3 text-purple-600" /><span>{t.scriptTemplatesBtn}</span>
+            {/* Tags bar */}
+            <div className="shrink-0 flex items-center gap-1.5 flex-wrap pb-2 border-b border-slate-100 mb-2">
+              {styleTags.map((tagObj) => (
+                <button key={tagObj.tag} type="button" onClick={() => handleInsertTag(tagObj.tag)} title={tagObj.desc} className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-600 hover:text-purple-800 transition cursor-pointer">{tagObj.tag}</button>
+              ))}
+              <div className="relative ml-auto">
+                <button type="button" onClick={() => setShowPresets(!showPresets)} className="text-[10px] text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition cursor-pointer flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-purple-600" />{t.scriptTemplatesBtn}
                 </button>
                 {showPresets && (
-                  <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl p-2 shadow-lg z-20 space-y-1 animate-in fade-in`}>
+                  <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl p-1.5 shadow-lg z-20 space-y-0.5`}>
                     {samplePrompts.map((sample, idx) => (
-                      <button key={idx} type="button" onClick={() => { setText(sample.text); setShowPresets(false); }} className={`w-full ${isRTL ? 'text-right' : 'text-left'} p-2 rounded-xl text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer`}>{sample.title}</button>
+                      <button key={idx} type="button" onClick={() => { setText(sample.text); setShowPresets(false); }} className={`w-full ${isRTL ? 'text-right' : 'text-left'} p-1.5 rounded-lg text-[11px] text-slate-700 hover:bg-slate-50 transition cursor-pointer`}>{sample.title}</button>
                     ))}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 flex flex-col relative pt-3">
+            {/* Textarea */}
+            <div className="flex-1 min-h-0 relative">
               <textarea
                 ref={textareaRef}
-                id="script-input-textarea"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={t.scriptPlaceholder}
-                className="flex-1 min-h-0 w-full p-2 text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none text-base sm:text-lg leading-relaxed resize-none font-normal overflow-y-auto"
+                className="w-full h-full p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto"
               />
-              <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} bottom-0 flex items-center gap-1.5`}>
-                <button type="button" onClick={handleCopyPrompt} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer" title={t.copyScriptTooltip}>
-                  {copied ? <Check className="w-3.5 h-3.5 text-purple-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
+              <button type="button" onClick={handleCopyPrompt} className={`absolute ${isRTL ? 'left-1' : 'right-1'} bottom-1 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition cursor-pointer`} title={t.copyScriptTooltip}>
+                {copied ? <Check className="w-3 h-3 text-purple-600" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
 
-            <div className="shrink-0 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
-              <div className="flex items-center gap-3 text-xs text-slate-500">
+            {/* Footer */}
+            <div className="shrink-0 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
                 <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
-                <span>•</span>
-                <span className="text-slate-700 font-medium">{t.costLabel} : <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
+                <span className="text-slate-300">•</span>
+                <span>{t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
               </div>
               <button
-                id="btn-generate-voice"
                 onClick={handleGenerate}
                 disabled={isGenerating || !text.trim()}
-                className="w-full sm:w-auto px-7 py-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-purple-600/20 hover:shadow-md hover:shadow-purple-600/30 text-sm"
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-xs"
               >
-                {isGenerating ? (<><RefreshCw className="w-4 h-4 animate-spin text-white" /><span>{t.generatingBtn}</span></>) : (<><Volume2 className="w-4 h-4" /><span>{t.generateBtn}</span></>)}
+                {isGenerating ? (<><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>) : (<><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>)}
               </button>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: VOICES & CONTROLS */}
-        <div className="flex-1 min-h-0 flex flex-col md:max-w-[45%] gap-4">
+        {/* RIGHT: VOICES + CONTROLS */}
+        <div className="flex-1 min-h-0 flex flex-col lg:w-[45%] gap-3">
           
-          <div className="flex-1 min-h-0 flex flex-col bg-white border border-slate-200/90 rounded-3xl p-4 shadow-xs">
-            <div className="shrink-0 flex items-center justify-between pb-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
-                <Layers className="w-4 h-4 text-purple-600" /><span>{t.catalogHeader}</span><span className="text-[11px] font-num font-bold text-slate-500">({filteredVoices.length})</span>
+          {/* Voice list */}
+          <div className="flex-1 min-h-0 flex flex-col bg-white border border-slate-200/90 rounded-2xl p-3 shadow-xs">
+            <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100 mb-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
+                <Layers className="w-3.5 h-3.5 text-purple-600" />
+                <span>{t.catalogHeader}</span>
+                <span className="font-num text-slate-400">({filteredVoices.length})</span>
               </div>
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-[11px] font-medium border border-slate-200/60">
-                <button type="button" onClick={() => setGenderFilter('all')} className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${genderFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>{t.allGenders}</button>
-                <button type="button" onClick={() => setGenderFilter('male')} className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${genderFilter === 'male' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>{t.maleGenders}</button>
-                <button type="button" onClick={() => setGenderFilter('female')} className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${genderFilter === 'female' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>{t.femaleGenders}</button>
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[10px] font-medium border border-slate-200/60">
+                <button type="button" onClick={() => setGenderFilter('all')} className={`px-1.5 py-0.5 rounded-md transition cursor-pointer ${genderFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-500'}`}>{t.allGenders}</button>
+                <button type="button" onClick={() => setGenderFilter('male')} className={`px-1.5 py-0.5 rounded-md transition cursor-pointer ${genderFilter === 'male' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-500'}`}>{t.maleGenders}</button>
+                <button type="button" onClick={() => setGenderFilter('female')} className={`px-1.5 py-0.5 rounded-md transition cursor-pointer ${genderFilter === 'female' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-500'}`}>{t.femaleGenders}</button>
               </div>
             </div>
 
-            <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[11px]">
+            <div className="shrink-0 flex items-center gap-1 overflow-x-auto pb-1.5 scrollbar-none text-[10px]">
               {(['all', 'commercial', 'narrative', 'social', 'formal'] as CategoryFilter[]).map((cat) => (
-                <button key={cat} type="button" onClick={() => setCategoryFilter(cat)} className={`px-2.5 py-1 rounded-xl whitespace-nowrap transition cursor-pointer border ${categoryFilter === cat ? 'bg-slate-900 text-white border-slate-900 font-semibold shadow-2xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200/80'}`}>
+                <button key={cat} type="button" onClick={() => setCategoryFilter(cat)} className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition cursor-pointer border ${categoryFilter === cat ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-slate-50 text-slate-500 border-slate-200/80'}`}>
                   {t[`category${cat.charAt(0).toUpperCase() + cat.slice(1)}` as keyof typeof t] || cat}
                 </button>
               ))}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
+            {/* COMPACT Voice List */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-0.5">
               {filteredVoices.map((voice) => {
                 const isSelected = voice.id === selectedVoiceId;
                 const isPreviewing = previewingVoiceId === voice.id;
                 return (
-                  <div key={voice.id} onClick={() => setSelectedVoiceId(voice.id)} className={`flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition border ${isSelected ? 'bg-purple-50/60 border-purple-500/60 text-slate-900 shadow-2xs ring-1 ring-purple-500/20' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/70 hover:border-slate-300'}`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition ${isSelected ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-4 h-4" />
+                  <div key={voice.id} onClick={() => setSelectedVoiceId(voice.id)} className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition border ${isSelected ? 'bg-purple-50/80 border-purple-400/50 ring-1 ring-purple-400/20' : 'hover:bg-slate-50 border-transparent hover:border-slate-200/60'}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold truncate text-slate-900">{voice.name}</span>
-                          {voice.badge && <span className="text-[10px] font-medium px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">{voice.badge}</span>}
-                        </div>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{voice.dialect.split(/[•\-]/)[1]?.trim() || voice.dialect}</p>
+                        <span className="text-[11px] font-semibold text-slate-900 truncate block">{voice.name}</span>
+                        <span className="text-[10px] text-slate-400 truncate block">{voice.dialect.split(/[•\-]/)[1]?.trim() || voice.dialect}</span>
                       </div>
+                      {voice.badge && <span className="text-[9px] px-1 py-0 rounded bg-slate-100 text-slate-500 border border-slate-200/60 shrink-0 ml-1">{voice.badge}</span>}
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button type="button" onClick={(e) => handlePreviewVoice(e, voice)} className={`p-1.5 rounded-xl border transition cursor-pointer ${isPreviewing ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border-slate-200/80'}`} title={t.listenPreviewTooltip}>
-                        {isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className={`w-3.5 h-3.5 ${isRTL ? 'mr-0.5' : 'ml-0.5'}`} />}
-                      </button>
-                    </div>
+                    <button type="button" onClick={(e) => handlePreviewVoice(e, voice)} className={`p-1 rounded-lg transition cursor-pointer shrink-0 ${isPreviewing ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`} title={t.listenPreviewTooltip}>
+                      {isPreviewing ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className={`w-3 h-3 ${isRTL ? '' : 'ml-0.5'}`} />}
+                    </button>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          <div className="shrink-0 bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-900"><Sliders className="w-4 h-4 text-purple-600" /><span>{t.activeVoiceHeader}</span></div>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200/70 font-semibold">{currentVoice.gender === 'female' ? t.voiceGenderFemale : t.voiceGenderMale}</span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs relative shrink-0">
-                  <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-5 h-5 text-purple-600" />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-500 border-2 border-white rounded-full" />
+          {/* Controls */}
+          <div className="shrink-0 bg-white border border-slate-200/90 rounded-2xl p-3 shadow-xs">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-slate-900 truncate">{currentVoice.name}</h3>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">{currentVoice.dialect}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-900 truncate">{currentVoice.name}</span>
+                    <span className="text-[9px] px-1 py-0 rounded-full bg-purple-50 text-purple-700 border border-purple-200/60 font-medium">{currentVoice.gender === 'female' ? t.voiceGenderFemale : t.voiceGenderMale}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 truncate block">{currentVoice.dialect}</span>
                 </div>
               </div>
-              <button type="button" onClick={(e) => handlePreviewVoice(e, currentVoice)} className={`w-9 h-9 rounded-xl flex items-center justify-center border transition cursor-pointer shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs'}`} title={t.listenPreviewTooltip}>
-                {previewingVoiceId === currentVoice.id ? <Volume2 className="w-4 h-4 animate-pulse" /> : <Play className={`w-4 h-4 ${isRTL ? 'mr-0.5' : 'ml-0.5'}`} />}
+              <button type="button" onClick={(e) => handlePreviewVoice(e, currentVoice)} className={`p-1.5 rounded-lg transition cursor-pointer shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`} title={t.listenPreviewTooltip}>
+                {previewingVoiceId === currentVoice.id ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className={`w-3.5 h-3.5 ${isRTL ? '' : 'ml-0.5'}`} />}
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="p-3 bg-white border border-slate-200/70 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">{t.speedLabel}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-num font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-xs">{speed.toFixed(1)}x</span>
-                    {speed !== 1.0 && (<button type="button" onClick={() => setSpeed(1.0)} className="text-slate-400 hover:text-slate-700 transition cursor-pointer" title={t.resetTooltip}><RotateCcw className="w-3 h-3" /></button>)}
-                  </div>
-                </div>
-                <input id="slider-speed" type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600" />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px]"><span className="text-slate-500">{t.speedLabel}</span><span className="font-num font-bold text-slate-900 bg-slate-100 px-1.5 py-0 rounded text-[10px]">{speed.toFixed(1)}x</span></div>
+                <input type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" />
               </div>
-              <div className="p-3 bg-white border border-slate-200/70 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">{t.pitchLabel}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-num font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-xs">{pitch.toFixed(1)}</span>
-                    {pitch !== 1.0 && (<button type="button" onClick={() => setPitch(1.0)} className="text-slate-400 hover:text-slate-700 transition cursor-pointer" title={t.resetTooltip}><RotateCcw className="w-3 h-3" /></button>)}
-                  </div>
-                </div>
-                <input id="slider-pitch" type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600" />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px]"><span className="text-slate-500">{t.pitchLabel}</span><span className="font-num font-bold text-slate-900 bg-slate-100 px-1.5 py-0 rounded text-[10px]">{pitch.toFixed(1)}</span></div>
+                <input type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" />
               </div>
             </div>
           </div>
@@ -408,28 +390,28 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       </div>
 
-      <AudioPlayerDrawer
-        currentAudioUrl={currentAudioUrl}
-        currentVoice={currentVoice}
-        isPlaying={isPlaying}
-        togglePlay={togglePlay}
-        currentTime={currentTime}
-        audioDuration={audioDuration}
-        lastLatency={lastLatency}
-        isConvertingMp3={isConvertingMp3}
-        conversionStatus={conversionStatus}
-        mp3Size={mp3Size}
-        wavSize={wavSize}
-        compressionRatio={compressionRatio}
-        mp3Url={mp3Url}
-        audioRef={audioRef}
-        canvasRef={canvasRef}
-        handleTimeUpdate={handleTimeUpdate}
-        onEnded={() => setIsPlaying(false)}
-        onClose={() => { setIsPlaying(false); setCurrentAudioUrl(null); }}
-        isRTL={isRTL}
-        t={t}
-      />
+      {/* INLINE AUDIO PLAYER — Full width, compact, fixed at bottom */}
+      {currentAudioUrl && (
+        <div className="shrink-0 bg-white border-t border-slate-200 px-4 py-2 flex items-center gap-3 w-full">
+          <button onClick={togglePlay} className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 transition cursor-pointer hover:bg-purple-500">
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+          </button>
+          <div className="flex-1 min-w-0">
+            <canvas ref={canvasRef} width={400} height={24} className="w-full h-6" />
+          </div>
+          <span className="text-[10px] text-slate-500 font-num shrink-0">{currentTime.toFixed(1)}s / {audioDuration.toFixed(1)}s</span>
+          {lastLatency && <span className="text-[10px] text-slate-400 shrink-0 hidden sm:block">{lastLatency}ms</span>}
+          {mp3Url ? (
+            <a href={mp3Url} download={`sawtify_${currentVoice.id}_${Date.now()}.mp3`} className="p-1.5 text-slate-500 hover:text-purple-600 transition cursor-pointer shrink-0"><Download className="w-3.5 h-3.5" /></a>
+          ) : isConvertingMp3 ? (
+            <RefreshCw className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0" />
+          ) : (
+            <a href={currentAudioUrl} download={`sawtify_${currentVoice.id}_${Date.now()}.wav`} className="p-1.5 text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0"><Download className="w-3.5 h-3.5" /></a>
+          )}
+          <button onClick={() => { setIsPlaying(false); setCurrentAudioUrl(null); }} className="p-1 text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0"><X className="w-3.5 h-3.5" /></button>
+          <audio ref={audioRef} src={currentAudioUrl} onTimeUpdate={handleTimeUpdate} onEnded={() => setIsPlaying(false)} className="hidden" />
+        </div>
+      )}
 
     </div>
   );
