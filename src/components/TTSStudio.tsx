@@ -12,6 +12,7 @@ import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview } from '../services/api';
 import { convertWavToMp3, formatBytes } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
+import { AudioPlayerDrawer } from './AudioPlayerDrawer';
 
 interface TTSStudioProps {
   balance: number;
@@ -318,13 +319,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`h-full flex flex-col gap-4 sm:gap-5 min-h-0 ${currentAudioUrl ? 'pb-28 sm:pb-24' : ''}`}>
       
       {/* Insufficient Balance Alert Banner */}
       {insufficientAlert && (
         <div 
           id="alert-insufficient-points"
-          className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs"
+          className="shrink-0 bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs"
         >
           <div className="flex items-center gap-3">
             <div className="p-2 bg-rose-100 rounded-xl text-rose-600 shrink-0">
@@ -351,8 +352,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
       )}
 
 
-      {/* SCRIPT EDITOR — désormais en pleine largeur, priorité au texte */}
-      <div>
+      {/* SCRIPT EDITOR — hauteur fixe, ne grandit pas avec le texte */}
+      <div className="shrink-0">
           {/* Main White Studio Canvas */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs relative transition-all duration-200 focus-within:border-purple-500/60 focus-within:ring-4 focus-within:ring-purple-500/5 space-y-4">
             
@@ -405,16 +406,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
               </div>
             </div>
 
-            {/* Immersive Textarea */}
+            {/* Immersive Textarea — hauteur fixe, défilement interne si texte long */}
             <div className="relative">
               <textarea
                 ref={textareaRef}
                 id="script-input-textarea"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                rows={7}
+                rows={5}
                 placeholder={t.scriptPlaceholder}
-                className="w-full p-2 text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none text-base sm:text-lg leading-relaxed resize-y font-normal"
+                className="w-full p-2 text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none text-base sm:text-lg leading-relaxed resize-none font-normal"
               />
 
               <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} bottom-0 flex items-center gap-1.5`}>
@@ -461,15 +462,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
           </div>
       </div>
 
-      {/* Catalogue de voix + réglages/lecteur, sous l'éditeur */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Catalogue de voix + réglages, se partagent l'espace restant (pas de scroll de page) */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
 
-        {/* LEFT COLUMN: Catalogue de voix (plus large, liste plus lisible) */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* Organized Voice Catalog / Selector */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+        {/* LEFT COLUMN: Catalogue de voix — défilement interne uniquement */}
+        <div className="lg:col-span-7 min-h-0 flex flex-col">
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col min-h-0 flex-1">
             
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
                 <Layers className="w-4 h-4 text-purple-600" />
                 <span>{t.catalogHeader}</span>
@@ -503,7 +503,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
             </div>
 
             {/* Category Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+            <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto py-2.5 scrollbar-none text-[11px]">
               <button
                 type="button"
                 onClick={() => setCategoryFilter('all')}
@@ -561,8 +561,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
               </button>
             </div>
 
-            {/* Voice List Strip */}
-            <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-1">
+            {/* Voice List Strip — seule zone qui défile dans cette colonne */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
               {filteredVoices.map((voice) => {
                 const isSelected = voice.id === selectedVoiceId;
                 const isPreviewing = previewingVoiceId === voice.id;
@@ -628,8 +628,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Réglages de la voix active + lecteur audio */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* RIGHT COLUMN: Réglages de la voix active */}
+        <div className="lg:col-span-5 min-h-0 overflow-y-auto">
           {/* Active Voice Summary & Modulator Card */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs space-y-4">
             
@@ -761,149 +761,36 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({
             </div>
 
           </div>
-          {/* Dynamic Audio Player & Waveform Studio */}
-          {currentAudioUrl && (
-            <div 
-              id="audio-player-container"
-              className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs space-y-3 animate-in fade-in"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
-                  <span className="text-xs font-semibold text-slate-800">
-                    {currentVoice.name} • {t.audioPlayerHeader}
-                  </span>
-                </div>
-                {lastLatency && (
-                  <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                    {t.latencyLabel} : <span className="font-num font-semibold text-slate-800">{lastLatency}</span>ms
-                  </span>
-                )}
-              </div>
-
-              {/* Waveform Canvas */}
-              <div className="h-12 bg-slate-50 rounded-xl p-2 border border-slate-200/80 flex items-center justify-center">
-                <canvas
-                  ref={canvasRef}
-                  width={520}
-                  height={40}
-                  className="w-full h-full"
-                />
-              </div>
-
-              <audio
-                ref={audioRef}
-                src={currentAudioUrl}
-                onTimeUpdate={handleTimeUpdate}
-                onEnded={() => setIsPlaying(false)}
-                className="hidden"
-              />
-
-              {/* Playback Controls & Conversion Status */}
-              <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
-                
-                {/* Transport bar */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button
-                      id="btn-play-pause-audio"
-                      onClick={togglePlay}
-                      className="w-10 h-10 rounded-xl bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white flex items-center justify-center transition cursor-pointer shadow-xs"
-                      title={isPlaying ? 'Pause' : 'Play'}
-                    >
-                      {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className={`w-4 h-4 fill-current ${isRTL ? 'mr-0.5' : 'ml-0.5'}`} />}
-                    </button>
-                    <div className="text-xs text-slate-600">
-                      <span className="font-num text-slate-900 font-bold">{currentTime.toFixed(1)}s</span> / <span className="font-num">{audioDuration.toFixed(1)}s</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="hidden sm:inline">{t.audioQuality}</span>
-                  </div>
-                </div>
-
-                {/* MP3 Conversion State */}
-                {isConvertingMp3 && (
-                  <div 
-                    id="ffmpeg-converting-indicator"
-                    className="flex items-center justify-between px-3.5 py-2.5 bg-purple-50/70 border border-purple-200/80 rounded-2xl text-xs text-purple-900"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-600 shrink-0" />
-                      <span>{conversionStatus || t.convertingStatus}</span>
-                    </div>
-                    <span className="text-[11px] text-purple-700 font-medium">{t.compressionLabel}</span>
-                  </div>
-                )}
-
-                {/* Download Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                  <div className="flex items-center gap-2 text-xs">
-                    {mp3Size > 0 ? (
-                      <>
-                        <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
-                          <FileAudio className="w-3.5 h-3.5 text-purple-600" />
-                          MP3 • <span className="font-num">{formatBytes(mp3Size)}</span>
-                        </span>
-                        {compressionRatio > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-semibold text-[11px] border border-purple-200/60">
-                            <Zap className="w-3 h-3" />
-                            <span className="font-num">-{compressionRatio}%</span>
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-slate-500 text-[11px]">
-                        WAV : <span className="font-num">{formatBytes(wavSize)}</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Lossless WAV */}
-                    {currentAudioUrl && (
-                      <a
-                        id="btn-download-wav"
-                        href={currentAudioUrl}
-                        download={`sawtify_${currentVoice.id}_${Date.now()}.wav`}
-                        className="px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-medium transition cursor-pointer"
-                        title={t.downloadWav}
-                      >
-                        Format .WAV ({formatBytes(wavSize)})
-                      </a>
-                    )}
-
-                    {/* Compressed MP3 */}
-                    {mp3Url ? (
-                      <a
-                        id="btn-download-mp3"
-                        href={mp3Url}
-                        download={`sawtify_${currentVoice.id}_${Date.now()}.mp3`}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition cursor-pointer shadow-xs"
-                        title={t.downloadMp3}
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>{t.downloadMp3}</span>
-                      </a>
-                    ) : (
-                      <button
-                        disabled={isConvertingMp3}
-                        className="px-4 py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-not-allowed"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>{t.convertingStatus}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
         </div>
 
       </div>
+
+      {/* Lecteur audio en tiroir depuis le bas — apparaît une fois la génération terminée */}
+      <AudioPlayerDrawer
+        currentAudioUrl={currentAudioUrl}
+        currentVoice={currentVoice}
+        isPlaying={isPlaying}
+        togglePlay={togglePlay}
+        currentTime={currentTime}
+        audioDuration={audioDuration}
+        lastLatency={lastLatency}
+        isConvertingMp3={isConvertingMp3}
+        conversionStatus={conversionStatus}
+        mp3Size={mp3Size}
+        wavSize={wavSize}
+        compressionRatio={compressionRatio}
+        mp3Url={mp3Url}
+        audioRef={audioRef}
+        canvasRef={canvasRef}
+        handleTimeUpdate={handleTimeUpdate}
+        onEnded={() => setIsPlaying(false)}
+        onClose={() => {
+          setIsPlaying(false);
+          setCurrentAudioUrl(null);
+        }}
+        isRTL={isRTL}
+        t={t}
+      />
 
     </div>
   );

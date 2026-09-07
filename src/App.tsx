@@ -267,7 +267,7 @@ function AppContent() {
   }
 
   return (
-    <div className={`min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
+    <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
       
       {/* Product Header with 3 tabs: Studio, History, Pricing */}
       <Header
@@ -291,7 +291,9 @@ function AppContent() {
       {/* Main Container */}
       <main 
         key={language}
-        className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 transition-opacity duration-150 ${
+        className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-150 ${
+          activeTab === 'studio' ? 'min-h-0 overflow-hidden flex flex-col py-4 sm:py-5' : 'py-6 sm:py-8'
+        } ${
           isTransitioning ? 'opacity-0' : 'opacity-100 lang-fade-enter'
         }`}
       >
