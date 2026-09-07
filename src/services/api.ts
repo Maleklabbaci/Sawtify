@@ -80,7 +80,44 @@ export async function requestVoicePreview(voiceId: string, speed: number = 1.0, 
   const synth = await generateSyntheticTTS("Bonjour et bienvenue sur Sawtify", getLocaleForVoice(voiceId), speed, pitch);
   return synth.url;
 }
+export async function requestEnhanceText(text: string, region = 'general'): Promise<any> {
+  const token = localStorage.getItem('sawtify_token') || '';
+  const res = await fetch('/api/v1/llm/enhance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ text, region })
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Erreur enhance'); }
+  return res.json();
+}
 
+export async function requestGenerateScript(product: string, style = 'excited', region = 'general'): Promise<any> {
+  const token = localStorage.getItem('sawtify_token') || '';
+  const res = await fetch('/api/v1/llm/generate-script', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ product, style, region })
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Erreur script'); }
+  return res.json();
+}
+
+export async function sendAIFeedback(payload: {
+  output_text: string;
+  rating: number;
+  type: 'script' | 'enhance';
+  region?: string;
+  sector?: string;
+  input_text?: string;
+}): Promise<any> {
+  const token = localStorage.getItem('sawtify_token') || '';
+  const res = await fetch('/api/ai/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
 /**
  * Client API principal pour la génération de synthèse vocale (TTS).
  */
