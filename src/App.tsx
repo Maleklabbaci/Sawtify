@@ -1,5 +1,4 @@
 import React, { useState, Suspense, lazy } from 'react';
-import { Zap } from 'lucide-react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
 import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
@@ -248,7 +247,7 @@ function AppContent() {
   return (
     <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
       
-      {/* Header */}
+      {/* Header (64px) */}
       <Header
         balance={balance}
         activeTab={activeTab}
@@ -272,7 +271,7 @@ function AppContent() {
         </div>
       )}
 
-      {/* Main Container */}
+      {/* Main Container : Prend tout l'espace restant de l'écran (100vh - 64px de Header) */}
       <main 
         key={language}
         className={`flex-1 w-full transition-opacity duration-150 ${
@@ -289,6 +288,7 @@ function AppContent() {
               balance={balance}
               onDeductPoints={handleDeductPoints}
               onOpenRecharge={() => setActiveTab('pricing')}
+              recentGenerations={generations}
             />
           )}
 
@@ -309,90 +309,6 @@ function AppContent() {
           )}
         </Suspense>
       </main>
-
-      {/* Pro SaaS Footer */}
-      <footer id="app-footer" className="bg-slate-900 text-slate-400 pt-12 pb-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 pb-8 border-b border-slate-800">
-            
-            {/* Col 1: Brand & Status */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center overflow-hidden">
-                  <img 
-                    src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" 
-                    alt="Logo Sawtify" 
-                    className="w-full h-full object-cover" 
-                  />
-                </div>
-                <span className="text-white font-bold">Sawtify</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {language === 'ar' ? 'منصة الذكاء الاصطناعي الصوتي بالدارجة الجزائرية.' : 'Plateforme de synthèse vocale IA en Darija Algérienne.'}
-              </p>
-              <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-900/30 w-fit px-2 py-1 rounded-full border border-emerald-800/50">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {language === 'ar' ? 'خوادم الذكاء الاصطناعي : 100% متصل' : 'Serveurs IA : 100% Opérationnels'}
-              </div>
-            </div>
-
-            {/* Col 2: Product */}
-            <div>
-              <h4 className="text-xs font-semibold text-slate-200 mb-3">{language === 'ar' ? 'المنتج' : 'Produit'}</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'استوديو صوتي' : 'Studio Vocal'}</a></li>
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'الأسعار والتعبئة' : 'Tarifs & Recharge'}</a></li>
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'السجل' : 'Historique'}</a></li>
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'مفاتيح API' : 'Clés API'}</a></li>
-              </ul>
-            </div>
-
-            {/* Col 3: Resources */}
-            <div>
-              <h4 className="text-xs font-semibold text-slate-200 mb-3">{language === 'ar' ? 'الموارد' : 'Ressources'}</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'أدلة الاستخدام' : 'Guides'}</a></li>
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">FAQ</a></li>
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'دعم واتساب' : 'Support WhatsApp'}</a></li>
-                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'الشروط' : 'CGU / Confidentialité'}</a></li>
-              </ul>
-            </div>
-
-            {/* Col 4: Payment */}
-            <div>
-              <h4 className="text-xs font-semibold text-slate-200 mb-3">{language === 'ar' ? 'الدفع الآمن' : 'Paiement'}</h4>
-              <div className="flex items-center gap-3 mt-2">
-                <div className="bg-white/10 border border-slate-700 rounded-lg px-3 py-2 text-[10px] font-bold text-slate-300 tracking-wider">CIB</div>
-                <div className="bg-white/10 border border-slate-700 rounded-lg px-2 py-2 text-[10px] font-bold text-slate-300 tracking-wider">Edahabia</div>
-              </div>
-              <p className="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
-                <Zap className="w-3 h-3" /> SSL/TLS Encrypted
-              </p>
-            </div>
-          </div>
-
-          {/* Sub-footer */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 text-[10px] text-slate-500">
-            <span>© {new Date().getFullYear()} Sawtify. All rights reserved. v1.4.2</span>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setLanguage('fr')} 
-                className={`px-2 py-0.5 rounded transition cursor-pointer ${language === 'fr' ? 'text-white bg-slate-700' : 'text-slate-500 hover:text-slate-300'}`}
-              >
-                FR
-              </button>
-              <button 
-                onClick={() => setLanguage('ar')} 
-                className={`px-2 py-0.5 rounded transition cursor-pointer ${language === 'ar' ? 'text-white bg-slate-700' : 'text-slate-500 hover:text-slate-300'}`}
-              >
-                AR
-              </button>
-            </div>
-          </div>
-
-        </div>
-      </footer>
 
     </div>
   );
