@@ -22,6 +22,7 @@ export interface TTSApiResponse {
   parsed_tags: string[];
   blob?: Blob;
   notice?: string;
+  notification?: string;
 }
 
 export interface VoicePreviewResponse {
@@ -31,14 +32,25 @@ export interface VoicePreviewResponse {
 }
 
 /**
- * Extrait de façon sécurisée le jeton de session actif de Supabase pour l'autorisation.
+ * Extrait de façon sécurisée le jeton de session actif de Supabase ou du localStorage pour l'autorisation.
  */
-async function getAuthHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
+async function getAuthHeaders(): Promise<HeadersInit> {
+  let token = '';
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      token = session.access_token;
+    }
+  } catch (err) {}
+  
+  if (!token) {
+    token = localStorage.getItem('sawtify_token') || '';
+  }
+
   return {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'Authorization': session ? `Bearer ${session.access_token}` : '',
+    'Authorization': token ? `Bearer ${token}` : '',
   };
 }
 
@@ -80,44 +92,7 @@ export async function requestVoicePreview(voiceId: string, speed: number = 1.0, 
   const synth = await generateSyntheticTTS("Bonjour et bienvenue sur Sawtify", getLocaleForVoice(voiceId), speed, pitch);
   return synth.url;
 }
-export async function requestEnhanceText(text: string, region = 'general'): Promise<any> {
-  const token = localStorage.getItem('sawtify_token') || '';
-  const res = await fetch('/api/v1/llm/enhance', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ text, region })
-  });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Erreur enhance'); }
-  return res.json();
-}
 
-export async function requestGenerateScript(product: string, style = 'excited', region = 'general'): Promise<any> {
-  const token = localStorage.getItem('sawtify_token') || '';
-  const res = await fetch('/api/v1/llm/generate-script', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ product, style, region })
-  });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Erreur script'); }
-  return res.json();
-}
-
-export async function sendAIFeedback(payload: {
-  output_text: string;
-  rating: number;
-  type: 'script' | 'enhance';
-  region?: string;
-  sector?: string;
-  input_text?: string;
-}): Promise<any> {
-  const token = localStorage.getItem('sawtify_token') || '';
-  const res = await fetch('/api/ai/feedback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify(payload)
-  });
-  return res.json();
-}
 /**
  * Client API principal pour la génération de synthèse vocale (TTS).
  */
@@ -199,15 +174,18 @@ export async function requestTTSGeneration(params: TTSApiRequest, currentBalance
 }
 
 /**
- * Service LLM : Réécriture magique d'un texte en Darija Algérienne structurée.
- * Coût : 2 points (déduits de manière sécurisée côté serveur).
+ * Service LLM : Réécriture magique d'un texte en Darija Algérienne (المحسن السحري).
+ * Coût : 2 points.
  */
-export async function requestEnhanceText(text: string): Promise<{ enhanced_text: string; points_cost: number; remaining_balance: number }> {
+export async function requestEnhanceText(
+  text: string, 
+  region = 'general'
+): Promise<{ enhanced_text: string; points_cost: number; remaining_balance: number; notification?: string }> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/v1/llm/enhance`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ text })
+    body: JSON.stringify({ text, region })
   });
 
   if (!response.ok) {
@@ -219,20 +197,25 @@ export async function requestEnhanceText(text: string): Promise<{ enhanced_text:
   return { 
     enhanced_text: data.enhanced_text, 
     points_cost: data.points_cost || 2,
-    remaining_balance: data.remaining_balance
+    remaining_balance: data.remaining_balance,
+    notification: data.notification
   };
 }
 
 /**
- * Service LLM : Générateur de scripts publicitaires E-commerce / TikTok / Services / Formations.
- * Coût : 5 points (déduits de manière sécurisée côté serveur).
+ * Service LLM : Générateur de scripts publicitaires TikTok (منشئ سيناريو).
+ * Coût : 5 points.
  */
-export async function requestGenerateScript(product: string, style: 'excited' | 'natural' | 'funny'): Promise<{ script: string; points_cost: number; remaining_balance: number }> {
+export async function requestGenerateScript(
+  product: string, 
+  style = 'excited', 
+  region = 'general'
+): Promise<{ script: string; points_cost: number; remaining_balance: number; notification?: string; sector_used?: string }> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/v1/llm/generate-script`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ product, style })
+    body: JSON.stringify({ product, style, region })
   });
 
   if (!response.ok) {
@@ -244,8 +227,36 @@ export async function requestGenerateScript(product: string, style: 'excited' | 
   return { 
     script: data.script, 
     points_cost: data.points_cost || 5,
-    remaining_balance: data.remaining_balance
+    remaining_balance: data.remaining_balance,
+    notification: data.notification,
+    sector_used: data.sector_used
   };
+}
+
+/**
+ * Envoie un avis (👍 / 👎) pour l'apprentissage automatique de l'IA.
+ */
+export async function sendAIFeedback(payload: {
+  output_text: string;
+  rating: number;
+  type: 'script' | 'enhance';
+  region?: string;
+  sector?: string;
+  input_text?: string;
+}): Promise<any> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/ai/feedback`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Erreur lors de l'envoi du feedback.");
+  }
+
+  return res.json();
 }
 
 function getLocaleForVoice(voiceId: string): string {
