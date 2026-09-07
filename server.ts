@@ -298,6 +298,7 @@ D. Appels à l'action (CTA au choix selon contexte) :
 - Renvoie UNIQUEMENT le texte final à vocaliser, sans commentaires ni guillemets.`;
 
   // 1. Route pour le "Bouton Magique" (2 points)
+  // 1. Route pour le "Bouton Magique" / المحسن السحري (2 points)
   const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
@@ -314,24 +315,43 @@ D. Appels à l'action (CTA au choix selon contexte) :
         return res.status(402).json({ error: "Solde de points insuffisant." });
       }
 
-      const enhancePrompt = `${LLM_SYSTEM_PROMPT}
+      const enhancePrompt = `Tu es un expert rédacteur TTS en Darija Algérienne.
 
-TÂCHE SPÉCIFIQUE : Réécris le texte suivant en Darija Algérienne fluide et naturelle.
-- Conserve le sens exact du message original.
-- Améliore le rythme pour la synthèse vocale.
-- Intègre les balises d'émotion là où elles renforcent l'impact.
+TÂCHE : Réécris et optimise le texte ci-dessous pour qu'il soit naturel et captivant à l'oral.
 
-Texte à réécrire :
+RÈGLES ABSOLUES :
+1. NE COUPE RIEN : garde TOUTES les idées et la longueur du texte original (même ordre de grandeur, ou un peu plus long).
+2. INTERDICTION de résumer. INTERDICTION de raccourcir un long texte en 2-3 phrases.
+3. CODE-SWITCHING : garde les mots FR/techniques en LATIN (WhatsApp, Instagram, TikTok, Facebook, livraison, service, formation, ivision, etc.).
+4. Ajoute des balises d'émotion au bon endroit : [excited], [natural], [calm], [whisper], [fast].
+5. Aucun titre, aucune note, aucun markdown (* #), aucun commentaire du type "TTS Refinement".
+6. Renvoie UNIQUEMENT le texte final à vocaliser.
+
+Texte original :
 ${text}`;
 
-      const enhancedText = await callGeminiTextAPI(enhancePrompt, 0.7);
+      let enhancedText = await callGeminiTextAPI(enhancePrompt, 0.3);
+
+      // Nettoyage anti-parasites
+      enhancedText = enhancedText
+        .replace(/\*+/g, "")
+        .replace(/^#+\s*.*$/gm, "")
+        .replace(/(TTS\s*Refinement|Refinement|Note|Remarque)\s*:?/gi, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+      // Sécurité : si l'IA a trop raccourci, on garde l'original amélioré minimalement
+      if (enhancedText.length < text.length * 0.5) {
+        console.warn("[LLM Enhance] Réponse trop courte, fallback partiel");
+        enhancedText = text;
+      }
 
       const reduction = await deductCredits(userId, pointsCost);
       const finalBalance = reduction.success ? reduction.remaining : currentBalance;
 
-      return res.json({ 
-        success: true, 
-        enhanced_text: enhancedText, 
+      return res.json({
+        success: true,
+        enhanced_text: enhancedText,
         points_cost: pointsCost,
         remaining_balance: finalBalance
       });
@@ -343,7 +363,7 @@ ${text}`;
   app.post("/api/v1/llm/enhance", handleLLMEnhance);
   app.post("/api/llm/enhance", handleLLMEnhance);
 
-  // 2. Route pour le Générateur de Scripts (5 points)
+  // 2. Route pour le Générateur de Scripts (5 points) — 30 à 40 secondes
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
@@ -362,24 +382,32 @@ ${text}`;
 
       const scriptPrompt = `${LLM_SYSTEM_PROMPT}
 
-TÂCHE SPÉCIFIQUE : Génère un script de vente ou de promotion de 15 à 30 secondes pour le produit, service ou sujet suivant.
+TÂCHE SPÉCIFIQUE : Génère un script oral COMPLET pour un Reel / TikTok de **30 à 40 secondes**.
 
-Le script doit OBLIGATOIREMENT suivre cette structure :
-1. Un HOOK (accroche de 3 secondes) commençant par [excited] pour stopper le scroll.
-2. Une section SOLUTION commençant par [natural] ou [calm] présentant le problème et la solution.
-3. Un CALL-TO-ACTION ultra incitatif commençant par [excited] ou [whisper] adapté au contexte.
+RÈGLES STRICTES :
+- Longueur cible : **90 à 130 mots** (environ 30–40 secondes à voix haute).
+- Texte LONG et COMPLET, pas un mini-résumé.
+- Structure OBLIGATOIRE :
+  1. HOOK (3–5s) avec [excited]
+  2. PROBLÈME + SOLUTION (15–20s) avec [natural] ou [calm]
+  3. BÉNÉFICES / PREUVE (5–8s)
+  4. CTA final fort (5s) avec [excited] ou [whisper]
+- Darija algérienne + mots FR en latin (livraison, WhatsApp, Instagram, etc.)
+- Aucun titre, aucun markdown, aucun commentaire.
+- Renvoie UNIQUEMENT le script final prêt à vocaliser.
 
-Produit, service ou sujet pour le script :
-${product} (Style souhaité: ${style || 'excited'})`;
+Produit / service / sujet :
+${product}
+Style : ${style || "excited"}`;
 
-      const scriptText = await callGeminiTextAPI(scriptPrompt, 0.85);
+      const scriptText = await callGeminiTextAPI(scriptPrompt, 0.7);
 
       const reduction = await deductCredits(userId, pointsCost);
       const finalBalance = reduction.success ? reduction.remaining : currentBalance;
 
-      return res.json({ 
-        success: true, 
-        script: scriptText, 
+      return res.json({
+        success: true,
+        script: scriptText,
         points_cost: pointsCost,
         remaining_balance: finalBalance
       });
@@ -388,6 +416,11 @@ ${product} (Style souhaité: ${style || 'excited'})`;
       return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" });
     }
   };
+  app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
+  app.post("/api/llm/generate-script", handleLLMGenerateScript);
+  
+
+  
   app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
   app.post("/api/llm/generate-script", handleLLMGenerateScript);
 
