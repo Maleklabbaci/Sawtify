@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
@@ -53,9 +52,6 @@ async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boo
   return { credited: true, newBalance: data?.new_balance };
 }
 
-/**
- * Déduit de manière atomique et sécurisée les points d'un utilisateur dans la base de données.
- */
 async function deductCredits(userId: string, amount: number): Promise<{ success: boolean; remaining?: number; error?: string }> {
   if (!supabaseClient) return { success: false, error: "Base de données inaccessible." };
   try {
@@ -146,7 +142,7 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
   else if (originalVoiceId === "voice_faycal") { performancePrompt = isFemale ? "اقرئي النص التالي بأسلوب تجاري مقنع، بصوت أنثوي واثق ومباشر." : "اقرأ النص التالي بأسلوب تجاري مقنع، بصوت ذكوري واثق ومباشر."; }
   else if (originalVoiceId === "voice_layla") { performancePrompt = "اقرئي النص التالي بأسلوب عصري ومشرق، بصوت أنثوي حيوي وخفيف وسريع."; }
   else if (originalVoiceId === "voice_nour") { performancePrompt = "اقرئي النص التالي بأسلوب لطيف، بصوت أنثوي ناعم وهادئ وواضح."; }
-  else { performancePrompt = isFemale ? "أنت ممثلة صوت جزائرية محترفة. اقرئي النص التالي بدارجة جزائرية أصيلة، بصوت أنثوي دافئ وطبيعي. تنفسي بشكل طبيعي بين الجمل، وتجنبي تماماً النبرة الآلية." : "أنت ممثل صوت جزائري محترف. اقرأ النص التالي بدارجة جزائرية أصيلة، بصوت ذكوري واثق وطبيعي. تتنفس بشكل طبيعي بين الجمل، وتجنب تماماً النبرة الآلية."; }
+  else { performancePrompt = isFemale ? "أنت ممثلة صوت جزائرية محترفة. اقرئي النص التالي بدارجة جزائرية أصيلة، بصوت أنثوي دافئ وطبيعي. تنفسي بشكل طبيعي entre les phrases، وتجنبي تماماً النبرة الآلية." : "أنت ممثل صوت جزائري محترف. اقرأ النص التالي بدارجة جزائرية أصيلة، بصوت ذكوري واثق وطبيعي. تتنفس بشكل طبيعي entre les phrases، وتجنب تماماً النبرة الآلية."; }
 
   if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
@@ -156,14 +152,12 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[TTS] Appel Gemini (tentative ${attempt}) voix: ${selectedVoiceName} | style: ${originalVoiceId}`);
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${apiKey}`;
       const response = await fetch(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: enrichedSpeechPrompt }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } } } } }) });
       if (!response.ok) { const errBody = await response.text(); throw new Error(`Gemini API Error (${response.status}): ${errBody}`); }
       const responseJson = await response.json(); const pcmBase64 = responseJson.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (pcmBase64 && pcmBase64.length > 50) { console.log(`[TTS] Succès Gemini TTS: ${pcmBase64.length} caractères base64 reçus.`); return { pcmBuffer: Buffer.from(pcmBase64, "base64"), error: null }; }
-      console.warn(`[TTS Attempt ${attempt}] Aucun PCM audio renvoyé.`);
-    } catch (err: any) { lastError = err; console.warn(`[TTS Attempt ${attempt}/${maxRetries}] Erreur Gemini:`, err.message || err); if (attempt < maxRetries) { const delay = 400 * Math.pow(2, attempt - 1) + Math.random() * 150; await new Promise((resolve) => setTimeout(resolve, delay)); } }
+      if (pcmBase64 && pcmBase64.length > 50) { return { pcmBuffer: Buffer.from(pcmBase64, "base64"), error: null }; }
+    } catch (err: any) { lastError = err; if (attempt < maxRetries) { const delay = 400 * Math.pow(2, attempt - 1) + Math.random() * 150; await new Promise((resolve) => setTimeout(resolve, delay)); } }
   }
   return { pcmBuffer: null, error: lastError?.message || "Erreur de génération audio" };
 }
@@ -241,7 +235,7 @@ D. Appels à l'action (CTA au choix selon contexte) :
 - Renvoie UNIQUEMENT le texte final à vocaliser, sans commentaires ni guillemets.`;
 
   // 1. Route pour le "Bouton Magique" (Darija Text Enhancer) — Coût : 2 points
-  app.post("/api/v1/llm/enhance", async (req, res) => {
+  const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
@@ -251,7 +245,6 @@ D. Appels à l'action (CTA au choix selon contexte) :
         return res.status(400).json({ error: "Texte manquant ou invalide" });
       }
 
-      // Déduction de points sécurisée en base de données
       const pointsCost = 2;
       const reduction = await deductCredits(userId, pointsCost);
       if (!reduction.success) {
@@ -264,7 +257,6 @@ TÂCHE SPÉCIFIQUE : Réécris le texte suivant en Darija Algérienne fluide et 
 - Conserve le sens exact du message original.
 - Améliore le rythme pour la synthèse vocale.
 - Intègre les balises d'émotion là où elles renforcent l'impact.
-- Si le texte original contient déjà des balises, optimise leur placement.
 
 Texte à réécrire :
 ${text}`;
@@ -295,10 +287,12 @@ ${text}`;
       console.error("[LLM Enhance Error]", err);
       return res.status(500).json({ error: "Erreur lors de l'amélioration du texte" });
     }
-  });
+  };
+  app.post("/api/v1/llm/enhance", handleLLMEnhance);
+  app.post("/api/llm/enhance", handleLLMEnhance);
 
   // 2. Route pour le Générateur de Scripts TikTok / Reels — Coût : 5 points
-  app.post("/api/v1/llm/generate-script", async (req, res) => {
+  const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
@@ -308,7 +302,6 @@ ${text}`;
         return res.status(400).json({ error: "Nom du produit ou service manquant" });
       }
 
-      // Déduction de points sécurisée en base de données
       const pointsCost = 5;
       const reduction = await deductCredits(userId, pointsCost);
       if (!reduction.success) {
@@ -323,20 +316,6 @@ Le script doit OBLIGATOIREMENT suivre cette structure :
 1. Un HOOK (accroche de 3 secondes) commençant par [excited] pour stopper le scroll.
 2. Une section SOLUTION commençant par [natural] ou [calm] présentant le problème et la solution.
 3. Un CALL-TO-ACTION ultra incitatif commençant par [excited] ou [whisper] adapté au contexte.
-
-EXEMPLES D'ADAPTATION PAR NICHE :
-
-- Exemple E-commerce :
-Input: "Vente de baskets de sport."
-Output: [excited] شوف معايا هاد les baskets de sport حاجة خيالية! [natural] confortables بزاف وqualité TOP... [fast] livraison متوفرة والدفع à la livraison! [whisper] commander ديلوك قبل ما يخلص الـ stock!
-
-- Exemple Service / Formation :
-Input: "Formation en marketing digital à Alger."
-Output: [excited] حاب تكبّر le business ديالك؟ [natural] les inscriptions pour la formation en marketing digital راهي مفتوحة في Alger... [calm] formation 100% pratique مع des experts... [whisper] اتصل بنا ديلوك وréserve la place ديالك!
-
-- Exemple Contenu / Application :
-Input: "Lancement d'une nouvelle application."
-Output: [excited] خبر شباب! [natural] l'application جديدة ديالنا راهي disponible ديلوك... [natural] سهلة وتسهلك حياتك كل يوم... [whisper] كليكي sur le lien وtélécharge-ها ديلوك!
 
 Produit, service ou sujet pour le script :
 ${product} (Style souhaité: ${style || 'excited'})`;
@@ -367,7 +346,9 @@ ${product} (Style souhaité: ${style || 'excited'})`;
       console.error("[LLM Script Generator Error]", err);
       return res.status(500).json({ error: "Erreur lors de la génération du script" });
     }
-  });
+  };
+  app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
+  app.post("/api/llm/generate-script", handleLLMGenerateScript);
 
   app.post("/api/slickpay/create-invoice", async (req, res) => {
     try {
