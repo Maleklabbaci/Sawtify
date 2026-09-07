@@ -188,7 +188,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, [text, balance, currentVoice.id, speed, pitch, onDeductPoints, t.convertingStatus]);
 
   const togglePlay = useCallback(() => {
-7 if (!audioRef.current || !currentAudioUrl) return;
+    if (!audioRef.current || !currentAudioUrl) return;
     if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); } 
     else { audioRef.current.play(); setIsPlaying(true); }
   }, [isPlaying, currentAudioUrl]);
