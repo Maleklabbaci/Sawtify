@@ -175,12 +175,12 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
 /* ==========================================================================
    LLM CALLER HELPER (MULTI-MODÈLES ROBUSTE AVEC LOGS DÉTAILLÉS)
    ========================================================================== */
-
 async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Clé GEMINI_API_KEY manquante sur Render");
 
-  const models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+  // Liste des modèles à essayer (avec fallback)
+  const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
   let allErrors: string[] = [];
 
   for (const model of models) {
@@ -223,7 +223,6 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   // Affiche la VRAIE raison de Google (quota, clé invalide, etc.)
   throw new Error(`Google API: ${allErrors.join(" | ")}`);
 }
-
 
 
 async function startServer() {
