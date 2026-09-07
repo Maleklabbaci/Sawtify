@@ -24,6 +24,9 @@ import {
   Check,
   Layers,
   Building2,
+  FileText,
+  SpellCheck2,
+  Languages,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -33,6 +36,28 @@ interface LandingPageProps {
   language: "fr" | "ar";
   setLanguage: (lang: "fr" | "ar") => void;
 }
+
+/* ---------------------------------------------------
+   Fix bug RTL : isole les chiffres pour éviter
+   l'inversion bidi (ex: "1 350" -> "350 1")
+--------------------------------------------------- */
+const Num = ({
+  children,
+  className = "",
+  style = {},
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) => (
+  <span
+    dir="ltr"
+    style={{ unicodeBidi: "isolate", ...style }}
+    className={`inline-block ${className}`}
+  >
+    {children}
+  </span>
+);
 
 /* ---------------------------------------------------
    Web Audio API — vraie waveform réactive
@@ -77,7 +102,7 @@ function useAudioVisualizer(audioEl: HTMLAudioElement | null, isPlaying: boolean
 }
 
 /* ---------------------------------------------------
-   Transition courbe entre sections (fix découpage brutal)
+   Transition courbe entre sections
 --------------------------------------------------- */
 const SectionWave = ({
   fromColor = "#0f0818",
@@ -107,6 +132,9 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
 };
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
+
+const LOGO_URL = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
+const HERO_BG_URL = "https://i.ibb.co/0VVp7FNR/HEROBACKGROUND.jpg";
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -185,7 +213,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ? "بدون اشتراك شهري. النقاط لا تنتهي صلاحيتها أبداً."
       : "Sans abonnement mensuel. Les points achetés n'expirent jamais.",
 
-    faqKicker: isRTL ? "٠٤ — الأسئلة" : "FAQ",
+    faqKicker: isRTL ? "الأسئلة" : "FAQ",
     faqTitle: isRTL ? "الأسئلة الشائعة" : "Ce qu'on nous demande souvent",
   };
 
@@ -210,6 +238,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     ? ["سريع", "ذكاء اصطناعي", "دارجة", "جودة استوديو"]
     : ["Rapide", "IA native", "Darija", "Studio quality"];
 
+  const quickFeatures = [
+    {
+      icon: FileText,
+      title: isRTL ? "توليد سكريبت مستهدف" : "Générateur de script ciblé",
+      desc: isRTL
+        ? "سكريبتات مصممة خصيصاً للسوق الجزائري، جاهزة للتوليد الصوتي مباشرة."
+        : "Scripts pensés pour le marché algérien, prêts à être transformés en voix.",
+    },
+    {
+      icon: SpellCheck2,
+      title: isRTL ? "مصحّح ذكي" : "Correcteur intelligent",
+      desc: isRTL
+        ? "يصحح نصك تلقائياً قبل التوليد لضمان نطق مثالي."
+        : "Corrige automatiquement ton texte avant génération pour un rendu parfait.",
+    },
+    {
+      icon: Languages,
+      title: isRTL ? "دعم اللهجات" : "Support des lahjat",
+      desc: isRTL
+        ? "عدة لهجات جزائرية متاحة، وليس دارجة عامة موحدة."
+        : "Plusieurs lahjat algériennes disponibles, pas une darija générique.",
+    },
+  ];
+
   const voices = [
     { id: "amin", name: isRTL ? "أمين" : "Amin", tag: isRTL ? "تجاري • دارجة" : "Commercial · Darija", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
     { id: "yasmine", name: isRTL ? "ياسمين" : "Yasmine", tag: isRTL ? "إعلان • ناعم" : "Publicité · Douce", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
@@ -217,40 +269,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
   ];
 
+  /* ---------------------------------------------------
+     Pricing — 4 plans (100 RESTAURÉ), sans détail générations
+  --------------------------------------------------- */
   const pricingPlans = [
     {
       icon: Zap,
       points: "100",
       bonus: null as string | null,
       price: "500",
-      gens: "5",
       desc: isRTL ? "مثالي للتجربة وإنشاء 5 أصوات." : "Idéal pour tester et créer 5 voix-off haute définition.",
       popular: false,
     },
     {
       icon: Zap,
       points: "220",
-      bonus: "+10%",
+      bonus: "10%+",
       price: "1 000",
-      gens: "11",
-      desc: isRTL ? "الأكثر طلباً في الجزائر. +20 نقطة مجانية." : "Le plus populaire en Algérie. +20 points offerts (11 générations).",
+      desc: isRTL ? "الأكثر طلباً في الجزائر. +20 نقطة مجانية." : "Le plus populaire en Algérie. +20 points offerts.",
       popular: true,
     },
     {
       icon: Layers,
       points: "600",
-      bonus: "+20%",
+      bonus: "20%+",
       price: "2 500",
-      gens: "30",
       desc: isRTL ? "للمبدعين المنتظمين والوكالات." : "Pour les créateurs réguliers et agences. +100 points offerts.",
       popular: false,
     },
     {
       icon: Building2,
       points: "1 350",
-      bonus: "+35%",
+      bonus: "35%+",
       price: "5 000",
-      gens: "67",
       desc: isRTL ? "حجم موسّع ودعم مخصص وأولوية." : "Volume étendu, support dédié et accès prioritaire aux modèles.",
       popular: false,
     },
@@ -269,19 +320,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       icon: Waves,
       label: isRTL ? "استوديو رقمي" : "Studio numérique",
       title: isRTL ? "بيئة إنتاج متكاملة" : "Environnement de production complet",
-      big: true,
     },
     {
       img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
       icon: Camera,
       label: isRTL ? "إنتاج المحتوى" : "Production de contenu",
-      big: false,
     },
     {
       img: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1200&auto=format&fit=crop",
       icon: Headphones,
       label: isRTL ? "مونتاج احترافي" : "Montage professionnel",
-      big: false,
     },
   ];
 
@@ -325,9 +373,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ========================================================= */}
       <header className="absolute top-0 inset-x-0 z-50">
         <div className="mx-auto max-w-6xl px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-white/90 overflow-hidden flex items-center justify-center">
-              <span className="text-purple-700 font-bold text-sm">S</span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-sm shrink-0">
+              <img src={LOGO_URL} alt="Sawtify" className="w-full h-full object-cover" />
             </div>
             <span className="font-semibold text-white text-[15px] tracking-tight">Sawtify</span>
           </div>
@@ -357,11 +405,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </header>
 
       {/* =========================================================
-          HERO
+          HERO — nouvelle image de fond
       ========================================================= */}
       <section id="home" className="relative h-[780px] sm:h-[860px] overflow-hidden bg-[#0f0818]">
         <img
-          src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1600&auto=format&fit=crop"
+          src={HERO_BG_URL}
           alt="Sawtify hero"
           className="absolute inset-0 w-full h-full object-cover object-top"
         />
@@ -432,6 +480,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
+          QUICK FEATURES — Script IA / Correcteur / Lahjat
+      ========================================================= */}
+      <section className="bg-white border-b border-[#141118]/10">
+        <div className="mx-auto max-w-6xl px-6 py-10 sm:py-12">
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="grid sm:grid-cols-3 gap-4 sm:gap-6"
+          >
+            {quickFeatures.map((f) => (
+              <motion.div
+                key={f.title}
+                variants={fadeUp}
+                className="flex items-start gap-3 p-4 rounded-2xl hover:bg-purple-50/60 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                  <f.icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-semibold text-sm text-[#141118] mb-1">{f.title}</div>
+                  <p className="text-xs text-[#141118]/55 leading-relaxed">{f.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* =========================================================
           PARTNERSHIPS / STATS
       ========================================================= */}
       <section className="relative bg-[#0f0818] pt-16 pb-20">
@@ -469,18 +548,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               { n: "1,200+", l: t.stat3 },
             ].map((s) => (
               <motion.div key={s.l} variants={fadeUp}>
-                <div
+                <Num
                   className="text-3xl sm:text-5xl font-medium tracking-tight text-violet-400"
                   style={{ fontFamily: "'Fraunces', Georgia, serif" }}
                 >
                   {s.n}
-                </div>
+                </Num>
                 <div className="text-[11px] sm:text-sm text-white/40 mt-1.5">{s.l}</div>
               </motion.div>
             ))}
           </motion.div>
 
-          {/* LOGO CLOUD */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -504,12 +582,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          TRANSITION COURBE — fix du découpage brutal
+          TRANSITION COURBE
       ========================================================= */}
       <SectionWave fromColor="#0f0818" toColor="#F7F5F1" />
 
       {/* =========================================================
-          SHOWCASE PHOTOS PRO — bento asymétrique
+          SHOWCASE PHOTOS PRO
       ========================================================= */}
       <section className="bg-[#F7F5F1] pt-4 pb-24 sm:pb-28">
         <div className="mx-auto max-w-6xl px-6">
@@ -585,7 +663,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          ABOUT — texte + carte flottante Performance
+          ABOUT
       ========================================================= */}
       <section id="about" className="relative bg-[#F7F5F1] pb-24 sm:pb-28">
         <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-12 items-center">
@@ -632,12 +710,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               <div className="text-xs text-white/40 mb-1">{t.perfSubLabel}</div>
               <div className="flex items-end gap-3 mb-2">
-                <span
+                <Num
                   className="text-4xl font-medium tracking-tight text-violet-400"
                   style={{ fontFamily: "'Fraunces', Georgia, serif" }}
                 >
                   {t.perfStat}
-                </span>
+                </Num>
               </div>
               <div className="h-1.5 w-full rounded-full bg-white/10 mb-2 overflow-hidden">
                 <motion.div
@@ -731,7 +809,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          CTA PERFORMANT — bandeau intermédiaire
+          CTA PERFORMANT
       ========================================================= */}
       <section className="relative bg-[#141118] overflow-hidden">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-violet-600/20 blur-[100px] rounded-full pointer-events-none" />
@@ -778,7 +856,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          PRICING
+          PRICING — 4 plans, sans détail générations
       ========================================================= */}
       <section id="pricing" className="bg-[#FAFAFC] py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-6">
@@ -835,25 +913,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                   {p.bonus && (
                     <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 rounded-full px-2.5 py-1">
-                      {p.bonus} Bonus
+                      <Num>{p.bonus}</Num> Bonus
                     </span>
                   )}
                 </div>
 
-                <div className="text-2xl font-semibold text-[#141118] mb-1.5">{p.points} Points</div>
+                <div className="text-2xl font-semibold text-[#141118] mb-1.5">
+                  <Num>{p.points}</Num> {isRTL ? "نقطة" : "Points"}
+                </div>
                 <p className="text-[13px] text-[#141118]/50 leading-relaxed mb-5 min-h-[42px]">{p.desc}</p>
 
-                <div className="flex items-baseline gap-1.5 mb-1">
-                  <span
+                <div className="flex items-baseline gap-1.5 mb-6">
+                  <Num
                     className="text-3xl font-bold tracking-tight text-[#141118]"
                     style={{ fontFamily: "'Fraunces', Georgia, serif" }}
                   >
                     {p.price}
-                  </span>
+                  </Num>
                   <span className="text-sm text-[#141118]/40 font-medium">DZD</span>
-                </div>
-                <div className="text-sm font-medium text-violet-700 mb-5">
-                  +{p.points} points (~{p.gens} {isRTL ? "توليد" : "générations"})
                 </div>
 
                 <div className="h-px bg-[#141118]/10 mb-5" />
@@ -875,9 +952,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       : "bg-[#141118]/5 text-[#141118] hover:bg-[#141118]/10"
                   }`}
                 >
-                  {p.popular
-                    ? `✓ ${isRTL ? "النقاط المختارة" : "Points sélectionnés"}`
-                    : `${isRTL ? "اختيار" : "Choisir"} ${p.points} ${isRTL ? "نقطة" : "points"}`}
+                  {p.popular ? (
+                    `✓ ${isRTL ? "النقاط المختارة" : "Points sélectionnés"}`
+                  ) : (
+                    <>
+                      {isRTL ? "اختيار" : "Choisir"} <Num>{p.points}</Num> {isRTL ? "نقطة" : "points"}
+                    </>
+                  )}
                 </button>
               </motion.div>
             ))}
@@ -908,7 +989,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     className="w-full py-5 flex items-start gap-4 text-start"
                   >
                     <span className="text-xs font-mono text-[#141118]/30 pt-0.5 w-6 shrink-0">
-                      {String(i + 1).padStart(2, "0")}
+                      <Num>{String(i + 1).padStart(2, "0")}</Num>
                     </span>
                     <span className="flex-1 font-medium text-[15px] text-[#141118]">{f.q}</span>
                     <ChevronDown
@@ -938,8 +1019,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <footer className="bg-[#0f0818] text-white/50">
         <div className="mx-auto max-w-6xl px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-violet-400 flex items-center justify-center">
-              <span className="text-[#0f0818] font-bold text-sm">S</span>
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-white shrink-0">
+              <img src={LOGO_URL} alt="Sawtify" className="w-full h-full object-cover" />
             </div>
             <span className="font-semibold text-white text-sm">Sawtify</span>
             <span className="text-white/30 text-sm">© 2026</span>
