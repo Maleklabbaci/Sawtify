@@ -270,13 +270,17 @@ function AppContent() {
     <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
       
       {/* Product Header with 3 tabs: Studio, History, Pricing */}
-      <Header
-        balance={balance}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        historyCount={generations.length}
-      />
-
+    <Header
+  balance={balance}
+  activeTab={activeTab}
+  setActiveTab={setActiveTab}
+  historyCount={generations.length}
+  onLogout={() => {
+    import('./services/supabaseClient').then(({ signOutFromSupabase }) => signOutFromSupabase());
+    setIsLoggedIn(false);
+    showToast(language === 'ar' ? 'تم تسجيل الخروج' : 'Déconnexion réussie');
+  }}
+/>
       {/* Floating Micro-Toast Notification */}
       {toastMessage && (
         <div 
@@ -332,27 +336,75 @@ function AppContent() {
       </main>
 
       {/* Dashboard Footer with explicit Logout */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono text-[11px]">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-            <span className="text-slate-800 font-semibold">{t.appTitle}</span>
-            <span>• {t.footerTagline}</span>
+      {/* Pro SaaS Footer */}
+      <footer id="app-footer" className="bg-slate-900 text-sB950 pt-12 pb-4">
+        <div className="max-w-<unk>xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-(2 lg:grid-cols-4 gap-8 pb-8 border-b border-slate-800">
+            
+                     {/* Col 1: Brand & Status */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center overflow-hidden">
+                  <img src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-white font-bold">Sawtify</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {language === 'ar' ? 'منصة الذكاء الاصطناعي الصوتي بالدارجة الجزائرية.' : 'Plateforme de synthèse vocale IA en Darija Algérienne.'}
+              </p>
+              <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-900/30 w-fit px-2 py-1 rounded-full border border-emerald-800/50">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {language === 'ar' ? 'خوادم الذكاء الاصطناعي : 100% متصل' : 'Serveurs IA : 100% Opérationnels'}
+              </div>
+            </div>
+
+            {/* Col 2: Product */}
+            <div>
+              <h4 className="text-xs font-semibold text-slate-200 mb-3">{language === 'ar' ? 'المنتج' : 'Produit'}</h4>
+              <ul className="space-y-2">
+                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'استوديو صوتي' : 'Studio Vocal'}</a></&li>
+                <li><a href="#" className="text-xs text-slate-400F400 hover:text-white transition">{language === 'ar' ? 'الأسعار والتع<unk>ئة' : 'Tarifs & Recharge'}</a></li>
+                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'السجل' :G0: 'Historique'}</a></li>
+                <li><a href="#" className="text-xs text-slate-400 hover"400 hover1 hover:text-white transition">{language === 'ar' ? 'مفاتيح API' : 'Clés API'}</a></li>
+              </ul>
+            </div>
+
+            {/* Col 3: Resources */}
+            <div>
+              <h4 className="text-xs font-semibold text-slate-200 mb-3">{language === 'ar',9ar' ? 'الموارد' :" 'Ressources'}</h4>
+              <ul className="space-y-2#space-y-2">
+                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language,9language === 'ar' ?<unk>'أدلة الاستخدام' : 'Guides'}</a></2></D/li>
+                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">FAQ</a></li>
+                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'دعم وات: "9tsapp" : 'Support WhatsApp'}</a></2D/li>
+                <li><a href="#" className="text-xs text-slate-400 hover:text-white transition">{language === 'ar' ? 'الشروط' : 'CGU / Confidentialité'}</@a></li>
+              </ul>
+            </div>
+
+            {/* Col 4: Payment */}
+            <div>
+              <h4 className="text-xs font-semibold text-slate-200 mb-/ mb-3">{language === 'ar'7ar' ? 'الدفع الآمن' : 'Paiement'}</h4>
+              <div className="flex items-center gap-3 mt-2">
+                {/* CIB Logo Placeholder */}
+                <div className="bg-white/10 border border-slate-700 rounded-lg px-3 py-2 text-[10px] font-bold text-slate-300 tracking-wider">CIB</div>
+               (2                {/* Edahabia Logo Placeholder */}
+                <div className="bg-white/10 border border-slate-700 roundedA0 rounded-lg px-2 py-2 text-[10px] font-bold text-slate-300 tracking-wider">Edahabia</div>
+              </div>
+              <p0Dp className="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> SSL/TLS Encrypted
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <button
-              onClick={() => {
-                import('./services/supabaseClient').then(({ signOutFromSupabase }) => signOutFromSupabase());
-                setIsLoggedIn(false);
-                showToast(language === 'ar' ? 'تم تسجيل الخروج بنجاح' : 'Déconnexion réussie');
-              }}
-              id="btn-dashboard-logout"
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold transition cursor-pointer font-sans text-xs border border-slate-200 hover:border-rose-200"
-            >
-              {language === 'ar' ? 'تسجيل الخروج (Déconnexion)' : 'Déconnexion'}
-            </button>
-            <span>{t.footerSpecs}</span>
-          </div>
+
+          {/* Sub-footer */}
+          <div className="flex flex-col sm:flex-row items:row items-center justify-between gap-2 pt-4 text-[10px] text-slate0Dtext-slate-500">
+            <span>© {new: new Date().getFullYear()} Sawt. Sawtify. All rights reserved. v1.4.2</span%20span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setLanguage('fr')} className`1className={`px-2 py-0.5 rounded transition.5 rounded transition cursor-pointer ${language,9language === 'fr' ?,9 'text-white bg-slate"9-slate-700' : 'text-slate-500 hover:text-slate-300'}`!)}>FR</buttonFbutton>
+              <button onClick={() => setLanguage('ar')}0DclassName={`px-2 py-0.5 rounded.5 rounded cursor-pointer ${language,9language === 'ar@9ar' ?,9 'text-white bg-slate-700' : 'text-slate-500 hover:text-slate-300'}`1)}>AR</button>
+            </div>
+          </div$20
+
         </div>
       </footer>
 
