@@ -180,7 +180,7 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   if (!apiKey) throw new Error("Clé GEMINI_API_KEY manquante sur Render");
 
   // Liste des modèles à essayer (avec fallback)
-  const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
+const models = ["gemini-3.6-flash", "gemini-3.1-flash", "gemini-2.5-flash"];
   let allErrors: string[] = [];
 
   for (const model of models) {
