@@ -134,7 +134,27 @@ const fadeUp = {
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 
 const LOGO_URL = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
-const HERO_BG_URL = "https://i.ibb.co/0VVp7FNR/HEROBACKGROUND.jpg";
+const HERO_BG_URL = "https://i.ibb.co/zTwPD6gj/HEROBACKGROUND.jpg";
+
+/* ---------------------------------------------------
+   Particule flottante décorative pour le CTA
+--------------------------------------------------- */
+const FloatingParticle = ({ delay = 0, x = "10%", size = 4 }: { delay?: number; x?: string; size?: number }) => (
+  <motion.div
+    className="absolute rounded-full bg-violet-300/60"
+    style={{ left: x, width: size, height: size, bottom: "10%" }}
+    animate={{
+      y: [0, -120, 0],
+      opacity: [0, 1, 0],
+    }}
+    transition={{
+      duration: 4 + Math.random() * 2,
+      repeat: Infinity,
+      delay,
+      ease: "easeInOut",
+    }}
+  />
+);
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -269,9 +289,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
   ];
 
-  /* ---------------------------------------------------
-     Pricing — 4 plans (100 RESTAURÉ), sans détail générations
-  --------------------------------------------------- */
   const pricingPlans = [
     {
       icon: Zap,
@@ -405,7 +422,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </header>
 
       {/* =========================================================
-          HERO — nouvelle image de fond
+          HERO
       ========================================================= */}
       <section id="home" className="relative h-[780px] sm:h-[860px] overflow-hidden bg-[#0f0818]">
         <img
@@ -480,30 +497,70 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          QUICK FEATURES — Script IA / Correcteur / Lahjat
+          QUICK FEATURES — animée
       ========================================================= */}
-      <section className="bg-white border-b border-[#141118]/10">
-        <div className="mx-auto max-w-6xl px-6 py-10 sm:py-12">
+      <section className="relative bg-white border-b border-[#141118]/10 overflow-hidden">
+        <div className="mx-auto max-w-6xl px-6 py-14 sm:py-16">
           <motion.div
             initial="hidden"
             whileInView="show"
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: "-60px" }}
             variants={stagger}
-            className="grid sm:grid-cols-3 gap-4 sm:gap-6"
+            className="grid sm:grid-cols-3 gap-5 sm:gap-6"
           >
-            {quickFeatures.map((f) => (
+            {quickFeatures.map((f, i) => (
               <motion.div
                 key={f.title}
-                variants={fadeUp}
-                className="flex items-start gap-3 p-4 rounded-2xl hover:bg-purple-50/60 transition-colors"
+                variants={{
+                  hidden: { opacity: 0, y: 40, scale: 0.95 },
+                  show: {
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+                  },
+                }}
+                whileHover={{ y: -6 }}
+                className="group relative rounded-2xl border border-[#141118]/8 bg-white p-6 cursor-default transition-shadow hover:shadow-[0_20px_40px_rgba(124,58,237,0.12)]"
               >
-                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                  <f.icon className="w-5 h-5" />
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                <div className="relative mb-4">
+                  <motion.div
+                    animate={{ scale: [1, 1.06, 1] }}
+                    transition={{
+                      duration: 2.5,
+                      repeat: Infinity,
+                      repeatType: "loop",
+                      delay: i * 0.3,
+                      ease: "easeInOut",
+                    }}
+                    className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center relative z-10 group-hover:bg-purple-600 group-hover:text-white transition-colors duration-300"
+                  >
+                    <f.icon className="w-6 h-6" />
+                  </motion.div>
+                  <motion.div
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0, 0.4] }}
+                    transition={{
+                      duration: 2.5,
+                      repeat: Infinity,
+                      delay: i * 0.3,
+                      ease: "easeInOut",
+                    }}
+                    className="absolute inset-0 w-12 h-12 rounded-xl bg-purple-400/30"
+                  />
                 </div>
-                <div>
-                  <div className="font-semibold text-sm text-[#141118] mb-1">{f.title}</div>
-                  <p className="text-xs text-[#141118]/55 leading-relaxed">{f.desc}</p>
-                </div>
+
+                <h3 className="relative font-semibold text-[15px] text-[#141118] mb-2">{f.title}</h3>
+                <p className="relative text-[13px] text-[#141118]/55 leading-relaxed">{f.desc}</p>
+
+                <motion.div
+                  initial={{ width: "0%" }}
+                  whileInView={{ width: "40%" }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.8, delay: 0.3 + i * 0.1 }}
+                  className="h-[2px] bg-purple-500 mt-4 rounded-full"
+                />
               </motion.div>
             ))}
           </motion.div>
@@ -809,54 +866,139 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          CTA PERFORMANT
+          CTA PERFORMANT — carte unique, ultra animée
       ========================================================= */}
-      <section className="relative bg-[#141118] overflow-hidden">
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-violet-600/20 blur-[100px] rounded-full pointer-events-none" />
-        <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20 relative">
-          <div className="grid md:grid-cols-[1.4fr,1fr] gap-8 items-center">
+      <section className="bg-[#141118] py-4">
+        <div className="mx-auto max-w-6xl px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="relative rounded-[2rem] overflow-hidden border border-white/10"
+          >
+            {/* Fond dégradé animé en boucle */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <div className="inline-flex items-center gap-2 rounded-full bg-violet-500/15 border border-violet-500/30 px-3 py-1 text-xs font-medium text-violet-300 mb-4">
-                <Zap className="w-3.5 h-3.5" />
-                {t.ctaBadge}
-              </div>
-              <h2
-                className="text-2xl sm:text-3xl font-medium tracking-tight text-white leading-[1.2] mb-3"
-                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-              >
-                {t.ctaTitle}
-              </h2>
-              <p className="text-white/50 text-sm sm:text-base">{t.ctaSub}</p>
-            </motion.div>
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(120deg, #1a0f2e 0%, #241640 25%, #1a0f2e 50%, #2a1650 75%, #1a0f2e 100%)",
+                backgroundSize: "200% 200%",
+              }}
+              animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
+              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+            />
 
+            {/* Blobs glow qui bougent en boucle */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="flex md:justify-end"
-            >
-              <button
+              className="absolute w-72 h-72 bg-violet-600/30 blur-[100px] rounded-full pointer-events-none"
+              animate={{
+                x: ["-10%", "10%", "-10%"],
+                y: ["-20%", "10%", "-20%"],
+              }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+              style={{ top: "-30%", right: "-10%" }}
+            />
+            <motion.div
+              className="absolute w-72 h-72 bg-fuchsia-600/20 blur-[100px] rounded-full pointer-events-none"
+              animate={{
+                x: ["10%", "-10%", "10%"],
+                y: ["10%", "-10%", "10%"],
+              }}
+              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+              style={{ bottom: "-30%", left: "-10%" }}
+            />
+
+            {/* Particules flottantes */}
+            <FloatingParticle delay={0} x="15%" size={4} />
+            <FloatingParticle delay={1} x="35%" size={3} />
+            <FloatingParticle delay={2} x="55%" size={5} />
+            <FloatingParticle delay={0.5} x="75%" size={3} />
+            <FloatingParticle delay={1.5} x="90%" size={4} />
+
+            {/* Bordure lumineuse animée */}
+            <motion.div
+              className="absolute inset-0 rounded-[2rem] pointer-events-none"
+              style={{
+                border: "1px solid transparent",
+                background:
+                  "linear-gradient(90deg, transparent, rgba(167,139,250,0.4), transparent) border-box",
+                WebkitMask:
+                  "linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)",
+                WebkitMaskComposite: "xor",
+                maskComposite: "exclude",
+              }}
+              animate={{ backgroundPositionX: ["-200%", "200%"] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            />
+
+            <div className="relative flex flex-col md:flex-row items-center justify-between gap-8 px-8 sm:px-12 py-12 sm:py-14">
+              <div className="text-center md:text-start flex-1">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5 }}
+                  className="inline-flex items-center gap-2 rounded-full bg-violet-500/15 border border-violet-500/30 px-3 py-1.5 text-xs font-medium text-violet-300 mb-5"
+                >
+                  <motion.span
+                    animate={{ rotate: [0, 15, -15, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                  </motion.span>
+                  {t.ctaBadge}
+                </motion.div>
+
+                <motion.h2
+                  initial={{ opacity: 0, y: 15 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                  className="text-2xl sm:text-4xl font-medium tracking-tight text-white leading-[1.2] mb-3"
+                  style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                >
+                  {t.ctaTitle}
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 15 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="text-white/50 text-sm sm:text-base max-w-md mx-auto md:mx-0"
+                >
+                  {t.ctaSub}
+                </motion.p>
+              </div>
+
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={onSigninClick}
-                className="group inline-flex items-center gap-3 rounded-full bg-violet-500 text-white pe-2 ps-6 py-2 text-sm font-semibold hover:bg-violet-400 transition-colors shadow-[0_10px_40px_rgba(139,92,246,0.4)]"
+                className="group relative inline-flex items-center gap-3 rounded-full bg-white text-[#141118] pe-2 ps-7 py-2.5 text-sm font-semibold shrink-0"
               >
-                {t.ctaButton}
-                <span className="w-9 h-9 rounded-full bg-white text-violet-600 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
+                {/* Halo pulsant derrière le bouton */}
+                <motion.span
+                  className="absolute inset-0 rounded-full bg-white"
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <span className="relative">{t.ctaButton}</span>
+                <span className="relative w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
                   <ArrowIcon className="w-4 h-4" />
                 </span>
-              </button>
-            </motion.div>
-          </div>
+              </motion.button>
+            </div>
+          </motion.div>
         </div>
       </section>
 
       {/* =========================================================
-          PRICING — 4 plans, sans détail générations
+          PRICING
       ========================================================= */}
       <section id="pricing" className="bg-[#FAFAFC] py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-6">
