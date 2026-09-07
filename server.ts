@@ -178,73 +178,52 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
 
 async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY manquante");
+  if (!apiKey) throw new Error("Clé GEMINI_API_KEY manquante sur Render");
 
-  // Modèles réellement disponibles pour generateContent (texte)
-  const models = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-exp",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro",
-  ];
-
-  let lastError = "";
+  const models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+  let allErrors: string[] = [];
 
   for (const model of models) {
     try {
-      // URL correcte : v1beta (pour les modèles récents)
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      console.log(`[LLM] Tentative avec ${model}...`);
+      console.log(`[LLM] Tentative avec : ${model}...`);
 
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // ✅ Structure CORRIGÉE : "contents" sans "role", juste "parts"
-          contents: [
-            {
-              parts: [{ text: promptText }]
-            }
-          ],
+          contents: [{ parts: [{ text: promptText }] }],
           generationConfig: {
-            temperature,
-            maxOutputTokens: 1024,
-          },
-        }),
+            temperature: temperature,
+            maxOutputTokens: 1024
+          }
+        })
       });
 
       if (response.ok) {
-        const data: any = await response.json();
-        let result =
-          data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ||
-          data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-          "";
-
-        result = result
-          .replace(/```[a-z]*/g, "")
-          .replace(/```/g, "")
-          .replace(/^["«»']|["«»']$/g, "")
-          .trim();
-
-        if (result && result.length > 0) {
-          console.log(`[LLM ✅] ${model} OK (${result.length} caractères)`);
+        const data = await response.json();
+        let result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        result = result.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+        if (result) {
+          console.log(`[LLM Succès] Réponse reçue avec ${model}`);
           return result;
         }
-        lastError = `${model}: réponse vide`;
       } else {
-        const errBody = await response.text();
-        console.error(`[LLM ❌ ${model} - ${response.status}]:`, errBody);
-        lastError = `${model} (${response.status}): ${errBody.slice(0, 200)}`;
+        const errJson = await response.json().catch(() => null);
+        const errMsg = errJson?.error?.message || `Erreur HTTP ${response.status}`;
+        console.error(`[LLM Erreur ${model}] :`, errMsg);
+        allErrors.push(`${model}: ${errMsg}`);
       }
     } catch (e: any) {
-      console.error(`[LLM Exception ${model}]:`, e?.message || e);
-      lastError = e?.message || String(e);
+      console.error(`[LLM Exception ${model}] :`, e.message || e);
+      allErrors.push(`${model}: ${e.message || String(e)}`);
     }
   }
 
-  throw new Error(`Échec sur tous les modèles Gemini. Dernier détail: ${lastError}`);
+  // Affiche la VRAIE raison de Google (quota, clé invalide, etc.)
+  throw new Error(`Google API: ${allErrors.join(" | ")}`);
 }
+
 
 
 async function startServer() {
