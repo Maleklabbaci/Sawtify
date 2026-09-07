@@ -5,13 +5,20 @@ import {
   Play,
   Pause,
   ShieldCheck,
-  Volume2,
   Sparkles,
   Mic,
   Zap,
   Download,
   ChevronDown,
-  CheckCircle2,
+  Volume2,
+  Youtube,
+  Instagram,
+  Music2,
+  Video,
+  Megaphone,
+  Mic2,
+  Star,
+  Rocket,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -23,13 +30,9 @@ interface LandingPageProps {
 }
 
 /* ---------------------------------------------------
-   HOOK — Vraie waveform liée à l'audio (Web Audio API)
+   Web Audio API — vraie waveform réactive
 --------------------------------------------------- */
-function useAudioVisualizer(
-  audioEl: HTMLAudioElement | null,
-  isPlaying: boolean,
-  barCount = 28
-) {
+function useAudioVisualizer(audioEl: HTMLAudioElement | null, isPlaying: boolean, barCount = 28) {
   const [bars, setBars] = useState<number[]>(Array(barCount).fill(14));
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>();
@@ -40,58 +43,39 @@ function useAudioVisualizer(
       setBars(Array(barCount).fill(14));
       return;
     }
-
     try {
       if (!ctxRef.current) {
-        ctxRef.current = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
+        ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       const ctx = ctxRef.current;
-
-      if (!sourceRef.current) {
-        sourceRef.current = ctx.createMediaElementSource(audioEl);
-      }
+      if (!sourceRef.current) sourceRef.current = ctx.createMediaElementSource(audioEl);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
       sourceRef.current.connect(analyser);
       analyser.connect(ctx.destination);
-
       const data = new Uint8Array(analyser.frequencyBinCount);
 
       const tick = () => {
         analyser.getByteFrequencyData(data);
-        const next = Array.from(data.slice(0, barCount)).map((v) =>
-          Math.max(12, (v / 255) * 100)
-        );
-        setBars(next);
+        setBars(Array.from(data.slice(0, barCount)).map((v) => Math.max(12, (v / 255) * 100)));
         rafRef.current = requestAnimationFrame(tick);
       };
       tick();
-
       return () => {
         cancelAnimationFrame(rafRef.current!);
         analyser.disconnect();
       };
-    } catch {
-      // fallback silencieux si l'API échoue (autoplay policies, etc.)
-    }
+    } catch {}
   }, [isPlaying, audioEl]);
 
   return bars;
 }
 
-/* ---------------------------------------------------
-   Variants d'animation réutilisables
---------------------------------------------------- */
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
   show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
 };
-
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-};
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -100,183 +84,83 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   setLanguage,
 }) => {
   const isRTL = language === "ar";
-  const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [scrolled, setScrolled] = useState(false);
-
   const bars = useAudioVisualizer(audioRef.current, playingId !== null);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (v) {
-      v.playbackRate = 1;
-      v.play().catch(() => {});
-    }
-  }, []);
 
   const ArrowIcon = ({ className = "w-4 h-4" }: { className?: string }) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
 
   const t = {
+    navHome: isRTL ? "الرئيسية" : "Accueil",
+    navServices: isRTL ? "الخدمات" : "Services",
     navAbout: isRTL ? "من نحن" : "À propos",
-    navVoices: isRTL ? "الأصوات" : "Voix",
-    navFeatures: isRTL ? "الميزات" : "Fonctionnalités",
-    navPricing: isRTL ? "الأسعار" : "Tarifs",
-    login: isRTL ? "دخول" : "Connexion",
-    start: isRTL ? "ابدأ الآن" : "Commencer",
-    kicker: isRTL ? "منصة الصوت الجزائرية" : "La plateforme vocale algérienne",
-    heroTitleA: isRTL ? "حوّل أي نص إلى" : "Vos textes deviennent",
-    heroTitleB: isRTL ? "صوت بشري أصيل" : "une voix humaine",
-    heroDesc: isRTL
-      ? "أنشئ تعليقات صوتية بالدارجة الجزائرية بجودة استوديو. سريعة، طبيعية، وجاهزة للإعلانات والريلز."
-      : "Voice-over en darija algérienne, qualité studio. Naturelles, rapides, prêtes pour vos pubs et reels — sans studio, sans comédien à réserver.",
-    ctaPrimary: isRTL ? "ابدأ مجاناً" : "Essayer gratuitement",
-    ctaSecondary: isRTL ? "استمع للأصوات" : "Écouter un exemple",
-    trustNote: isRTL
-      ? "50 نقطة مجانية. لا حاجة لبطاقة بنكية."
-      : "50 points offerts. Aucune carte bancaire requise.",
-    statsUsers: isRTL ? "مبدع نشط" : "Créateurs actifs",
-    statsVoices: isRTL ? "أصوات متاحة" : "Voix disponibles",
-    statsLatency: isRTL ? "زمن التوليد" : "Temps de génération",
-    statsLocal: isRTL ? "دفع محلي" : "Paiement local",
-    sectionVoicesKicker: isRTL ? "٠١ — الأصوات" : "01 — Les voix",
-    sectionVoices: isRTL ? "أصوات بعاطفة" : "Des voix avec",
-    sectionVoicesEm: isRTL ? "حقيقية." : "du caractère.",
-    sectionVoicesSub: isRTL
-      ? "كل صوت مسجّل ومدرّب على نبرات جزائرية أصيلة، وليس ترجمة آلية لصوت أجنبي."
-      : "Chaque voix est entraînée sur de vraies intonations algériennes — pas une traduction robotique d'un accent étranger.",
-    sectionFeaturesKicker: isRTL ? "٠٢ — الإمكانيات" : "02 — Capacités",
-    sectionFeatures: isRTL ? "مصمم للمبدعين" : "Conçu pour les",
-    sectionFeaturesEm: isRTL ? "الجزائريين." : "créateurs d'ici.",
-    pricingKicker: isRTL ? "٠٣ — الأسعار" : "03 — Tarifs",
-    pricingTitle: isRTL ? "ادفع فقط لما تستخدمه" : "Vous payez ce que vous utilisez",
-    pricingSub: isRTL
-      ? "بدون اشتراك شهري. النقاط لا تنتهي صلاحيتها أبداً."
-      : "Aucun abonnement mensuel. Les points achetés n'expirent jamais.",
-    faqKicker: isRTL ? "٠٤ — الأسئلة" : "04 — Questions",
-    faqTitle: isRTL ? "الأسئلة الشائعة" : "Ce qu'on nous demande souvent",
-    finalTitleA: isRTL ? "جاهز تسمع" : "Prêt à entendre",
-    finalTitleB: isRTL ? "صوتك؟" : "votre texte prendre vie ?",
-    finalSub: isRTL ? "50 نقطة مجانية عند التسجيل — بدون بطاقة." : "50 points offerts à l'inscription — sans carte bancaire.",
+    navMore: isRTL ? "المزيد" : "Plus",
+    cta: isRTL ? "ابدأ الآن" : "Commencer",
+
+    heroLine1: isRTL ? "صوت واضح." : "Voix claire.",
+    heroLine2: isRTL ? "عاطفة حقيقية." : "Émotion réelle.",
+    heroLine3: isRTL ? "أثر دائم." : "Impact durable.",
+    heroSub: isRTL
+      ? "نساعد المبدعين والعلامات التجارية على تحويل نصوصهم إلى أصوات ذكاء اصطناعي بالدارجة الجزائرية، طبيعية وجاهزة للاستخدام فوراً."
+      : "Nous aidons créateurs et marques à donner vie à leurs textes grâce à des voix IA en darija algérienne, naturelles et prêtes à l'emploi.",
+    viewDemo: isRTL ? "شاهد العرض" : "Voir la démo",
+    bookCall: isRTL ? "ابدأ مجاناً" : "Essayer gratuitement",
+
+    partnershipsLabel: isRTL ? "• شراكات" : "• Technologie",
+    partnershipsTitle: isRTL
+      ? "تقنية صوتية مصممة للمبدعين الجزائريين."
+      : "Une technologie vocale pensée pour les créateurs algériens.",
+    partnershipsDesc: isRTL
+      ? "من توليد السيناريو إلى التصدير النهائي، نجمع بين الذكاء الاصطناعي المتقدم والأصالة الثقافية لمساعدة المبدعين على الإنتاج أسرع دون التضحية بالجودة."
+      : "De la génération de script à l'export final, nous combinons IA de pointe et authenticité culturelle pour produire plus vite, sans sacrifier la qualité.",
+    stat1: isRTL ? "رضا المبدعين" : "Satisfaction créateurs",
+    stat2: isRTL ? "أصوات متاحة" : "Voix disponibles",
+    stat3: isRTL ? "مبدع نشط" : "Créateurs actifs",
+
+    aboutLabel: isRTL ? "• من نحن" : "• À propos",
+    aboutTitle: isRTL
+      ? "نساعد المبدعين على منح صوت بشري لأفكارهم."
+      : "Nous aidons les créateurs à donner une voix humaine à leurs idées.",
+    aboutDesc: isRTL
+      ? "Sawtify يجمع بين الذكاء الاصطناعي والأصالة الصوتية حتى يتمكن كل مبدع أو علامة تجارية من إنتاج تعليقات صوتية بالدارجة، دون استوديو أو حجز ممثل صوتي."
+      : "Sawtify combine intelligence artificielle et authenticité vocale pour que chaque créateur puisse produire des voix off en darija, sans studio ni comédien à réserver.",
+    learnMore: isRTL ? "اعرف أكثر" : "En savoir plus",
+
+    perfLabel: isRTL ? "الأداء" : "Performance",
+    perfSubLabel: isRTL ? "وقت الإنتاج" : "Temps de production",
+    perfStat: "-68%",
+    perfNote: isRTL ? "مقارنة بالتسجيل الاستوديو التقليدي" : "vs enregistrement studio classique",
   };
 
+  const badges = [
+    { icon: Sparkles, label: isRTL ? "ذكاء اصطناعي" : "IA native", color: "bg-violet-500", pos: "top-[20%] left-[10%] md:left-[18%]" },
+    { icon: Zap, label: isRTL ? "سريع" : "Ultra rapide", color: "bg-fuchsia-500", pos: "top-[18%] right-[8%] md:right-[16%]" },
+    { icon: Star, label: isRTL ? "احترافي" : "Qualité pro", color: "bg-indigo-500", pos: "top-[42%] right-[4%] md:right-[10%]" },
+    { icon: Rocket, label: isRTL ? "نمو أسرع" : "Grow faster", color: "bg-violet-400", pos: "top-[46%] left-[4%] md:left-[8%]" },
+    { icon: Mic, label: isRTL ? "دارجة أصيلة" : "Feel Darija", color: "bg-purple-500", pos: "top-[54%] right-[20%] md:right-[26%]" },
+  ];
+
+  const logos = [
+    { icon: Youtube, name: "YouTube" },
+    { icon: Music2, name: "TikTok" },
+    { icon: Instagram, name: "Instagram" },
+    { icon: Video, name: "Reels" },
+    { icon: Megaphone, name: "Ads" },
+    { icon: Mic2, name: "Podcasts" },
+  ];
+
+  const perfTags = isRTL
+    ? ["سريع", "ذكاء اصطناعي", "دارجة", "جودة استوديو"]
+    : ["Rapide", "IA native", "Darija", "Studio quality"];
+
   const voices = [
-    {
-      id: "amin",
-      name: isRTL ? "أمين" : "Amin",
-      tag: isRTL ? "تجاري • دارجة" : "Commercial · Darija",
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    },
-    {
-      id: "yasmine",
-      name: isRTL ? "ياسمين" : "Yasmine",
-      tag: isRTL ? "إعلان • ناعم" : "Publicité · Douce",
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    },
-    {
-      id: "khalid",
-      name: isRTL ? "خالد" : "Khalid",
-      tag: isRTL ? "وثائقي • عميق" : "Documentaire · Grave",
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-    },
-    {
-      id: "layla",
-      name: isRTL ? "ليلى" : "Layla",
-      tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique",
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-    },
+    { id: "amin", name: isRTL ? "أمين" : "Amin", tag: isRTL ? "تجاري • دارجة" : "Commercial · Darija", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+    { id: "yasmine", name: isRTL ? "ياسمين" : "Yasmine", tag: isRTL ? "إعلان • ناعم" : "Publicité · Douce", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+    { id: "khalid", name: isRTL ? "خالد" : "Khalid", tag: isRTL ? "وثائقي • عميق" : "Documentaire · Grave", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+    { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
   ];
-
-  const features = [
-    {
-      icon: Mic,
-      title: isRTL ? "دارجة أصيلة" : "Darija authentique",
-      desc: isRTL
-        ? "نبرات جزائرية حقيقية، مع تبديل طبيعي بين الفرنسية والعربية."
-        : "Vraies intonations algériennes, avec un code-switching FR/AR naturel, pas robotique.",
-    },
-    {
-      icon: Sparkles,
-      title: isRTL ? "محسّن السيناريو" : "Script enhancer",
-      desc: isRTL
-        ? "حسّن نصك تلقائياً للنطق الشفهي مع دلالات المشاعر."
-        : "Optimise automatiquement ton texte pour l'oral, avec des balises d'émotion.",
-    },
-    {
-      icon: Volume2,
-      title: isRTL ? "تحكم دقيق" : "Contrôle précis",
-      desc: isRTL
-        ? "السرعة، النبرة، الوقفات — تحكم كامل في كل تفصيل."
-        : "Vitesse, pitch, pauses : un contrôle total sur chaque détail du rendu.",
-    },
-    {
-      icon: Download,
-      title: isRTL ? "تصدير فوري" : "Export instantané",
-      desc: isRTL
-        ? "ملفات MP3 أو WAV جاهزة مباشرة للمونتاج."
-        : "Fichiers MP3 ou WAV, prêts à être glissés dans ton montage.",
-    },
-    {
-      icon: Zap,
-      title: isRTL ? "توليد سريع" : "Génération rapide",
-      desc: isRTL
-        ? "من النص إلى الصوت الجاهز في أقل من ثلاث ثوانٍ."
-        : "Du texte à la voix finalisée en moins de trois secondes.",
-    },
-    {
-      icon: ShieldCheck,
-      title: isRTL ? "دفع جزائري" : "Paiement 100% local",
-      desc: isRTL
-        ? "الذهبية وCIB عبر SATIM، بدون أي وسيط أجنبي."
-        : "Edahabia et CIB via SATIM — sans intermédiaire étranger.",
-    },
-  ];
-
-  const plans = [
-    {
-      name: "Starter",
-      price: "990",
-      points: "500",
-      desc: isRTL ? "للتجربة والبداية" : "Pour tester et démarrer",
-      popular: false,
-    },
-    {
-      name: "Pro",
-      price: "2 490",
-      points: "1 500",
-      desc: isRTL ? "للمبدعين النشطين" : "Pour les créateurs actifs",
-      popular: true,
-    },
-    {
-      name: "Agency",
-      price: "4 990",
-      points: "3 500",
-      desc: isRTL ? "للفرق والوكالات" : "Pour équipes et agences",
-      popular: false,
-    },
-  ];
-
-  const faqs = isRTL
-    ? [
-        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم. كل الملفات قابلة للاستخدام في الإعلانات، الريلز، اليوتيوب والمشاريع التجارية." },
-        { q: "كيف يعمل نظام النقاط؟", a: "تشتري رصيداً مرة واحدة. التوليد الصوتي = 20 نقطة. النقاط لا تنتهي صلاحيتها." },
-        { q: "هل تدعمون الذهبية و CIB؟", a: "نعم عبر SATIM. الدفع محلي بالدينار الجزائري." },
-        { q: "هل هناك اشتراك شهري؟", a: "لا. Sawtify نظام دفع مقابل الاستخدام فقط." },
-      ]
-    : [
-        { q: "Les voix sont-elles libres de droits ?", a: "Oui. Usage commercial autorisé : pubs, reels, YouTube, projets clients." },
-        { q: "Comment fonctionne le système de points ?", a: "Tu achètes un pack une fois. Une génération vocale coûte 20 points. Les points n'expirent jamais." },
-        { q: "Edahabia et CIB sont-ils acceptés ?", a: "Oui, via SATIM. Paiement 100% local, en dinars algériens." },
-        { q: "Y a-t-il un abonnement mensuel ?", a: "Non. Sawtify fonctionne uniquement en Pay-As-You-Go." },
-      ];
 
   const toggleVoice = (id: string, url: string) => {
     if (playingId === id) {
@@ -300,195 +184,289 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
     >
       {/* =========================================================
-          NAV — barre simple, pas de pilule flottante
+          HEADER — transparent, superposé sur l'image
       ========================================================= */}
-      <header
-        className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
-          scrolled ? "bg-white/95 backdrop-blur border-[#141118]/10" : "bg-white border-transparent"
-        }`}
-      >
-        <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-[#141118] overflow-hidden">
-              <img
-                src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg"
-                alt="Sawtify"
-                className="w-full h-full object-cover"
-              />
+      <header className="absolute top-0 inset-x-0 z-50">
+        <div className="mx-auto max-w-6xl px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-white/90 overflow-hidden flex items-center justify-center">
+              <span className="text-purple-700 font-bold text-sm">S</span>
             </div>
-            <span className="font-semibold tracking-tight text-[15px]">Sawtify</span>
+            <span className="font-semibold text-white text-[15px] tracking-tight">Sawtify</span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-[13.5px] text-[#141118]/60">
-            <a href="#voices" className="hover:text-[#141118] transition-colors">{t.navVoices}</a>
-            <a href="#features" className="hover:text-[#141118] transition-colors">{t.navFeatures}</a>
-            <a href="#pricing" className="hover:text-[#141118] transition-colors">{t.navPricing}</a>
+          <nav className="hidden md:flex items-center gap-8 text-[13px] font-medium text-white/80">
+            <a href="#home" className="hover:text-white transition-colors">{t.navHome}</a>
+            <a href="#voices" className="hover:text-white transition-colors">{t.navServices}</a>
+            <a href="#about" className="hover:text-white transition-colors">{t.navAbout}</a>
+            <a href="#pricing" className="hover:text-white transition-colors">{t.navMore}</a>
           </nav>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
-              className="w-8 h-8 rounded-md text-[11px] font-bold text-[#141118]/50 hover:text-[#141118] hover:bg-[#141118]/5 transition-colors"
-            >
-              {language === "fr" ? "AR" : "FR"}
-            </button>
-            <button
-              onClick={onLoginClick}
-              className="hidden sm:inline-flex px-3.5 py-2 text-[13.5px] font-medium text-[#141118]/70 hover:text-[#141118] transition-colors"
-            >
-              {t.login}
-            </button>
-            <button
-              onClick={onSigninClick}
-              className="inline-flex items-center gap-1.5 rounded-md bg-[#141118] text-white px-4 py-2 text-[13.5px] font-medium hover:bg-purple-700 transition-colors"
-            >
-              {t.start}
-            </button>
-          </div>
+          <button
+            onClick={onSigninClick}
+            className="rounded-full bg-white text-[#141118] px-5 py-2.5 text-[13px] font-semibold hover:bg-purple-100 transition-colors"
+          >
+            {t.cta}
+          </button>
         </div>
       </header>
 
       {/* =========================================================
-          HERO — asymétrique, typographie dominante
+          HERO — image + badges flottants + texte overlay
       ========================================================= */}
-      <section className="relative border-b border-[#141118]/10">
-        <div className="mx-auto max-w-6xl px-5 pt-16 sm:pt-24 pb-14">
+      <section id="home" className="relative h-[780px] sm:h-[860px] overflow-hidden bg-[#0f0818]">
+        {/* IMAGE ICI — remplace par ta photo/vidéo (voir recommandations) */}
+        <img
+          src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1600&auto=format&fit=crop"
+          alt="Sawtify hero"
+          className="absolute inset-0 w-full h-full object-cover object-top"
+        />
+
+        {/* Streak lumineux diagonal (remplace le vert par violet) */}
+        <div className="absolute -left-1/3 top-0 w-[160%] h-full bg-gradient-to-tr from-violet-200/25 via-transparent to-transparent blur-3xl rotate-12 pointer-events-none" />
+
+        {/* Overlay dégradé sombre violet */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a0f2e]/60 to-[#0f0818]" />
+
+        {/* Badges flottants */}
+        {badges.map((b, i) => (
           <motion.div
-            initial="hidden"
-            animate="show"
-            variants={stagger}
-            className="max-w-3xl"
+            key={b.label}
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 + i * 0.1 }}
+            className={`hidden sm:flex absolute ${b.pos} items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pe-3 ps-1 py-1 text-[11px] font-medium text-white shadow-lg`}
           >
-            <motion.div variants={fadeUp} className="flex items-center gap-2 mb-6 text-[13px] text-[#141118]/50">
-              <span className="w-4 h-px bg-purple-600" />
-              {t.kicker}
-            </motion.div>
+            <span className={`w-5 h-5 rounded-full ${b.color} flex items-center justify-center`}>
+              <b.icon className="w-3 h-3 text-white" />
+            </span>
+            {b.label}
+          </motion.div>
+        ))}
 
-            <motion.h1
-              variants={fadeUp}
-              className="text-[2.6rem] sm:text-6xl lg:text-[4.2rem] leading-[1.02] font-medium tracking-tight text-[#141118]"
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+        {/* Contenu texte */}
+        <div className="absolute inset-x-0 bottom-[64px] sm:bottom-[90px] px-6 text-center">
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+            className="text-4xl sm:text-6xl lg:text-[4rem] leading-[1.06] font-medium tracking-tight text-white mb-5"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+          >
+            {t.heroLine1}
+            <br />
+            {t.heroLine2}
+            <br />
+            {t.heroLine3}
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.35 }}
+            className="text-white/60 text-sm sm:text-base max-w-lg mx-auto mb-8"
+          >
+            {t.heroSub}
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.5 }}
+            className="flex items-center justify-center gap-3"
+          >
+            <button
+              onClick={onLoginClick}
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white px-5 py-3 text-sm font-medium hover:bg-white/20 transition-colors"
             >
-              {t.heroTitleA}
-              <br />
-              {t.heroTitleB.split(" ")[0]}{" "}
-              <span className="text-purple-700">
-                {t.heroTitleB.split(" ").slice(1).join(" ")}
-              </span>
-            </motion.h1>
-
-            <motion.p
-              variants={fadeUp}
-              className="mt-6 text-[#141118]/60 text-base sm:text-lg leading-relaxed max-w-xl"
+              <Play className="w-3.5 h-3.5" />
+              {t.viewDemo}
+            </button>
+            <button
+              onClick={onSigninClick}
+              className="inline-flex items-center gap-2 rounded-full bg-violet-400 text-[#140a24] px-6 py-3 text-sm font-semibold hover:bg-violet-300 transition-colors"
             >
-              {t.heroDesc}
-            </motion.p>
-
-            <motion.div variants={fadeUp} className="mt-8 flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={onSigninClick}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#141118] text-white px-6 py-3.5 text-sm font-medium hover:bg-purple-700 transition-colors"
-              >
-                {t.ctaPrimary}
-                <ArrowIcon />
-              </button>
-              <a
-                href="#voices"
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-[#141118]/15 px-6 py-3.5 text-sm font-medium text-[#141118] hover:border-[#141118]/40 transition-colors"
-              >
-                <Play className="w-3.5 h-3.5" />
-                {t.ctaSecondary}
-              </a>
-            </motion.div>
-
-            <motion.p variants={fadeUp} className="mt-5 text-xs text-[#141118]/40">
-              {t.trustNote}
-            </motion.p>
+              {t.bookCall}
+              <ArrowIcon />
+            </button>
           </motion.div>
         </div>
-
-        {/* Media — pleine largeur, sobre, pas de carte flottante */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="relative mx-auto max-w-6xl px-5 pb-16"
-        >
-          <div className="relative rounded-2xl overflow-hidden bg-[#141118] aspect-[16/8] sm:aspect-[16/6.5]">
-            <video
-              ref={videoRef}
-              src="https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-90"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#141118]/70 via-transparent to-transparent" />
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[#141118]/40">
-            <span>{isRTL ? "دارجة • عربية • مزيج فرنسي" : "Darija · Arabe · Mix français"}</span>
-            <span className="inline-flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> SATIM · Edahabia · CIB
-            </span>
-          </div>
-        </motion.div>
       </section>
 
       {/* =========================================================
-          STATS — ligne fine, pas de bloc noir plaqué
+          PARTNERSHIPS / STATS — fond sombre violet
       ========================================================= */}
-      <section className="border-b border-[#141118]/10">
-        <div className="mx-auto max-w-6xl px-5 py-8 grid grid-cols-2 md:grid-cols-4">
-          {[
-            { n: "1,200+", l: t.statsUsers },
-            { n: "12", l: t.statsVoices },
-            { n: "< 3s", l: t.statsLatency },
-            { n: "100%", l: t.statsLocal },
-          ].map((s, i) => (
-            <motion.div
-              key={s.l}
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.06 }}
-              className={`px-4 py-3 ${i !== 0 ? "border-s border-[#141118]/10" : ""}`}
-            >
-              <div
-                className="text-2xl sm:text-3xl font-medium tracking-tight text-[#141118]"
-                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-              >
-                {s.n}
-              </div>
-              <div className="text-xs text-[#141118]/45 mt-1">{s.l}</div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* =========================================================
-          VOICES — liste horizontale (pas de grille de cartes)
-      ========================================================= */}
-      <section id="voices" className="border-b border-[#141118]/10">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
+      <section className="relative bg-[#0f0818] pt-16 pb-28 sm:pb-36">
+        <div className="mx-auto max-w-6xl px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10"
           >
-            <div>
-              <div className="text-xs text-purple-700 font-medium mb-3">{t.sectionVoicesKicker}</div>
-              <h2
-                className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
-                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-              >
-                {t.sectionVoices} <span className="text-purple-700">{t.sectionVoicesEm}</span>
-              </h2>
+            <div className="text-[11px] font-medium text-white/40 tracking-wide mb-4">
+              {t.partnershipsLabel}
             </div>
-            <p className="text-[#141118]/50 text-sm max-w-sm">{t.sectionVoicesSub}</p>
+            <h2
+              className="text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight text-violet-400 max-w-2xl leading-[1.15] mb-5"
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            >
+              {t.partnershipsTitle}
+            </h2>
+            <p className="text-white/45 text-sm sm:text-base max-w-xl leading-relaxed mb-12">
+              {t.partnershipsDesc}
+            </p>
           </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="grid grid-cols-3 gap-6 sm:gap-12"
+          >
+            {[
+              { n: "98%", l: t.stat1 },
+              { n: "12+", l: t.stat2 },
+              { n: "1,200+", l: t.stat3 },
+            ].map((s) => (
+              <motion.div key={s.l} variants={fadeUp}>
+                <div
+                  className="text-3xl sm:text-5xl font-medium tracking-tight text-violet-400"
+                  style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                >
+                  {s.n}
+                </div>
+                <div className="text-[11px] sm:text-sm text-white/40 mt-1.5">{s.l}</div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          LOGO CLOUD — à cheval entre les deux sections
+      ========================================================= */}
+      <div className="relative z-10 -mt-10 sm:-mt-12 px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mx-auto max-w-6xl flex flex-wrap justify-center gap-3"
+        >
+          {logos.map((l) => (
+            <div
+              key={l.name}
+              className="flex items-center gap-2 bg-white rounded-full pe-4 ps-2 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] border border-black/5"
+            >
+              <span className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center">
+                <l.icon className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-[13px] font-medium text-[#141118]">{l.name}</span>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* =========================================================
+          ABOUT — fond crème, texte + carte flottante
+      ========================================================= */}
+      <section id="about" className="relative bg-[#F7F5F1] pt-16 sm:pt-20 pb-24">
+        <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-12 items-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="text-[11px] font-medium text-[#141118]/40 tracking-wide mb-4">
+              {t.aboutLabel}
+            </div>
+            <h2
+              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] leading-[1.15] mb-5"
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            >
+              {t.aboutTitle}
+            </h2>
+            <p className="text-[#141118]/55 text-sm sm:text-base leading-relaxed mb-8 max-w-md">
+              {t.aboutDesc}
+            </p>
+            <button
+              onClick={onLoginClick}
+              className="inline-flex items-center gap-2 rounded-full bg-[#141118] text-white px-6 py-3 text-sm font-medium hover:bg-purple-700 transition-colors"
+            >
+              {t.learnMore}
+            </button>
+          </motion.div>
+
+          {/* Carte flottante Performance */}
+          <motion.div
+            initial={{ opacity: 0, y: 30, rotate: -2 }}
+            whileInView={{ opacity: 1, y: 0, rotate: -2 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="relative mx-auto w-full max-w-[280px]"
+          >
+            <div className="rounded-3xl bg-[#141118] text-white p-6 shadow-[0_30px_60px_rgba(20,17,24,0.25)]">
+              <div className="flex items-center gap-2 mb-6">
+                <span className="w-6 h-6 rounded-full bg-violet-400/20 text-violet-400 flex items-center justify-center">
+                  <Volume2 className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-xs font-medium text-white/70">{t.perfLabel}</span>
+              </div>
+
+              <div className="text-xs text-white/40 mb-1">{t.perfSubLabel}</div>
+              <div className="flex items-end gap-3 mb-2">
+                <span
+                  className="text-4xl font-medium tracking-tight text-violet-400"
+                  style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                >
+                  {t.perfStat}
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-white/10 mb-2 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  whileInView={{ width: "68%" }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 1, delay: 0.3 }}
+                  className="h-full rounded-full bg-violet-400"
+                />
+              </div>
+              <div className="text-[11px] text-white/35 mb-6">{t.perfNote}</div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {perfTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[10px] font-medium text-white/70 bg-white/5 border border-white/10 rounded-full px-2.5 py-1.5 text-center"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          VOICES — bonus, garde la cohérence du reste du site
+      ========================================================= */}
+      <section id="voices" className="bg-white border-t border-[#141118]/10">
+        <div className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-10"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+          >
+            {isRTL ? "أصوات " : "Des voix "}
+            <span className="text-purple-700">{isRTL ? "بعاطفة حقيقية." : "avec du caractère."}</span>
+          </motion.h2>
 
           <motion.div
             initial="hidden"
@@ -515,12 +493,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   >
                     {active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
                   </div>
-
                   <div className="w-32 sm:w-40 shrink-0">
                     <div className="font-medium text-[#141118]">{v.name}</div>
                     <div className="text-xs text-[#141118]/45">{v.tag}</div>
                   </div>
-
                   <div className="flex-1 flex items-end gap-[3px] h-8">
                     {bars.map((h, i) => (
                       <span
@@ -532,7 +508,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       />
                     ))}
                   </div>
-
                   <ArrowIcon className="w-4 h-4 text-[#141118]/20 group-hover:text-purple-600 transition-colors shrink-0" />
                 </motion.button>
               );
@@ -542,237 +517,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          FEATURES — liste numérotée, sticky title, pas de bento
+          FOOTER
       ========================================================= */}
-      <section id="features" className="border-b border-[#141118]/10 bg-[#FAF9F7]">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
-          <div className="grid lg:grid-cols-12 gap-10">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="lg:col-span-4 lg:sticky lg:top-24 self-start"
-            >
-              <div className="text-xs text-purple-700 font-medium mb-3">{t.sectionFeaturesKicker}</div>
-              <h2
-                className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
-                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-              >
-                {t.sectionFeatures} <span className="text-purple-700">{t.sectionFeaturesEm}</span>
-              </h2>
-            </motion.div>
-
-            <motion.div
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              variants={stagger}
-              className="lg:col-span-8 divide-y divide-[#141118]/10 border-t border-[#141118]/10"
-            >
-              {features.map((f, i) => (
-                <motion.div
-                  key={f.title}
-                  variants={fadeUp}
-                  className="flex items-start gap-5 py-6"
-                >
-                  <span className="text-xs font-mono text-[#141118]/30 pt-1 w-6 shrink-0">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <div className="w-9 h-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                    <f.icon className="w-4.5 h-4.5" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#141118] mb-1">{f.title}</div>
-                    <p className="text-sm text-[#141118]/55 leading-relaxed">{f.desc}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* =========================================================
-          PRICING — comparaison en lignes, pas de 3 cartes flottantes
-      ========================================================= */}
-      <section id="pricing" className="border-b border-[#141118]/10">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="max-w-xl mb-12"
-          >
-            <div className="text-xs text-purple-700 font-medium mb-3">{t.pricingKicker}</div>
-            <h2
-              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-3"
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-            >
-              {t.pricingTitle}
-            </h2>
-            <p className="text-[#141118]/55">{t.pricingSub}</p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid md:grid-cols-3 border-t border-[#141118]/10"
-          >
-            {plans.map((p, i) => (
-              <motion.div
-                key={p.name}
-                variants={fadeUp}
-                className={`relative p-8 border-b md:border-b-0 border-[#141118]/10 ${
-                  i !== 0 ? "md:border-s" : ""
-                } ${p.popular ? "bg-[#141118] text-white" : "bg-white"}`}
-              >
-                {p.popular && (
-                  <div className="text-[11px] font-medium text-purple-300 mb-4 uppercase tracking-wide">
-                    {isRTL ? "الأكثر طلباً" : "Le plus choisi"}
-                  </div>
-                )}
-                <div className={`text-sm font-medium mb-1 ${p.popular ? "text-white" : "text-[#141118]"}`}>
-                  {p.name}
-                </div>
-                <div className={`text-sm mb-6 ${p.popular ? "text-white/50" : "text-[#141118]/45"}`}>
-                  {p.desc}
-                </div>
-                <div className="flex items-baseline gap-1.5 mb-1">
-                  <span
-                    className="text-4xl font-medium tracking-tight"
-                    style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-                  >
-                    {p.price}
-                  </span>
-                  <span className={`text-sm ${p.popular ? "text-white/40" : "text-[#141118]/40"}`}>DZD</span>
-                </div>
-                <div className={`text-sm font-medium mb-8 ${p.popular ? "text-purple-300" : "text-purple-700"}`}>
-                  {p.points} {isRTL ? "نقطة" : "points"}
-                </div>
-                <button
-                  onClick={onSigninClick}
-                  className={`w-full rounded-md py-3 text-sm font-medium transition-colors ${
-                    p.popular
-                      ? "bg-white text-[#141118] hover:bg-purple-100"
-                      : "bg-[#141118] text-white hover:bg-purple-700"
-                  }`}
-                >
-                  {isRTL ? "اختيار الباقة" : "Choisir ce pack"}
-                </button>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* =========================================================
-          FAQ — numérotée, minimaliste
-      ========================================================= */}
-      <section className="border-b border-[#141118]/10">
-        <div className="mx-auto max-w-3xl px-5 py-16 sm:py-20">
-          <div className="text-xs text-purple-700 font-medium mb-3">{t.faqKicker}</div>
-          <h2
-            className="text-3xl font-medium tracking-tight text-[#141118] mb-8"
-            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-          >
-            {t.faqTitle}
-          </h2>
-
-          <div className="border-t border-[#141118]/10">
-            {faqs.map((f, i) => {
-              const open = openFaq === i;
-              return (
-                <div key={f.q} className="border-b border-[#141118]/10">
-                  <button
-                    onClick={() => setOpenFaq(open ? null : i)}
-                    className="w-full py-5 flex items-start gap-4 text-start"
-                  >
-                    <span className="text-xs font-mono text-[#141118]/30 pt-0.5 w-6 shrink-0">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="flex-1 font-medium text-[15px] text-[#141118]">{f.q}</span>
-                    <ChevronDown
-                      className={`w-4 h-4 text-[#141118]/35 mt-0.5 shrink-0 transition-transform duration-300 ${
-                        open ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  <motion.div
-                    initial={false}
-                    animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="overflow-hidden"
-                  >
-                    <p className="ps-10 pb-5 text-sm text-[#141118]/55 leading-relaxed max-w-xl">
-                      {f.a}
-                    </p>
-                  </motion.div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* =========================================================
-          FINAL CTA — typographie forte, pas de blur décoratif
-      ========================================================= */}
-      <section className="bg-[#141118] text-white">
-        <div className="mx-auto max-w-4xl px-5 py-20 sm:py-28 text-center">
-          <motion.h2
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
-            className="text-4xl sm:text-6xl font-medium tracking-tight leading-[1.05] mb-5"
-            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-          >
-            {t.finalTitleA} <span className="text-purple-400">{t.finalTitleB}</span>
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-            className="text-white/55 mb-9"
-          >
-            {t.finalSub}
-          </motion.p>
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.25 }}
-            onClick={onSigninClick}
-            className="inline-flex items-center gap-2 rounded-md bg-white text-[#141118] px-7 py-3.5 text-sm font-medium hover:bg-purple-100 transition-colors"
-          >
-            {t.ctaPrimary}
-            <ArrowIcon />
-          </motion.button>
-        </div>
-      </section>
-
-      {/* =========================================================
-          FOOTER — sobre, informatif
-      ========================================================= */}
-      <footer className="bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="bg-[#0f0818] text-white/50">
+        <div className="mx-auto max-w-6xl px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md overflow-hidden bg-[#141118]">
-              <img
-                src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg"
-                alt="Sawtify"
-                className="w-full h-full object-cover"
-              />
+            <div className="w-7 h-7 rounded-full bg-violet-400 flex items-center justify-center">
+              <span className="text-[#0f0818] font-bold text-sm">S</span>
             </div>
-            <span className="font-semibold text-sm">Sawtify</span>
-            <span className="text-[#141118]/35 text-sm">© 2026</span>
+            <span className="font-semibold text-white text-sm">Sawtify</span>
+            <span className="text-white/30 text-sm">© 2026</span>
           </div>
-          <div className="text-xs text-[#141118]/40">SATIM · Edahabia · CIB</div>
+          <div className="text-xs">SATIM · Edahabia · CIB</div>
         </div>
       </footer>
     </div>
