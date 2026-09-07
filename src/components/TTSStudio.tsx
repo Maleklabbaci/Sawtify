@@ -133,7 +133,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const result = await requestEnhanceText(text);
       setText(result.enhanced_text);
       setLocalBalance(result.remaining_balance);
-      // Dispatch d'un événement global pour forcer App.tsx à actualiser le Header en arrière-plan
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       console.error("Erreur d'amélioration:", e);
@@ -154,7 +153,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setText(result.script);
       setProductName('');
       setLocalBalance(result.remaining_balance);
-      // Dispatch d'un événement global pour forcer App.tsx à actualiser le Header en arrière-plan
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       console.error("Erreur génération de script:", e);
@@ -268,7 +266,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
         <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
           
-          {/* Tags (Fixed Spacing & Wrapped neatly) */}
+          {/* Tags */}
           <div className="shrink-0 flex items-center gap-2 gap-y-1.5 flex-wrap pb-2 border-b border-slate-100 mb-2">
             {styleTags.map((tagObj) => (
               <button key={tagObj.tag} onClick={() => handleInsertTag(tagObj.tag)} title={tagObj.desc} className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 text-slate-600 hover:text-purple-800 transition cursor-pointer">{tagObj.tag}</button>
@@ -279,7 +277,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           <div className="flex-1 min-h-0 relative">
             <textarea ref={textareaRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={t.textPlaceholder || 'Écrivez votre texte ici...'} className="w-full h-full p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto" />
             
-            {/* BOUTON MAGIQUE LLM (Darija Enhancer) — 2 points */}
+            {/* BOUTON MAGIQUE LLM (2 points) */}
             <button 
               onClick={handleEnhanceText}
               disabled={isEnhancing || !text.trim() || localBalance < 2}
