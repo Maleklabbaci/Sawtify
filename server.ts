@@ -173,24 +173,32 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
 }
 
 /* ==========================================================================
-   LLM CALLER HELPER (AVEC FALLBACK ET LOGS COMPLETS)
+   LLM CALLER HELPER (MULTI-MODÈLES ROBUSTE AVEC LOGS DÉTAILLÉS)
    ========================================================================== */
 
-async function callGeminiTextAPI(prompt: string, temperature = 0.7): Promise<string> {
-  const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
-  let lastErr = "";
+async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<string> {
+  const models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-pro"];
+  let lastErrorDetails = "";
 
   for (const model of models) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      console.log(`[LLM] Tentative d'appel avec le modèle: ${model}`);
+      console.log(`[LLM] Tentative d'appel Gemini avec le modèle: ${model}...`);
       
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature, maxOutputTokens: 1024 }
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: promptText }]
+            }
+          ],
+          generationConfig: {
+            temperature: temperature,
+            maxOutputTokens: 1024
+          }
         })
       });
 
@@ -198,19 +206,22 @@ async function callGeminiTextAPI(prompt: string, temperature = 0.7): Promise<str
         const data = await response.json();
         let result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         result = result.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
-        if (result) return result;
+        if (result) {
+          console.log(`[LLM Succès] Réponse obtenue avec ${model} (${result.length} caractères)`);
+          return result;
+        }
       } else {
-        const errText = await response.text();
-        console.error(`[LLM Error ${model}] Status ${response.status}:`, errText);
-        lastErr = errText;
+        const errBody = await response.text();
+        console.error(`[LLM Erreur ${model} - Code ${response.status}]:`, errBody);
+        lastErrorDetails = `Modèle ${model} (${response.status}): ${errBody}`;
       }
     } catch (e: any) {
-      console.error(`[LLM Fetch Error ${model}]:`, e.message || e);
-      lastErr = e.message || String(e);
+      console.error(`[LLM Exception ${model}]:`, e.message || e);
+      lastErrorDetails = e.message || String(e);
     }
   }
 
-  throw new Error(`Erreur API Gemini: ${lastErr}`);
+  throw new Error(`Échec de génération IA sur tous les modèles: ${lastErrorDetails}`);
 }
 
 async function startServer() {
@@ -296,7 +307,6 @@ D. Appels à l'action (CTA au choix selon contexte) :
         return res.status(400).json({ error: "Texte manquant ou invalide" });
       }
 
-      // Vérification préalable du solde (sans déduire encore)
       const currentBalance = await getUserBalance(userId);
       const pointsCost = 2;
       if (currentBalance !== null && currentBalance < pointsCost) {
@@ -315,7 +325,6 @@ ${text}`;
 
       const enhancedText = await callGeminiTextAPI(enhancePrompt, 0.7);
 
-      // Déduction UNIQUEMENT si l'appel IA a réussi !
       const reduction = await deductCredits(userId, pointsCost);
       const finalBalance = reduction.success ? reduction.remaining : currentBalance;
 
@@ -344,7 +353,6 @@ ${text}`;
         return res.status(400).json({ error: "Nom du produit ou service manquant" });
       }
 
-      // Vérification préalable du solde (sans déduire encore)
       const currentBalance = await getUserBalance(userId);
       const pointsCost = 5;
       if (currentBalance !== null && currentBalance < pointsCost) {
@@ -365,7 +373,6 @@ ${product} (Style souhaité: ${style || 'excited'})`;
 
       const scriptText = await callGeminiTextAPI(scriptPrompt, 0.85);
 
-      // Déduction UNIQUEMENT si l'appel IA a réussi !
       const reduction = await deductCredits(userId, pointsCost);
       const finalBalance = reduction.success ? reduction.remaining : currentBalance;
 
