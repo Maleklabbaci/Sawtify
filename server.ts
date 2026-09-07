@@ -53,6 +53,34 @@ async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boo
   return { credited: true, newBalance: data?.new_balance };
 }
 
+/**
+ * Déduit de manière atomique et sécurisée les points d'un utilisateur dans la base de données.
+ */
+async function deductCredits(userId: string, amount: number): Promise<{ success: boolean; remaining?: number; error?: string }> {
+  if (!supabaseClient) return { success: false, error: "Base de données inaccessible." };
+  try {
+    const { data: profile, error: fetchErr } = await supabaseClient
+      .from("profiles")
+      .select("credits_balance")
+      .eq("id", userId)
+      .single();
+
+    if (fetchErr || !profile) return { success: false, error: "Profil utilisateur introuvable." };
+    if (profile.credits_balance < amount) return { success: false, error: "Solde de points insuffisant." };
+
+    const newBalance = profile.credits_balance - amount;
+    const { error: updateErr } = await supabaseClient
+      .from("profiles")
+      .update({ credits_balance: newBalance })
+      .eq("id", userId);
+
+    if (updateErr) return { success: false, error: "Échec de la mise à jour du solde." };
+    return { success: true, remaining: newBalance };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 function pcmToWavBuffer(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
   const byteRate = (sampleRate * numChannels * bitsPerSample) / 8; const blockAlign = (numChannels * bitsPerSample) / 8; const dataLength = pcmBuffer.length; const header = Buffer.alloc(44);
   header.write("RIFF", 0); header.writeUInt32LE(36 + dataLength, 4); header.write("WAVE", 8); header.write("fmt ", 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(numChannels, 22); header.writeUInt32LE(sampleRate, 24); header.writeUInt32LE(byteRate, 28); header.writeUInt16LE(blockAlign, 32); header.writeUInt16LE(bitsPerSample, 34); header.write("data", 36); header.writeUInt32LE(dataLength, 40);
@@ -120,7 +148,7 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
   else if (originalVoiceId === "voice_nour") { performancePrompt = "اقرئي النص التالي بأسلوب لطيف، بصوت أنثوي ناعم وهادئ وواضح."; }
   else { performancePrompt = isFemale ? "أنت ممثلة صوت جزائرية محترفة. اقرئي النص التالي بدارجة جزائرية أصيلة، بصوت أنثوي دافئ وطبيعي. تنفسي بشكل طبيعي بين الجمل، وتجنبي تماماً النبرة الآلية." : "أنت ممثل صوت جزائري محترف. اقرأ النص التالي بدارجة جزائرية أصيلة، بصوت ذكوري واثق وطبيعي. تتنفس بشكل طبيعي بين الجمل، وتجنب تماماً النبرة الآلية."; }
 
-  if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء، تريث، ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
+  if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
 
   const warmUpWatermark = "مع صوتيفي، ";
@@ -167,6 +195,179 @@ async function startServer() {
     return res.json({ status: "success", success: true, audio_base64: wavBase64, audio_url: `data:audio/wav;base64,${wavBase64}`, format: "wav", sample_rate: 24000, generation_id: generationId, duration_seconds: durationSeconds, latency_ms: latencyMs, points_deducted: 20, remaining_balance: 80, voice_id: requestedVoice, gemini_voice: selectedVoiceName, parsed_tags: emotionTags, notice: error ? "Audio synthétisé via canal sécurisé" : undefined });
   };
   app.post("/api/v1/tts/generate", handleTTSGenerate); app.post("/api/tts/generate", handleTTSGenerate);
+
+  /* ==========================================================================
+     LLM SERVICES (GEMINI 2.0 FLASH - OPTIMISÉ POUR SAWTIFY DARIJA)
+     ========================================================================== */
+
+  const LLM_SYSTEM_PROMPT = `Tu es un expert linguiste en Darija Algérienne et concepteur-rédacteur polyvalent pour la synthèse vocale (TTS). Tu adaptes le ton selon le besoin (E-commerce, Services, Formations, Contenu Viral, B2B).
+
+1. RÈGLE DE CODE-SWITCHING (LATIN) :
+- Écris TOUJOURS les mots d'origine française ou technique EN ALPHABET LATIN (ex: livraison, réservation, service client, rendez-vous, formation, application, qualité, promotion, pack, abonnement, prix, stock, commander, WhatsApp, Instagram, TikTok, lien, vidéo, commentaires, abonnés).
+- Ne translittère JAMAIS un mot français en lettres arabes. "livraison" reste "livraison", pas "لا ليفريزون". "promotion" reste "promotion", pas "لا بروموسيون".
+
+2. ADAPTATION DU CONTEXTE (SANS OBLIGATION) :
+- Ne force PAS le vocabulaire e-commerce ni les wilayas si le sujet concerne un service, une formation ou du contenu général.
+- Si la livraison est mentionnée sans précision, tu peux proposer "livraison متوفرة" ou adapter selon le contexte.
+- L'Algérie compte 69 wilayas.
+
+3. BANQUE DE VOCABULAIRE & PROPOSITIONS D'ORIENTATIONS :
+
+A. Accroches (Hooks 3s) :
+- Général / Buzz : "أسمع مليح", "يا خاوتي", "شوف معايا", "حاجة خيالية", "لوكان نقولك", "خبر شباب".
+- Problème / Solution : "عندك مشكل مع...", "حاب تزيد...", "حاير كيفاه...", "عييت من...".
+
+B. E-commerce & Vente :
+- Vocabulaire : "livraison متوفرة", "الدفع à la livraison", "حقك تحل وتشوف", "qualité TOP", "سومة هابلة", "stock محدود", "promotion ما تتراطاش".
+
+C. Services, Formations & B2B :
+- Vocabulaire : "réservation مفتوحة", "service rapide", "formation pratique", "rendez-vous مضمون", "خدمة احترافية", "équipe متخصصة", "places محدودة".
+
+D. Appels à l'action (CTA au choix selon contexte) :
+- Vente : "commander ديلوك", "كليكي لتحت", "سجل طلبك".
+- Service / Contact : "اتصل بنا", "تواصل معانا sur WhatsApp", "سجل نفسك في la liste".
+- Contenu : "بارطاجي la vidéo", "أكتبلنا في les commentaires", "ما تنساش abonnés".
+
+4. FORMATAGE ET RYTHME TTS (SUGGESTIONS) :
+- Utilise les balises d'émotion selon l'intention du texte :
+  * [excited] : Pour capter l'attention ou annoncer une grande nouvelle.
+  * [natural] : Pour expliquer, informer ou présenter.
+  * [fast] : Pour les détails secondaires.
+  * [whisper] : Pour créer de la proximité ou un sentiment d'exclusivité.
+  * [calm] : Pour rassurer ou donner des consignes claires.
+- Ponctuation audio : Virgules ',' pour pauses courtes, points de suspension '...' pour pauses de 0.5s.
+
+5. FORMAT DE SORTIE :
+- Renvoie UNIQUEMENT le texte final à vocaliser, sans commentaires ni guillemets.`;
+
+  // 1. Route pour le "Bouton Magique" (Darija Text Enhancer) — Coût : 2 points
+  app.post("/api/v1/llm/enhance", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+
+      const { text } = req.body;
+      if (!text || typeof text !== "string" || !text.trim()) {
+        return res.status(400).json({ error: "Texte manquant ou invalide" });
+      }
+
+      // Déduction de points sécurisée en base de données
+      const pointsCost = 2;
+      const reduction = await deductCredits(userId, pointsCost);
+      if (!reduction.success) {
+        return res.status(402).json({ error: reduction.error || "Points insuffisants." });
+      }
+
+      const enhancePrompt = `${LLM_SYSTEM_PROMPT}
+
+TÂCHE SPÉCIFIQUE : Réécris le texte suivant en Darija Algérienne fluide et naturelle.
+- Conserve le sens exact du message original.
+- Améliore le rythme pour la synthèse vocale.
+- Intègre les balises d'émotion là où elles renforcent l'impact.
+- Si le texte original contient déjà des balises, optimise leur placement.
+
+Texte à réécrire :
+${text}`;
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const response = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: enhancePrompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+        })
+      });
+
+      if (!response.ok) throw new Error("Erreur de connexion à l'API Gemini");
+
+      const data = await response.json();
+      let enhancedText = data.candidates?.[0]?.content?.parts?.[0]?.text || text;
+      enhancedText = enhancedText.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+
+      return res.json({ 
+        success: true, 
+        enhanced_text: enhancedText, 
+        points_cost: pointsCost,
+        remaining_balance: reduction.remaining
+      });
+    } catch (err: any) {
+      console.error("[LLM Enhance Error]", err);
+      return res.status(500).json({ error: "Erreur lors de l'amélioration du texte" });
+    }
+  });
+
+  // 2. Route pour le Générateur de Scripts TikTok / Reels — Coût : 5 points
+  app.post("/api/v1/llm/generate-script", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+
+      const { product, style } = req.body;
+      if (!product || typeof product !== "string" || !product.trim()) {
+        return res.status(400).json({ error: "Nom du produit ou service manquant" });
+      }
+
+      // Déduction de points sécurisée en base de données
+      const pointsCost = 5;
+      const reduction = await deductCredits(userId, pointsCost);
+      if (!reduction.success) {
+        return res.status(402).json({ error: reduction.error || "Points insuffisants." });
+      }
+
+      const scriptPrompt = `${LLM_SYSTEM_PROMPT}
+
+TÂCHE SPÉCIFIQUE : Génère un script de vente ou de promotion de 15 à 30 secondes pour le produit, service ou sujet suivant.
+
+Le script doit OBLIGATOIREMENT suivre cette structure :
+1. Un HOOK (accroche de 3 secondes) commençant par [excited] pour stopper le scroll.
+2. Une section SOLUTION commençant par [natural] ou [calm] présentant le problème et la solution.
+3. Un CALL-TO-ACTION ultra incitatif commençant par [excited] ou [whisper] adapté au contexte.
+
+EXEMPLES D'ADAPTATION PAR NICHE :
+
+- Exemple E-commerce :
+Input: "Vente de baskets de sport."
+Output: [excited] شوف معايا هاد les baskets de sport حاجة خيالية! [natural] confortables بزاف وqualité TOP... [fast] livraison متوفرة والدفع à la livraison! [whisper] commander ديلوك قبل ما يخلص الـ stock!
+
+- Exemple Service / Formation :
+Input: "Formation en marketing digital à Alger."
+Output: [excited] حاب تكبّر le business ديالك؟ [natural] les inscriptions pour la formation en marketing digital راهي مفتوحة في Alger... [calm] formation 100% pratique مع des experts... [whisper] اتصل بنا ديلوك وréserve la place ديالك!
+
+- Exemple Contenu / Application :
+Input: "Lancement d'une nouvelle application."
+Output: [excited] خبر شباب! [natural] l'application جديدة ديالنا راهي disponible ديلوك... [natural] سهلة وتسهلك حياتك كل يوم... [whisper] كليكي sur le lien وtélécharge-ها ديلوك!
+
+Produit, service ou sujet pour le script :
+${product} (Style souhaité: ${style || 'excited'})`;
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const response = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: scriptPrompt }] }],
+          generationConfig: { temperature: 0.85, maxOutputTokens: 1024 }
+        })
+      });
+
+      if (!response.ok) throw new Error("Erreur de connexion à l'API Gemini");
+
+      const data = await response.json();
+      let scriptText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      scriptText = scriptText.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+
+      return res.json({ 
+        success: true, 
+        script: scriptText, 
+        points_cost: pointsCost,
+        remaining_balance: reduction.remaining
+      });
+    } catch (err: any) {
+      console.error("[LLM Script Generator Error]", err);
+      return res.status(500).json({ error: "Erreur lors de la génération du script" });
+    }
+  });
 
   app.post("/api/slickpay/create-invoice", async (req, res) => {
     try {
