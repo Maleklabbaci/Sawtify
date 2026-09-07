@@ -8,7 +8,6 @@ import {
   Sparkles,
   Mic,
   Zap,
-  Download,
   ChevronDown,
   Volume2,
   Youtube,
@@ -19,6 +18,12 @@ import {
   Mic2,
   Star,
   Rocket,
+  Camera,
+  Headphones,
+  Waves,
+  Check,
+  Layers,
+  Building2,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -70,6 +75,32 @@ function useAudioVisualizer(audioEl: HTMLAudioElement | null, isPlaying: boolean
 
   return bars;
 }
+
+/* ---------------------------------------------------
+   Transition courbe entre sections (fix découpage brutal)
+--------------------------------------------------- */
+const SectionWave = ({
+  fromColor = "#0f0818",
+  toColor = "#F7F5F1",
+  flip = false,
+}: {
+  fromColor?: string;
+  toColor?: string;
+  flip?: boolean;
+}) => (
+  <div className="relative" style={{ backgroundColor: fromColor }}>
+    <svg
+      viewBox="0 0 1440 120"
+      className={`w-full h-[60px] sm:h-[100px] block ${flip ? "rotate-180" : ""}`}
+      preserveAspectRatio="none"
+    >
+      <path
+        d="M0,64 C240,120 480,0 720,32 C960,64 1200,120 1440,64 L1440,120 L0,120 Z"
+        fill={toColor}
+      />
+    </svg>
+  </div>
+);
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -132,6 +163,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     perfSubLabel: isRTL ? "وقت الإنتاج" : "Temps de production",
     perfStat: "-68%",
     perfNote: isRTL ? "مقارنة بالتسجيل الاستوديو التقليدي" : "vs enregistrement studio classique",
+
+    showcaseLabel: isRTL ? "• جودة احترافية" : "• Qualité professionnelle",
+    showcaseTitle: isRTL ? "من الفكرة إلى الصوت النهائي." : "De l'idée au son final.",
+    showcaseSub: isRTL
+      ? "خط إنتاج احترافي مصمم للمبدعين الذين لا يملكون وقتاً للانتظار."
+      : "Un pipeline de production pensé pour les créateurs qui n'ont pas de temps à perdre.",
+
+    ctaBadge: isRTL ? "عرض محدود" : "Offre de lancement",
+    ctaTitle: isRTL
+      ? "50 نقطة مجانية عند التسجيل الآن."
+      : "50 points offerts pour votre première voix.",
+    ctaSub: isRTL
+      ? "بدون بطاقة بنكية. جرّب الجودة بنفسك في أقل من دقيقة."
+      : "Sans carte bancaire. Testez la qualité vous-même en moins d'une minute.",
+    ctaButton: isRTL ? "ابدأ مجاناً" : "Commencer gratuitement",
+
+    pricingLabel: isRTL ? "• الأسعار" : "• Tarifs",
+    pricingTitle: isRTL ? "ادفع فقط لما تستخدمه" : "Payez seulement ce que vous utilisez",
+    pricingSub: isRTL
+      ? "بدون اشتراك شهري. النقاط لا تنتهي صلاحيتها أبداً."
+      : "Sans abonnement mensuel. Les points achetés n'expirent jamais.",
+
+    faqKicker: isRTL ? "٠٤ — الأسئلة" : "FAQ",
+    faqTitle: isRTL ? "الأسئلة الشائعة" : "Ce qu'on nous demande souvent",
   };
 
   const badges = [
@@ -162,6 +217,88 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
   ];
 
+  const pricingPlans = [
+    {
+      icon: Zap,
+      points: "100",
+      bonus: null as string | null,
+      price: "500",
+      gens: "5",
+      desc: isRTL ? "مثالي للتجربة وإنشاء 5 أصوات." : "Idéal pour tester et créer 5 voix-off haute définition.",
+      popular: false,
+    },
+    {
+      icon: Zap,
+      points: "220",
+      bonus: "+10%",
+      price: "1 000",
+      gens: "11",
+      desc: isRTL ? "الأكثر طلباً في الجزائر. +20 نقطة مجانية." : "Le plus populaire en Algérie. +20 points offerts (11 générations).",
+      popular: true,
+    },
+    {
+      icon: Layers,
+      points: "600",
+      bonus: "+20%",
+      price: "2 500",
+      gens: "30",
+      desc: isRTL ? "للمبدعين المنتظمين والوكالات." : "Pour les créateurs réguliers et agences. +100 points offerts.",
+      popular: false,
+    },
+    {
+      icon: Building2,
+      points: "1 350",
+      bonus: "+35%",
+      price: "5 000",
+      gens: "67",
+      desc: isRTL ? "حجم موسّع ودعم مخصص وأولوية." : "Volume étendu, support dédié et accès prioritaire aux modèles.",
+      popular: false,
+    },
+  ];
+
+  const pricingFeatures = [
+    isRTL ? "جودة استوديو 24 kHz" : "Qualité studio 24 kHz",
+    isRTL ? "تحميل MP3 & WAV" : "Téléchargement MP3 & WAV",
+    isRTL ? "استخدام تجاري كامل" : "Usage commercial complet",
+    isRTL ? "نقاط صالحة مدى الحياة" : "Crédits valables à vie",
+  ];
+
+  const showcaseItems = [
+    {
+      img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?q=80&w=1200&auto=format&fit=crop",
+      icon: Waves,
+      label: isRTL ? "استوديو رقمي" : "Studio numérique",
+      title: isRTL ? "بيئة إنتاج متكاملة" : "Environnement de production complet",
+      big: true,
+    },
+    {
+      img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
+      icon: Camera,
+      label: isRTL ? "إنتاج المحتوى" : "Production de contenu",
+      big: false,
+    },
+    {
+      img: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1200&auto=format&fit=crop",
+      icon: Headphones,
+      label: isRTL ? "مونتاج احترافي" : "Montage professionnel",
+      big: false,
+    },
+  ];
+
+  const faqs = isRTL
+    ? [
+        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم. كل الملفات قابلة للاستخدام في الإعلانات، الريلز، اليوتيوب والمشاريع التجارية." },
+        { q: "كيف يعمل نظام النقاط؟", a: "تشتري رصيداً مرة واحدة. التوليد الصوتي = 20 نقطة. النقاط لا تنتهي صلاحيتها." },
+        { q: "هل تدعمون الذهبية و CIB؟", a: "نعم عبر SATIM. الدفع محلي بالدينار الجزائري." },
+        { q: "هل هناك اشتراك شهري؟", a: "لا. Sawtify نظام دفع مقابل الاستخدام فقط." },
+      ]
+    : [
+        { q: "Les voix sont-elles libres de droits ?", a: "Oui. Usage commercial autorisé : pubs, reels, YouTube, projets clients." },
+        { q: "Comment fonctionne le système de points ?", a: "Tu achètes un pack une fois. Une génération vocale coûte 20 points. Les points n'expirent jamais." },
+        { q: "Edahabia et CIB sont-ils acceptés ?", a: "Oui, via SATIM. Paiement 100% local, en dinars algériens." },
+        { q: "Y a-t-il un abonnement mensuel ?", a: "Non. Sawtify fonctionne uniquement en Pay-As-You-Go." },
+      ];
+
   const toggleVoice = (id: string, url: string) => {
     if (playingId === id) {
       audioRef.current?.pause();
@@ -184,7 +321,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
     >
       {/* =========================================================
-          HEADER — transparent, superposé sur l'image
+          HEADER
       ========================================================= */}
       <header className="absolute top-0 inset-x-0 z-50">
         <div className="mx-auto max-w-6xl px-6 h-20 flex items-center justify-between">
@@ -202,33 +339,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <a href="#pricing" className="hover:text-white transition-colors">{t.navMore}</a>
           </nav>
 
-          <button
-            onClick={onSigninClick}
-            className="rounded-full bg-white text-[#141118] px-5 py-2.5 text-[13px] font-semibold hover:bg-purple-100 transition-colors"
-          >
-            {t.cta}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
+              className="w-8 h-8 rounded-full text-[11px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              {language === "fr" ? "AR" : "FR"}
+            </button>
+            <button
+              onClick={onSigninClick}
+              className="rounded-full bg-white text-[#141118] px-5 py-2.5 text-[13px] font-semibold hover:bg-purple-100 transition-colors"
+            >
+              {t.cta}
+            </button>
+          </div>
         </div>
       </header>
 
       {/* =========================================================
-          HERO — image + badges flottants + texte overlay
+          HERO
       ========================================================= */}
       <section id="home" className="relative h-[780px] sm:h-[860px] overflow-hidden bg-[#0f0818]">
-        {/* IMAGE ICI — remplace par ta photo/vidéo (voir recommandations) */}
         <img
           src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1600&auto=format&fit=crop"
           alt="Sawtify hero"
           className="absolute inset-0 w-full h-full object-cover object-top"
         />
-
-        {/* Streak lumineux diagonal (remplace le vert par violet) */}
         <div className="absolute -left-1/3 top-0 w-[160%] h-full bg-gradient-to-tr from-violet-200/25 via-transparent to-transparent blur-3xl rotate-12 pointer-events-none" />
-
-        {/* Overlay dégradé sombre violet */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a0f2e]/60 to-[#0f0818]" />
 
-        {/* Badges flottants */}
         {badges.map((b, i) => (
           <motion.div
             key={b.label}
@@ -244,7 +383,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </motion.div>
         ))}
 
-        {/* Contenu texte */}
         <div className="absolute inset-x-0 bottom-[64px] sm:bottom-[90px] px-6 text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
@@ -294,9 +432,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          PARTNERSHIPS / STATS — fond sombre violet
+          PARTNERSHIPS / STATS
       ========================================================= */}
-      <section className="relative bg-[#0f0818] pt-16 pb-28 sm:pb-36">
+      <section className="relative bg-[#0f0818] pt-16 pb-20">
         <div className="mx-auto max-w-6xl px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -323,7 +461,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             whileInView="show"
             viewport={{ once: true }}
             variants={stagger}
-            className="grid grid-cols-3 gap-6 sm:gap-12"
+            className="grid grid-cols-3 gap-6 sm:gap-12 mb-16"
           >
             {[
               { n: "98%", l: t.stat1 },
@@ -341,38 +479,115 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </motion.div>
             ))}
           </motion.div>
+
+          {/* LOGO CLOUD */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex flex-wrap justify-center gap-3"
+          >
+            {logos.map((l) => (
+              <div
+                key={l.name}
+                className="flex items-center gap-2 bg-white rounded-full pe-4 ps-2 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.25)] border border-black/5"
+              >
+                <span className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <l.icon className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-[13px] font-medium text-[#141118]">{l.name}</span>
+              </div>
+            ))}
+          </motion.div>
         </div>
       </section>
 
       {/* =========================================================
-          LOGO CLOUD — à cheval entre les deux sections
+          TRANSITION COURBE — fix du découpage brutal
       ========================================================= */}
-      <div className="relative z-10 -mt-10 sm:-mt-12 px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mx-auto max-w-6xl flex flex-wrap justify-center gap-3"
-        >
-          {logos.map((l) => (
-            <div
-              key={l.name}
-              className="flex items-center gap-2 bg-white rounded-full pe-4 ps-2 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] border border-black/5"
-            >
-              <span className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center">
-                <l.icon className="w-3.5 h-3.5" />
-              </span>
-              <span className="text-[13px] font-medium text-[#141118]">{l.name}</span>
-            </div>
-          ))}
-        </motion.div>
-      </div>
+      <SectionWave fromColor="#0f0818" toColor="#F7F5F1" />
 
       {/* =========================================================
-          ABOUT — fond crème, texte + carte flottante
+          SHOWCASE PHOTOS PRO — bento asymétrique
       ========================================================= */}
-      <section id="about" className="relative bg-[#F7F5F1] pt-16 sm:pt-20 pb-24">
+      <section className="bg-[#F7F5F1] pt-4 pb-24 sm:pb-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center max-w-xl mx-auto mb-12"
+          >
+            <div className="text-[11px] font-medium text-purple-700 tracking-wide mb-3">
+              {t.showcaseLabel}
+            </div>
+            <h2
+              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            >
+              {t.showcaseTitle}
+            </h2>
+            <p className="text-[#141118]/50 text-sm sm:text-base mt-3">{t.showcaseSub}</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-5">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="relative rounded-3xl overflow-hidden aspect-[4/5] md:row-span-2 group"
+            >
+              <img
+                src={showcaseItems[0].img}
+                alt={showcaseItems[0].label}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0f0818]/85 via-[#0f0818]/10 to-transparent" />
+              <div className="absolute bottom-0 inset-x-0 p-6">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1.5 text-xs font-medium text-white mb-3">
+                  <Waves className="w-3.5 h-3.5" />
+                  {showcaseItems[0].label}
+                </span>
+                <h3 className="text-white text-xl font-medium" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                  {showcaseItems[0].title}
+                </h3>
+              </div>
+            </motion.div>
+
+            {showcaseItems.slice(1).map((item, i) => (
+              <motion.div
+                key={item.label}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: 0.1 + i * 0.1 }}
+                className="relative rounded-3xl overflow-hidden aspect-[16/9] group"
+              >
+                <img
+                  src={item.img}
+                  alt={item.label}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0f0818]/80 via-transparent to-transparent" />
+                <div className="absolute bottom-0 inset-x-0 p-5">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1.5 text-xs font-medium text-white">
+                    <item.icon className="w-3.5 h-3.5" />
+                    {item.label}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          ABOUT — texte + carte flottante Performance
+      ========================================================= */}
+      <section id="about" className="relative bg-[#F7F5F1] pb-24 sm:pb-28">
         <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-12 items-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -400,7 +615,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
           </motion.div>
 
-          {/* Carte flottante Performance */}
           <motion.div
             initial={{ opacity: 0, y: 30, rotate: -2 }}
             whileInView={{ opacity: 1, y: 0, rotate: -2 }}
@@ -452,7 +666,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          VOICES — bonus, garde la cohérence du reste du site
+          VOICES
       ========================================================= */}
       <section id="voices" className="bg-white border-t border-[#141118]/10">
         <div className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
@@ -513,6 +727,208 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               );
             })}
           </motion.div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          CTA PERFORMANT — bandeau intermédiaire
+      ========================================================= */}
+      <section className="relative bg-[#141118] overflow-hidden">
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-violet-600/20 blur-[100px] rounded-full pointer-events-none" />
+        <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20 relative">
+          <div className="grid md:grid-cols-[1.4fr,1fr] gap-8 items-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="inline-flex items-center gap-2 rounded-full bg-violet-500/15 border border-violet-500/30 px-3 py-1 text-xs font-medium text-violet-300 mb-4">
+                <Zap className="w-3.5 h-3.5" />
+                {t.ctaBadge}
+              </div>
+              <h2
+                className="text-2xl sm:text-3xl font-medium tracking-tight text-white leading-[1.2] mb-3"
+                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              >
+                {t.ctaTitle}
+              </h2>
+              <p className="text-white/50 text-sm sm:text-base">{t.ctaSub}</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="flex md:justify-end"
+            >
+              <button
+                onClick={onSigninClick}
+                className="group inline-flex items-center gap-3 rounded-full bg-violet-500 text-white pe-2 ps-6 py-2 text-sm font-semibold hover:bg-violet-400 transition-colors shadow-[0_10px_40px_rgba(139,92,246,0.4)]"
+              >
+                {t.ctaButton}
+                <span className="w-9 h-9 rounded-full bg-white text-violet-600 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
+                  <ArrowIcon className="w-4 h-4" />
+                </span>
+              </button>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          PRICING
+      ========================================================= */}
+      <section id="pricing" className="bg-[#FAFAFC] py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center max-w-xl mx-auto mb-14"
+          >
+            <div className="text-[11px] font-medium text-purple-700 tracking-wide mb-3">
+              {t.pricingLabel}
+            </div>
+            <h2
+              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-3"
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            >
+              {t.pricingTitle}
+            </h2>
+            <p className="text-[#141118]/50 text-sm sm:text-base">{t.pricingSub}</p>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5"
+          >
+            {pricingPlans.map((p) => (
+              <motion.div
+                key={p.points}
+                variants={fadeUp}
+                className={`relative rounded-3xl p-6 pt-8 bg-white transition-shadow ${
+                  p.popular
+                    ? "border-2 border-violet-500 shadow-[0_20px_50px_rgba(139,92,246,0.15)]"
+                    : "border border-[#141118]/10 hover:shadow-[0_10px_30px_rgba(0,0,0,0.06)]"
+                }`}
+              >
+                {p.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full bg-violet-600 text-white text-[11px] font-bold px-4 py-1.5 shadow-lg whitespace-nowrap">
+                    <Zap className="w-3 h-3 fill-white" />
+                    {isRTL ? "الأكثر طلباً" : "PLUS POPULAIRE"}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mb-5">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      p.popular ? "bg-violet-100 text-violet-700" : "bg-[#141118]/5 text-[#141118]/60"
+                    }`}
+                  >
+                    <p.icon className="w-5 h-5" />
+                  </div>
+                  {p.bonus && (
+                    <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 rounded-full px-2.5 py-1">
+                      {p.bonus} Bonus
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-2xl font-semibold text-[#141118] mb-1.5">{p.points} Points</div>
+                <p className="text-[13px] text-[#141118]/50 leading-relaxed mb-5 min-h-[42px]">{p.desc}</p>
+
+                <div className="flex items-baseline gap-1.5 mb-1">
+                  <span
+                    className="text-3xl font-bold tracking-tight text-[#141118]"
+                    style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                  >
+                    {p.price}
+                  </span>
+                  <span className="text-sm text-[#141118]/40 font-medium">DZD</span>
+                </div>
+                <div className="text-sm font-medium text-violet-700 mb-5">
+                  +{p.points} points (~{p.gens} {isRTL ? "توليد" : "générations"})
+                </div>
+
+                <div className="h-px bg-[#141118]/10 mb-5" />
+
+                <div className="space-y-2.5 mb-6">
+                  {pricingFeatures.map((f) => (
+                    <div key={f} className="flex items-center gap-2.5 text-[13px] text-[#141118]/70">
+                      <Check className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={onSigninClick}
+                  className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors ${
+                    p.popular
+                      ? "bg-violet-600 text-white hover:bg-violet-700"
+                      : "bg-[#141118]/5 text-[#141118] hover:bg-[#141118]/10"
+                  }`}
+                >
+                  {p.popular
+                    ? `✓ ${isRTL ? "النقاط المختارة" : "Points sélectionnés"}`
+                    : `${isRTL ? "اختيار" : "Choisir"} ${p.points} ${isRTL ? "نقطة" : "points"}`}
+                </button>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          FAQ
+      ========================================================= */}
+      <section className="bg-white border-t border-[#141118]/10">
+        <div className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
+          <div className="text-xs text-purple-700 font-medium mb-3">{t.faqKicker}</div>
+          <h2
+            className="text-3xl font-medium tracking-tight text-[#141118] mb-8"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+          >
+            {t.faqTitle}
+          </h2>
+
+          <div className="border-t border-[#141118]/10">
+            {faqs.map((f, i) => {
+              const open = openFaq === i;
+              return (
+                <div key={f.q} className="border-b border-[#141118]/10">
+                  <button
+                    onClick={() => setOpenFaq(open ? null : i)}
+                    className="w-full py-5 flex items-start gap-4 text-start"
+                  >
+                    <span className="text-xs font-mono text-[#141118]/30 pt-0.5 w-6 shrink-0">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 font-medium text-[15px] text-[#141118]">{f.q}</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-[#141118]/35 mt-0.5 shrink-0 transition-transform duration-300 ${
+                        open ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  <motion.div
+                    initial={false}
+                    animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <p className="ps-10 pb-5 text-sm text-[#141118]/55 leading-relaxed max-w-xl">{f.a}</p>
+                  </motion.div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
