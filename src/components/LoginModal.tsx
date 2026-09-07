@@ -10,7 +10,6 @@ interface LoginModalProps {
   language: 'fr' | 'ar';
 }
 
-// Logomark Google officiel (4 couleurs), utilisé uniquement comme icône de bouton "Continuer avec Google"
 const GoogleGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg className={className} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
     <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z" />
@@ -51,7 +50,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setAuthError(null);
     setIsLoading(true);
     try {
-      // Redirige vers Google ; au retour, App.tsx détecte la session via onAuthStateChange
       await signInWithGoogle('login');
     } catch (err: any) {
       console.error('Erreur de connexion Google:', err);
@@ -68,14 +66,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setAuthError(null);
     setIsEmailLoading(true);
     try {
-      // La connexion réussie déclenche onAuthStateChange dans App.tsx, comme pour Google
       await signInWithEmailPassword(email.trim(), password);
     } catch (err: any) {
       console.error('Erreur de connexion e-mail:', err);
       setAuthError(
-        isRTL
-          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'
-          : 'E-mail ou mot de passe incorrect.'
+        isRTL ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'E-mail ou mot de passe incorrect.'
       );
       setIsEmailLoading(false);
     }
@@ -85,13 +80,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2 bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
 
       {/* LEFT/BRAND PANEL — masqué sur mobile */}
-      <div className="hidden lg:flex relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-purple-950 via-purple-800 to-purple-600">
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-purple-400/30 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-fuchsia-400/20 rounded-full blur-3xl" />
+      <div className="hidden lg:flex relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-purple-950 via-purple-900 to-purple-700">
+        
+        {/* Background Photo with low opacity & nice overlay blend */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-overlay pointer-events-none"
+          style={{ backgroundImage: 'url("https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg")' }}
+        />
+        
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-fuchsia-400/15 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-extrabold">
-            S
+          <div className="w-10 h-10 rounded-xl bg-white overflow-hidden flex items-center justify-center shadow-md">
+            <img src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
           </div>
           <span className="font-extrabold text-white tracking-tight text-lg">SAWTIFY</span>
         </motion.div>
@@ -135,8 +137,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           className="w-full max-w-sm mx-auto space-y-8"
         >
           <div className="space-y-2 text-center lg:text-left" style={isRTL ? { textAlign: 'right' } : undefined}>
-            <div className="lg:hidden w-12 h-12 mx-auto lg:mx-0 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-extrabold shadow-md mb-4">
-              S
+            <div className="lg:hidden w-12 h-12 mx-auto lg:mx-0 rounded-2xl bg-white overflow-hidden flex items-center justify-center shadow-md mb-4 border border-slate-100">
+              <img src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               {isRTL ? 'تسجيل الدخول إلى صوتيفي' : 'Connexion à Sawtify'}
@@ -153,7 +155,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* Google-only Auth Button */}
+          {/* Google Auth Button */}
           <button
             type="button"
             id="btn-google-login"
@@ -174,9 +176,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             )}
           </button>
 
-          <div className="flex items-center gap-2 px-1 text-purple-700 bg-purple-50/70 border border-purple-200/70 rounded-xl py-2.5 text-[11px] font-medium">
+          <div className="flex items-center gap-2 px-3 text-purple-700 bg-purple-50/70 border border-purple-200/70 rounded-xl py-2.5 text-[11px] font-medium">
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>{isRTL ? 'الدخول السريع بدون كلمة مرور ولا نموذج للتعبئة' : "Connexion instantanée, sans mot de passe ni formulaire à remplir"}</span>
+            <span>{isRTL ? 'الدخول السريع بدون كلمة مرور ولا نموذج للتعبئة' : "Connexion instantanée, sans mot de passe ni formulaire"}</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -187,37 +189,34 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
-          {/* Connexion classique e-mail + mot de passe */}
+          {/* Connexion classique e-mail + mot de passe (RTL Logical layout safe) */}
           <form onSubmit={handleEmailLogin} className="space-y-3">
             <div className="relative">
-              <Mail className="absolute top-1/2 -translate-y-1/2 left-3.5 w-4 h-4 text-slate-400" />
+              <Mail className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={isRTL ? 'البريد الإلكتروني' : 'Adresse e-mail'}
-                className="w-full pl-10 pr-3.5 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
-                dir={isRTL ? 'rtl' : 'ltr'}
-                style={isRTL ? { paddingRight: '2.5rem', paddingLeft: '0.875rem' } : undefined}
+                className="w-full ps-10 pe-4 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
               />
             </div>
 
             <div className="relative">
-              <Lock className="absolute top-1/2 -translate-y-1/2 left-3.5 w-4 h-4 text-slate-400" />
+              <Lock className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={isRTL ? 'كلمة المرور' : 'Mot de passe'}
-                className="w-full pl-10 pr-10 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
-                dir={isRTL ? 'rtl' : 'ltr'}
+                className="w-full ps-10 pe-10 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute top-1/2 -translate-y-1/2 right-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute top-1/2 -translate-y-1/2 end-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
