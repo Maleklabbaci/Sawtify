@@ -10,10 +10,8 @@ import {
   Mic,
   Zap,
   Download,
-  Star,
   ChevronDown,
   CheckCircle2,
-  AudioLines,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -23,6 +21,77 @@ interface LandingPageProps {
   language: "fr" | "ar";
   setLanguage: (lang: "fr" | "ar") => void;
 }
+
+/* ---------------------------------------------------
+   HOOK — Vraie waveform liée à l'audio (Web Audio API)
+--------------------------------------------------- */
+function useAudioVisualizer(
+  audioEl: HTMLAudioElement | null,
+  isPlaying: boolean,
+  barCount = 28
+) {
+  const [bars, setBars] = useState<number[]>(Array(barCount).fill(14));
+  const ctxRef = useRef<AudioContext | null>(null);
+  const rafRef = useRef<number>();
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  useEffect(() => {
+    if (!isPlaying || !audioEl) {
+      setBars(Array(barCount).fill(14));
+      return;
+    }
+
+    try {
+      if (!ctxRef.current) {
+        ctxRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+      }
+      const ctx = ctxRef.current;
+
+      if (!sourceRef.current) {
+        sourceRef.current = ctx.createMediaElementSource(audioEl);
+      }
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      sourceRef.current.connect(analyser);
+      analyser.connect(ctx.destination);
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        const next = Array.from(data.slice(0, barCount)).map((v) =>
+          Math.max(12, (v / 255) * 100)
+        );
+        setBars(next);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+
+      return () => {
+        cancelAnimationFrame(rafRef.current!);
+        analyser.disconnect();
+      };
+    } catch {
+      // fallback silencieux si l'API échoue (autoplay policies, etc.)
+    }
+  }, [isPlaying, audioEl]);
+
+  return bars;
+}
+
+/* ---------------------------------------------------
+   Variants d'animation réutilisables
+--------------------------------------------------- */
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -35,6 +104,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [scrolled, setScrolled] = useState(false);
+
+  const bars = useAudioVisualizer(audioRef.current, playingId !== null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -54,54 +132,65 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     navPricing: isRTL ? "الأسعار" : "Tarifs",
     login: isRTL ? "دخول" : "Connexion",
     start: isRTL ? "ابدأ الآن" : "Commencer",
-    badge: isRTL ? "منصة الصوت الذكي رقم 1 في الجزائر" : "N°1 de la voix IA en Algérie",
-    heroTitleA: isRTL ? "حوّل أي نص إلى" : "Transformez vos textes en",
-    heroTitleB: isRTL ? "صوت بشري أصيل" : "voix humaine authentique",
+    kicker: isRTL ? "منصة الصوت الجزائرية" : "La plateforme vocale algérienne",
+    heroTitleA: isRTL ? "حوّل أي نص إلى" : "Vos textes deviennent",
+    heroTitleB: isRTL ? "صوت بشري أصيل" : "une voix humaine",
     heroDesc: isRTL
       ? "أنشئ تعليقات صوتية بالدارجة الجزائرية بجودة استوديو. سريعة، طبيعية، وجاهزة للإعلانات والريلز."
-      : "Créez des voice-over en darija algérienne, qualité studio. Rapide, naturelle, prête pour pubs et reels.",
+      : "Voice-over en darija algérienne, qualité studio. Naturelles, rapides, prêtes pour vos pubs et reels — sans studio, sans comédien à réserver.",
     ctaPrimary: isRTL ? "ابدأ مجاناً" : "Essayer gratuitement",
-    ctaSecondary: isRTL ? "استمع للأصوات" : "Écouter les voix",
-    statsUsers: isRTL ? "مستخدم" : "Créateurs",
-    statsVoices: isRTL ? "أصوات" : "Voix",
-    statsLatency: isRTL ? "ثوانٍ" : "Secondes",
+    ctaSecondary: isRTL ? "استمع للأصوات" : "Écouter un exemple",
+    trustNote: isRTL
+      ? "50 نقطة مجانية. لا حاجة لبطاقة بنكية."
+      : "50 points offerts. Aucune carte bancaire requise.",
+    statsUsers: isRTL ? "مبدع نشط" : "Créateurs actifs",
+    statsVoices: isRTL ? "أصوات متاحة" : "Voix disponibles",
+    statsLatency: isRTL ? "زمن التوليد" : "Temps de génération",
     statsLocal: isRTL ? "دفع محلي" : "Paiement local",
-    sectionVoices: isRTL ? "أصوات حقيقية" : "Des voix réelles",
-    sectionVoicesSub: isRTL ? "عاطفة حقيقية." : "Une émotion réelle.",
-    sectionFeatures: isRTL ? "كل ما تحتاجه" : "Tout ce qu’il faut",
-    sectionFeaturesSub: isRTL ? "لصناعة صوت مثالي." : "pour un son parfait.",
-    pricingTitle: isRTL ? "ادفع فقط لما تستخدمه" : "Payez seulement ce que vous utilisez",
-    pricingSub: isRTL ? "بدون اشتراك شهري. النقاط لا تنتهي." : "Sans abonnement. Les points n’expirent pas.",
-    faqTitle: isRTL ? "الأسئلة الشائعة" : "Questions fréquentes",
-    finalTitleA: isRTL ? "ابدأ صناعة" : "Commencez à créer",
-    finalTitleB: isRTL ? "صوتك" : "votre voix",
-    finalTitleC: isRTL ? "اليوم." : "aujourd’hui.",
-    finalSub: isRTL ? "50 نقطة مجانية عند التسجيل." : "50 points offerts à l’inscription.",
+    sectionVoicesKicker: isRTL ? "٠١ — الأصوات" : "01 — Les voix",
+    sectionVoices: isRTL ? "أصوات بعاطفة" : "Des voix avec",
+    sectionVoicesEm: isRTL ? "حقيقية." : "du caractère.",
+    sectionVoicesSub: isRTL
+      ? "كل صوت مسجّل ومدرّب على نبرات جزائرية أصيلة، وليس ترجمة آلية لصوت أجنبي."
+      : "Chaque voix est entraînée sur de vraies intonations algériennes — pas une traduction robotique d'un accent étranger.",
+    sectionFeaturesKicker: isRTL ? "٠٢ — الإمكانيات" : "02 — Capacités",
+    sectionFeatures: isRTL ? "مصمم للمبدعين" : "Conçu pour les",
+    sectionFeaturesEm: isRTL ? "الجزائريين." : "créateurs d'ici.",
+    pricingKicker: isRTL ? "٠٣ — الأسعار" : "03 — Tarifs",
+    pricingTitle: isRTL ? "ادفع فقط لما تستخدمه" : "Vous payez ce que vous utilisez",
+    pricingSub: isRTL
+      ? "بدون اشتراك شهري. النقاط لا تنتهي صلاحيتها أبداً."
+      : "Aucun abonnement mensuel. Les points achetés n'expirent jamais.",
+    faqKicker: isRTL ? "٠٤ — الأسئلة" : "04 — Questions",
+    faqTitle: isRTL ? "الأسئلة الشائعة" : "Ce qu'on nous demande souvent",
+    finalTitleA: isRTL ? "جاهز تسمع" : "Prêt à entendre",
+    finalTitleB: isRTL ? "صوتك؟" : "votre texte prendre vie ?",
+    finalSub: isRTL ? "50 نقطة مجانية عند التسجيل — بدون بطاقة." : "50 points offerts à l'inscription — sans carte bancaire.",
   };
 
   const voices = [
     {
       id: "amin",
       name: isRTL ? "أمين" : "Amin",
-      tag: isRTL ? "تجاري • دارجة" : "Commercial • Darija",
+      tag: isRTL ? "تجاري • دارجة" : "Commercial · Darija",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
     },
     {
       id: "yasmine",
       name: isRTL ? "ياسمين" : "Yasmine",
-      tag: isRTL ? "إعلان • ناعم" : "Ads • Soft",
+      tag: isRTL ? "إعلان • ناعم" : "Publicité · Douce",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
     },
     {
       id: "khalid",
       name: isRTL ? "خالد" : "Khalid",
-      tag: isRTL ? "وثائقي • عميق" : "Doc • Deep",
+      tag: isRTL ? "وثائقي • عميق" : "Documentaire · Grave",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
     },
     {
       id: "layla",
       name: isRTL ? "ليلى" : "Layla",
-      tag: isRTL ? "سوشيال • حيوي" : "Social • Energetic",
+      tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
     },
   ];
@@ -111,106 +200,82 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       icon: Mic,
       title: isRTL ? "دارجة أصيلة" : "Darija authentique",
       desc: isRTL
-        ? "نبرات جزائرية حقيقية، مع code-switching طبيعي FR/AR."
-        : "Vraies intonations algériennes, code-switching FR/AR naturel.",
+        ? "نبرات جزائرية حقيقية، مع تبديل طبيعي بين الفرنسية والعربية."
+        : "Vraies intonations algériennes, avec un code-switching FR/AR naturel, pas robotique.",
     },
     {
       icon: Sparkles,
-      title: isRTL ? "محسّن سيناريو" : "Script enhancer",
+      title: isRTL ? "محسّن السيناريو" : "Script enhancer",
       desc: isRTL
-        ? "حسّن نصك للع口语 مع balises d’émotion."
-        : "Optimise ton texte pour l’oral avec balises d’émotion.",
+        ? "حسّن نصك تلقائياً للنطق الشفهي مع دلالات المشاعر."
+        : "Optimise automatiquement ton texte pour l'oral, avec des balises d'émotion.",
     },
     {
       icon: Volume2,
       title: isRTL ? "تحكم دقيق" : "Contrôle précis",
       desc: isRTL
-        ? "السرعة، النبرة، الوقفات: تحكم كامل."
-        : "Vitesse, pitch, pauses: contrôle total.",
+        ? "السرعة، النبرة، الوقفات — تحكم كامل في كل تفصيل."
+        : "Vitesse, pitch, pauses : un contrôle total sur chaque détail du rendu.",
     },
     {
       icon: Download,
       title: isRTL ? "تصدير فوري" : "Export instantané",
       desc: isRTL
-        ? "MP3 / WAV جاهز للمونتاج."
-        : "MP3 / WAV prêts pour le montage.",
+        ? "ملفات MP3 أو WAV جاهزة مباشرة للمونتاج."
+        : "Fichiers MP3 ou WAV, prêts à être glissés dans ton montage.",
     },
     {
       icon: Zap,
       title: isRTL ? "توليد سريع" : "Génération rapide",
       desc: isRTL
-        ? "من النص إلى الصوت في ثوانٍ."
-        : "Du texte à la voix en quelques secondes.",
+        ? "من النص إلى الصوت الجاهز في أقل من ثلاث ثوانٍ."
+        : "Du texte à la voix finalisée en moins de trois secondes.",
     },
     {
       icon: ShieldCheck,
-      title: isRTL ? "دفع جزائري" : "Paiement algérien",
+      title: isRTL ? "دفع جزائري" : "Paiement 100% local",
       desc: isRTL
-        ? "Edahabia & CIB عبر SATIM."
-        : "Edahabia & CIB via SATIM.",
+        ? "الذهبية وCIB عبر SATIM، بدون أي وسيط أجنبي."
+        : "Edahabia et CIB via SATIM — sans intermédiaire étranger.",
     },
   ];
 
   const plans = [
     {
-      name: isRTL ? "Starter" : "Starter",
+      name: "Starter",
       price: "990",
       points: "500",
       desc: isRTL ? "للتجربة والبداية" : "Pour tester et démarrer",
       popular: false,
     },
     {
-      name: isRTL ? "Pro" : "Pro",
+      name: "Pro",
       price: "2 490",
       points: "1 500",
-      desc: isRTL ? "للمبدعين النشطين" : "Pour créateurs actifs",
+      desc: isRTL ? "للمبدعين النشطين" : "Pour les créateurs actifs",
       popular: true,
     },
     {
-      name: isRTL ? "Agency" : "Agency",
+      name: "Agency",
       price: "4 990",
       points: "3 500",
-      desc: isRTL ? "للفرق والوكالات" : "Pour équipes & agences",
+      desc: isRTL ? "للفرق والوكالات" : "Pour équipes et agences",
       popular: false,
     },
   ];
 
   const faqs = isRTL
     ? [
-        {
-          q: "هل الأصوات صالحة للاستخدام التجاري؟",
-          a: "نعم. كل الملفات قابلة للاستخدام في الإعلانات، الريلز، اليوتيوب والمشاريع التجارية.",
-        },
-        {
-          q: "كيف يعمل نظام النقاط؟",
-          a: "تشتري رصيداً مرة واحدة. التوليد الصوتي = 20 نقطة. النقاط لا تنتهي صلاحيتها.",
-        },
-        {
-          q: "هل تدعمون الذهبية و CIB؟",
-          a: "نعم عبر SATIM. الدفع محلي بالدينار الجزائري.",
-        },
-        {
-          q: "هل هناك اشتراك شهري؟",
-          a: "لا. Sawtify Pay-As-You-Go: تدفع فقط ما تستخدمه.",
-        },
+        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم. كل الملفات قابلة للاستخدام في الإعلانات، الريلز، اليوتيوب والمشاريع التجارية." },
+        { q: "كيف يعمل نظام النقاط؟", a: "تشتري رصيداً مرة واحدة. التوليد الصوتي = 20 نقطة. النقاط لا تنتهي صلاحيتها." },
+        { q: "هل تدعمون الذهبية و CIB؟", a: "نعم عبر SATIM. الدفع محلي بالدينار الجزائري." },
+        { q: "هل هناك اشتراك شهري؟", a: "لا. Sawtify نظام دفع مقابل الاستخدام فقط." },
       ]
     : [
-        {
-          q: "Les voix sont-elles libres de droits ?",
-          a: "Oui. Usage commercial autorisé: pubs, reels, YouTube, projets pro.",
-        },
-        {
-          q: "Comment marche le système de points ?",
-          a: "Tu achètes un pack une fois. 1 génération vocale = 20 points. Les points n’expirent jamais.",
-        },
-        {
-          q: "Edahabia et CIB sont-ils acceptés ?",
-          a: "Oui, via SATIM. Paiement local en DZD.",
-        },
-        {
-          q: "Y a-t-il un abonnement mensuel ?",
-          a: "Non. Sawtify est 100% Pay-As-You-Go.",
-        },
+        { q: "Les voix sont-elles libres de droits ?", a: "Oui. Usage commercial autorisé : pubs, reels, YouTube, projets clients." },
+        { q: "Comment fonctionne le système de points ?", a: "Tu achètes un pack une fois. Une génération vocale coûte 20 points. Les points n'expirent jamais." },
+        { q: "Edahabia et CIB sont-ils acceptés ?", a: "Oui, via SATIM. Paiement 100% local, en dinars algériens." },
+        { q: "Y a-t-il un abonnement mensuel ?", a: "Non. Sawtify fonctionne uniquement en Pay-As-You-Go." },
       ];
 
   const toggleVoice = (id: string, url: string) => {
@@ -220,352 +285,432 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       return;
     }
     audioRef.current?.pause();
-    audioRef.current = new Audio(url);
-    audioRef.current.play();
-    audioRef.current.onended = () => setPlayingId(null);
+    const audio = new Audio(url);
+    audio.crossOrigin = "anonymous";
+    audioRef.current = audio;
+    audio.play();
+    audio.onended = () => setPlayingId(null);
     setPlayingId(id);
   };
 
   return (
     <div
-      className="min-h-screen bg-[#F4F1EC] text-slate-900 overflow-x-hidden"
       dir={isRTL ? "rtl" : "ltr"}
-      style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}
+      className="min-h-screen bg-white text-[#141118] selection:bg-purple-200 selection:text-purple-900"
+      style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
     >
-      {/* subtle top glow */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.12),transparent_55%)]" />
-
-      {/* floating nav */}
-      <div className="sticky top-4 z-50 px-4">
-        <div className="mx-auto max-w-6xl rounded-full border border-white/70 bg-white/80 backdrop-blur-xl shadow-[0_10px_40px_rgba(15,23,42,0.08)] px-3 py-2 flex items-center justify-between">
-          <div className="hidden md:flex items-center gap-5 text-sm text-slate-600 px-3">
-            <a href="#about" className="hover:text-slate-900 transition">{t.navAbout}</a>
-            <a href="#voices" className="hover:text-slate-900 transition">{t.navVoices}</a>
-          </div>
-
-          <div className="flex items-center gap-2 px-2">
-            <div className="w-8 h-8 rounded-full bg-purple-700 overflow-hidden shadow-sm">
+      {/* =========================================================
+          NAV — barre simple, pas de pilule flottante
+      ========================================================= */}
+      <header
+        className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
+          scrolled ? "bg-white/95 backdrop-blur border-[#141118]/10" : "bg-white border-transparent"
+        }`}
+      >
+        <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-md bg-[#141118] overflow-hidden">
               <img
                 src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg"
                 alt="Sawtify"
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-semibold tracking-tight">Sawtify</span>
+            <span className="font-semibold tracking-tight text-[15px]">Sawtify</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-5 text-sm text-slate-600 px-2">
-              <a href="#features" className="hover:text-slate-900 transition">{t.navFeatures}</a>
-              <a href="#pricing" className="hover:text-slate-900 transition">{t.navPricing}</a>
-            </div>
+          <nav className="hidden md:flex items-center gap-8 text-[13.5px] text-[#141118]/60">
+            <a href="#voices" className="hover:text-[#141118] transition-colors">{t.navVoices}</a>
+            <a href="#features" className="hover:text-[#141118] transition-colors">{t.navFeatures}</a>
+            <a href="#pricing" className="hover:text-[#141118] transition-colors">{t.navPricing}</a>
+          </nav>
+
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 hover:bg-slate-200 transition"
+              className="w-8 h-8 rounded-md text-[11px] font-bold text-[#141118]/50 hover:text-[#141118] hover:bg-[#141118]/5 transition-colors"
             >
               {language === "fr" ? "AR" : "FR"}
             </button>
             <button
               onClick={onLoginClick}
-              className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
+              className="hidden sm:inline-flex px-3.5 py-2 text-[13.5px] font-medium text-[#141118]/70 hover:text-[#141118] transition-colors"
             >
               {t.login}
             </button>
             <button
               onClick={onSigninClick}
-              className="inline-flex items-center gap-1.5 rounded-full bg-slate-950 text-white px-4 py-2 text-sm font-semibold hover:bg-purple-700 transition"
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#141118] text-white px-4 py-2 text-[13.5px] font-medium hover:bg-purple-700 transition-colors"
             >
               {t.start}
-              <ArrowIcon className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* HERO CARD */}
-      <section id="about" className="relative z-10 px-4 pt-6 pb-8">
-        <div className="mx-auto max-w-6xl rounded-[2rem] bg-white shadow-[0_20px_80px_rgba(15,23,42,0.08)] overflow-hidden">
-          <div className="grid lg:grid-cols-2 gap-8 items-center p-6 sm:p-10 lg:p-12">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 text-purple-700 border border-purple-100 px-3 py-1 text-xs font-semibold mb-5">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                {t.badge}
-              </div>
+      {/* =========================================================
+          HERO — asymétrique, typographie dominante
+      ========================================================= */}
+      <section className="relative border-b border-[#141118]/10">
+        <div className="mx-auto max-w-6xl px-5 pt-16 sm:pt-24 pb-14">
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={stagger}
+            className="max-w-3xl"
+          >
+            <motion.div variants={fadeUp} className="flex items-center gap-2 mb-6 text-[13px] text-[#141118]/50">
+              <span className="w-4 h-px bg-purple-600" />
+              {t.kicker}
+            </motion.div>
 
-              <h1
-                className="text-4xl sm:text-5xl lg:text-[3.4rem] leading-[1.08] font-semibold tracking-tight text-slate-950 mb-5"
-                style={{ fontFamily: "Fraunces, Georgia, serif" }}
+            <motion.h1
+              variants={fadeUp}
+              className="text-[2.6rem] sm:text-6xl lg:text-[4.2rem] leading-[1.02] font-medium tracking-tight text-[#141118]"
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            >
+              {t.heroTitleA}
+              <br />
+              {t.heroTitleB.split(" ")[0]}{" "}
+              <span className="text-purple-700">
+                {t.heroTitleB.split(" ").slice(1).join(" ")}
+              </span>
+            </motion.h1>
+
+            <motion.p
+              variants={fadeUp}
+              className="mt-6 text-[#141118]/60 text-base sm:text-lg leading-relaxed max-w-xl"
+            >
+              {t.heroDesc}
+            </motion.p>
+
+            <motion.div variants={fadeUp} className="mt-8 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={onSigninClick}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#141118] text-white px-6 py-3.5 text-sm font-medium hover:bg-purple-700 transition-colors"
               >
-                {t.heroTitleA}
-                <br />
-                <span className="italic text-purple-700">{t.heroTitleB}</span>
-              </h1>
+                {t.ctaPrimary}
+                <ArrowIcon />
+              </button>
+              <a
+                href="#voices"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-[#141118]/15 px-6 py-3.5 text-sm font-medium text-[#141118] hover:border-[#141118]/40 transition-colors"
+              >
+                <Play className="w-3.5 h-3.5" />
+                {t.ctaSecondary}
+              </a>
+            </motion.div>
 
-              <p className="text-slate-600 text-base sm:text-lg leading-relaxed max-w-xl mb-7">
-                {t.heroDesc}
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                <button
-                  onClick={onSigninClick}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 text-white px-6 py-3 text-sm font-semibold hover:bg-purple-700 transition"
-                >
-                  {t.ctaPrimary}
-                  <ArrowIcon />
-                </button>
-                <a
-                  href="#voices"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 hover:border-slate-400 transition"
-                >
-                  <Play className="w-4 h-4" />
-                  {t.ctaSecondary}
-                </a>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-purple-600" /> SATIM
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-purple-600" /> Edahabia / CIB
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-purple-600" /> Studio quality
-                </span>
-              </div>
-            </div>
-
-            {/* right visual */}
-            <div className="relative">
-              <div className="absolute -top-3 -right-2 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold px-3 py-1 border border-purple-200">
-                50 pts free
-              </div>
-              <div className="relative rounded-[1.6rem] overflow-hidden bg-slate-100 aspect-[4/5] sm:aspect-[5/6]">
-                <video
-                  ref={videoRef}
-                  src="https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/90 backdrop-blur-md border border-white p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-700 text-white flex items-center justify-center">
-                      <AudioLines className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {isRTL ? "جودة استوديو فورية" : "Qualité studio instantanée"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {isRTL ? "دارجة • عربية • FR mix" : "Darija • Arabe • FR mix"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+            <motion.p variants={fadeUp} className="mt-5 text-xs text-[#141118]/40">
+              {t.trustNote}
+            </motion.p>
+          </motion.div>
         </div>
+
+        {/* Media — pleine largeur, sobre, pas de carte flottante */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="relative mx-auto max-w-6xl px-5 pb-16"
+        >
+          <div className="relative rounded-2xl overflow-hidden bg-[#141118] aspect-[16/8] sm:aspect-[16/6.5]">
+            <video
+              ref={videoRef}
+              src="https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-90"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#141118]/70 via-transparent to-transparent" />
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs text-[#141118]/40">
+            <span>{isRTL ? "دارجة • عربية • مزيج فرنسي" : "Darija · Arabe · Mix français"}</span>
+            <span className="inline-flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> SATIM · Edahabia · CIB
+            </span>
+          </div>
+        </motion.div>
       </section>
 
-      {/* STATS BAR */}
-      <section className="relative z-10 px-4 pb-10">
-        <div className="mx-auto max-w-6xl rounded-[1.6rem] bg-[#111111] text-white px-6 py-6 sm:px-10 sm:py-7 grid grid-cols-2 md:grid-cols-4 gap-6">
+      {/* =========================================================
+          STATS — ligne fine, pas de bloc noir plaqué
+      ========================================================= */}
+      <section className="border-b border-[#141118]/10">
+        <div className="mx-auto max-w-6xl px-5 py-8 grid grid-cols-2 md:grid-cols-4">
           {[
-            { n: "1k+", l: t.statsUsers },
+            { n: "1,200+", l: t.statsUsers },
             { n: "12", l: t.statsVoices },
-            { n: "<3s", l: t.statsLatency },
+            { n: "< 3s", l: t.statsLatency },
             { n: "100%", l: t.statsLocal },
-          ].map((s) => (
-            <div key={s.l} className="text-center md:text-left">
+          ].map((s, i) => (
+            <motion.div
+              key={s.l}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.06 }}
+              className={`px-4 py-3 ${i !== 0 ? "border-s border-[#141118]/10" : ""}`}
+            >
               <div
-                className="text-3xl sm:text-4xl font-semibold tracking-tight"
-                style={{ fontFamily: "Fraunces, Georgia, serif" }}
+                className="text-2xl sm:text-3xl font-medium tracking-tight text-[#141118]"
+                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
               >
                 {s.n}
               </div>
-              <div className="text-xs sm:text-sm text-white/55 mt-1">{s.l}</div>
-            </div>
+              <div className="text-xs text-[#141118]/45 mt-1">{s.l}</div>
+            </motion.div>
           ))}
         </div>
       </section>
 
-      {/* VOICES */}
-      <section id="voices" className="relative z-10 px-4 py-14">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-8 max-w-2xl">
-            <h2
-              className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-950"
-              style={{ fontFamily: "Fraunces, Georgia, serif" }}
-            >
-              {t.sectionVoices} <span className="italic text-purple-700">{t.sectionVoicesSub}</span>
-            </h2>
-          </div>
+      {/* =========================================================
+          VOICES — liste horizontale (pas de grille de cartes)
+      ========================================================= */}
+      <section id="voices" className="border-b border-[#141118]/10">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10"
+          >
+            <div>
+              <div className="text-xs text-purple-700 font-medium mb-3">{t.sectionVoicesKicker}</div>
+              <h2
+                className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
+                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              >
+                {t.sectionVoices} <span className="text-purple-700">{t.sectionVoicesEm}</span>
+              </h2>
+            </div>
+            <p className="text-[#141118]/50 text-sm max-w-sm">{t.sectionVoicesSub}</p>
+          </motion.div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="divide-y divide-[#141118]/10 border-t border-b border-[#141118]/10"
+          >
             {voices.map((v) => {
               const active = playingId === v.id;
               return (
-                <button
+                <motion.button
                   key={v.id}
+                  variants={fadeUp}
                   onClick={() => toggleVoice(v.id, v.url)}
-                  className={`text-left rounded-3xl border p-5 transition shadow-sm hover:shadow-md ${
-                    active
-                      ? "bg-purple-700 border-purple-700 text-white"
-                      : "bg-white border-slate-200 hover:border-purple-200"
-                  }`}
+                  className="w-full flex items-center gap-5 py-5 text-start group"
                 >
-                  <div className="flex items-start justify-between mb-8">
-                    <div>
-                      <div className="font-semibold text-lg">{v.name}</div>
-                      <div className={`text-xs mt-1 ${active ? "text-purple-100" : "text-slate-500"}`}>
-                        {v.tag}
-                      </div>
-                    </div>
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                        active ? "bg-white text-purple-700" : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
-                    </div>
+                  <div
+                    className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center border transition-colors ${
+                      active
+                        ? "bg-purple-700 border-purple-700 text-white"
+                        : "border-[#141118]/15 text-[#141118] group-hover:border-purple-400"
+                    }`}
+                  >
+                    {active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
                   </div>
-                  <div className="flex items-end gap-1 h-10">
-                    {Array.from({ length: 22 }).map((_, i) => (
+
+                  <div className="w-32 sm:w-40 shrink-0">
+                    <div className="font-medium text-[#141118]">{v.name}</div>
+                    <div className="text-xs text-[#141118]/45">{v.tag}</div>
+                  </div>
+
+                  <div className="flex-1 flex items-end gap-[3px] h-8">
+                    {bars.map((h, i) => (
                       <span
                         key={i}
-                        className={`flex-1 rounded-full ${active ? "bg-white/80" : "bg-slate-200"}`}
-                        style={{
-                          height: `${18 + ((i * 17) % 70)}%`,
-                        }}
+                        className={`flex-1 rounded-full transition-all duration-150 ${
+                          active ? "bg-purple-600" : "bg-[#141118]/10"
+                        }`}
+                        style={{ height: active ? `${h}%` : "20%" }}
                       />
                     ))}
                   </div>
-                </button>
+
+                  <ArrowIcon className="w-4 h-4 text-[#141118]/20 group-hover:text-purple-600 transition-colors shrink-0" />
+                </motion.button>
               );
             })}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* FEATURES */}
-      <section id="features" className="relative z-10 px-4 py-8">
-        <div className="mx-auto max-w-6xl rounded-[2rem] bg-[#111111] text-white p-6 sm:p-10">
-          <div className="mb-10 max-w-2xl">
-            <div className="inline-flex rounded-full bg-purple-500 text-white text-xs font-bold px-3 py-1 mb-4">
-              {isRTL ? "الميزات" : "Features"}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl font-semibold tracking-tight"
-              style={{ fontFamily: "Fraunces, Georgia, serif" }}
+      {/* =========================================================
+          FEATURES — liste numérotée, sticky title, pas de bento
+      ========================================================= */}
+      <section id="features" className="border-b border-[#141118]/10 bg-[#FAF9F7]">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
+          <div className="grid lg:grid-cols-12 gap-10">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="lg:col-span-4 lg:sticky lg:top-24 self-start"
             >
-              {t.sectionFeatures} <span className="italic text-purple-300">{t.sectionFeaturesSub}</span>
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="rounded-3xl border border-white/10 bg-white/5 p-5 hover:bg-white/10 transition"
+              <div className="text-xs text-purple-700 font-medium mb-3">{t.sectionFeaturesKicker}</div>
+              <h2
+                className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
+                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
               >
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center mb-4">
-                  <f.icon className="w-5 h-5" />
-                </div>
-                <div className="font-semibold mb-2">{f.title}</div>
-                <p className="text-sm text-white/60 leading-relaxed">{f.desc}</p>
-              </div>
-            ))}
+                {t.sectionFeatures} <span className="text-purple-700">{t.sectionFeaturesEm}</span>
+              </h2>
+            </motion.div>
+
+            <motion.div
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true }}
+              variants={stagger}
+              className="lg:col-span-8 divide-y divide-[#141118]/10 border-t border-[#141118]/10"
+            >
+              {features.map((f, i) => (
+                <motion.div
+                  key={f.title}
+                  variants={fadeUp}
+                  className="flex items-start gap-5 py-6"
+                >
+                  <span className="text-xs font-mono text-[#141118]/30 pt-1 w-6 shrink-0">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="w-9 h-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                    <f.icon className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-[#141118] mb-1">{f.title}</div>
+                    <p className="text-sm text-[#141118]/55 leading-relaxed">{f.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* PRICING */}
-      <section id="pricing" className="relative z-10 px-4 py-14">
-        <div className="mx-auto max-w-6xl">
-          <div className="text-center max-w-2xl mx-auto mb-10">
+      {/* =========================================================
+          PRICING — comparaison en lignes, pas de 3 cartes flottantes
+      ========================================================= */}
+      <section id="pricing" className="border-b border-[#141118]/10">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="max-w-xl mb-12"
+          >
+            <div className="text-xs text-purple-700 font-medium mb-3">{t.pricingKicker}</div>
             <h2
-              className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-950 mb-3"
-              style={{ fontFamily: "Fraunces, Georgia, serif" }}
+              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-3"
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
             >
               {t.pricingTitle}
             </h2>
-            <p className="text-slate-600">{t.pricingSub}</p>
-          </div>
+            <p className="text-[#141118]/55">{t.pricingSub}</p>
+          </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            {plans.map((p) => (
-              <div
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            variants={stagger}
+            className="grid md:grid-cols-3 border-t border-[#141118]/10"
+          >
+            {plans.map((p, i) => (
+              <motion.div
                 key={p.name}
-                className={`rounded-[1.6rem] p-6 border shadow-sm ${
-                  p.popular
-                    ? "bg-slate-950 text-white border-slate-950"
-                    : "bg-white border-slate-200"
-                }`}
+                variants={fadeUp}
+                className={`relative p-8 border-b md:border-b-0 border-[#141118]/10 ${
+                  i !== 0 ? "md:border-s" : ""
+                } ${p.popular ? "bg-[#141118] text-white" : "bg-white"}`}
               >
                 {p.popular && (
-                  <div className="inline-flex mb-4 rounded-full bg-purple-500 text-white text-[11px] font-bold px-2.5 py-1">
-                    {isRTL ? "الأكثر طلباً" : "Populaire"}
+                  <div className="text-[11px] font-medium text-purple-300 mb-4 uppercase tracking-wide">
+                    {isRTL ? "الأكثر طلباً" : "Le plus choisi"}
                   </div>
                 )}
-                <div className={`text-sm font-semibold mb-1 ${p.popular ? "text-purple-300" : "text-purple-700"}`}>
+                <div className={`text-sm font-medium mb-1 ${p.popular ? "text-white" : "text-[#141118]"}`}>
                   {p.name}
                 </div>
-                <div className={`text-sm mb-5 ${p.popular ? "text-white/60" : "text-slate-500"}`}>{p.desc}</div>
-                <div className="mb-2">
+                <div className={`text-sm mb-6 ${p.popular ? "text-white/50" : "text-[#141118]/45"}`}>
+                  {p.desc}
+                </div>
+                <div className="flex items-baseline gap-1.5 mb-1">
                   <span
-                    className="text-4xl font-semibold tracking-tight"
-                    style={{ fontFamily: "Fraunces, Georgia, serif" }}
+                    className="text-4xl font-medium tracking-tight"
+                    style={{ fontFamily: "'Fraunces', Georgia, serif" }}
                   >
                     {p.price}
                   </span>
-                  <span className={`text-sm ms-1 ${p.popular ? "text-white/50" : "text-slate-500"}`}>DZD</span>
+                  <span className={`text-sm ${p.popular ? "text-white/40" : "text-[#141118]/40"}`}>DZD</span>
                 </div>
-                <div className={`text-lg font-semibold mb-6 ${p.popular ? "text-purple-300" : "text-purple-700"}`}>
+                <div className={`text-sm font-medium mb-8 ${p.popular ? "text-purple-300" : "text-purple-700"}`}>
                   {p.points} {isRTL ? "نقطة" : "points"}
                 </div>
                 <button
                   onClick={onSigninClick}
-                  className={`w-full rounded-full py-3 text-sm font-semibold transition ${
+                  className={`w-full rounded-md py-3 text-sm font-medium transition-colors ${
                     p.popular
-                      ? "bg-white text-slate-950 hover:bg-purple-100"
-                      : "bg-slate-950 text-white hover:bg-purple-700"
+                      ? "bg-white text-[#141118] hover:bg-purple-100"
+                      : "bg-[#141118] text-white hover:bg-purple-700"
                   }`}
                 >
-                  {isRTL ? "اختيار الباقة" : "Choisir"}
+                  {isRTL ? "اختيار الباقة" : "Choisir ce pack"}
                 </button>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="relative z-10 px-4 pb-10">
-        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white border border-slate-200 p-6 sm:p-8">
+      {/* =========================================================
+          FAQ — numérotée, minimaliste
+      ========================================================= */}
+      <section className="border-b border-[#141118]/10">
+        <div className="mx-auto max-w-3xl px-5 py-16 sm:py-20">
+          <div className="text-xs text-purple-700 font-medium mb-3">{t.faqKicker}</div>
           <h2
-            className="text-3xl font-semibold tracking-tight mb-6"
-            style={{ fontFamily: "Fraunces, Georgia, serif" }}
+            className="text-3xl font-medium tracking-tight text-[#141118] mb-8"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
           >
             {t.faqTitle}
           </h2>
-          <div className="space-y-3">
+
+          <div className="border-t border-[#141118]/10">
             {faqs.map((f, i) => {
               const open = openFaq === i;
               return (
-                <div key={f.q} className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div key={f.q} className="border-b border-[#141118]/10">
                   <button
                     onClick={() => setOpenFaq(open ? null : i)}
-                    className="w-full px-4 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition"
+                    className="w-full py-5 flex items-start gap-4 text-start"
                   >
-                    <span className="font-medium text-sm sm:text-base pe-4">{f.q}</span>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+                    <span className="text-xs font-mono text-[#141118]/30 pt-0.5 w-6 shrink-0">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 font-medium text-[15px] text-[#141118]">{f.q}</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-[#141118]/35 mt-0.5 shrink-0 transition-transform duration-300 ${
+                        open ? "rotate-180" : ""
+                      }`}
+                    />
                   </button>
-                  {open && <div className="px-4 pb-4 text-sm text-slate-600 leading-relaxed">{f.a}</div>}
+                  <motion.div
+                    initial={false}
+                    animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <p className="ps-10 pb-5 text-sm text-[#141118]/55 leading-relaxed max-w-xl">
+                      {f.a}
+                    </p>
+                  </motion.div>
                 </div>
               );
             })}
@@ -573,42 +718,61 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* FINAL CTA */}
-      <section className="relative z-10 px-4 pb-10">
-        <div className="mx-auto max-w-6xl rounded-[2rem] bg-slate-950 text-white p-8 sm:p-12 text-center overflow-hidden relative">
-          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 bg-purple-600/20 blur-3xl rounded-full" />
-          <h2
-            className="relative text-3xl sm:text-5xl font-semibold tracking-tight mb-4"
-            style={{ fontFamily: "Fraunces, Georgia, serif" }}
+      {/* =========================================================
+          FINAL CTA — typographie forte, pas de blur décoratif
+      ========================================================= */}
+      <section className="bg-[#141118] text-white">
+        <div className="mx-auto max-w-4xl px-5 py-20 sm:py-28 text-center">
+          <motion.h2
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="text-4xl sm:text-6xl font-medium tracking-tight leading-[1.05] mb-5"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
           >
-            {t.finalTitleA} <span className="italic text-purple-300">{t.finalTitleB}</span> {t.finalTitleC}
-          </h2>
-          <p className="relative text-white/60 mb-7">{t.finalSub}</p>
-          <button
+            {t.finalTitleA} <span className="text-purple-400">{t.finalTitleB}</span>
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="text-white/55 mb-9"
+          >
+            {t.finalSub}
+          </motion.p>
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.25 }}
             onClick={onSigninClick}
-            className="relative inline-flex items-center gap-2 rounded-full bg-white text-slate-950 px-6 py-3 text-sm font-semibold hover:bg-purple-100 transition"
+            className="inline-flex items-center gap-2 rounded-md bg-white text-[#141118] px-7 py-3.5 text-sm font-medium hover:bg-purple-100 transition-colors"
           >
             {t.ctaPrimary}
             <ArrowIcon />
-          </button>
+          </motion.button>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="relative z-10 px-4 pb-8">
-        <div className="mx-auto max-w-6xl rounded-[1.6rem] bg-purple-600 text-white px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20">
+      {/* =========================================================
+          FOOTER — sobre, informatif
+      ========================================================= */}
+      <footer className="bg-white">
+        <div className="mx-auto max-w-6xl px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-md overflow-hidden bg-[#141118]">
               <img
                 src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg"
                 alt="Sawtify"
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-semibold">Sawtify</span>
-            <span className="text-white/70 text-sm">© 2026</span>
+            <span className="font-semibold text-sm">Sawtify</span>
+            <span className="text-[#141118]/35 text-sm">© 2026</span>
           </div>
-          <div className="text-sm text-white/80">SATIM • Edahabia • CIB</div>
+          <div className="text-xs text-[#141118]/40">SATIM · Edahabia · CIB</div>
         </div>
       </footer>
     </div>
