@@ -74,6 +74,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [productName, setProductName] = useState<string>('');
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
 
+  // ✨ Notifications flottantes (-20 Points, -5 Points, etc.)
+  const [notification, setNotification] = useState<string | null>(null);
+  const showNotif = useCallback((msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 2800);
+  }, []);
+
   // Synchronisation du solde de points local pour réactivité instantanée
   const [localBalance, setLocalBalance] = useState<number>(balance);
   useEffect(() => { setLocalBalance(balance); }, [balance]);
@@ -117,13 +124,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const record: GenerationRecord = { id: response.generation_id || ('gen_' + Date.now()), text, voiceId: currentVoice.id, voiceName: currentVoice.name, audioUrl: response.audio_url, pointsDeducted: POINTS_COST, durationSec: response.duration_seconds || 0, latencyMs: response.latency_ms, createdAt: new Date().toISOString() };
       const deducted = await onDeductPoints(POINTS_COST, record);
       if (!deducted) setInsufficientAlert(true);
+
+      // ✨ Notif visuelle -20 Points
+      if (deducted) {
+        setLocalBalance(prev => prev - POINTS_COST);
+        showNotif(response.notification || `-${POINTS_COST} Points`);
+      }
       
       setIsConvertingMp3(true); setConversionStatus(t.convertingStatus || 'Conversion...');
       try { const r = await convertWavToMp3(audioBlob, (s) => setConversionStatus(s)); setMp3Blob(r.mp3Blob); setMp3Url(r.mp3Url); setMp3Size(r.mp3Size); setCompressionRatio(r.compressionRatio); } catch (e) {} finally { setIsConvertingMp3(false); }
     } catch (err) { console.error('Erreur TTS:', err); } finally { setIsGenerating(false); }
-  }, [text, localBalance, currentVoice.id, currentVoice.name, speed, pitch, onDeductPoints, t.convertingStatus]);
+  }, [text, localBalance, currentVoice.id, currentVoice.name, speed, pitch, onDeductPoints, t.convertingStatus, showNotif]);
 
-  // Bouton Magique LLM — Coût : 2 points
+  // ✨ Bouton Magique LLM — Coût : 2 points
   const handleEnhanceText = async () => {
     if (!text.trim() || isEnhancing) return;
     if (localBalance < 2) { setInsufficientAlert(true); return; }
@@ -132,7 +145,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     try {
       const result = await requestEnhanceText(text);
       setText(result.enhanced_text);
-      setLocalBalance(result.remaining_balance);
+      if (typeof result.remaining_balance === 'number') setLocalBalance(result.remaining_balance);
+      showNotif(result.notification || '-2 Points');
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       console.error("Erreur d'amélioration:", e);
@@ -142,7 +156,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
   };
 
-  // Générateur de script TikTok LLM — Coût : 5 points
+  // ✨ Générateur de script TikTok LLM — Coût : 5 points
   const handleGenerateScript = async () => {
     if (!productName.trim() || isGeneratingScript) return;
     if (localBalance < 5) { setInsufficientAlert(true); return; }
@@ -152,7 +166,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const result = await requestGenerateScript(productName, 'excited');
       setText(result.script);
       setProductName('');
-      setLocalBalance(result.remaining_balance);
+      if (typeof result.remaining_balance === 'number') setLocalBalance(result.remaining_balance);
+      showNotif(result.notification || '-5 Points');
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       console.error("Erreur génération de script:", e);
@@ -192,7 +207,15 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   return (
     <div className="h-[calc(100vh-64px)] w-full flex overflow-hidden bg-slate-50/40 relative">
       
-      {/* ===== LEFT COLUMN (Fixed Proportions) : Générateur IA & Historique ===== */}
+      {/* ✨ Notification flottante (-20 Points, -5 Points, -2 Points) */}
+      {notification && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
+          <Zap className="w-4 h-4 text-yellow-300 fill-yellow-300" />
+          <span className="tracking-wider">{notification}</span>
+        </div>
+      )}
+
+      {/* ===== LEFT COLUMN : Générateur IA & Historique ===== */}
       <div className="w-64 xl:w-72 shrink-0 border-e border-slate-200 bg-white flex flex-col">
         
         {/* Module Générateur de Script publicitaire TikTok */}
@@ -250,7 +273,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
       </div>
 
-      {/* ===== CENTER COLUMN (Flexible Space) : Éditeur ===== */}
+      {/* ===== CENTER COLUMN : Éditeur ===== */}
       <div className="flex-1 min-w-0 flex flex-col p-4">
         {insufficientAlert && (
           <div className="mb-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
@@ -266,36 +289,55 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
         <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
           
-          {/* Tags */}
-          <div className="shrink-0 flex items-center gap-2 gap-y-1.5 flex-wrap pb-2 border-b border-slate-100 mb-2">
-            {styleTags.map((tagObj) => (
-              <button key={tagObj.tag} onClick={() => handleInsertTag(tagObj.tag)} title={tagObj.desc} className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 text-slate-600 hover:text-purple-800 transition cursor-pointer">{tagObj.tag}</button>
-            ))}
-          </div>
-
-          {/* Textarea */}
-          <div className="flex-1 min-h-0 relative">
-            <textarea ref={textareaRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={t.textPlaceholder || 'Écrivez votre texte ici...'} className="w-full h-full p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto" />
+          {/* ✨ Barre d'outils (bouton Magique EN HAUT au lieu d'être dans le textarea) */}
+          <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
+            <div className="flex items-center gap-2 gap-y-1.5 flex-wrap">
+              {styleTags.map((tagObj) => (
+                <button key={tagObj.tag} onClick={() => handleInsertTag(tagObj.tag)} title={tagObj.desc} className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 text-slate-600 hover:text-purple-800 transition cursor-pointer">{tagObj.tag}</button>
+              ))}
+            </div>
             
-            {/* BOUTON MAGIQUE LLM (2 points) */}
+            {/* Bouton Magique HORS du textarea (ne cache plus le texte) */}
             <button 
               onClick={handleEnhanceText}
               disabled={isEnhancing || !text.trim() || localBalance < 2}
-              className={`absolute top-2 ${isRTL ? 'left-2' : 'right-2'} p-2 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5`}
+              className="shrink-0 px-3 py-1.5 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
               title={language === 'ar' ? 'تحسين النص بالدارجة (2 نقاط)' : 'Améliorer le script en Darija (2 pts)'}
             >
               {isEnhancing ? (
-                <RefreshCw className="w-4 h-4 text-purple-600 animate-spin" />
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 text-purple-600 animate-spin" />
+                  <span className="text-[10px] font-bold text-purple-700">
+                    {language === 'ar' ? 'جاري...' : 'Analyse...'}
+                  </span>
+                </>
               ) : (
                 <>
-                  <Wand2 className="w-4 h-4 text-purple-600" />
-                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">{language === 'ar' ? 'المحسن السحري' : 'Magique'}</span>
-                  <span className="text-[9px] font-bold text-purple-400 bg-purple-100 px-1 rounded">2 pts</span>
+                  <Wand2 className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">
+                    {language === 'ar' ? 'المحسن السحري' : 'Magique'}
+                  </span>
+                  <span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span>
                 </>
               )}
             </button>
+          </div>
 
-            <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="absolute bottom-1.5 end-2 p-1 text-slate-400 hover:text-slate-700 rounded-md transition cursor-pointer">
+          {/* Textarea SANS bouton superposé */}
+          <div className="flex-1 min-h-0 relative">
+            <textarea 
+              ref={textareaRef} 
+              value={text} 
+              onChange={(e) => setText(e.target.value)} 
+              placeholder={t.textPlaceholder || 'Écrivez votre texte ici...'} 
+              className="w-full h-full p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto" 
+              dir="auto"
+            />
+
+            <button 
+              onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }} 
+              className="absolute bottom-1.5 end-2 p-1 text-slate-400 hover:text-slate-700 rounded-md transition cursor-pointer"
+            >
               {copied ? <Check className="w-3 h-3 text-purple-600" /> : <Copy className="w-3 h-3" />}
             </button>
           </div>
@@ -314,7 +356,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
       </div>
 
-      {/* ===== RIGHT COLUMN (Fixed Proportions) : Voix & Paramètres ===== */}
+      {/* ===== RIGHT COLUMN : Voix & Paramètres ===== */}
       <div className="w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 p-4 ps-2">
         
         {/* Voix */}
