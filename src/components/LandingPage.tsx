@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -61,42 +61,66 @@ const Num = ({
 
 /* ---------------------------------------------------
    Web Audio API — vraie waveform réactive
+   FIX: utilise une WeakMap pour créer UNE source par
+   élément audio (au lieu de garder la 1ère pour toujours)
 --------------------------------------------------- */
-function useAudioVisualizer(audioEl: HTMLAudioElement | null, isPlaying: boolean, barCount = 28) {
+function useAudioVisualizer(
+  audioEl: HTMLAudioElement | null,
+  isPlaying: boolean,
+  barCount = 28
+) {
   const [bars, setBars] = useState<number[]>(Array(barCount).fill(14));
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>();
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const sourceMapRef = useRef<WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>>(
+    new WeakMap()
+  );
 
   useEffect(() => {
     if (!isPlaying || !audioEl) {
       setBars(Array(barCount).fill(14));
       return;
     }
+
+    let analyser: AnalyserNode | null = null;
+
     try {
       if (!ctxRef.current) {
         ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       const ctx = ctxRef.current;
-      if (!sourceRef.current) sourceRef.current = ctx.createMediaElementSource(audioEl);
-      const analyser = ctx.createAnalyser();
+
+      // Réutilise la source existante pour CET élément audio précis,
+      // ou en crée une nouvelle s'il n'en a jamais eu
+      let source = sourceMapRef.current.get(audioEl);
+      if (!source) {
+        source = ctx.createMediaElementSource(audioEl);
+        sourceMapRef.current.set(audioEl, source);
+      }
+
+      analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
-      sourceRef.current.connect(analyser);
+      source.connect(analyser);
       analyser.connect(ctx.destination);
+
       const data = new Uint8Array(analyser.frequencyBinCount);
+      const localAnalyser = analyser;
 
       const tick = () => {
-        analyser.getByteFrequencyData(data);
+        localAnalyser.getByteFrequencyData(data);
         setBars(Array.from(data.slice(0, barCount)).map((v) => Math.max(12, (v / 255) * 100)));
         rafRef.current = requestAnimationFrame(tick);
       };
       tick();
-      return () => {
-        cancelAnimationFrame(rafRef.current!);
-        analyser.disconnect();
-      };
-    } catch {}
-  }, [isPlaying, audioEl]);
+    } catch {
+      // Fallback silencieux (ex: navigateur bloque l'API, CORS, etc.)
+    }
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      analyser?.disconnect();
+    };
+  }, [isPlaying, audioEl, barCount]);
 
   return bars;
 }
@@ -137,22 +161,33 @@ const LOGO_URL = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a
 const HERO_BG_URL = "https://i.ibb.co/zTwPD6gj/HEROBACKGROUND.jpg";
 
 /* ---------------------------------------------------
-   Particule flottante décorative pour le CTA
+   FIX: configs de particules figées (plus de Math.random()
+   appelé à chaque render, qui cassait l'animation)
 --------------------------------------------------- */
-const FloatingParticle = ({ delay = 0, x = "10%", size = 4 }: { delay?: number; x?: string; size?: number }) => (
+const PARTICLES = [
+  { x: "15%", size: 4, delay: 0, duration: 4.2 },
+  { x: "35%", size: 3, delay: 1, duration: 5.1 },
+  { x: "55%", size: 5, delay: 2, duration: 4.6 },
+  { x: "75%", size: 3, delay: 0.5, duration: 5.4 },
+  { x: "90%", size: 4, delay: 1.5, duration: 4.8 },
+];
+
+const FloatingParticle = ({
+  x,
+  size,
+  delay,
+  duration,
+}: {
+  x: string;
+  size: number;
+  delay: number;
+  duration: number;
+}) => (
   <motion.div
-    className="absolute rounded-full bg-violet-300/60"
+    className="absolute rounded-full bg-violet-300/60 pointer-events-none"
     style={{ left: x, width: size, height: size, bottom: "10%" }}
-    animate={{
-      y: [0, -120, 0],
-      opacity: [0, 1, 0],
-    }}
-    transition={{
-      duration: 4 + Math.random() * 2,
-      repeat: Infinity,
-      delay,
-      ease: "easeInOut",
-    }}
+    animate={{ y: [0, -120, 0], opacity: [0, 1, 0] }}
+    transition={{ duration, repeat: Infinity, delay, ease: "easeInOut" }}
   />
 );
 
@@ -166,7 +201,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const bars = useAudioVisualizer(audioRef.current, playingId !== null);
+  const [currentAudioEl, setCurrentAudioEl] = useState<HTMLAudioElement | null>(null);
+  const bars = useAudioVisualizer(currentAudioEl, playingId !== null);
 
   const ArrowIcon = ({ className = "w-4 h-4" }: { className?: string }) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
@@ -186,6 +222,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       : "Nous aidons créateurs et marques à donner vie à leurs textes grâce à des voix IA en darija algérienne, naturelles et prêtes à l'emploi.",
     viewDemo: isRTL ? "شاهد العرض" : "Voir la démo",
     bookCall: isRTL ? "ابدأ مجاناً" : "Essayer gratuitement",
+    trustLine: isRTL ? "دفع محلي عبر SATIM" : "Paiement local via SATIM",
 
     partnershipsLabel: isRTL ? "• شراكات" : "• Technologie",
     partnershipsTitle: isRTL
@@ -364,17 +401,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         { q: "Y a-t-il un abonnement mensuel ?", a: "Non. Sawtify fonctionne uniquement en Pay-As-You-Go." },
       ];
 
+  /* ---------------------------------------------------
+     FIX: crossOrigin réglé AVANT le src (sinon trop tard
+     pour que le navigateur respecte le mode CORS)
+     + gestion d'erreur sur play()
+  --------------------------------------------------- */
   const toggleVoice = (id: string, url: string) => {
     if (playingId === id) {
       audioRef.current?.pause();
       setPlayingId(null);
       return;
     }
+
     audioRef.current?.pause();
-    const audio = new Audio(url);
+
+    const audio = new Audio();
     audio.crossOrigin = "anonymous";
+    audio.src = url;
+
     audioRef.current = audio;
-    audio.play();
+    setCurrentAudioEl(audio);
+
+    audio.play().catch(() => {
+      // lecture bloquée (autoplay policy, réseau, etc.)
+      setPlayingId(null);
+    });
+
     audio.onended = () => setPlayingId(null);
     setPlayingId(id);
   };
@@ -406,12 +458,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
               className="w-8 h-8 rounded-full text-[11px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             >
               {language === "fr" ? "AR" : "FR"}
             </button>
             <button
+              type="button"
               onClick={onSigninClick}
               className="rounded-full bg-white text-[#141118] px-5 py-2.5 text-[13px] font-semibold hover:bg-purple-100 transition-colors"
             >
@@ -476,9 +530,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.5 }}
-            className="flex items-center justify-center gap-3"
+            className="flex items-center justify-center gap-3 mb-4"
           >
             <button
+              type="button"
               onClick={onLoginClick}
               className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white px-5 py-3 text-sm font-medium hover:bg-white/20 transition-colors"
             >
@@ -486,6 +541,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {t.viewDemo}
             </button>
             <button
+              type="button"
               onClick={onSigninClick}
               className="inline-flex items-center gap-2 rounded-full bg-violet-400 text-[#140a24] px-6 py-3 text-sm font-semibold hover:bg-violet-300 transition-colors"
             >
@@ -493,6 +549,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <ArrowIcon />
             </button>
           </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.65 }}
+            className="inline-flex items-center gap-1.5 text-[11px] text-white/40"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            {t.trustLine}
+          </motion.p>
         </div>
       </section>
 
@@ -743,6 +809,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {t.aboutDesc}
             </p>
             <button
+              type="button"
               onClick={onLoginClick}
               className="inline-flex items-center gap-2 rounded-full bg-[#141118] text-white px-6 py-3 text-sm font-medium hover:bg-purple-700 transition-colors"
             >
@@ -829,6 +896,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               return (
                 <motion.button
                   key={v.id}
+                  type="button"
                   variants={fadeUp}
                   onClick={() => toggleVoice(v.id, v.url)}
                   className="w-full flex items-center gap-5 py-5 text-start group"
@@ -866,7 +934,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          CTA PERFORMANT — carte unique, ultra animée
+          CTA PERFORMANT — carte unique, animée (bordure fixée)
       ========================================================= */}
       <section className="bg-[#141118] py-4">
         <div className="mx-auto max-w-6xl px-6">
@@ -892,44 +960,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Blobs glow qui bougent en boucle */}
             <motion.div
               className="absolute w-72 h-72 bg-violet-600/30 blur-[100px] rounded-full pointer-events-none"
-              animate={{
-                x: ["-10%", "10%", "-10%"],
-                y: ["-20%", "10%", "-20%"],
-              }}
+              animate={{ x: ["-10%", "10%", "-10%"], y: ["-20%", "10%", "-20%"] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
               style={{ top: "-30%", right: "-10%" }}
             />
             <motion.div
               className="absolute w-72 h-72 bg-fuchsia-600/20 blur-[100px] rounded-full pointer-events-none"
-              animate={{
-                x: ["10%", "-10%", "10%"],
-                y: ["10%", "-10%", "10%"],
-              }}
+              animate={{ x: ["10%", "-10%", "10%"], y: ["10%", "-10%", "10%"] }}
               transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
               style={{ bottom: "-30%", left: "-10%" }}
             />
 
-            {/* Particules flottantes */}
-            <FloatingParticle delay={0} x="15%" size={4} />
-            <FloatingParticle delay={1} x="35%" size={3} />
-            <FloatingParticle delay={2} x="55%" size={5} />
-            <FloatingParticle delay={0.5} x="75%" size={3} />
-            <FloatingParticle delay={1.5} x="90%" size={4} />
+            {/* Particules flottantes — valeurs figées, plus de Math.random() */}
+            {PARTICLES.map((p, i) => (
+              <FloatingParticle key={i} {...p} />
+            ))}
 
-            {/* Bordure lumineuse animée */}
+            {/* FIX: glow pulsant fiable au lieu du mask-composite cassé */}
             <motion.div
               className="absolute inset-0 rounded-[2rem] pointer-events-none"
-              style={{
-                border: "1px solid transparent",
-                background:
-                  "linear-gradient(90deg, transparent, rgba(167,139,250,0.4), transparent) border-box",
-                WebkitMask:
-                  "linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)",
-                WebkitMaskComposite: "xor",
-                maskComposite: "exclude",
+              animate={{
+                boxShadow: [
+                  "0 0 0px rgba(167,139,250,0)",
+                  "0 0 50px rgba(167,139,250,0.35)",
+                  "0 0 0px rgba(167,139,250,0)",
+                ],
               }}
-              animate={{ backgroundPositionX: ["-200%", "200%"] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             />
 
             <div className="relative flex flex-col md:flex-row items-center justify-between gap-8 px-8 sm:px-12 py-12 sm:py-14">
@@ -972,6 +1029,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <motion.button
+                type="button"
                 initial={{ opacity: 0, scale: 0.9 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
@@ -981,7 +1039,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={onSigninClick}
                 className="group relative inline-flex items-center gap-3 rounded-full bg-white text-[#141118] pe-2 ps-7 py-2.5 text-sm font-semibold shrink-0"
               >
-                {/* Halo pulsant derrière le bouton */}
                 <motion.span
                   className="absolute inset-0 rounded-full bg-white"
                   animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
@@ -1087,6 +1144,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 <button
+                  type="button"
                   onClick={onSigninClick}
                   className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors ${
                     p.popular
@@ -1127,6 +1185,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               return (
                 <div key={f.q} className="border-b border-[#141118]/10">
                   <button
+                    type="button"
                     onClick={() => setOpenFaq(open ? null : i)}
                     className="w-full py-5 flex items-start gap-4 text-start"
                   >
