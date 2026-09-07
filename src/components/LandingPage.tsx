@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -61,8 +61,7 @@ const Num = ({
 
 /* ---------------------------------------------------
    Web Audio API — vraie waveform réactive
-   FIX: utilise une WeakMap pour créer UNE source par
-   élément audio (au lieu de garder la 1ère pour toujours)
+   FIX: WeakMap pour créer UNE source par élément audio
 --------------------------------------------------- */
 function useAudioVisualizer(
   audioEl: HTMLAudioElement | null,
@@ -90,8 +89,6 @@ function useAudioVisualizer(
       }
       const ctx = ctxRef.current;
 
-      // Réutilise la source existante pour CET élément audio précis,
-      // ou en crée une nouvelle s'il n'en a jamais eu
       let source = sourceMapRef.current.get(audioEl);
       if (!source) {
         source = ctx.createMediaElementSource(audioEl);
@@ -113,7 +110,7 @@ function useAudioVisualizer(
       };
       tick();
     } catch {
-      // Fallback silencieux (ex: navigateur bloque l'API, CORS, etc.)
+      // fallback silencieux
     }
 
     return () => {
@@ -161,8 +158,7 @@ const LOGO_URL = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a
 const HERO_BG_URL = "https://i.ibb.co/zTwPD6gj/HEROBACKGROUND.jpg";
 
 /* ---------------------------------------------------
-   FIX: configs de particules figées (plus de Math.random()
-   appelé à chaque render, qui cassait l'animation)
+   Particules figées (plus de Math.random() dans le render)
 --------------------------------------------------- */
 const PARTICLES = [
   { x: "15%", size: 4, delay: 0, duration: 4.2 },
@@ -171,25 +167,6 @@ const PARTICLES = [
   { x: "75%", size: 3, delay: 0.5, duration: 5.4 },
   { x: "90%", size: 4, delay: 1.5, duration: 4.8 },
 ];
-
-const FloatingParticle = ({
-  x,
-  size,
-  delay,
-  duration,
-}: {
-  x: string;
-  size: number;
-  delay: number;
-  duration: number;
-}) => (
-  <motion.div
-    className="absolute rounded-full bg-violet-300/60 pointer-events-none"
-    style={{ left: x, width: size, height: size, bottom: "10%" }}
-    animate={{ y: [0, -120, 0], opacity: [0, 1, 0] }}
-    transition={{ duration, repeat: Infinity, delay, ease: "easeInOut" }}
-  />
-);
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -203,6 +180,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [currentAudioEl, setCurrentAudioEl] = useState<HTMLAudioElement | null>(null);
   const bars = useAudioVisualizer(currentAudioEl, playingId !== null);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = isRTL ? "rtl" : "ltr";
+  }, [language, isRTL]);
 
   const ArrowIcon = ({ className = "w-4 h-4" }: { className?: string }) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
@@ -401,11 +383,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         { q: "Y a-t-il un abonnement mensuel ?", a: "Non. Sawtify fonctionne uniquement en Pay-As-You-Go." },
       ];
 
-  /* ---------------------------------------------------
-     FIX: crossOrigin réglé AVANT le src (sinon trop tard
-     pour que le navigateur respecte le mode CORS)
-     + gestion d'erreur sur play()
-  --------------------------------------------------- */
   const toggleVoice = (id: string, url: string) => {
     if (playingId === id) {
       audioRef.current?.pause();
@@ -423,7 +400,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setCurrentAudioEl(audio);
 
     audio.play().catch(() => {
-      // lecture bloquée (autoplay policy, réseau, etc.)
       setPlayingId(null);
     });
 
@@ -435,7 +411,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <div
       dir={isRTL ? "rtl" : "ltr"}
       className="min-h-screen bg-white text-[#141118] selection:bg-purple-200 selection:text-purple-900"
-      style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
+      style={{
+        fontFamily: isRTL
+          ? "'Cairo', 'Inter', ui-sans-serif, system-ui, sans-serif"
+          : "'Inter', ui-sans-serif, system-ui, sans-serif",
+      }}
     >
       {/* =========================================================
           HEADER
@@ -508,7 +488,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2 }}
             className="text-4xl sm:text-6xl lg:text-[4rem] leading-[1.06] font-medium tracking-tight text-white mb-5"
-            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
           >
             {t.heroLine1}
             <br />
@@ -649,7 +629,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h2
               className="text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight text-violet-400 max-w-2xl leading-[1.15] mb-5"
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
             >
               {t.partnershipsTitle}
             </h2>
@@ -673,7 +653,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <motion.div key={s.l} variants={fadeUp}>
                 <Num
                   className="text-3xl sm:text-5xl font-medium tracking-tight text-violet-400"
-                  style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                  style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
                 >
                   {s.n}
                 </Num>
@@ -726,7 +706,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h2
               className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
             >
               {t.showcaseTitle}
             </h2>
@@ -752,7 +732,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <Waves className="w-3.5 h-3.5" />
                   {showcaseItems[0].label}
                 </span>
-                <h3 className="text-white text-xl font-medium" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                <h3
+                  className="text-white text-xl font-medium"
+                  style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
+                >
                   {showcaseItems[0].title}
                 </h3>
               </div>
@@ -801,7 +784,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h2
               className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] leading-[1.15] mb-5"
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
             >
               {t.aboutTitle}
             </h2>
@@ -836,7 +819,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="flex items-end gap-3 mb-2">
                 <Num
                   className="text-4xl font-medium tracking-tight text-violet-400"
-                  style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                  style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
                 >
                   {t.perfStat}
                 </Num>
@@ -878,7 +861,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
             className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-10"
-            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
           >
             {isRTL ? "أصوات " : "Des voix "}
             <span className="text-purple-700">{isRTL ? "بعاطفة حقيقية." : "avec du caractère."}</span>
@@ -934,7 +917,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================
-          CTA PERFORMANT — carte unique, animée (bordure fixée)
+          CTA PERFORMANT — carte BLANCHE flottante + rotation
       ========================================================= */}
       <section className="bg-[#141118] py-4">
         <div className="mx-auto max-w-6xl px-6">
@@ -942,52 +925,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="relative rounded-[2rem] overflow-hidden border border-white/10"
+            animate={{
+              y: [0, -8, 0],
+              rotate: [-1, 0.5, -1],
+            }}
+            transition={{
+              opacity: { duration: 0.7 },
+              y: { duration: 5, repeat: Infinity, ease: "easeInOut" },
+              rotate: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+            }}
+            className="relative rounded-[2rem] overflow-hidden border border-[#141118]/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
           >
-            {/* Fond dégradé animé en boucle */}
+            {/* Glow violet doux sur fond blanc */}
             <motion.div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(120deg, #1a0f2e 0%, #241640 25%, #1a0f2e 50%, #2a1650 75%, #1a0f2e 100%)",
-                backgroundSize: "200% 200%",
-              }}
-              animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
-              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-            />
-
-            {/* Blobs glow qui bougent en boucle */}
-            <motion.div
-              className="absolute w-72 h-72 bg-violet-600/30 blur-[100px] rounded-full pointer-events-none"
+              className="absolute w-72 h-72 bg-violet-300/30 blur-[100px] rounded-full pointer-events-none"
               animate={{ x: ["-10%", "10%", "-10%"], y: ["-20%", "10%", "-20%"] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
               style={{ top: "-30%", right: "-10%" }}
             />
             <motion.div
-              className="absolute w-72 h-72 bg-fuchsia-600/20 blur-[100px] rounded-full pointer-events-none"
+              className="absolute w-72 h-72 bg-fuchsia-200/25 blur-[100px] rounded-full pointer-events-none"
               animate={{ x: ["10%", "-10%", "10%"], y: ["10%", "-10%", "10%"] }}
               transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
               style={{ bottom: "-30%", left: "-10%" }}
             />
 
-            {/* Particules flottantes — valeurs figées, plus de Math.random() */}
+            {/* Particules discrètes */}
             {PARTICLES.map((p, i) => (
-              <FloatingParticle key={i} {...p} />
+              <motion.div
+                key={i}
+                className="absolute rounded-full bg-violet-400/40 pointer-events-none"
+                style={{ left: p.x, width: p.size, height: p.size, bottom: "10%" }}
+                animate={{ y: [0, -80, 0], opacity: [0, 0.8, 0] }}
+                transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
+              />
             ))}
-
-            {/* FIX: glow pulsant fiable au lieu du mask-composite cassé */}
-            <motion.div
-              className="absolute inset-0 rounded-[2rem] pointer-events-none"
-              animate={{
-                boxShadow: [
-                  "0 0 0px rgba(167,139,250,0)",
-                  "0 0 50px rgba(167,139,250,0.35)",
-                  "0 0 0px rgba(167,139,250,0)",
-                ],
-              }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            />
 
             <div className="relative flex flex-col md:flex-row items-center justify-between gap-8 px-8 sm:px-12 py-12 sm:py-14">
               <div className="text-center md:text-start flex-1">
@@ -996,7 +968,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.5 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-violet-500/15 border border-violet-500/30 px-3 py-1.5 text-xs font-medium text-violet-300 mb-5"
+                  className="inline-flex items-center gap-2 rounded-full bg-purple-100 border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 mb-5"
                 >
                   <motion.span
                     animate={{ rotate: [0, 15, -15, 0] }}
@@ -1012,8 +984,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.6, delay: 0.1 }}
-                  className="text-2xl sm:text-4xl font-medium tracking-tight text-white leading-[1.2] mb-3"
-                  style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                  className="text-2xl sm:text-4xl font-medium tracking-tight text-[#141118] leading-[1.2] mb-3"
+                  style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
                 >
                   {t.ctaTitle}
                 </motion.h2>
@@ -1022,7 +994,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.6, delay: 0.2 }}
-                  className="text-white/50 text-sm sm:text-base max-w-md mx-auto md:mx-0"
+                  className="text-[#141118]/50 text-sm sm:text-base max-w-md mx-auto md:mx-0"
                 >
                   {t.ctaSub}
                 </motion.p>
@@ -1037,15 +1009,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={onSigninClick}
-                className="group relative inline-flex items-center gap-3 rounded-full bg-white text-[#141118] pe-2 ps-7 py-2.5 text-sm font-semibold shrink-0"
+                className="group relative inline-flex items-center gap-3 rounded-full bg-violet-600 text-white pe-2 ps-7 py-2.5 text-sm font-semibold shrink-0 shadow-[0_10px_30px_rgba(124,58,237,0.35)]"
               >
                 <motion.span
-                  className="absolute inset-0 rounded-full bg-white"
+                  className="absolute inset-0 rounded-full bg-violet-600"
                   animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                 />
                 <span className="relative">{t.ctaButton}</span>
-                <span className="relative w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
+                <span className="relative w-10 h-10 rounded-full bg-white text-violet-600 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
                   <ArrowIcon className="w-4 h-4" />
                 </span>
               </motion.button>
@@ -1071,7 +1043,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h2
               className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-3"
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
             >
               {t.pricingTitle}
             </h2>
@@ -1125,7 +1097,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex items-baseline gap-1.5 mb-6">
                   <Num
                     className="text-3xl font-bold tracking-tight text-[#141118]"
-                    style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                    style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
                   >
                     {p.price}
                   </Num>
@@ -1174,7 +1146,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="text-xs text-purple-700 font-medium mb-3">{t.faqKicker}</div>
           <h2
             className="text-3xl font-medium tracking-tight text-[#141118] mb-8"
-            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            style={{ fontFamily: isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif" }}
           >
             {t.faqTitle}
           </h2>
