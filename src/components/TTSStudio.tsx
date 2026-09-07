@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Play, Pause, Download, Volume2, AlertCircle, 
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
-  AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown
+  AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown,
+  Menu, Settings
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
@@ -76,6 +77,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('general');
 
+  // Drawers de navigation mobile
+  const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState<boolean>(false);
+  const [isRightDrawerOpen, setIsRightDrawerOpen] = useState<boolean>(false);
+
   // Feedback (👍👎)
   const [lastGenType, setLastGenType] = useState<'script' | 'enhance' | null>(null);
   const [lastGenOutput, setLastGenOutput] = useState<string>('');
@@ -101,15 +106,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const filteredVoices = voices.filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter));
 
-  // ⚡ FIX #8 : Révocation automatique des blobs pour éviter les fuites mémoire
+  // Révocation automatique des blobs (Mémoire)
   useEffect(() => {
     return () => {
-      if (previousAudioUrlRef.current && previousAudioUrlRef.current.startsWith('blob:')) {
-        URL.revokeObjectURL(previousAudioUrlRef.current);
-      }
-      if (previousMp3UrlRef.current && previousMp3UrlRef.current.startsWith('blob:')) {
-        URL.revokeObjectURL(previousMp3UrlRef.current);
-      }
+      if (previousAudioUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousAudioUrlRef.current);
+      if (previousMp3UrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousMp3UrlRef.current);
     };
   }, []);
 
@@ -146,7 +147,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
       playNaturalAudio(audioUrl, () => setPreviewingVoiceId(null), speed, pitch);
     } catch (err: any) { 
-      // ⚡ FIX #9 : Notification d'erreur visible
       setPreviewingVoiceId(null); 
       showNotif(language === 'ar' ? 'فشل تشغيل المعاينة' : 'Erreur de preview'); 
     }
@@ -179,7 +179,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setWavSize(audioBlob.size || 120000); 
       setCurrentTime(0);
       
-      // ⚡ FIX #1 : audio.onloadedmetadata avec référence conservée
       const tempAudio = new Audio(response.audio_url);
       tempAudio.addEventListener('loadedmetadata', () => {
         setAudioDuration(tempAudio.duration || 0);
@@ -200,13 +199,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         createdAt: new Date().toISOString() 
       };
 
-      // ⚡ FIX #2 : Ne pas re-déduire côté frontend, juste rafraîchir le balance
-      // Le serveur a déjà déduit les points via /api/tts/generate
       await onDeductPoints(POINTS_COST, record);
       showNotif(response.notification || `-${POINTS_COST} Points`);
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
       
-      // Conversion MP3
       setIsConvertingMp3(true); 
       setConversionStatus(t.convertingStatus || 'Conversion...');
       try { 
@@ -221,7 +217,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         setIsConvertingMp3(false); 
       }
     } catch (err: any) { 
-      // ⚡ AMÉLIORATION #1 : Message d'erreur visible
       console.error('Erreur TTS:', err);
       const errMsg = err?.message || '';
       if (errMsg.includes('insuffisant') || errMsg.includes('402')) {
@@ -282,6 +277,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGenOutput(result.script);
       setLastGenSector(result.sector_used || 'general');
       setProductName('');
+      setIsLeftDrawerOpen(false); // Ferme le menu mobile après génération
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
       if (e?.message?.includes('insuffisant')) {
@@ -332,12 +328,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     if (audioRef.current) setCurrentTime(audioRef.current.currentTime); 
   }, []);
 
-  // ⚡ FIX #6 & #7 : Animation stop si pas d'audio + fallback roundRect
+  // Waveform canvas
   useEffect(() => {
     const canvas = canvasRef.current; 
     if (!canvas) return;
     
-    // Stop l'animation si pas d'audio
     if (!currentAudioUrl && !isPlaying) {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -367,7 +362,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         ctx.fillStyle = i / bars <= (audioDuration > 0 ? currentTime / audioDuration : 0) ? '#7c3aed' : '#cbd5e1';
         ctx.beginPath(); 
         
-        // ⚡ FIX #7 : Fallback si roundRect non supporté (Safari < 16)
         if (typeof ctx.roundRect === 'function') {
           ctx.roundRect(i * (barWidth + 2), (canvas.height - h) / 2, barWidth, h, 0.5);
         } else {
@@ -417,7 +411,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, [text, language, showNotif]);
 
   return (
-    <div className="h-[calc(100vh-64px)] w-full flex overflow-hidden bg-slate-50/40 relative">
+    // CONTENANT PRINCIPAL EN FLEX-COL (Pousse proprement le player en bas au lieu de le chevaucher !)
+    <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative">
       
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
@@ -426,316 +421,382 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
       )}
 
-      {/* LEFT */}
-      <div className="w-64 xl:w-72 shrink-0 border-e border-slate-200 bg-white flex flex-col">
+      {/* TOP BAR MOBILE (Uniquement visible sur Mobile / Tablette pour ouvrir les menus) */}
+      <div className="lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2.5 z-30">
+        <button 
+          onClick={() => setIsLeftDrawerOpen(true)} 
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
+          <Menu className="w-4 h-4" />
+          <span>{language === 'ar' ? 'السيناريو' : 'Script'}</span>
+        </button>
         
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-2">
-            <Video className="w-4 h-4 text-purple-600" /> 
-            {language === 'ar' ? 'منشئ سيناريو تيك توك' : 'Générateur de Script'}
-          </h3>
-
-          {/* Lahdja selector */}
-          <div className="mb-2">
-            <label className="text-[10px] font-bold text-slate-500 mb-1 block">
-              {language === 'ar' ? 'اللهجة :' : 'Lahdja :'}
-            </label>
-            <div className="grid grid-cols-4 gap-1 text-[10px]">
-              {regionButtons.map(r => (
-                <button 
-                  key={r.id} 
-                  type="button" 
-                  onClick={() => setSelectedRegion(r.id)}
-                  className={`py-1 rounded-lg border font-medium transition cursor-pointer ${selectedRegion === r.id ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
-                  {language === 'ar' ? r.ar : r.fr}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">
-            {language === 'ar' ? 'اكتب اسم المنتج أو الخدمة.' : 'Nom du produit ou service.'}
-          </p>
-          <div className="space-y-2">
-            <input 
-              type="text" 
-              value={productName} 
-              onChange={(e) => setProductName(e.target.value)}
-              placeholder={language === 'ar' ? 'مثال: ساعة, formation, عطر...' : 'Ex: formation, baskets...'}
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/10" 
-            />
-            <button 
-              onClick={handleGenerateScript} 
-              disabled={isGeneratingScript || !productName.trim() || balance < 5}
-              className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
-              {isGeneratingScript ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{language === 'ar' ? 'جاري التوليد...' : 'Génération...'}</span></>
-              ) : (
-                <><Sparkles className="w-3.5 h-3.5 text-yellow-400 animate-pulse" /><span>{language === 'ar' ? 'إنشاء' : 'Générer'}</span><span className="text-[9px] font-bold text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">5 pts</span></>
-              )}
-            </button>
-          </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">
+            {currentVoice.name}
+          </span>
         </div>
 
-        <div className="p-3 border-b border-slate-100">
-          <h3 className="text-[11px] font-semibold text-slate-800 flex items-center gap-1.5">
-            <History className="w-3.5 h-3.5 text-purple-600" /> 
-            {language === 'ar' ? 'الأخيرة' : 'Récentes'}
-          </h3>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
-          {recentGenerations.slice(0, 8).map((gen) => (
-            <button 
-              key={gen.id} 
-              onClick={() => setText(gen.text)} 
-              className="w-full text-left p-2 rounded-lg text-[11px] text-slate-500 hover:bg-slate-50 transition cursor-pointer truncate">
-              {gen.text.substring(0, 30)}...
-            </button>
-          ))}
-          {recentGenerations.length === 0 && (
-            <p className="text-[10px] text-slate-400 p-2">{language === 'ar' ? 'لا شيء' : 'Aucune'}</p>
-          )}
-        </div>
+        <button 
+          onClick={() => setIsRightDrawerOpen(true)} 
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
+          <Settings className="w-4 h-4" />
+          <span>{language === 'ar' ? 'الأصوات' : 'Voix'}</span>
+        </button>
       </div>
 
-      {/* CENTER */}
-      <div className="flex-1 min-w-0 flex flex-col p-4">
-        {insufficientAlert && (
-          <div className="mb-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-500" />
-              <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
-            </div>
-            <button 
-              onClick={onOpenRecharge} 
-              className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer">
-              {language === 'ar' ? 'شحن' : 'Recharger'}
+      {/* 3-COLUMN STUDIO LAYOUT */}
+      <div className="flex-1 flex overflow-hidden relative">
+        
+        {/* ==========================================================================
+           LEFT PANEL: TIKTOK SCRIPT GENERATOR
+           ========================================================================== */}
+        {/* Backdrop overlay Mobile */}
+        {isLeftDrawerOpen && <div onClick={() => setIsLeftDrawerOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
+        <div className={`
+          fixed lg:static inset-y-0 start-0 z-50 lg:z-0
+          w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col
+          transition-transform duration-300 transform
+          ${isLeftDrawerOpen ? 'translate-x-0' : (isRTL ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0')}
+        `}>
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Video className="w-4 h-4 text-purple-600" /> 
+              {language === 'ar' ? 'منشئ سيناريو تيك توك' : 'Générateur de Script'}
+            </h3>
+            <button onClick={() => setIsLeftDrawerOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+              <X className="w-4 h-4" />
             </button>
           </div>
-        )}
 
-        <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
-          
-          <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-2 gap-y-1.5 flex-wrap">
-              {styleTags.map((tagObj) => (
-                <button 
-                  key={tagObj.tag} 
-                  onClick={() => handleInsertTag(tagObj.tag)} 
-                  title={tagObj.desc} 
-                  className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 text-slate-600 hover:text-purple-800 transition cursor-pointer">
-                  {tagObj.tag}
-                </button>
-              ))}
+          <div className="p-4 border-b border-slate-100">
+            {/* Lahdja selector */}
+            <div className="mb-3">
+              <label className="text-[10px] font-bold text-slate-500 mb-1 block">
+                {language === 'ar' ? 'اللهجة :' : 'Lahdja :'}
+              </label>
+              <div className="grid grid-cols-4 gap-1 text-[10px]">
+                {regionButtons.map(r => (
+                  <button 
+                    key={r.id} 
+                    type="button" 
+                    onClick={() => setSelectedRegion(r.id)}
+                    className={`py-1 rounded-lg border font-medium transition cursor-pointer ${selectedRegion === r.id ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                    {language === 'ar' ? r.ar : r.fr}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">
+              {language === 'ar' ? 'اكتب اسم المنتج أو الخدمة.' : 'Nom du produit ou service.'}
+            </p>
+            <div className="space-y-2">
+              <input 
+                type="text" 
+                value={productName} 
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder={language === 'ar' ? 'مثال: ساعة, formation, عطر...' : 'Ex: formation, baskets...'}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/10" 
+              />
+              <button 
+                onClick={handleGenerateScript} 
+                disabled={isGeneratingScript || !productName.trim() || balance < 5}
+                className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
+                {isGeneratingScript ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{language === 'ar' ? 'جاري التوليد...' : 'Génération...'}</span></>
+                ) : (
+                  <><Sparkles className="w-3.5 h-3.5 text-yellow-400 animate-pulse" /><span>{language === 'ar' ? 'إنشاء' : 'Générer'}</span><span className="text-[9px] font-bold text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">5 pts</span></>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3 border-b border-slate-100 bg-slate-50/10">
+            <h3 className="text-[11px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5 text-purple-600" /> 
+              {language === 'ar' ? 'الأخيرة' : 'Récentes'}
+            </h3>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+            {recentGenerations.slice(0, 8).map((gen) => (
+              <button 
+                key={gen.id} 
+                onClick={() => { setText(gen.text); setIsLeftDrawerOpen(false); }} 
+                className="w-full text-left p-2 rounded-lg text-[11px] text-slate-500 hover:bg-slate-50 transition cursor-pointer truncate">
+                {gen.text.substring(0, 30)}...
+              </button>
+            ))}
+            {recentGenerations.length === 0 && (
+              <p className="text-[10px] text-slate-400 p-2">{language === 'ar' ? 'لا شيء' : 'Aucune'}</p>
+            )}
+          </div>
+        </div>
+
+        {/* ==========================================================================
+           CENTER PANEL: THE WRITING EDITOR & MAIN CARDS
+           ========================================================================== */}
+        <div className="flex-1 min-w-0 flex flex-col p-3 sm:p-4">
+          {insufficientAlert && (
+            <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500" />
+                <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
+              </div>
+              <button 
+                onClick={onOpenRecharge} 
+                className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer">
+                {language === 'ar' ? 'شحن' : 'Recharger'}
+              </button>
+            </div>
+          )}
+
+          <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
             
-            <button 
-              onClick={handleEnhanceText} 
-              disabled={isEnhancing || !text.trim() || balance < 2}
-              className="shrink-0 px-3 py-1.5 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
-              title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
-              {isEnhancing ? (
-                <><RefreshCw className="w-3.5 h-3.5 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
-              ) : (
-                <><Wand2 className="w-3.5 h-3.5 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
-              )}
-            </button>
-          </div>
-
-          <div className="flex-1 min-h-0 relative">
-            <textarea 
-              ref={textareaRef} 
-              value={text} 
-              onChange={(e) => setText(e.target.value)} 
-              placeholder={t.textPlaceholder || 'Écrivez...'} 
-              className="w-full h-full p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto" 
-              dir="auto" 
-            />
-            <button 
-              onClick={handleCopyText} 
-              className="absolute bottom-1.5 end-2 p-1 text-slate-400 hover:text-slate-700 rounded-md transition cursor-pointer">
-              {copied ? <Check className="w-3 h-3 text-purple-600" /> : <Copy className="w-3 h-3" />}
-            </button>
-          </div>
-
-          {/* Feedback IA */}
-          {lastGenType && lastGenOutput && !feedbackSent && (
-            <div className="shrink-0 mt-2 pt-2 border-t border-slate-100 flex items-center justify-center gap-3">
-              <span className="text-[10px] text-slate-500">{language === 'ar' ? 'كيفاش لقيت النتيجة؟' : 'Qualité du résultat ?'}</span>
+            <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
+              <div className="flex items-center gap-2 gap-y-1.5 flex-wrap max-w-[70%]">
+                {styleTags.map((tagObj) => (
+                  <button 
+                    key={tagObj.tag} 
+                    onClick={() => handleInsertTag(tagObj.tag)} 
+                    title={tagObj.desc} 
+                    className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 text-slate-600 hover:text-purple-800 transition cursor-pointer">
+                    {tagObj.tag}
+                  </button>
+                ))}
+              </div>
+              
               <button 
-                onClick={() => handleSendFeedback(5)} 
-                className="p-1.5 rounded-lg hover:bg-green-50 border border-green-200 transition cursor-pointer" 
-                title="👍">
-                <ThumbsUp className="w-3.5 h-3.5 text-green-600" />
-              </button>
-              <button 
-                onClick={() => handleSendFeedback(1)} 
-                className="p-1.5 rounded-lg hover:bg-red-50 border border-red-200 transition cursor-pointer" 
-                title="👎">
-                <ThumbsDown className="w-3.5 h-3.5 text-red-500" />
+                onClick={handleEnhanceText} 
+                disabled={isEnhancing || !text.trim() || balance < 2}
+                className="shrink-0 px-3 py-1.5 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
+                {isEnhancing ? (
+                  <><RefreshCw className="w-3.5 h-3.5 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
+                ) : (
+                  <><Wand2 className="w-3.5 h-3.5 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
+                )}
               </button>
             </div>
-          )}
 
-          <div className="shrink-0 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
-              <span className="text-slate-300">•</span>
-              <span>{t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
+            <div className="flex-1 min-h-0 relative">
+              <textarea 
+                ref={textareaRef} 
+                value={text} 
+                onChange={(e) => setText(e.target.value)} 
+                placeholder={t.textPlaceholder || 'Écrivez...'} 
+                className="w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto" 
+                dir="auto" 
+              />
+              <button 
+                onClick={handleCopyText} 
+                className="absolute bottom-1.5 end-2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200">
+                {copied ? <Check className="w-3.5 h-3.5 text-purple-600" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
             </div>
-            <button 
-              onClick={handleGenerate} 
-              disabled={isGenerating || !text.trim()} 
-              className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
-              {isGenerating ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>
-              ) : (
-                <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
-              )}
-            </button>
+
+            {/* Feedback IA */}
+            {lastGenType && lastGenOutput && !feedbackSent && (
+              <div className="shrink-0 mt-2 pt-2 border-t border-slate-100 flex items-center justify-center gap-3">
+                <span className="text-[10px] text-slate-500">{language === 'ar' ? 'كيفاش لقيت النتيجة؟' : 'Qualité du résultat ?'}</span>
+                <button 
+                  onClick={() => handleSendFeedback(5)} 
+                  className="p-1.5 rounded-lg hover:bg-green-50 border border-green-200 transition cursor-pointer" 
+                  title="👍">
+                  <ThumbsUp className="w-3.5 h-3.5 text-green-600" />
+                </button>
+                <button 
+                  onClick={() => handleSendFeedback(1)} 
+                  className="p-1.5 rounded-lg hover:bg-red-50 border border-red-200 transition cursor-pointer" 
+                  title="👎">
+                  <ThumbsDown className="w-3.5 h-3.5 text-red-500" />
+                </button>
+              </div>
+            )}
+
+            <div className="shrink-0 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
+                <span className="text-slate-300">•</span>
+                <span>{t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
+              </div>
+              <button 
+                onClick={handleGenerate} 
+                disabled={isGenerating || !text.trim()} 
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
+                {isGenerating ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>
+                ) : (
+                  <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* RIGHT */}
-      <div className="w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 p-4 ps-2">
-        <div className="flex-1 min-h-0 flex flex-col bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs">
-          <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100 mb-1.5">
+        {/* ==========================================================================
+           RIGHT PANEL: CATALOG VOICES & SETTINGS
+           ========================================================================== */}
+        {/* Backdrop overlay Mobile */}
+        {isRightDrawerOpen && <div onClick={() => setIsRightDrawerOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
+        <div className={`
+          fixed lg:static inset-y-0 end-0 z-50 lg:z-0
+          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-transform duration-300 transform
+          ${isRightDrawerOpen ? 'translate-x-0' : (isRTL ? '-translate-x-full lg:translate-x-0' : 'translate-x-full lg:translate-x-0')}
+        `}>
+          <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
               <Layers className="w-3.5 h-3.5 text-purple-600" />
               <span>{t.catalogHeader}</span>
             </div>
-            <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px]">
+            <button onClick={() => setIsRightDrawerOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="shrink-0 flex bg-slate-100 p-0.5 rounded-lg text-[10px] mb-2">
               <button 
                 onClick={() => setGenderFilter('all')} 
-                className={`px-1.5 py-0.5 rounded-md ${genderFilter === 'all' ? 'bg-white text-slate-900 font-semibold' : 'text-slate-500'}`}>
+                className={`flex-1 text-center py-1 rounded-md transition ${genderFilter === 'all' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
                 {t.allGenders}
               </button>
               <button 
                 onClick={() => setGenderFilter('male')} 
-                className={`px-1.5 py-0.5 rounded-md ${genderFilter === 'male' ? 'bg-white text-slate-900 font-semibold' : 'text-slate-500'}`}>
+                className={`flex-1 text-center py-1 rounded-md transition ${genderFilter === 'male' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
                 {t.maleGenders}
               </button>
               <button 
                 onClick={() => setGenderFilter('female')} 
-                className={`px-1.5 py-0.5 rounded-md ${genderFilter === 'female' ? 'bg-white text-slate-900 font-semibold' : 'text-slate-500'}`}>
+                className={`flex-1 text-center py-1 rounded-md transition ${genderFilter === 'female' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
                 {t.femaleGenders}
               </button>
             </div>
-          </div>
-          <div className="shrink-0 flex flex-wrap gap-1.5 pb-2 text-[10px]">
-            {(['all', 'commercial', 'narrative', 'social', 'formal'] as CategoryFilter[]).map((cat) => (
-              <button 
-                key={cat} 
-                onClick={() => setCategoryFilter(cat)} 
-                className={`px-2 py-0.5 rounded-lg border ${categoryFilter === cat ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
-                {t[`category${cat.charAt(0).toUpperCase() + cat.slice(1)}` as keyof typeof t] || cat}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
-            {filteredVoices.map((voice) => {
-              const isSelected = voice.id === selectedVoiceId;
-              const isPreviewing = previewingVoiceId === voice.id;
-              return (
-                <div 
-                  key={voice.id} 
-                  onClick={() => setSelectedVoiceId(voice.id)} 
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className={`w-6 h-6 rounded-md flex items-center justify-center ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3 h-3" />
+
+            <div className="shrink-0 flex flex-wrap gap-1 pb-2 border-b border-slate-100 text-[9px] mb-2">
+              {(['all', 'commercial', 'narrative', 'social', 'formal'] as CategoryFilter[]).map((cat) => (
+                <button 
+                  key={cat} 
+                  onClick={() => setCategoryFilter(cat)} 
+                  className={`px-2 py-0.5 rounded-md border ${categoryFilter === cat ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
+                  {t[`category${cat.charAt(0).toUpperCase() + cat.slice(1)}` as keyof typeof t] || cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+              {filteredVoices.map((voice) => {
+                const isSelected = voice.id === selectedVoiceId;
+                const isPreviewing = previewingVoiceId === voice.id;
+                return (
+                  <div 
+                    key={voice.id} 
+                    onClick={() => { setSelectedVoiceId(voice.id); setIsRightDrawerOpen(false); }} 
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3 h-3" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-800 truncate">{voice.name}</span>
                     </div>
-                    <span className="text-[11px] font-medium text-slate-800 truncate">{voice.name}</span>
+                    <button 
+                      onClick={(e) => handlePreviewVoice(e, voice)} 
+                      className={`p-0.5 rounded ${isPreviewing ? 'text-purple-600' : 'text-slate-400 hover:text-slate-700'}`}>
+                      {isPreviewing ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className="w-3 h-3" />}
+                    </button>
                   </div>
-                  <button 
-                    onClick={(e) => handlePreviewVoice(e, voice)} 
-                    className={`p-0.5 rounded ${isPreviewing ? 'text-purple-600' : 'text-slate-400 hover:text-slate-700'}`}>
-                    {isPreviewing ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className="w-3 h-3" />}
-                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold text-slate-900 truncate block">{currentVoice.name}</span>
+                <span className="text-[10px] text-slate-400 truncate block">{currentVoice.dialect}</span>
+              </div>
+              <button 
+                onClick={(e) => handlePreviewVoice(e, currentVoice)} 
+                className={`p-1 rounded-lg ms-auto ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-200 border border-slate-200 bg-white'}`}>
+                {previewingVoiceId === currentVoice.id ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className="w-3 h-3" />}
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-500">{t.speedLabel}</span>
+                  <span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span>
                 </div>
-              );
-            })}
+                <input 
+                  type="range" 
+                  min="0.7" 
+                  max="1.5" 
+                  step="0.1" 
+                  value={speed} 
+                  onChange={(e) => setSpeed(parseFloat(e.target.value))} 
+                  className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" 
+                />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-500">{t.pitchLabel}</span>
+                  <span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0.8" 
+                  max="1.3" 
+                  step="0.1" 
+                  value={pitch} 
+                  onChange={(e) => setPitch(parseFloat(e.target.value))} 
+                  className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" 
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="shrink-0 bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs">
-          <div className="flex items-center gap-2 mb-2">
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-              <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[11px] font-bold text-slate-900 truncate block">{currentVoice.name}</span>
-              <span className="text-[10px] text-slate-400 truncate block">{currentVoice.dialect}</span>
-            </div>
-            <button 
-              onClick={(e) => handlePreviewVoice(e, currentVoice)} 
-              className={`p-1 rounded-lg ms-auto ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-100'}`}>
-              {previewingVoiceId === currentVoice.id ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className="w-3 h-3" />}
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500">{t.speedLabel}</span>
-                <span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span>
-              </div>
-              <input 
-                type="range" 
-                min="0.7" 
-                max="1.5" 
-                step="0.1" 
-                value={speed} 
-                onChange={(e) => setSpeed(parseFloat(e.target.value))} 
-                className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" 
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500">{t.pitchLabel}</span>
-                <span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span>
-              </div>
-              <input 
-                type="range" 
-                min="0.8" 
-                max="1.3" 
-                step="0.1" 
-                value={pitch} 
-                onChange={(e) => setPitch(parseFloat(e.target.value))} 
-                className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" 
-              />
-            </div>
-          </div>
-        </div>
       </div>
 
+      {/* ==========================================================================
+         BOTTOM PLAYER AUDIO (S'affiche en BLOC sans chevaucher la zone d'édition !)
+         ========================================================================== */}
       {currentAudioUrl && (
-        <div className="absolute bottom-0 start-0 end-0 bg-white border-t border-slate-200 px-4 sm:px-6 py-2 flex items-center gap-3 z-40 shadow-lg">
+        <div className="shrink-0 bg-white border-t border-slate-200 px-4 py-3 flex items-center gap-3 z-40 shadow-xl">
           <button 
             onClick={togglePlay} 
-            className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center cursor-pointer hover:bg-purple-500">
-            {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ms-0.5" />}
+            className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center cursor-pointer hover:bg-purple-500 transition shadow-xs">
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ms-0.5" />}
           </button>
+          
           <div className="flex-1 min-w-0">
             <canvas ref={canvasRef} width={300} height={20} className="w-full h-5" />
           </div>
-          <span className="text-[10px] text-slate-500 font-num shrink-0">
+          
+          <span className="text-[10px] text-slate-500 font-num shrink-0 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
             {currentTime.toFixed(1)}s / {audioDuration.toFixed(1)}s
           </span>
+          
           {mp3Url ? (
-            <a href={mp3Url} download="sawtify-audio.mp3" className="p-1 text-slate-500 hover:text-purple-600 shrink-0">
-              <Download className="w-3 h-3" />
+            <a href={mp3Url} download="sawtify-audio.mp3" className="p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition shrink-0" title="Download MP3">
+              <Download className="w-4 h-4" />
             </a>
           ) : (
-            <a href={currentAudioUrl} download="sawtify-audio.wav" className="p-1 text-slate-400 hover:text-slate-700 shrink-0">
-              <Download className="w-3 h-3" />
+            <a href={currentAudioUrl} download="sawtify-audio.wav" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition shrink-0" title="Download WAV">
+              <Download className="w-4 h-4" />
             </a>
           )}
+          
           <button 
             onClick={handleClosePlayer} 
-            className="p-1 text-slate-400 hover:text-slate-700 shrink-0">
-            <X className="w-3 h-3" />
+            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition shrink-0">
+            <X className="w-4 h-4" />
           </button>
+          
           <audio 
             ref={audioRef} 
             src={currentAudioUrl} 
