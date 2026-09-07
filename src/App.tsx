@@ -291,8 +291,10 @@ function AppContent() {
       {/* Main Container */}
       <main 
         key={language}
-        className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-150 ${
-          activeTab === 'studio' ? 'min-h-0 overflow-hidden flex flex-col py-4 sm:py-5' : 'py-6 sm:py-8'
+        className={`flex-1 w-full transition-opacity duration-150 ${
+          activeTab === 'studio' 
+            ? 'min-h-0 overflow-hidden flex flex-col' 
+            : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
         } ${
           isTransitioning ? 'opacity-0' : 'opacity-100 lang-fade-enter'
         }`}
