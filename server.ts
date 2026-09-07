@@ -126,19 +126,28 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 
+// ==========================================================================
+// NORMALISATION & ARTICULATION OPTIMALE (FIX FIN DES MOTS)
+// ==========================================================================
 function normalizeTextForTTS(text: string): string {
   let normalized = text;
-  normalized = normalized.replace(/([0-9])([ا-ي])/g, '$1 $2');
-  normalized = normalized.replace(/([ا-ي])([0-9])/g, '$1 $2');
+  normalized = normalized.replace(/([0-9])([ا-يa-zA-Z])/g, '$1 $2');
+  normalized = normalized.replace(/([ا-يa-zA-Z])([0-9])/g, '$1 $2');
   normalized = normalized.replace(/([a-zA-Z])([ا-ي])/g, '$1 $2');
   normalized = normalized.replace(/([ا-ي])([a-zA-Z])/g, '$1 $2');
-  const words = normalized.split(' ');
-  if (words.length > 10) { let punctuatedText = ""; let wordCount = 0; for (const word of words) { punctuatedText += word + " "; wordCount++; const lastChar = word[word.length - 1]; const hasPunctuation = ['.', ',', '،', '!', '؟', '?'].includes(lastChar); if (!hasPunctuation && wordCount % 8 === 0) { punctuatedText += "، "; } } normalized = punctuatedText.trim(); }
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // FIX FIN DES MOTS : Toujours terminer par une pause douce
+  // pour éviter que la dernière syllabe soit coupée par le TTS
+  if (!/[.!؟?…]$/.test(normalized)) {
+    normalized = normalized + " ...";
+  }
+
   return normalized;
 }
 
 // ==========================================================================
-// FILLERS COURTS NATURELS (ANTI-ROBOT COLD START)
+// FILLERS NATURELS (ANTI-ROBOT COLD START)
 // ==========================================================================
 const NATURAL_FILLERS = [
   "ممم... ",
@@ -152,15 +161,23 @@ const NATURAL_FILLERS = [
 
 function injectNaturalFiller(text: string): string {
   let clean = text.trim();
-
-  // Si le texte commence déjà par une pause, on n'ajoute rien
-  if (clean.startsWith("...") || clean.startsWith("…")) {
-    return clean;
-  }
-
-  // Choisit un petit son aléatoire avec pause
+  if (clean.startsWith("...") || clean.startsWith("…")) return clean;
   const randomFiller = NATURAL_FILLERS[Math.floor(Math.random() * NATURAL_FILLERS.length)];
   return `${randomFiller}${clean}`;
+}
+
+// ==========================================================================
+// MAPPING RÉGIONS / LAHDJA
+// ==========================================================================
+const REGION_GUIDES: Record<string, string> = {
+  general: "Utilise une Darija algérienne standard et neutre, comprise dans tout le pays.",
+  centre: "Utilise la Darija d'Alger et du centre : accent doux, mots comme 'واش', 'كيفاش', 'خويا', 'بصح'. Style urbain et posé.",
+  ouest: "Utilise la Darija de l'Ouest (Oran, Tlemcen) : accent chantant, mots comme 'وشراك', 'دير', 'اسمع', 'خويا واعر', 'بلاطي'. Ton chaleureux et expressif.",
+  est: "Utilise la Darija de l'Est (Constantine, Annaba, Sétif) : accent marqué, mots comme 'شوف', 'ياخي', 'زعمة', 'ماشي هكاك'. Ton direct et vif."
+};
+
+function getRegionGuide(region: string): string {
+  return REGION_GUIDES[region] || REGION_GUIDES.general;
 }
 
 async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, maxRetries = 3, speed = 1.0, pitch = 1.0, originalVoiceId: string = ""): Promise<{ pcmBuffer: Buffer | null; error: string | null }> {
@@ -183,14 +200,16 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
   if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
 
-  // Injection du filler naturel + pause
+  // Injection du filler naturel + pause de sécurité à la fin
   const preparedText = injectNaturalFiller(cleanText);
 
   const enrichedSpeechPrompt = `${performancePrompt}
 
-تعليمات الصوت والأداء:
-- ابدأ بالصوت التمهيدي (Filler) بنَفَس طبيعي وواقعي جداً.
-- بعد الوقفة الخفيفة (الفاصلة أو النقاط)، ادخل في قراءة النص بنبرة حية، قوية وبشرية 100%.
+قواعد النطق ومخارج الحروف (مهمة جداً):
+- انطق كل كلمة بوضوح تام، واحرص على إخراج مخارج الحروف كاملة وبشكل صحيح.
+- لا تأكل أواخر الكلمات أو الحروف الأخيرة، وأعطِ كل حرف حقه في النطق.
+- ابدأ بالصوت التمهيدي (Filler) بنَفَس طبيعي وواقعي.
+- عند نهاية الجمل، اخفض نبرة الصوت تدريجياً وبشكل مريح دون قطع مفاجئ في الصوت.
 
 النص:
 ${preparedText}`;
@@ -263,6 +282,22 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   }
 
   throw new Error(`Google API: ${allErrors.join(" | ")}`);
+}
+
+// ==========================================================================
+// DÉTECTEUR DE SECTEUR (pour tracking feedback IA)
+// ==========================================================================
+function detectSector(product: string): string {
+  const p = product.toLowerCase();
+  if (/formation|cours|école|université|study|apprend|learn/i.test(p)) return "education";
+  if (/vetement|habit|jean|chemise|robe|قميص|قندورة/i.test(p)) return "mode";
+  if (/parfum|cosmetic|creme|maquillage|beauté|عطر|كريم/i.test(p)) return "beauté";
+  if (/food|restaurant|pizza|burger|مطعم|كسكس|أكل/i.test(p)) return "restauration";
+  if (/watch|montre|bijou|ساعة|مجوهرات/i.test(p)) return "accessoires";
+  if (/service|marketing|agence|digital|B2B|coaching/i.test(p)) return "services";
+  if (/sport|fitness|gym|رياضة/i.test(p)) return "sport";
+  if (/immo|maison|appartement|villa|عقار/i.test(p)) return "immobilier";
+  return "general";
 }
 
 async function startServer() {
@@ -417,14 +452,14 @@ RÈGLES STRICTES :
 - Aucun titre, markdown (* #), étoile, guillemets, commentaire, note, "TTS Refinement".`;
 
   /* ==========================================================================
-     LLM ENHANCE — المحسن السحري (-2 pts)
+     LLM ENHANCE — المحسن السحري (-2 pts) — AVEC RÉGION
      ========================================================================== */
   const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
 
-      const { text } = req.body;
+      const { text, region = "general" } = req.body;
       if (!text || typeof text !== "string" || !text.trim()) {
         return res.status(400).json({ error: "Texte manquant ou invalide" });
       }
@@ -435,14 +470,18 @@ RÈGLES STRICTES :
         return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
       }
 
+      const regionGuide = getRegionGuide(region);
+
       const enhancePrompt = `Tu es un expert rédacteur TTS en Darija Algérienne.
 
-TÂCHE : Réécris et optimise le texte ci-dessous pour qu'il soit naturel, captivant et rythmé à l'oral.
+LAHDJA CIBLE : ${regionGuide}
+
+TÂCHE : Réécris et optimise le texte ci-dessous pour qu'il soit naturel, captivant et rythmé à l'oral, en respectant la Lahdja demandée ci-dessus.
 
 RÈGLES ABSOLUES :
 1. NE COUPE RIEN : garde TOUTES les idées et la longueur du texte original (même ordre de grandeur ou un peu plus long).
 2. INTERDICTION de résumer. INTERDICTION de raccourcir un long texte en 2-3 phrases.
-3. CODE-SWITCHING : garde les mots FR/techniques en LATIN (WhatsApp, Instagram, TikTok, Facebook, livraison, service, formation, marketing digital, B2B, leads, ivision, etc.).
+3. CODE-SWITCHING : garde les mots FR/techniques en LATIN (WhatsApp, Instagram, TikTok, Facebook, livraison, service, formation, marketing digital, B2B, leads, etc.).
 4. Ajoute UNE balise d'émotion au début de chaque phrase clé : [excited], [natural], [calm], [whisper], [fast]. Jamais deux collées.
 5. Aucun titre, aucune note, aucun markdown (* #), aucun commentaire du type "TTS Refinement" ou "Note".
 6. Renvoie UNIQUEMENT le texte final à vocaliser.
@@ -452,6 +491,7 @@ ${text}`;
 
       let enhancedText = await callGeminiTextAPI(enhancePrompt, 0.3);
 
+      // Nettoyage anti-parasites
       enhancedText = enhancedText
         .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
         .replace(/\*+/g, "")
@@ -460,6 +500,7 @@ ${text}`;
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
+      // Sécurité : si l'IA a trop raccourci, on garde l'original
       if (enhancedText.length < text.length * 0.5) {
         console.warn("[LLM Enhance] Réponse trop courte, fallback texte original");
         enhancedText = text;
@@ -474,7 +515,8 @@ ${text}`;
         points_deducted: pointsCost,
         points_cost: pointsCost,
         notification: "-2 Points",
-        remaining_balance: finalBalance
+        remaining_balance: finalBalance,
+        region_used: region
       });
     } catch (err: any) {
       console.error("[LLM Enhance Error]", err.message || err);
@@ -485,14 +527,14 @@ ${text}`;
   app.post("/api/llm/enhance", handleLLMEnhance);
 
   /* ==========================================================================
-     LLM SCRIPT GENERATOR — منشئ سيناريو تيك توك (-5 pts)
+     LLM SCRIPT GENERATOR — منشئ سيناريو تيك توك (-5 pts) — AVEC RÉGION + SECTEUR
      ========================================================================== */
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
 
-      const { product, style } = req.body;
+      const { product, style, region = "general" } = req.body;
       if (!product || typeof product !== "string" || !product.trim()) {
         return res.status(400).json({ error: "Nom du produit ou service manquant" });
       }
@@ -503,9 +545,15 @@ ${text}`;
         return res.status(402).json({ error: "Solde de points insuffisant (5 points requis)." });
       }
 
+      const regionGuide = getRegionGuide(region);
+      const detectedSector = detectSector(product);
+
       const scriptPrompt = `${LLM_SYSTEM_PROMPT}
 
-TÂCHE SPÉCIFIQUE : Écris un script publicitaire COMPLET pour un Reel / TikTok de 35 à 45 secondes.
+LAHDJA CIBLE : ${regionGuide}
+SECTEUR DÉTECTÉ : ${detectedSector}
+
+TÂCHE SPÉCIFIQUE : Écris un script publicitaire COMPLET pour un Reel / TikTok de 35 à 45 secondes, adapté au secteur "${detectedSector}" et à la Lahdja cible.
 
 STRUCTURE OBLIGATOIRE :
 1. HOOK (3–5s) avec [excited] — Accroche UNIQUE et SPÉCIFIQUE au sujet (interdiction de commencer par "أسمع مليح" ou "يا خاوتي").
@@ -525,6 +573,7 @@ Style souhaité : ${style || "excited"}`;
 
       let scriptText = await callGeminiTextAPI(scriptPrompt, 0.85);
 
+      // Nettoyage
       scriptText = scriptText
         .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
         .replace(/\*+/g, "")
@@ -541,7 +590,9 @@ Style souhaité : ${style || "excited"}`;
         points_deducted: pointsCost,
         points_cost: pointsCost,
         notification: "-5 Points",
-        remaining_balance: finalBalance
+        remaining_balance: finalBalance,
+        sector_used: detectedSector,
+        region_used: region
       });
     } catch (err: any) {
       console.error("[LLM Script Generator Error]", err.message || err);
@@ -550,6 +601,45 @@ Style souhaité : ${style || "excited"}`;
   };
   app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
   app.post("/api/llm/generate-script", handleLLMGenerateScript);
+
+  /* ==========================================================================
+     AI FEEDBACK — Sauvegarde des retours utilisateurs (👍👎)
+     ========================================================================== */
+  const handleAIFeedback = async (req: express.Request, res: express.Response) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      const { input_text, output_text, rating, type, region, sector } = req.body;
+
+      if (!output_text || typeof rating !== "number") {
+        return res.status(400).json({ error: "Données feedback invalides." });
+      }
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from("ai_feedback").insert({
+            user_id: userId || null,
+            input_text: input_text || "",
+            output_text: output_text,
+            rating: rating,
+            type: type || "enhance",
+            region: region || "general",
+            sector: sector || "general",
+            created_at: new Date().toISOString()
+          });
+          console.log(`[AI Feedback] ${rating >= 4 ? '👍' : '👎'} - Type: ${type} - Region: ${region} - Sector: ${sector}`);
+        } catch (e: any) {
+          console.warn("[AI Feedback] Insert failed:", e.message);
+        }
+      }
+
+      return res.json({ success: true, message: "Feedback enregistré" });
+    } catch (err: any) {
+      console.error("[AI Feedback Error]", err.message || err);
+      return res.status(200).json({ success: false, error: err.message });
+    }
+  };
+  app.post("/api/v1/ai/feedback", handleAIFeedback);
+  app.post("/api/ai/feedback", handleAIFeedback);
 
   /* ==========================================================================
      SLICKPAY
