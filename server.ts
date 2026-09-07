@@ -137,6 +137,32 @@ function normalizeTextForTTS(text: string): string {
   return normalized;
 }
 
+// ==========================================================================
+// FILLERS COURTS NATURELS (ANTI-ROBOT COLD START)
+// ==========================================================================
+const NATURAL_FILLERS = [
+  "ممم... ",
+  "إيه... ",
+  "أها، ",
+  "أوكي، ",
+  "ياس، ",
+  "هاه... ",
+  "... "
+];
+
+function injectNaturalFiller(text: string): string {
+  let clean = text.trim();
+
+  // Si le texte commence déjà par une pause, on n'ajoute rien
+  if (clean.startsWith("...") || clean.startsWith("…")) {
+    return clean;
+  }
+
+  // Choisit un petit son aléatoire avec pause
+  const randomFiller = NATURAL_FILLERS[Math.floor(Math.random() * NATURAL_FILLERS.length)];
+  return `${randomFiller}${clean}`;
+}
+
 async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, maxRetries = 3, speed = 1.0, pitch = 1.0, originalVoiceId: string = ""): Promise<{ pcmBuffer: Buffer | null; error: string | null }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée" };
@@ -157,8 +183,17 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
   if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
 
-  const warmUpWatermark = "مع صوتيفي، ";
-  const enrichedSpeechPrompt = `${performancePrompt}\n\nالنص:\n${warmUpWatermark}${cleanText}`;
+  // Injection du filler naturel + pause
+  const preparedText = injectNaturalFiller(cleanText);
+
+  const enrichedSpeechPrompt = `${performancePrompt}
+
+تعليمات الصوت والأداء:
+- ابدأ بالصوت التمهيدي (Filler) بنَفَس طبيعي وواقعي جداً.
+- بعد الوقفة الخفيفة (الفاصلة أو النقاط)، ادخل في قراءة النص بنبرة حية، قوية وبشرية 100%.
+
+النص:
+${preparedText}`;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -300,7 +335,6 @@ async function startServer() {
 
     const pointsCost = 20;
 
-    // Vérification préalable du solde (SANS déduire encore)
     if (userId) {
       const currentBalance = await getUserBalance(userId);
       if (currentBalance !== null && currentBalance < pointsCost) {
@@ -325,7 +359,6 @@ async function startServer() {
       wavBase64 = generateSmoothVocalWavBuffer(durationSeconds, basePitchFreq * numPitch).toString("base64");
     }
 
-    // Déduction UNIQUEMENT après succès audio
     let remainingBalance: number | null = null;
     if (userId) {
       const reduction = await deductCredits(userId, pointsCost);
@@ -419,7 +452,6 @@ ${text}`;
 
       let enhancedText = await callGeminiTextAPI(enhancePrompt, 0.3);
 
-      // Nettoyage anti-parasites
       enhancedText = enhancedText
         .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
         .replace(/\*+/g, "")
@@ -428,7 +460,6 @@ ${text}`;
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
-      // Sécurité : si l'IA a trop raccourci, on garde l'original
       if (enhancedText.length < text.length * 0.5) {
         console.warn("[LLM Enhance] Réponse trop courte, fallback texte original");
         enhancedText = text;
@@ -494,7 +525,6 @@ Style souhaité : ${style || "excited"}`;
 
       let scriptText = await callGeminiTextAPI(scriptPrompt, 0.85);
 
-      // Nettoyage
       scriptText = scriptText
         .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
         .replace(/\*+/g, "")
