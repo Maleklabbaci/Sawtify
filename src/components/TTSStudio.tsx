@@ -11,6 +11,7 @@ import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, sendAIFeedback } from '../services/api';
 import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
+import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
 
 interface TTSStudioProps {
   balance: number;
@@ -70,6 +71,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [copied, setCopied] = useState<boolean>(false);
   const [insufficientAlert, setInsufficientAlert] = useState<boolean>(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
+  const [lastGeneratedCost, setLastGeneratedCost] = useState<number>(20);
 
   // IA
   const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
@@ -186,6 +189,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       tempAudio.addEventListener('error', () => {
         setAudioDuration(response.duration_seconds || 0);
       });
+
+      // Coût réel dynamique renvoyé par le serveur (palier 0-60s = 20 pts,
+      // puis +10 pts par tranche de 60s supplémentaire entamée).
+      const realCost = response.points_deducted || POINTS_COST;
+      setLastGeneratedCost(realCost);
       
       const record: GenerationRecord = { 
         id: response.generation_id || ('gen_' + Date.now()), 
@@ -193,14 +201,15 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         voiceId: currentVoice.id, 
         voiceName: currentVoice.name, 
         audioUrl: response.audio_url, 
-        pointsDeducted: POINTS_COST, 
+        pointsDeducted: realCost, 
         durationSec: response.duration_seconds || 0, 
         latencyMs: response.latency_ms, 
         createdAt: new Date().toISOString() 
       };
 
-      await onDeductPoints(POINTS_COST, record);
-      showNotif(response.notification || `-${POINTS_COST} Points`);
+      await onDeductPoints(realCost, record);
+      showNotif(response.notification || `-${realCost} Points`);
+      playGenerationChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
       
       setIsConvertingMp3(true); 
@@ -247,6 +256,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGenType('enhance');
       setLastGenInput(originalText);
       setLastGenOutput(result.enhanced_text);
+      // Effet "magique" sur le texte + son de confirmation
+      setIsMagicActive(true);
+      setTimeout(() => setIsMagicActive(false), 900);
+      playEnhanceChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
       if (e?.message?.includes('insuffisant')) {
@@ -278,6 +291,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGenSector(result.sector_used || 'general');
       setProductName('');
       setIsLeftDrawerOpen(false); // Ferme le menu mobile après génération
+      setIsMagicActive(true);
+      setTimeout(() => setIsMagicActive(false), 900);
+      playScriptChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
       if (e?.message?.includes('insuffisant')) {
@@ -290,8 +306,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
   };
 
+  const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
+  const [feedbackError, setFeedbackError] = useState<boolean>(false);
+
   const handleSendFeedback = async (rating: number) => {
     if (!lastGenType || !lastGenOutput || feedbackSent) return;
+    setFeedbackGiven(rating >= 4 ? 'up' : 'down');
+    setFeedbackError(false);
     try {
       await sendAIFeedback({
         input_text: lastGenInput,
@@ -307,6 +328,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         : (language === 'ar' ? '👍 شكراً على ملاحظتك' : '👍 Merci pour ton retour'));
     } catch (e) { 
       console.warn('Feedback failed:', e); 
+      // Le clic reste visible pour l'utilisateur même en cas d'échec réseau,
+      // mais on signale clairement que ça n'a pas été envoyé (avant : échec silencieux).
+      setFeedbackGiven(null);
+      setFeedbackError(true);
+      showNotif(language === 'ar' ? 'فشل إرسال التقييم' : "Échec de l'envoi du retour");
     }
   };
 
@@ -448,7 +474,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       <div className="flex-1 flex overflow-hidden relative">
         
         {/* ==========================================================================
-           LEFT PANEL: TIKTOK SCRIPT GENERATOR
+           LEFT PANEL: SCRIPT GENERATOR (vidéos courtes, 30-50s)
            ========================================================================== */}
         {/* Backdrop overlay Mobile */}
         {isLeftDrawerOpen && <div onClick={() => setIsLeftDrawerOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
@@ -461,7 +487,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Video className="w-4 h-4 text-purple-600" /> 
-              {language === 'ar' ? 'منشئ سيناريو تيك توك' : 'Générateur de Script'}
+              {language === 'ar' ? 'منشئ النصوص الإعلانية' : 'Générateur de Script'}
             </h3>
             <button onClick={() => setIsLeftDrawerOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
               <X className="w-4 h-4" />
@@ -584,40 +610,61 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 value={text} 
                 onChange={(e) => setText(e.target.value)} 
                 placeholder={t.textPlaceholder || 'Écrivez...'} 
-                className="w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto" 
+                className={`w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
+                style={{ unicodeBidi: 'plaintext' }}
                 dir="auto" 
               />
+              {isMagicActive && (
+                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-400/0 via-purple-300/25 to-pink-300/0 animate-[magicSweep_0.9s_ease-in-out]" />
+                  <Sparkles className="absolute top-1 end-1 w-4 h-4 text-purple-500 animate-ping" />
+                  <Sparkles className="absolute bottom-6 start-4 w-3 h-3 text-pink-500 animate-pulse" />
+                </div>
+              )}
               <button 
                 onClick={handleCopyText} 
                 className="absolute bottom-1.5 end-2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200">
                 {copied ? <Check className="w-3.5 h-3.5 text-purple-600" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
+              <style>{`
+                @keyframes magicSweep { 0% { transform: translateX(-100%); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(100%); opacity: 0; } }
+                @keyframes magicPulse { 0%, 100% { filter: none; } 40% { filter: drop-shadow(0 0 6px rgba(168,85,247,0.35)); } }
+              `}</style>
             </div>
 
             {/* Feedback IA */}
-            {lastGenType && lastGenOutput && !feedbackSent && (
+            {lastGenType && lastGenOutput && (
               <div className="shrink-0 mt-2 pt-2 border-t border-slate-100 flex items-center justify-center gap-3">
-                <span className="text-[10px] text-slate-500">{language === 'ar' ? 'كيفاش لقيت النتيجة؟' : 'Qualité du résultat ?'}</span>
+                <span className="text-[10px] text-slate-500">
+                  {feedbackSent
+                    ? (language === 'ar' ? '✅ تم استلام رأيك' : '✅ Merci pour ton retour')
+                    : (language === 'ar' ? 'كيفاش لقيت النتيجة؟' : 'Qualité du résultat ?')}
+                </span>
                 <button 
                   onClick={() => handleSendFeedback(5)} 
-                  className="p-1.5 rounded-lg hover:bg-green-50 border border-green-200 transition cursor-pointer" 
+                  disabled={feedbackSent}
+                  className={`p-1.5 rounded-lg border transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100 border-green-400' : 'hover:bg-green-50 border-green-200'}`}
                   title="👍">
-                  <ThumbsUp className="w-3.5 h-3.5 text-green-600" />
+                  <ThumbsUp className={`w-3.5 h-3.5 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-green-600'}`} />
                 </button>
                 <button 
                   onClick={() => handleSendFeedback(1)} 
-                  className="p-1.5 rounded-lg hover:bg-red-50 border border-red-200 transition cursor-pointer" 
+                  disabled={feedbackSent}
+                  className={`p-1.5 rounded-lg border transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100 border-red-400' : 'hover:bg-red-50 border-red-200'}`}
                   title="👎">
-                  <ThumbsDown className="w-3.5 h-3.5 text-red-500" />
+                  <ThumbsDown className={`w-3.5 h-3.5 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-red-500'}`} />
                 </button>
+                {feedbackError && (
+                  <span className="text-[10px] text-rose-500">{language === 'ar' ? 'أعد المحاولة' : 'Réessayer'}</span>
+                )}
               </div>
             )}
 
             <div className="shrink-0 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية، +10 نقاط لكل دقيقة إضافية' : '20 pts pour 0-60s, +10 pts par minute supplémentaire'}>
                 <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
                 <span className="text-slate-300">•</span>
-                <span>{t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}</span>
+                <span>{t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel} <span className="text-slate-400">({language === 'ar' ? '٠-٦٠ث، +١٠/دقيقة زيادة' : '0-60s, +10/min suppl.'})</span></span>
               </div>
               <button 
                 onClick={handleGenerate} 
@@ -766,18 +813,24 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
          BOTTOM PLAYER AUDIO (S'affiche en BLOC sans chevaucher la zone d'édition !)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="shrink-0 bg-white border-t border-slate-200 px-4 py-3 flex items-center gap-3 z-40 shadow-xl">
+        <div className="shrink-0 bg-gradient-to-r from-white via-purple-50/40 to-white border-t border-purple-100 px-4 py-3 flex items-center gap-3 z-40 shadow-2xl animate-in slide-in-from-bottom-2">
           <button 
             onClick={togglePlay} 
-            className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center cursor-pointer hover:bg-purple-500 transition shadow-xs">
-            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ms-0.5" />}
+            className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/30 shrink-0">
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
           </button>
           
           <div className="flex-1 min-w-0">
-            <canvas ref={canvasRef} width={300} height={20} className="w-full h-5" />
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[10px] font-bold text-purple-700 truncate">{currentVoice.name}</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold shrink-0">
+                {language === 'ar' ? '✓ جاهز' : '✓ Prêt'}
+              </span>
+            </div>
+            <canvas ref={canvasRef} width={300} height={22} className="w-full h-[22px]" />
           </div>
           
-          <span className="text-[10px] text-slate-500 font-num shrink-0 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+          <span className="text-[10px] text-purple-700 font-num shrink-0 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200 font-semibold">
             {currentTime.toFixed(1)}s / {audioDuration.toFixed(1)}s
           </span>
           
