@@ -5,44 +5,14 @@ import {
   ArrowUp,
   Play,
   Pause,
-  ShieldCheck,
-  Sparkles,
-  Mic,
-  Zap,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Volume2,
-  Youtube,
-  Instagram,
-  Music2,
-  Video,
-  Megaphone,
-  Mic2,
-  Star,
-  Rocket,
-  Camera,
-  Headphones,
-  Waves,
-  Check,
-  Layers,
-  Building2,
-  FileText,
-  SpellCheck2,
-  Languages,
+  Plus,
+  Minus,
   Menu,
   X,
-  Quote,
-  Type,
-  Download,
-  Mail,
-  Facebook,
-  Linkedin,
-  Send,
-  Heart,
-  Globe,
+  Check,
+  Star,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -52,29 +22,36 @@ interface LandingPageProps {
 }
 
 /* =========================================================
-   STYLES GLOBAUX INJECTÉS (shimmer, smooth scroll, a11y)
+   GLOBAL — polices, focus, motion-safe
 ========================================================= */
 const GlobalStyles = () => (
   <style>{`
-    html { scroll-behavior: smooth; }
-
-    @keyframes sawtify-shimmer {
-      0%   { transform: translateX(-120%); }
-      100% { transform: translateX(220%); }
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
-    .sawtify-shimmer {
-      animation: sawtify-shimmer 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    }
+    body { overflow-x: hidden; }
 
-    .sawtify-focus:focus-visible {
-      outline: 2px solid #8b5cf6;
+    .sw-focus:focus-visible {
+      outline: 1.5px solid #111;
       outline-offset: 3px;
-      border-radius: 9999px;
+      border-radius: 4px;
+    }
+
+    /* Séparateur ultra-fin premium */
+    .sw-hairline {
+      background-image: linear-gradient(to right, transparent, rgba(17,17,17,0.12), transparent);
+      height: 1px;
+    }
+    .sw-hairline-dark {
+      background-image: linear-gradient(to right, transparent, rgba(255,255,255,0.14), transparent);
+      height: 1px;
     }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
-      .sawtify-shimmer { animation: none; }
       *, *::before, *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
@@ -85,7 +62,7 @@ const GlobalStyles = () => (
 );
 
 /* =========================================================
-   Fix bug RTL : isole les chiffres (bidi)
+   Fix RTL nombres
 ========================================================= */
 const Num = ({
   children,
@@ -106,12 +83,12 @@ const Num = ({
 );
 
 /* =========================================================
-   #5 — Compteur animé (IntersectionObserver + easeOutCubic)
+   Counter animé (subtle, ease profond)
 ========================================================= */
-const AnimatedCounter = ({
+const Counter = ({
   target,
   suffix = "",
-  duration = 1600,
+  duration = 1800,
   className = "",
   style = {},
 }: {
@@ -128,16 +105,14 @@ const AnimatedCounter = ({
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting || started.current) return;
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting || started.current) return;
         started.current = true;
-
         const start = performance.now();
         const tick = (now: number) => {
           const p = Math.min((now - start) / duration, 1);
-          const eased = 1 - Math.pow(1 - p, 3);
+          const eased = 1 - Math.pow(1 - p, 4); // easeOutQuart
           setCount(Math.round(eased * target));
           if (p < 1) requestAnimationFrame(tick);
         };
@@ -145,9 +120,8 @@ const AnimatedCounter = ({
       },
       { threshold: 0.4 }
     );
-
-    observer.observe(node);
-    return () => observer.disconnect();
+    obs.observe(node);
+    return () => obs.disconnect();
   }, [target, duration]);
 
   return (
@@ -161,26 +135,25 @@ const AnimatedCounter = ({
 };
 
 /* =========================================================
-   Web Audio API — waveform réactive (WeakMap = 1 source/élément)
+   Web Audio API — waveform réelle
 ========================================================= */
 function useAudioVisualizer(
   audioEl: HTMLAudioElement | null,
   isPlaying: boolean,
-  barCount = 28
+  barCount = 42
 ) {
-  const [bars, setBars] = useState<number[]>(Array(barCount).fill(14));
+  const [bars, setBars] = useState<number[]>(Array(barCount).fill(8));
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>();
-  const sourceMapRef = useRef<WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>>(
+  const sourceMap = useRef<WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>>(
     new WeakMap()
   );
 
   useEffect(() => {
     if (!isPlaying || !audioEl) {
-      setBars(Array(barCount).fill(14));
+      setBars(Array(barCount).fill(8));
       return;
     }
-
     let analyser: AnalyserNode | null = null;
 
     try {
@@ -190,32 +163,30 @@ function useAudioVisualizer(
       const ctx = ctxRef.current;
       if (ctx.state === "suspended") ctx.resume();
 
-      let source = sourceMapRef.current.get(audioEl);
+      let source = sourceMap.current.get(audioEl);
       if (!source) {
         source = ctx.createMediaElementSource(audioEl);
-        sourceMapRef.current.set(audioEl, source);
+        sourceMap.current.set(audioEl, source);
       }
 
       analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.75;
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.82;
       source.connect(analyser);
       analyser.connect(ctx.destination);
 
       const data = new Uint8Array(analyser.frequencyBinCount);
-      const localAnalyser = analyser;
+      const local = analyser;
 
       const tick = () => {
-        localAnalyser.getByteFrequencyData(data);
+        local.getByteFrequencyData(data);
         setBars(
-          Array.from(data.slice(0, barCount)).map((v) => Math.max(12, (v / 255) * 100))
+          Array.from(data.slice(0, barCount)).map((v) => Math.max(6, (v / 255) * 100))
         );
         rafRef.current = requestAnimationFrame(tick);
       };
       tick();
-    } catch {
-      /* fallback silencieux */
-    }
+    } catch {}
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -227,109 +198,50 @@ function useAudioVisualizer(
 }
 
 /* =========================================================
-   #4 + #11 — Scroll state + progression
+   Scroll state (subtle header)
 ========================================================= */
-function useScrollInfo() {
+function useScrollState() {
   const [scrolled, setScrolled] = useState(false);
-  const [progress, setProgress] = useState(0);
-
   useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY;
-      setScrolled(y > 60);
-      const h = document.documentElement.scrollHeight - window.innerHeight;
-      setProgress(h > 0 ? Math.min(y / h, 1) : 0);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const on = () => setScrolled(window.scrollY > 20);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
   }, []);
-
-  return { scrolled, progress };
+  return scrolled;
 }
 
 /* =========================================================
-   #9 — Carte avec tilt 3D
+   Reveal on scroll — animation UNIVERSELLE subtile
 ========================================================= */
-const TiltCard = ({
+const Reveal = ({
   children,
+  delay = 0,
+  y = 20,
   className = "",
-  max = 7,
+  as: Tag = "div",
 }: {
   children: React.ReactNode;
+  delay?: number;
+  y?: number;
   className?: string;
-  max?: number;
-}) => {
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-
-  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width - 0.5) * (max * 2);
-    const y = ((e.clientY - r.top) / r.height - 0.5) * -(max * 2);
-    setTilt({ x, y });
-  };
-
-  return (
-    <div
-      onMouseMove={onMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
-      style={{
-        transform: `perspective(900px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg) translateZ(0)`,
-        transition: "transform 0.18s ease-out",
-        transformStyle: "preserve-3d",
-      }}
-      className={className}
-    >
-      {children}
-    </div>
-  );
-};
-
-/* =========================================================
-   Transition courbe entre sections
-========================================================= */
-const SectionWave = ({
-  fromColor = "#0f0818",
-  toColor = "#F7F5F1",
-  flip = false,
-}: {
-  fromColor?: string;
-  toColor?: string;
-  flip?: boolean;
+  as?: any;
 }) => (
-  <div className="relative" style={{ backgroundColor: fromColor }} aria-hidden="true">
-    <svg
-      viewBox="0 0 1440 120"
-      className={`w-full h-[60px] sm:h-[100px] block ${flip ? "rotate-180" : ""}`}
-      preserveAspectRatio="none"
-    >
-      <path
-        d="M0,64 C240,120 480,0 720,32 C960,64 1200,120 1440,64 L1440,120 L0,120 Z"
-        fill={toColor}
-      />
-    </svg>
-  </div>
+  <motion.div
+    initial={{ opacity: 0, y }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: "-80px" }}
+    transition={{ duration: 0.9, delay, ease: [0.22, 1, 0.36, 1] }}
+    className={className}
+  >
+    {children}
+  </motion.div>
 );
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 28 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
-};
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
-
 const LOGO_URL = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
-const HERO_BG_URL = "https://i.ibb.co/zTwPD6gj/HEROBACKGROUND.jpg";
-
-const PARTICLES = [
-  { x: "15%", size: 4, delay: 0, duration: 4.2 },
-  { x: "35%", size: 3, delay: 1, duration: 5.1 },
-  { x: "55%", size: 5, delay: 2, duration: 4.6 },
-  { x: "75%", size: 3, delay: 0.5, duration: 5.4 },
-  { x: "90%", size: 4, delay: 1.5, duration: 4.8 },
-];
 
 /* =========================================================
-   COMPOSANT PRINCIPAL
+   COMPOSANT
 ========================================================= */
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -340,22 +252,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const isRTL = language === "ar";
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [currentAudioEl, setCurrentAudioEl] = useState<HTMLAudioElement | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTesti, setActiveTesti] = useState(0);
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
 
   const bars = useAudioVisualizer(currentAudioEl, playingId !== null);
-  const { scrolled, progress } = useScrollInfo();
+  const scrolled = useScrollState();
+
+  // Parallax hero très subtil
+  const heroRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const heroTitleY = useTransform(scrollYProgress, [0, 1], [0, 80]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
 
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
   }, [language, isRTL]);
 
-  /* Lock scroll quand le menu mobile est ouvert */
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
     return () => {
@@ -363,14 +281,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     };
   }, [menuOpen]);
 
-  /* Fermeture au clavier (Échap) */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  /* Nettoyage audio au démontage */
   useEffect(() => {
     return () => {
       audioRef.current?.pause();
@@ -381,389 +297,199 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const ArrowIcon = ({ className = "w-4 h-4" }: { className?: string }) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
 
-  /* ---------------------- TRADUCTIONS ---------------------- */
+  /* ---------------------- COPY ---------------------- */
   const t = {
-    skip: isRTL ? "تخطي إلى المحتوى" : "Aller au contenu",
-    navHome: isRTL ? "الرئيسية" : "Accueil",
-    navHow: isRTL ? "كيف يعمل" : "Comment ça marche",
-    navServices: isRTL ? "الأصوات" : "Voix",
-    navAbout: isRTL ? "من نحن" : "À propos",
+    skip: isRTL ? "تخطي" : "Aller au contenu",
+    navWork: isRTL ? "الأصوات" : "Voix",
+    navHow: isRTL ? "الطريقة" : "Process",
     navPricing: isRTL ? "الأسعار" : "Tarifs",
-    cta: isRTL ? "ابدأ الآن" : "Commencer",
+    navFaq: "FAQ",
+    signin: isRTL ? "دخول" : "Connexion",
+    start: isRTL ? "ابدأ" : "Commencer",
 
-    heroLine1: isRTL ? "صوت واضح." : "Voix claire.",
-    heroLine2: isRTL ? "عاطفة حقيقية." : "Émotion réelle.",
-    heroLine3: isRTL ? "أثر دائم." : "Impact durable.",
+    heroKicker: isRTL ? "استوديو صوتي بالدارجة" : "Voix off en darija algérienne",
+    heroTitle1: isRTL ? "الصوت الذي" : "La voix que",
+    heroTitle2: isRTL ? "يستحقه نصك." : "mérite ton texte.",
     heroSub: isRTL
-      ? "نساعد المبدعين والعلامات التجارية على تحويل نصوصهم إلى أصوات ذكاء اصطناعي بالدارجة الجزائرية، طبيعية وجاهزة للاستخدام فوراً."
-      : "Nous aidons créateurs et marques à donner vie à leurs textes grâce à des voix IA en darija algérienne, naturelles et prêtes à l'emploi.",
-    viewDemo: isRTL ? "شاهد العرض" : "Voir la démo",
-    bookCall: isRTL ? "ابدأ مجاناً" : "Essayer gratuitement",
-    trustLine: isRTL ? "دفع محلي عبر SATIM" : "Paiement local via SATIM",
+      ? "أصوات ذكاء اصطناعي بالدارجة الجزائرية. طبيعية، دقيقة، جاهزة في ثوانٍ."
+      : "Des voix IA en darija algérienne. Naturelles, précises, prêtes en quelques secondes.",
+    tryFree: isRTL ? "جرّب مجاناً" : "Essayer gratuitement",
+    listenDemo: isRTL ? "استمع للعرض" : "Écouter la démo",
 
-    /* Comment ça marche */
-    howLabel: isRTL ? "• الطريقة" : "• Le process",
-    howTitle: isRTL ? "ثلاث خطوات. ثلاثون ثانية." : "Trois étapes. Trente secondes.",
-    howSub: isRTL
-      ? "بدون استوديو، بدون ممثل صوتي، بدون انتظار. فقط نصك وصوتك النهائي."
-      : "Pas de studio, pas de comédien à réserver, pas d'attente. Juste ton texte et ton audio final.",
-    step1Title: isRTL ? "اكتب نصك" : "Écris ton texte",
-    step1Desc: isRTL
-      ? "الصق نصك أو دع الذكاء الاصطناعي يولّد لك سكريبت بالدارجة."
-      : "Colle ton texte ou laisse l'IA générer un script en darija pour toi.",
-    step2Title: isRTL ? "اختر صوتك" : "Choisis ta voix",
-    step2Desc: isRTL
-      ? "أكثر من 12 صوتاً وعدة لهجات جزائرية. اضبط السرعة والنبرة."
-      : "Plus de 12 voix et plusieurs lahjat algériennes. Règle vitesse et ton.",
-    step3Title: isRTL ? "حمّل صوتك" : "Télécharge ton audio",
-    step3Desc: isRTL
-      ? "MP3 أو WAV بجودة استوديو 24 kHz، جاهز للاستخدام التجاري."
-      : "MP3 ou WAV en qualité studio 24 kHz, prêt pour un usage commercial.",
+    processKicker: isRTL ? "الطريقة" : "Process",
+    processTitle: isRTL ? "من نص إلى صوت." : "D'un texte à une voix.",
+    step1t: isRTL ? "اكتب" : "Écris",
+    step1d: isRTL ? "الصق نصك، أو ولّده بالذكاء الاصطناعي." : "Colle ton texte, ou génère-le via l'IA.",
+    step2t: isRTL ? "اختر" : "Choisis",
+    step2d: isRTL ? "12 صوتاً، لهجات متعددة، نبرات مختلفة." : "12 voix, plusieurs lahjat, plusieurs tons.",
+    step3t: isRTL ? "صدّر" : "Exporte",
+    step3d: isRTL ? "MP3 أو WAV، جودة 24 kHz، بدون علامة." : "MP3 ou WAV, 24 kHz, sans watermark.",
 
-    partnershipsLabel: isRTL ? "• التقنية" : "• Technologie",
-    partnershipsTitle: isRTL
-      ? "تقنية صوتية مصممة للمبدعين الجزائريين."
-      : "Une technologie vocale pensée pour les créateurs algériens.",
-    partnershipsDesc: isRTL
-      ? "من توليد السيناريو إلى التصدير النهائي، نجمع بين الذكاء الاصطناعي المتقدم والأصالة الثقافية لمساعدة المبدعين على الإنتاج أسرع دون التضحية بالجودة."
-      : "De la génération de script à l'export final, nous combinons IA de pointe et authenticité culturelle pour produire plus vite, sans sacrifier la qualité.",
-    stat1: isRTL ? "رضا المبدعين" : "Satisfaction créateurs",
-    stat2: isRTL ? "أصوات متاحة" : "Voix disponibles",
-    stat3: isRTL ? "مبدع نشط" : "Créateurs actifs",
-    usedOn: isRTL ? "يُستعمل يومياً على" : "Utilisé chaque jour sur",
+    voicesKicker: isRTL ? "الأصوات" : "Bibliothèque",
+    voicesTitle: isRTL ? "كل صوت له طابعه." : "Chaque voix a son grain.",
+    voicesSub: isRTL
+      ? "أربعة أصوات مختارة يدوياً، مدربة على الدارجة الحقيقية."
+      : "Quatre voix sélectionnées à la main, entraînées sur de la vraie darija.",
 
-    aboutLabel: isRTL ? "• من نحن" : "• À propos",
-    aboutTitle: isRTL
-      ? "نساعد المبدعين على منح صوت بشري لأفكارهم."
-      : "Nous aidons les créateurs à donner une voix humaine à leurs idées.",
-    aboutDesc: isRTL
-      ? "Sawtify يجمع بين الذكاء الاصطناعي والأصالة الصوتية حتى يتمكن كل مبدع أو علامة تجارية من إنتاج تعليقات صوتية بالدارجة، دون استوديو أو حجز ممثل صوتي."
-      : "Sawtify combine intelligence artificielle et authenticité vocale pour que chaque créateur puisse produire des voix off en darija, sans studio ni comédien à réserver.",
-    learnMore: isRTL ? "اعرف أكثر" : "En savoir plus",
+    metricsKicker: isRTL ? "أرقام" : "En chiffres",
+    metricsTitle: isRTL ? "بناء بصبر. استخدام كل يوم." : "Construit patiemment. Utilisé chaque jour.",
 
-    perfLabel: isRTL ? "الأداء" : "Performance",
-    perfSubLabel: isRTL ? "وقت الإنتاج" : "Temps de production",
-    perfStat: "-68%",
-    perfNote: isRTL ? "مقارنة بالتسجيل الاستوديو التقليدي" : "vs enregistrement studio classique",
+    testKicker: isRTL ? "شهادات" : "Témoignages",
+    testTitle: isRTL ? "المبدعون يتحدثون." : "Les créateurs parlent.",
 
-    showcaseLabel: isRTL ? "• جودة احترافية" : "• Qualité professionnelle",
-    showcaseTitle: isRTL ? "من الفكرة إلى الصوت النهائي." : "De l'idée au son final.",
-    showcaseSub: isRTL
-      ? "خط إنتاج احترافي مصمم للمبدعين الذين لا يملكون وقتاً للانتظار."
-      : "Un pipeline de production pensé pour les créateurs qui n'ont pas de temps à perdre.",
-
-    testiLabel: isRTL ? "• آراء المستخدمين" : "• Témoignages",
-    testiTitle: isRTL ? "ما يقوله المبدعون عنا" : "Ce que disent les créateurs",
-
-    ctaBadge: isRTL ? "عرض محدود" : "Offre de lancement",
-    ctaTitle: isRTL
-      ? "50 نقطة مجانية عند التسجيل الآن."
-      : "50 points offerts pour votre première voix.",
-    ctaSub: isRTL
-      ? "بدون بطاقة بنكية. جرّب الجودة بنفسك في أقل من دقيقة."
-      : "Sans carte bancaire. Testez la qualité vous-même en moins d'une minute.",
-    ctaButton: isRTL ? "ابدأ مجاناً" : "Commencer gratuitement",
-
-    pricingLabel: isRTL ? "• الأسعار" : "• Tarifs",
-    pricingTitle: isRTL ? "ادفع فقط لما تستخدمه" : "Payez seulement ce que vous utilisez",
+    pricingKicker: isRTL ? "الأسعار" : "Tarifs",
+    pricingTitle: isRTL ? "بسيط. بدون اشتراك." : "Simple. Sans abonnement.",
     pricingSub: isRTL
-      ? "بدون اشتراك شهري. النقاط لا تنتهي صلاحيتها أبداً."
-      : "Sans abonnement mensuel. Les points achetés n'expirent jamais.",
+      ? "نقاط تُشترى مرة واحدة، تُستهلك بسرعتك، ولا تنتهي أبداً."
+      : "Des points achetés une fois, utilisés à ton rythme. Jamais expirés.",
 
-    faqKicker: isRTL ? "الأسئلة" : "FAQ",
-    faqTitle: isRTL ? "الأسئلة الشائعة" : "Ce qu'on nous demande souvent",
+    faqKicker: "FAQ",
+    faqTitle: isRTL ? "أسئلة، أجوبة." : "Questions, réponses.",
 
-    /* Footer */
-    footTagline: isRTL
-      ? "أصوات ذكاء اصطناعي بالدارجة الجزائرية، جاهزة في ثوانٍ."
-      : "Des voix IA en darija algérienne, prêtes en quelques secondes.",
-    footProduct: isRTL ? "المنتج" : "Produit",
-    footSupport: isRTL ? "الدعم" : "Support",
-    footLegal: isRTL ? "قانوني" : "Légal",
-    footNewsletter: isRTL ? "النشرة البريدية" : "Newsletter",
-    footNewsletterSub: isRTL
-      ? "أصوات جديدة وميزات كل شهر. بدون سبام."
-      : "Nouvelles voix et fonctionnalités chaque mois. Zéro spam.",
-    emailPlaceholder: isRTL ? "بريدك الإلكتروني" : "Votre email",
-    subscribe: isRTL ? "اشترك" : "S'inscrire",
-    subscribed: isRTL ? "تم الاشتراك ✓" : "Inscrit ✓",
-    madeIn: isRTL ? "صُنع بـ 💜 في الجزائر" : "Fait avec 💜 en Algérie",
-    backTop: isRTL ? "العودة للأعلى" : "Retour en haut",
-    openMenu: isRTL ? "فتح القائمة" : "Ouvrir le menu",
-    closeMenu: isRTL ? "إغلاق القائمة" : "Fermer le menu",
+    ctaTitle: isRTL ? "ابدأ. النص ينتظر صوته." : "Commence. Ton texte attend sa voix.",
+    ctaSub: isRTL ? "50 نقطة مجانية. بدون بطاقة." : "50 points offerts. Sans carte bancaire.",
+
+    footTag: isRTL
+      ? "صنع في الجزائر. للمبدعين في كل مكان."
+      : "Fait en Algérie. Pour les créateurs, partout.",
+    footPay: isRTL ? "دفع محلي" : "Paiement local",
     switchLang: isRTL ? "Passer en français" : "التبديل إلى العربية",
+    close: isRTL ? "إغلاق" : "Fermer",
+    open: isRTL ? "قائمة" : "Menu",
+    prev: isRTL ? "السابق" : "Précédent",
+    next: isRTL ? "التالي" : "Suivant",
+    back: isRTL ? "للأعلى" : "Haut de page",
   };
 
-  /* ---------------------- DONNÉES ---------------------- */
-  const navLinks = [
-    { href: "#home", label: t.navHome },
-    { href: "#how", label: t.navHow },
-    { href: "#voices", label: t.navServices },
-    { href: "#about", label: t.navAbout },
+  const nav = [
+    { href: "#voices", label: t.navWork },
+    { href: "#process", label: t.navHow },
     { href: "#pricing", label: t.navPricing },
+    { href: "#faq", label: t.navFaq },
   ];
 
-  const badges = [
-    { icon: Sparkles, label: isRTL ? "ذكاء اصطناعي" : "IA native", color: "bg-violet-500", pos: "top-[20%] left-[10%] md:left-[18%]" },
-    { icon: Zap, label: isRTL ? "سريع" : "Ultra rapide", color: "bg-fuchsia-500", pos: "top-[18%] right-[8%] md:right-[16%]" },
-    { icon: Star, label: isRTL ? "احترافي" : "Qualité pro", color: "bg-indigo-500", pos: "top-[42%] right-[4%] md:right-[10%]" },
-    { icon: Rocket, label: isRTL ? "نمو أسرع" : "Grow faster", color: "bg-violet-400", pos: "top-[46%] left-[4%] md:left-[8%]" },
-    { icon: Mic, label: isRTL ? "دارجة أصيلة" : "Feel Darija", color: "bg-purple-500", pos: "top-[54%] right-[20%] md:right-[26%]" },
-  ];
-
-  const logos = [
-    { icon: Youtube, name: "YouTube" },
-    { icon: Music2, name: "TikTok" },
-    { icon: Instagram, name: "Instagram" },
-    { icon: Video, name: "Reels" },
-    { icon: Megaphone, name: "Ads" },
-    { icon: Mic2, name: "Podcasts" },
-  ];
-
-  const perfTags = isRTL
-    ? ["سريع", "ذكاء اصطناعي", "دارجة", "جودة استوديو"]
-    : ["Rapide", "IA native", "Darija", "Studio quality"];
-
-  const quickFeatures = [
-    {
-      icon: FileText,
-      title: isRTL ? "توليد سكريبت مستهدف" : "Générateur de script ciblé",
-      desc: isRTL
-        ? "سكريبتات مصممة خصيصاً للسوق الجزائري، جاهزة للتوليد الصوتي مباشرة."
-        : "Scripts pensés pour le marché algérien, prêts à être transformés en voix.",
-    },
-    {
-      icon: SpellCheck2,
-      title: isRTL ? "مصحّح ذكي" : "Correcteur intelligent",
-      desc: isRTL
-        ? "يصحح نصك تلقائياً قبل التوليد لضمان نطق مثالي."
-        : "Corrige automatiquement ton texte avant génération pour un rendu parfait.",
-    },
-    {
-      icon: Languages,
-      title: isRTL ? "دعم اللهجات" : "Support des lahjat",
-      desc: isRTL
-        ? "عدة لهجات جزائرية متاحة، وليس دارجة عامة موحدة."
-        : "Plusieurs lahjat algériennes disponibles, pas une darija générique.",
-    },
-  ];
-
-  /* #1 — Étapes */
   const steps = [
+    { n: "01", t: t.step1t, d: t.step1d },
+    { n: "02", t: t.step2t, d: t.step2d },
+    { n: "03", t: t.step3t, d: t.step3d },
+  ];
+
+  const voices = [
     {
-      n: "01",
-      icon: Type,
-      title: t.step1Title,
-      desc: t.step1Desc,
-      accent: "from-violet-500 to-purple-600",
+      id: "amin",
+      name: isRTL ? "أمين" : "Amin",
+      tag: isRTL ? "تجاري" : "Commercial",
+      duration: "0:24",
+      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
     },
     {
-      n: "02",
-      icon: Mic,
-      title: t.step2Title,
-      desc: t.step2Desc,
-      accent: "from-fuchsia-500 to-violet-600",
+      id: "yasmine",
+      name: isRTL ? "ياسمين" : "Yasmine",
+      tag: isRTL ? "إعلاني" : "Publicitaire",
+      duration: "0:18",
+      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
     },
     {
-      n: "03",
-      icon: Download,
-      title: t.step3Title,
-      desc: t.step3Desc,
-      accent: "from-indigo-500 to-violet-500",
+      id: "khalid",
+      name: isRTL ? "خالد" : "Khalid",
+      tag: isRTL ? "وثائقي" : "Documentaire",
+      duration: "0:31",
+      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+    },
+    {
+      id: "layla",
+      name: isRTL ? "ليلى" : "Layla",
+      tag: isRTL ? "سوشيال" : "Social",
+      duration: "0:22",
+      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
     },
   ];
 
-  /* #2 — Témoignages */
+  const metrics = [
+    { n: 12, s: "+", l: isRTL ? "صوت" : "Voix" },
+    { n: 1200, s: "+", l: isRTL ? "مبدع" : "Créateurs" },
+    { n: 98, s: "%", l: isRTL ? "رضا" : "Satisfaction" },
+    { n: 30, s: "s", l: isRTL ? "متوسط الإنتاج" : "Génération moyenne" },
+  ];
+
   const testimonials = isRTL
     ? [
         {
-          quote:
-            "Sawtify عوّضلي استوديو التسجيل. ولّيت نخرّج 10 ريلز في النهار بجودة ما كنتش نتصوّرها.",
-          name: "أمين بلعيد",
-          role: "منشئ محتوى يوتيوب",
-          meta: "120 ألف مشترك",
-          initials: "أب",
-          color: "bg-violet-600",
+          q: "Sawtify ولّاني نخرج الريلز في وقت قصير. الجودة قريبة من الاستوديو.",
+          n: "أمين بلعيد",
+          r: "منشئ محتوى، الجزائر",
         },
         {
-          quote:
-            "الدارجة طبيعية بزاف. الزبائن تاعنا ما عرفوش بلي الصوت مولّد بالذكاء الاصطناعي.",
-          name: "ياسمين قادري",
-          role: "مديرة وكالة إشهار",
-          meta: "الجزائر العاصمة",
-          initials: "يق",
-          color: "bg-fuchsia-600",
+          q: "الدارجة طبيعية، الزبائن ما حسّوش أن الصوت اصطناعي.",
+          n: "ياسمين قادري",
+          r: "وكالة إشهار، وهران",
         },
         {
-          quote:
-            "الدفع بالذهبية سهّلها عليا بزاف. 5 دقايق ومعايا التعليق الصوتي تاع الإعلان.",
-          name: "خالد مرزوق",
-          role: "صاحب متجر إلكتروني",
-          meta: "وهران",
-          initials: "خم",
-          color: "bg-indigo-600",
+          q: "الدفع بالذهبية سهّل عليّ كلش. أحسن أداة لقيتها.",
+          n: "خالد مرزوق",
+          r: "متجر إلكتروني، قسنطينة",
         },
       ]
     : [
         {
-          quote:
-            "Sawtify a remplacé mon studio d'enregistrement. Je produis 10 reels par jour avec une qualité que je n'imaginais pas atteignable.",
-          name: "Amine Belaid",
-          role: "Créateur YouTube",
-          meta: "120K abonnés",
-          initials: "AB",
-          color: "bg-violet-600",
+          q: "Sawtify me fait sortir mes reels en un temps record. La qualité frôle celle du studio.",
+          n: "Amine Belaid",
+          r: "Créateur, Alger",
         },
         {
-          quote:
-            "La darija sonne vraiment naturelle. Nos clients n'ont pas deviné que la voix était générée par IA.",
-          name: "Yasmine Kadri",
-          role: "Directrice d'agence pub",
-          meta: "Alger",
-          initials: "YK",
-          color: "bg-fuchsia-600",
+          q: "La darija est naturelle. Les clients ne réalisent pas que la voix est synthétique.",
+          n: "Yasmine Kadri",
+          r: "Agence pub, Oran",
         },
         {
-          quote:
-            "Le paiement Edahabia a tout changé pour moi. 5 minutes et j'ai la voix off de ma pub prête à publier.",
-          name: "Khaled Merzoug",
-          role: "E-commerçant",
-          meta: "Oran",
-          initials: "KM",
-          color: "bg-indigo-600",
+          q: "Le paiement Edahabia a tout changé pour moi. Le meilleur outil que j'ai testé.",
+          n: "Khaled Merzoug",
+          r: "E-commerce, Constantine",
         },
       ];
 
-  /* Auto-rotation du carousel */
   useEffect(() => {
     const id = setInterval(
       () => setActiveTesti((p) => (p + 1) % testimonials.length),
-      6000
+      7000
     );
     return () => clearInterval(id);
   }, [testimonials.length]);
 
-  const voices = [
-    { id: "amin", name: isRTL ? "أمين" : "Amin", tag: isRTL ? "تجاري • دارجة" : "Commercial · Darija", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-    { id: "yasmine", name: isRTL ? "ياسمين" : "Yasmine", tag: isRTL ? "إعلان • ناعم" : "Publicité · Douce", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-    { id: "khalid", name: isRTL ? "خالد" : "Khalid", tag: isRTL ? "وثائقي • عميق" : "Documentaire · Grave", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
-    { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال • حيوي" : "Social · Énergique", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
-  ];
-
-  const pricingPlans = [
+  const pricing = [
+    { pts: "100", price: "500", desc: isRTL ? "للتجربة." : "Pour tester." },
     {
-      icon: Zap,
-      points: "100",
-      bonus: null as string | null,
-      price: "500",
-      desc: isRTL ? "مثالي للتجربة وإنشاء 5 أصوات." : "Idéal pour tester et créer 5 voix-off haute définition.",
-      popular: false,
-    },
-    {
-      icon: Zap,
-      points: "220",
-      bonus: "10%+",
+      pts: "220",
       price: "1 000",
-      desc: isRTL ? "الأكثر طلباً في الجزائر. +20 نقطة مجانية." : "Le plus populaire en Algérie. +20 points offerts.",
-      popular: true,
+      desc: isRTL ? "الأكثر اختياراً." : "Le plus choisi.",
+      featured: true,
     },
-    {
-      icon: Layers,
-      points: "600",
-      bonus: "20%+",
-      price: "2 500",
-      desc: isRTL ? "للمبدعين المنتظمين والوكالات." : "Pour les créateurs réguliers et agences. +100 points offerts.",
-      popular: false,
-    },
-    {
-      icon: Building2,
-      points: "1 350",
-      bonus: "35%+",
-      price: "5 000",
-      desc: isRTL ? "حجم موسّع ودعم مخصص وأولوية." : "Volume étendu, support dédié et accès prioritaire aux modèles.",
-      popular: false,
-    },
+    { pts: "600", price: "2 500", desc: isRTL ? "للمنتظمين." : "Pour les réguliers." },
+    { pts: "1 350", price: "5 000", desc: isRTL ? "للوكالات." : "Pour les agences." },
   ];
 
-  const pricingFeatures = [
-    isRTL ? "جودة استوديو 24 kHz" : "Qualité studio 24 kHz",
-    isRTL ? "تحميل MP3 & WAV" : "Téléchargement MP3 & WAV",
-    isRTL ? "استخدام تجاري كامل" : "Usage commercial complet",
-    isRTL ? "نقاط صالحة مدى الحياة" : "Crédits valables à vie",
-  ];
-
-  const showcaseItems = [
-    {
-      img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?q=80&w=1200&auto=format&fit=crop",
-      icon: Waves,
-      label: isRTL ? "استوديو رقمي" : "Studio numérique",
-      title: isRTL ? "بيئة إنتاج متكاملة" : "Environnement de production complet",
-    },
-    {
-      img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
-      icon: Camera,
-      label: isRTL ? "إنتاج المحتوى" : "Production de contenu",
-    },
-    {
-      img: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1200&auto=format&fit=crop",
-      icon: Headphones,
-      label: isRTL ? "مونتاج احترافي" : "Montage professionnel",
-    },
+  const features = [
+    isRTL ? "جودة 24 kHz" : "Qualité 24 kHz",
+    isRTL ? "MP3 و WAV" : "MP3 & WAV",
+    isRTL ? "استخدام تجاري" : "Usage commercial",
+    isRTL ? "بدون انتهاء صلاحية" : "Sans expiration",
   ];
 
   const faqs = isRTL
     ? [
-        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم. كل الملفات قابلة للاستخدام في الإعلانات، الريلز، اليوتيوب والمشاريع التجارية." },
-        { q: "كيف يعمل نظام النقاط؟", a: "تشتري رصيداً مرة واحدة. التوليد الصوتي = 20 نقطة. النقاط لا تنتهي صلاحيتها." },
-        { q: "هل تدعمون الذهبية و CIB؟", a: "نعم عبر SATIM. الدفع محلي بالدينار الجزائري." },
-        { q: "هل هناك اشتراك شهري؟", a: "لا. Sawtify نظام دفع مقابل الاستخدام فقط." },
-        { q: "كم من الوقت يستغرق التوليد؟", a: "أقل من 30 ثانية لنص عادي. الملفات الطويلة تأخذ دقيقة على الأكثر." },
+        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم. تُستخدم بحرية في الإعلانات، الفيديوهات، ومشاريع الزبائن." },
+        { q: "كيف يعمل نظام النقاط؟", a: "تشتري رصيداً مرة واحدة. توليد صوت = 20 نقطة. لا انتهاء صلاحية." },
+        { q: "هل تدعمون الذهبية و CIB؟", a: "نعم، عبر SATIM. دفع محلي بالدينار." },
+        { q: "كم تستغرق كل عملية توليد؟", a: "أقل من 30 ثانية للنص العادي." },
+        { q: "هل يمكنني تجربة الأداة قبل الشراء؟", a: "نعم. 50 نقطة مجانية عند التسجيل." },
       ]
     : [
-        { q: "Les voix sont-elles libres de droits ?", a: "Oui. Usage commercial autorisé : pubs, reels, YouTube, projets clients." },
-        { q: "Comment fonctionne le système de points ?", a: "Tu achètes un pack une fois. Une génération vocale coûte 20 points. Les points n'expirent jamais." },
-        { q: "Edahabia et CIB sont-ils acceptés ?", a: "Oui, via SATIM. Paiement 100% local, en dinars algériens." },
-        { q: "Y a-t-il un abonnement mensuel ?", a: "Non. Sawtify fonctionne uniquement en Pay-As-You-Go." },
-        { q: "Combien de temps prend une génération ?", a: "Moins de 30 secondes pour un texte standard. Une minute maximum pour les longs formats." },
+        { q: "Les voix sont-elles libres de droits ?", a: "Oui. Utilisation commerciale libre : pubs, vidéos, projets clients." },
+        { q: "Comment fonctionnent les points ?", a: "Tu achètes un crédit une fois. Une génération = 20 points. Aucune expiration." },
+        { q: "Edahabia et CIB sont-ils acceptés ?", a: "Oui, via SATIM. Paiement local en dinars." },
+        { q: "Combien de temps prend une génération ?", a: "Moins de 30 secondes pour un texte standard." },
+        { q: "Puis-je tester avant d'acheter ?", a: "Oui. 50 points offerts à l'inscription." },
       ];
-
-  const footerCols = [
-    {
-      title: t.footProduct,
-      links: [
-        { label: isRTL ? "الأصوات" : "Les voix", href: "#voices" },
-        { label: isRTL ? "الأسعار" : "Tarifs", href: "#pricing" },
-        { label: isRTL ? "كيف يعمل" : "Comment ça marche", href: "#how" },
-        { label: "API", href: "#" },
-      ],
-    },
-    {
-      title: t.footSupport,
-      links: [
-        { label: "FAQ", href: "#faq" },
-        { label: isRTL ? "اتصل بنا" : "Contact", href: "#" },
-        { label: isRTL ? "مركز المساعدة" : "Centre d'aide", href: "#" },
-        { label: isRTL ? "الحالة" : "Statut", href: "#" },
-      ],
-    },
-    {
-      title: t.footLegal,
-      links: [
-        { label: isRTL ? "شروط الاستخدام" : "CGU / CGV", href: "#" },
-        { label: isRTL ? "الخصوصية" : "Confidentialité", href: "#" },
-        { label: "Cookies", href: "#" },
-        { label: isRTL ? "بيانات قانونية" : "Mentions légales", href: "#" },
-      ],
-    },
-  ];
-
-  const socials = [
-    { icon: Instagram, label: "Instagram" },
-    { icon: Facebook, label: "Facebook" },
-    { icon: Music2, label: "TikTok" },
-    { icon: Youtube, label: "YouTube" },
-    { icon: Linkedin, label: "LinkedIn" },
-  ];
 
   /* ---------------------- HANDLERS ---------------------- */
   const toggleVoice = (id: string, url: string) => {
@@ -772,43 +498,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setPlayingId(null);
       return;
     }
-
     audioRef.current?.pause();
-
     const audio = new Audio();
     audio.crossOrigin = "anonymous";
     audio.src = url;
-
     audioRef.current = audio;
     setCurrentAudioEl(audio);
-
     audio.play().catch(() => setPlayingId(null));
     audio.onended = () => setPlayingId(null);
     setPlayingId(id);
   };
 
-  const handleNavClick = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-      e.preventDefault();
-      setMenuOpen(false);
-      const el = document.querySelector(href);
-      if (el) {
-        const top = el.getBoundingClientRect().top + window.scrollY - 72;
-        window.scrollTo({ top, behavior: "smooth" });
-      }
-    },
-    []
-  );
+  const smoothTo = useCallback((href: string) => {
+    setMenuOpen(false);
+    const el = document.querySelector(href);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 60;
+    window.scrollTo({ top, behavior: "smooth" });
+  }, []);
 
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setSubscribed(true);
-    setEmail("");
-    setTimeout(() => setSubscribed(false), 3500);
-  };
-
-  const serifFont = isRTL ? "'Cairo', serif" : "'Fraunces', Georgia, serif";
+  const serif = isRTL ? "'Cairo', serif" : "'Fraunces', 'Times New Roman', serif";
+  const sans = isRTL
+    ? "'Cairo', 'Inter', ui-sans-serif, system-ui, sans-serif"
+    : "'Inter', ui-sans-serif, system-ui, sans-serif";
 
   /* =======================================================
      RENDER
@@ -816,120 +528,115 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div
       dir={isRTL ? "rtl" : "ltr"}
-      className="min-h-screen bg-white text-[#141118] selection:bg-purple-200 selection:text-purple-900"
-      style={{
-        fontFamily: isRTL
-          ? "'Cairo', 'Inter', ui-sans-serif, system-ui, sans-serif"
-          : "'Inter', ui-sans-serif, system-ui, sans-serif",
-      }}
+      className="min-h-screen bg-[#FAFAF7] text-[#111111] selection:bg-[#111] selection:text-[#FAFAF7]"
+      style={{ fontFamily: sans }}
     >
       <GlobalStyles />
 
-      {/* #15 — Skip to content */}
+      {/* Skip link */}
       <a
         href="#home"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] focus:bg-white focus:text-[#141118] focus:px-4 focus:py-2 focus:rounded-full focus:shadow-lg text-sm font-semibold"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] focus:bg-[#111] focus:text-white focus:px-4 focus:py-2 focus:rounded text-xs font-medium"
       >
         {t.skip}
       </a>
 
-      {/* #11 — Barre de progression de scroll */}
-      <div
-        aria-hidden="true"
-        className="fixed top-0 inset-x-0 h-[3px] z-[70] bg-transparent pointer-events-none"
-      >
-        <div
-          className="h-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-400 transition-[width] duration-100 ease-out"
-          style={{ width: `${progress * 100}%` }}
-        />
-      </div>
-
       {/* =====================================================
-          #4 — HEADER SCROLL-AWARE
+          HEADER — minimal, blur discret au scroll
       ===================================================== */}
       <header
-        className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
+        className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-out ${
           scrolled
-            ? "bg-[#0f0818]/85 backdrop-blur-xl border-b border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.25)]"
+            ? "bg-[#FAFAF7]/75 backdrop-blur-xl border-b border-black/[0.06]"
             : "bg-transparent border-b border-transparent"
         }`}
       >
-        <div
-          className={`mx-auto max-w-6xl px-6 flex items-center justify-between transition-all duration-300 ${
-            scrolled ? "h-16" : "h-20"
-          }`}
-        >
+        <div className="mx-auto max-w-[1200px] px-6 h-16 flex items-center justify-between">
           <a
             href="#home"
-            onClick={(e) => handleNavClick(e, "#home")}
-            className="flex items-center gap-2.5 sawtify-focus"
+            onClick={(e) => {
+              e.preventDefault();
+              smoothTo("#home");
+            }}
+            className="flex items-center gap-2 sw-focus"
             aria-label="Sawtify"
           >
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-sm shrink-0">
+            <div className="w-6 h-6 rounded-full overflow-hidden bg-black shrink-0">
               <img
                 src={LOGO_URL}
-                alt="Sawtify"
-                width={32}
-                height={32}
+                alt=""
+                width={24}
+                height={24}
                 decoding="async"
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-semibold text-white text-[15px] tracking-tight">Sawtify</span>
+            <span className="font-medium text-[14px] text-[#111] tracking-tight">
+              Sawtify
+            </span>
           </a>
 
           <nav
-            className="hidden md:flex items-center gap-7 text-[13px] font-medium text-white/75"
-            aria-label="Navigation principale"
+            className="hidden md:flex items-center gap-8 text-[13px] text-[#111]/65"
+            aria-label="Principale"
           >
-            {navLinks.map((l) => (
+            {nav.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
-                onClick={(e) => handleNavClick(e, l.href)}
-                className="relative hover:text-white transition-colors sawtify-focus group py-1"
+                onClick={(e) => {
+                  e.preventDefault();
+                  smoothTo(l.href);
+                }}
+                className="hover:text-[#111] transition-colors duration-200 sw-focus"
               >
                 {l.label}
-                <span className="absolute -bottom-0.5 inset-x-0 h-[1.5px] bg-violet-400 scale-x-0 group-hover:scale-x-100 transition-transform origin-center" />
               </a>
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
               aria-label={t.switchLang}
-              className="w-9 h-9 rounded-full text-[11px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors sawtify-focus"
+              className="hidden sm:inline-flex w-8 h-8 items-center justify-center text-[11px] font-medium text-[#111]/60 hover:text-[#111] transition-colors sw-focus rounded"
             >
               {language === "fr" ? "AR" : "FR"}
             </button>
 
             <button
               type="button"
-              onClick={onSigninClick}
-              className="hidden sm:inline-flex rounded-full bg-white text-[#141118] px-5 py-2.5 text-[13px] font-semibold hover:bg-purple-100 transition-colors sawtify-focus"
+              onClick={onLoginClick}
+              className="hidden md:inline-flex px-3 h-8 text-[13px] font-medium text-[#111]/70 hover:text-[#111] transition-colors sw-focus rounded"
             >
-              {t.cta}
+              {t.signin}
             </button>
 
-            {/* #3 — Bouton hamburger */}
+            <button
+              type="button"
+              onClick={onSigninClick}
+              className="hidden md:inline-flex items-center gap-1.5 h-8 px-3.5 bg-[#111] text-[#FAFAF7] text-[13px] font-medium rounded-full hover:bg-[#111]/85 transition-colors sw-focus"
+            >
+              {t.start}
+              <ArrowIcon className="w-3.5 h-3.5" />
+            </button>
+
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              aria-label={t.openMenu}
+              aria-label={t.open}
               aria-expanded={menuOpen}
-              aria-controls="mobile-menu"
-              className="md:hidden w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors sawtify-focus"
+              className="md:hidden w-9 h-9 flex items-center justify-center text-[#111] hover:bg-black/5 rounded transition-colors sw-focus"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
       {/* =====================================================
-          #3 — DRAWER MOBILE
+          MOBILE MENU — clean drawer
       ===================================================== */}
       <AnimatePresence>
         {menuOpen && (
@@ -938,66 +645,71 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.3 }}
               onClick={() => setMenuOpen(false)}
-              className="fixed inset-0 z-[55] bg-black/60 backdrop-blur-sm md:hidden"
+              className="fixed inset-0 z-[55] bg-black/20 md:hidden"
               aria-hidden="true"
             />
             <motion.div
-              id="mobile-menu"
               role="dialog"
               aria-modal="true"
-              aria-label={t.openMenu}
               initial={{ x: isRTL ? "-100%" : "100%" }}
               animate={{ x: 0 }}
               exit={{ x: isRTL ? "-100%" : "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed inset-y-0 end-0 z-[60] w-[84%] max-w-sm bg-[#0f0818] border-s border-white/10 md:hidden flex flex-col"
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-y-0 end-0 z-[60] w-[86%] max-w-sm bg-[#FAFAF7] md:hidden flex flex-col"
             >
-              <div className="flex items-center justify-between px-6 h-20 border-b border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full overflow-hidden bg-white">
-                    <img src={LOGO_URL} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <span className="font-semibold text-white text-[15px]">Sawtify</span>
-                </div>
+              <div className="flex items-center justify-between px-6 h-16 border-b border-black/[0.06]">
+                <span className="font-medium text-[14px]">Sawtify</span>
                 <button
                   type="button"
                   onClick={() => setMenuOpen(false)}
-                  aria-label={t.closeMenu}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors sawtify-focus"
+                  aria-label={t.close}
+                  className="w-9 h-9 flex items-center justify-center rounded hover:bg-black/5 transition-colors sw-focus"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <nav className="flex-1 px-6 py-8 flex flex-col gap-1" aria-label="Navigation mobile">
-                {navLinks.map((l, i) => (
+              <nav className="flex-1 px-6 py-8 flex flex-col gap-1">
+                {nav.map((l, i) => (
                   <motion.a
                     key={l.href}
                     href={l.href}
-                    onClick={(e) => handleNavClick(e, l.href)}
-                    initial={{ opacity: 0, x: isRTL ? -20 : 20 }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      smoothTo(l.href);
+                    }}
+                    initial={{ opacity: 0, x: isRTL ? -12 : 12 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.06 * i + 0.1 }}
-                    className="flex items-center justify-between py-4 text-lg font-medium text-white/85 hover:text-violet-300 border-b border-white/5 transition-colors sawtify-focus"
+                    transition={{ delay: 0.06 * i + 0.15, duration: 0.4 }}
+                    className="flex items-center justify-between py-4 text-[17px] text-[#111] border-b border-black/[0.05] sw-focus"
                   >
                     {l.label}
-                    <ArrowIcon className="w-4 h-4 opacity-40" />
+                    <ArrowIcon className="w-4 h-4 opacity-30" />
                   </motion.a>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
+                  className="flex items-center justify-between py-4 text-[17px] text-[#111]/60 border-b border-black/[0.05] sw-focus"
+                >
+                  {language === "fr" ? "العربية" : "Français"}
+                  <span className="text-xs">{language === "fr" ? "AR" : "FR"}</span>
+                </button>
               </nav>
 
-              <div className="px-6 pb-8 space-y-3">
+              <div className="px-6 pb-8 pt-2 space-y-2">
                 <button
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     onSigninClick();
                   }}
-                  className="w-full rounded-full bg-violet-500 text-white py-3.5 text-sm font-semibold hover:bg-violet-400 transition-colors sawtify-focus"
+                  className="w-full rounded-full bg-[#111] text-[#FAFAF7] py-3.5 text-[14px] font-medium sw-focus"
                 >
-                  {t.cta}
+                  {t.start}
                 </button>
                 <button
                   type="button"
@@ -1005,14 +717,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     setMenuOpen(false);
                     onLoginClick();
                   }}
-                  className="w-full rounded-full bg-white/10 border border-white/15 text-white py-3.5 text-sm font-medium hover:bg-white/15 transition-colors sawtify-focus"
+                  className="w-full rounded-full border border-black/10 text-[#111] py-3.5 text-[14px] font-medium sw-focus"
                 >
-                  {t.viewDemo}
+                  {t.signin}
                 </button>
-                <p className="flex items-center justify-center gap-1.5 text-[11px] text-white/35 pt-2">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {t.trustLine}
-                </p>
               </div>
             </motion.div>
           </>
@@ -1020,1256 +728,801 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </AnimatePresence>
 
       {/* =====================================================
-          HERO
+          HERO — éditorial, whitespace, parallax subtil
       ===================================================== */}
       <section
         id="home"
-        className="relative h-[780px] sm:h-[860px] overflow-hidden bg-[#0f0818]"
-        aria-label="Sawtify"
+        ref={heroRef}
+        className="relative pt-40 sm:pt-48 pb-24 sm:pb-32"
+        aria-label="Introduction"
       >
-        <img
-          src={HERO_BG_URL}
-          alt=""
-          fetchPriority="high"
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover object-top"
-        />
-        <div className="absolute -left-1/3 top-0 w-[160%] h-full bg-gradient-to-tr from-violet-200/25 via-transparent to-transparent blur-3xl rotate-12 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a0f2e]/60 to-[#0f0818]" />
-
-        {badges.map((b, i) => (
-          <motion.div
-            key={b.label}
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 + i * 0.1 }}
-            className={`hidden sm:flex absolute ${b.pos} items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pe-3 ps-1 py-1 text-[11px] font-medium text-white shadow-lg`}
-          >
-            <span className={`w-5 h-5 rounded-full ${b.color} flex items-center justify-center`}>
-              <b.icon className="w-3 h-3 text-white" />
-            </span>
-            {b.label}
-          </motion.div>
-        ))}
-
-        <div className="absolute inset-x-0 bottom-[64px] sm:bottom-[90px] px-6 text-center">
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="text-4xl sm:text-6xl lg:text-[4rem] leading-[1.06] font-medium tracking-tight text-white mb-5"
-            style={{ fontFamily: serifFont }}
-          >
-            {t.heroLine1}
-            <br />
-            {t.heroLine2}
-            <br />
-            {t.heroLine3}
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.35 }}
-            className="text-white/60 text-sm sm:text-base max-w-lg mx-auto mb-8"
-          >
-            {t.heroSub}
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.5 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-5"
-          >
-            <button
-              type="button"
-              onClick={onLoginClick}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white px-5 py-3 text-sm font-medium hover:bg-white/20 transition-colors sawtify-focus"
-            >
-              <Play className="w-3.5 h-3.5" />
-              {t.viewDemo}
-            </button>
-
-            {/* #8 — CTA avec shimmer */}
-            <button
-              type="button"
-              onClick={onSigninClick}
-              className="group relative w-full sm:w-auto overflow-hidden inline-flex items-center justify-center gap-2 rounded-full bg-violet-400 text-[#140a24] px-6 py-3 text-sm font-semibold hover:bg-violet-300 transition-colors shadow-[0_10px_30px_rgba(167,139,250,0.35)] sawtify-focus"
-            >
-              <span
-                aria-hidden="true"
-                className="sawtify-shimmer absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-12"
-              />
-              <span className="relative">{t.bookCall}</span>
-              <ArrowIcon className="relative w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </motion.div>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.65 }}
-            className="inline-flex items-center gap-1.5 text-[11px] text-white/40"
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            {t.trustLine}
-          </motion.p>
-        </div>
-      </section>
-
-      {/* =====================================================
-          QUICK FEATURES
-      ===================================================== */}
-      <section
-        className="relative bg-white border-b border-[#141118]/10 overflow-hidden"
-        aria-label="Fonctionnalités"
-      >
-        <div className="mx-auto max-w-6xl px-6 py-14 sm:py-16">
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-60px" }}
-            variants={stagger}
-            className="grid sm:grid-cols-3 gap-5 sm:gap-6"
-          >
-            {quickFeatures.map((f, i) => (
-              <motion.div
-                key={f.title}
-                variants={{
-                  hidden: { opacity: 0, y: 40, scale: 0.95 },
-                  show: {
-                    opacity: 1,
-                    y: 0,
-                    scale: 1,
-                    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
-                  },
-                }}
-                whileHover={{ y: -6 }}
-                className="group relative rounded-2xl border border-[#141118]/8 bg-white p-6 cursor-default transition-shadow hover:shadow-[0_20px_40px_rgba(124,58,237,0.12)]"
+        <div className="mx-auto max-w-[1200px] px-6">
+          <motion.div style={{ y: heroTitleY, opacity: heroOpacity }}>
+            <Reveal>
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-8"
+                style={{ letterSpacing: isRTL ? "0.05em" : "0.18em" }}
               >
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                {t.heroKicker}
+              </p>
+            </Reveal>
 
-                <div className="relative mb-4">
-                  <motion.div
-                    animate={{ scale: [1, 1.06, 1] }}
-                    transition={{
-                      duration: 2.5,
-                      repeat: Infinity,
-                      repeatType: "loop",
-                      delay: i * 0.3,
-                      ease: "easeInOut",
-                    }}
-                    className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center relative z-10 group-hover:bg-purple-600 group-hover:text-white transition-colors duration-300"
-                  >
-                    <f.icon className="w-6 h-6" />
-                  </motion.div>
-                  <motion.div
-                    aria-hidden="true"
-                    animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0, 0.4] }}
-                    transition={{ duration: 2.5, repeat: Infinity, delay: i * 0.3, ease: "easeInOut" }}
-                    className="absolute inset-0 w-12 h-12 rounded-xl bg-purple-400/30"
-                  />
-                </div>
+            <Reveal delay={0.1} y={28}>
+              <h1
+                className="text-[clamp(2.5rem,7vw,5.75rem)] leading-[1.02] tracking-[-0.03em] text-[#111] max-w-4xl font-normal"
+                style={{ fontFamily: serif }}
+              >
+                {t.heroTitle1}
+                <br />
+                <span className="italic text-[#111]/85">{t.heroTitle2}</span>
+              </h1>
+            </Reveal>
 
-                <h3 className="relative font-semibold text-[15px] text-[#141118] mb-2">{f.title}</h3>
-                <p className="relative text-[13px] text-[#141118]/55 leading-relaxed">{f.desc}</p>
+            <Reveal delay={0.25}>
+              <p className="mt-8 text-[16px] sm:text-[17px] leading-[1.6] text-[#111]/60 max-w-lg">
+                {t.heroSub}
+              </p>
+            </Reveal>
 
-                <motion.div
-                  initial={{ width: "0%" }}
-                  whileInView={{ width: "40%" }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.8, delay: 0.3 + i * 0.1 }}
-                  className="h-[2px] bg-purple-500 mt-4 rounded-full"
-                />
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          #1 — COMMENT ÇA MARCHE
-      ===================================================== */}
-      <section id="how" className="relative bg-[#FAFAFC] py-20 sm:py-28 overflow-hidden">
-        <div
-          aria-hidden="true"
-          className="absolute top-1/3 start-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-violet-200/25 blur-[130px] rounded-full pointer-events-none"
-        />
-
-        <div className="relative mx-auto max-w-6xl px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-xl mx-auto mb-14 sm:mb-20"
-          >
-            <div className="text-[11px] font-medium text-purple-700 tracking-wide mb-3">
-              {t.howLabel}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-medium tracking-tight text-[#141118] leading-[1.15] mb-3"
-              style={{ fontFamily: serifFont }}
-            >
-              {t.howTitle}
-            </h2>
-            <p className="text-[#141118]/50 text-sm sm:text-base">{t.howSub}</p>
-          </motion.div>
-
-          <div className="relative">
-            {/* Ligne de liaison */}
-            <div
-              aria-hidden="true"
-              className="hidden lg:block absolute top-[52px] left-[16%] right-[16%] h-[2px]"
-            >
-              <motion.div
-                initial={{ scaleX: 0 }}
-                whileInView={{ scaleX: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 1.2, delay: 0.3, ease: "easeInOut" }}
-                style={{ transformOrigin: isRTL ? "right" : "left" }}
-                className="h-full w-full bg-gradient-to-r from-violet-300 via-fuchsia-300 to-violet-300 rounded-full"
-              />
-            </div>
-
-            <motion.ol
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={stagger}
-              className="relative grid md:grid-cols-3 gap-8 lg:gap-6 list-none"
-            >
-              {steps.map((s, i) => (
-                <motion.li key={s.n} variants={fadeUp} className="relative text-center px-2">
-                  {/* Cercle icône */}
-                  <div className="relative inline-flex items-center justify-center mb-6">
-                    <motion.span
-                      aria-hidden="true"
-                      animate={{ scale: [1, 1.35, 1], opacity: [0.35, 0, 0.35] }}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        delay: i * 0.5,
-                        ease: "easeInOut",
-                      }}
-                      className="absolute inset-0 rounded-full bg-violet-400/40"
-                    />
-                    <div
-                      className={`relative w-[104px] h-[104px] rounded-full bg-gradient-to-br ${s.accent} flex items-center justify-center shadow-[0_18px_40px_rgba(124,58,237,0.28)] ring-8 ring-[#FAFAFC]`}
-                    >
-                      <s.icon className="w-9 h-9 text-white" strokeWidth={1.6} />
-                    </div>
-                    <span className="absolute -top-1 -end-1 w-9 h-9 rounded-full bg-white border border-violet-200 shadow-md flex items-center justify-center">
-                      <Num className="text-[12px] font-bold text-violet-700">{s.n}</Num>
-                    </span>
-                  </div>
-
-                  <h3
-                    className="text-xl font-medium text-[#141118] mb-2.5"
-                    style={{ fontFamily: serifFont }}
-                  >
-                    {s.title}
-                  </h3>
-                  <p className="text-[13.5px] text-[#141118]/55 leading-relaxed max-w-[280px] mx-auto">
-                    {s.desc}
-                  </p>
-                </motion.li>
-              ))}
-            </motion.ol>
-          </div>
-
-          {/* Mini-mockup illustratif */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="mt-16 sm:mt-20 max-w-3xl mx-auto rounded-[1.75rem] border border-[#141118]/8 bg-white shadow-[0_30px_70px_rgba(20,17,24,0.10)] overflow-hidden"
-          >
-            <div className="flex items-center gap-1.5 px-5 py-3 border-b border-[#141118]/8 bg-[#141118]/[0.02]">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
-              <span className="w-2.5 h-2.5 rounded-full bg-green-400/70" />
-              <span className="ms-3 text-[11px] font-medium text-[#141118]/35">
-                studio.sawtify.dz
-              </span>
-            </div>
-
-            <div className="p-6 sm:p-8 grid sm:grid-cols-[1fr_auto] gap-6 items-center">
-              <div>
-                <div className="rounded-xl bg-[#141118]/[0.03] border border-[#141118]/8 p-4 text-[13.5px] text-[#141118]/70 leading-relaxed mb-4 min-h-[80px]">
-                  {isRTL
-                    ? "«مرحبا بيكم، اكتشفوا العرض الجديد تاعنا... خصم 30% على كامل المجموعة!»"
-                    : "« Ahlan bikoum, découvrez notre nouvelle offre… 30% de réduction sur toute la collection ! »"}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 text-violet-700 px-3 py-1.5 text-[11px] font-semibold">
-                    <Mic className="w-3 h-3" /> Amin · Darija
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#141118]/5 text-[#141118]/60 px-3 py-1.5 text-[11px] font-medium">
-                    <Zap className="w-3 h-3" /> <Num>20</Num> pts
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 text-green-700 px-3 py-1.5 text-[11px] font-medium">
-                    <Check className="w-3 h-3" /> <Num>24</Num> kHz
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex sm:flex-col items-center justify-center gap-3">
-                <div className="flex items-end gap-[3px] h-12 w-32">
-                  {Array.from({ length: 22 }).map((_, i) => (
-                    <motion.span
-                      key={i}
-                      animate={{ height: ["24%", `${30 + ((i * 37) % 65)}%`, "24%"] }}
-                      transition={{
-                        duration: 1.2 + (i % 5) * 0.15,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                        delay: i * 0.05,
-                      }}
-                      className="flex-1 rounded-full bg-violet-500/70"
-                    />
-                  ))}
-                </div>
+            <Reveal delay={0.35}>
+              <div className="mt-10 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={onSigninClick}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#141118] text-white px-5 py-2.5 text-[13px] font-semibold hover:bg-violet-700 transition-colors sawtify-focus whitespace-nowrap"
+                  className="group inline-flex items-center gap-2 h-11 px-5 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/88 transition-all duration-300 sw-focus"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  MP3 / WAV
+                  {t.tryFree}
+                  <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => smoothTo("#voices")}
+                  className="group inline-flex items-center gap-2 h-11 px-5 text-[14px] font-medium text-[#111] rounded-full hover:bg-black/5 transition-colors sw-focus"
+                >
+                  <span className="w-6 h-6 rounded-full border border-[#111]/25 flex items-center justify-center group-hover:border-[#111] transition-colors">
+                    <Play className="w-2.5 h-2.5 ms-0.5 fill-current" />
+                  </span>
+                  {t.listenDemo}
+                </button>
+              </div>
+            </Reveal>
+          </motion.div>
+
+          {/* Waveform décorative statique */}
+          <Reveal delay={0.5}>
+            <div
+              className="mt-20 sm:mt-28 flex items-end gap-[3px] h-16 opacity-60"
+              dir="ltr"
+              aria-hidden="true"
+            >
+              {Array.from({ length: 90 }).map((_, i) => {
+                const seed = Math.sin(i * 0.6) * Math.cos(i * 0.3);
+                const h = 8 + Math.abs(seed) * 55;
+                return (
+                  <motion.span
+                    key={i}
+                    initial={{ scaleY: 0.2, opacity: 0 }}
+                    whileInView={{ scaleY: 1, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{
+                      duration: 0.6,
+                      delay: 0.5 + i * 0.008,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="flex-1 rounded-full bg-[#111] origin-bottom"
+                    style={{ height: `${h}%`, maxWidth: 3 }}
+                  />
+                );
+              })}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-[1200px] px-6">
+        <div className="sw-hairline" />
+      </div>
+
+      {/* =====================================================
+          PROCESS — trois étapes éditoriales
+      ===================================================== */}
+      <section id="process" className="py-24 sm:py-36">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 mb-20">
+            <Reveal className="lg:col-span-5">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
+                {t.processKicker}
+              </p>
+              <h2
+                className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
+                style={{ fontFamily: serif }}
+              >
+                {t.processTitle}
+              </h2>
+            </Reveal>
+
+            <Reveal delay={0.1} className="lg:col-span-6 lg:col-start-7 lg:mt-4">
+              <p className="text-[15px] leading-[1.65] text-[#111]/55 max-w-md">
+                {isRTL
+                  ? "بدون استوديو. بدون ممثل. بدون انتظار. فقط ثلاث خطوات، ثلاثون ثانية، وصوت جاهز."
+                  : "Pas de studio, pas de comédien, pas d'attente. Trois étapes, trente secondes, une voix prête."}
+              </p>
+            </Reveal>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-x-8 gap-y-12 md:gap-x-12">
+            {steps.map((s, i) => (
+              <Reveal key={s.n} delay={i * 0.1}>
+                <div className="border-t border-[#111]/12 pt-6">
+                  <div className="flex items-baseline justify-between mb-8">
+                    <Num className="text-[11px] font-mono text-[#111]/40 tabular-nums">
+                      {s.n}
+                    </Num>
+                    <motion.div
+                      initial={{ scaleX: 0 }}
+                      whileInView={{ scaleX: 1 }}
+                      viewport={{ once: true }}
+                      transition={{
+                        duration: 1,
+                        delay: 0.4 + i * 0.15,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      style={{ transformOrigin: isRTL ? "right" : "left" }}
+                      className="h-px w-16 bg-[#111]/30"
+                    />
+                  </div>
+                  <h3
+                    className="text-[26px] leading-tight tracking-[-0.01em] text-[#111] mb-3"
+                    style={{ fontFamily: serif }}
+                  >
+                    {s.t}
+                  </h3>
+                  <p className="text-[14px] leading-[1.6] text-[#111]/55 max-w-xs">
+                    {s.d}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-[1200px] px-6">
+        <div className="sw-hairline" />
+      </div>
+
+      {/* =====================================================
+          VOICES — le cœur du produit
+      ===================================================== */}
+      <section id="voices" className="py-24 sm:py-36">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="grid lg:grid-cols-12 gap-8 mb-16 items-end">
+            <Reveal className="lg:col-span-7">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
+                {t.voicesKicker}
+              </p>
+              <h2
+                className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
+                style={{ fontFamily: serif }}
+              >
+                {t.voicesTitle}
+              </h2>
+            </Reveal>
+            <Reveal delay={0.1} className="lg:col-span-4 lg:col-start-9">
+              <p className="text-[14px] leading-[1.65] text-[#111]/55">
+                {t.voicesSub}
+              </p>
+            </Reveal>
+          </div>
+
+          <div className="border-t border-[#111]/12">
+            {voices.map((v, idx) => {
+              const active = playingId === v.id;
+              return (
+                <motion.div
+                  key={v.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.6, delay: idx * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                  className="border-b border-[#111]/12 group"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleVoice(v.id, v.url)}
+                    aria-label={`${active ? "Pause" : "Play"} ${v.name}`}
+                    aria-pressed={active}
+                    className="w-full flex items-center gap-6 sm:gap-8 py-6 sm:py-7 text-start sw-focus"
+                  >
+                    {/* Play/Pause */}
+                    <div
+                      className={`w-10 h-10 shrink-0 rounded-full border flex items-center justify-center transition-all duration-300 ${
+                        active
+                          ? "bg-[#111] border-[#111] text-[#FAFAF7]"
+                          : "border-[#111]/20 text-[#111] group-hover:border-[#111] group-hover:bg-[#111] group-hover:text-[#FAFAF7]"
+                      }`}
+                    >
+                      {active ? (
+                        <Pause className="w-3.5 h-3.5 fill-current" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 ms-0.5 fill-current" />
+                      )}
+                    </div>
+
+                    {/* Nom */}
+                    <div className="w-28 sm:w-40 shrink-0">
+                      <div
+                        className="text-[18px] sm:text-[20px] text-[#111] tracking-[-0.01em]"
+                        style={{ fontFamily: serif }}
+                      >
+                        {v.name}
+                      </div>
+                      <div className="text-[12px] text-[#111]/45 mt-0.5">{v.tag}</div>
+                    </div>
+
+                    {/* Waveform */}
+                    <div
+                      className="flex-1 flex items-center gap-[2px] h-10 min-w-0"
+                      aria-hidden="true"
+                      dir="ltr"
+                    >
+                      {bars.map((h, i) => (
+                        <span
+                          key={i}
+                          className={`flex-1 rounded-full transition-all duration-100 ${
+                            active ? "bg-[#111]" : "bg-[#111]/12 group-hover:bg-[#111]/25"
+                          }`}
+                          style={{
+                            height: active ? `${Math.max(10, h)}%` : "18%",
+                            maxWidth: 3,
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Durée */}
+                    <Num className="text-[12px] font-mono text-[#111]/40 tabular-nums shrink-0 hidden sm:inline">
+                      {v.duration}
+                    </Num>
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          <Reveal delay={0.2}>
+            <div className="mt-10 flex items-center gap-4 text-[13px] text-[#111]/50">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#111]/50 animate-pulse" />
+              {isRTL ? "أصوات جديدة كل شهر." : "Nouvelles voix chaque mois."}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* =====================================================
+          MÉTRIQUES — dark section
+      ===================================================== */}
+      <section className="bg-[#0E0E0E] text-[#FAFAF7] py-24 sm:py-36">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="grid lg:grid-cols-12 gap-12 mb-16">
+            <Reveal className="lg:col-span-6">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/40 mb-5">
+                {t.metricsKicker}
+              </p>
+              <h2
+                className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-white"
+                style={{ fontFamily: serif }}
+              >
+                {t.metricsTitle}
+              </h2>
+            </Reveal>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-6">
+            {metrics.map((m, i) => (
+              <Reveal key={m.l} delay={i * 0.08}>
+                <div className="border-t border-white/15 pt-6">
+                  <Counter
+                    target={m.n}
+                    suffix={m.s}
+                    className="text-[clamp(2.5rem,5vw,4rem)] leading-none tracking-[-0.03em] text-white"
+                    style={{ fontFamily: serif }}
+                  />
+                  <div className="text-[13px] text-white/50 mt-4">{m.l}</div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          TESTIMONIALS — éditorial
+      ===================================================== */}
+      <section className="py-24 sm:py-36">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="grid lg:grid-cols-12 gap-8 mb-16">
+            <Reveal className="lg:col-span-6">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
+                {t.testKicker}
+              </p>
+              <h2
+                className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
+                style={{ fontFamily: serif }}
+              >
+                {t.testTitle}
+              </h2>
+            </Reveal>
+          </div>
+
+          <div className="grid lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-8 relative min-h-[220px] sm:min-h-[180px]">
+              <AnimatePresence mode="wait">
+                <motion.figure
+                  key={activeTesti}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <div className="flex gap-1 mb-6" aria-label="5 / 5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className="w-3.5 h-3.5 text-[#111] fill-[#111]" />
+                    ))}
+                  </div>
+                  <blockquote
+                    className="text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.3] tracking-[-0.015em] text-[#111]"
+                    style={{ fontFamily: serif }}
+                  >
+                    "{testimonials[activeTesti].q}"
+                  </blockquote>
+                  <figcaption className="mt-8 flex items-center gap-3">
+                    <div className="w-px h-10 bg-[#111]/25" />
+                    <div>
+                      <div className="text-[14px] font-medium text-[#111]">
+                        {testimonials[activeTesti].n}
+                      </div>
+                      <div className="text-[12px] text-[#111]/50 mt-0.5">
+                        {testimonials[activeTesti].r}
+                      </div>
+                    </div>
+                  </figcaption>
+                </motion.figure>
+              </AnimatePresence>
+            </div>
+
+            <div className="lg:col-span-3 lg:col-start-10 flex lg:flex-col items-center lg:items-end gap-4 lg:gap-6">
+              {/* Dots */}
+              <div className="flex lg:flex-col gap-2">
+                {testimonials.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setActiveTesti(i)}
+                    aria-label={`Témoignage ${i + 1}`}
+                    aria-current={activeTesti === i}
+                    className="group p-1 sw-focus"
+                  >
+                    <span
+                      className={`block transition-all duration-500 ${
+                        activeTesti === i
+                          ? "w-8 h-px bg-[#111]"
+                          : "w-4 h-px bg-[#111]/25 group-hover:bg-[#111]/50"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center gap-2 ms-auto lg:ms-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveTesti(
+                      (p) => (p - 1 + testimonials.length) % testimonials.length
+                    )
+                  }
+                  aria-label={t.prev}
+                  className="w-9 h-9 rounded-full border border-[#111]/15 flex items-center justify-center hover:border-[#111]/50 transition-colors sw-focus"
+                >
+                  {isRTL ? (
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
+                  aria-label={t.next}
+                  className="w-9 h-9 rounded-full border border-[#111]/15 flex items-center justify-center hover:border-[#111]/50 transition-colors sw-focus"
+                >
+                  {isRTL ? (
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  )}
                 </button>
               </div>
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          PARTNERSHIPS / STATS (#5 compteurs + #7 marquee)
-      ===================================================== */}
-      <section className="relative bg-[#0f0818] pt-16 pb-20" aria-label="Chiffres clés">
-        <div className="mx-auto max-w-6xl px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="text-[11px] font-medium text-white/40 tracking-wide mb-4">
-              {t.partnershipsLabel}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight text-violet-400 max-w-2xl leading-[1.15] mb-5"
-              style={{ fontFamily: serifFont }}
-            >
-              {t.partnershipsTitle}
-            </h2>
-            <p className="text-white/45 text-sm sm:text-base max-w-xl leading-relaxed mb-12">
-              {t.partnershipsDesc}
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid grid-cols-3 gap-6 sm:gap-12 mb-16"
-          >
-            {[
-              { target: 98, suffix: "%", l: t.stat1 },
-              { target: 12, suffix: "+", l: t.stat2 },
-              { target: 1200, suffix: "+", l: t.stat3 },
-            ].map((s) => (
-              <motion.div key={s.l} variants={fadeUp}>
-                <AnimatedCounter
-                  target={s.target}
-                  suffix={s.suffix}
-                  className="text-3xl sm:text-5xl font-medium tracking-tight text-violet-400"
-                  style={{ fontFamily: serifFont }}
-                />
-                <div className="text-[11px] sm:text-sm text-white/40 mt-1.5">{s.l}</div>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          {/* #7 — Marquee infini */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <p className="text-center text-[11px] uppercase tracking-[0.18em] text-white/25 mb-6">
-              {t.usedOn}
-            </p>
-
-            <div
-              dir="ltr"
-              className="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]"
-            >
-              <motion.div
-                animate={{ x: ["0%", "-50%"] }}
-                transition={{ duration: 26, repeat: Infinity, ease: "linear" }}
-                className="flex gap-4 w-max"
-              >
-                {[...logos, ...logos, ...logos].map((l, i) => (
-                  <div
-                    key={`${l.name}-${i}`}
-                    className="flex items-center gap-2 bg-white rounded-full pr-4 pl-2 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.25)] border border-black/5 shrink-0"
-                  >
-                    <span className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center">
-                      <l.icon className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="text-[13px] font-medium text-[#141118] whitespace-nowrap">
-                      {l.name}
-                    </span>
-                  </div>
-                ))}
-              </motion.div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      <SectionWave fromColor="#0f0818" toColor="#F7F5F1" />
-
-      {/* =====================================================
-          SHOWCASE
-      ===================================================== */}
-      <section className="bg-[#F7F5F1] pt-4 pb-24 sm:pb-28" aria-label="Showcase">
-        <div className="mx-auto max-w-6xl px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-xl mx-auto mb-12"
-          >
-            <div className="text-[11px] font-medium text-purple-700 tracking-wide mb-3">
-              {t.showcaseLabel}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118]"
-              style={{ fontFamily: serifFont }}
-            >
-              {t.showcaseTitle}
-            </h2>
-            <p className="text-[#141118]/50 text-sm sm:text-base mt-3">{t.showcaseSub}</p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 gap-4 sm:gap-5">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="relative rounded-3xl overflow-hidden aspect-[4/5] md:row-span-2 group"
-            >
-              <img
-                src={showcaseItems[0].img}
-                alt={showcaseItems[0].label}
-                loading="lazy"
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0f0818]/85 via-[#0f0818]/10 to-transparent" />
-              <div className="absolute bottom-0 inset-x-0 p-6">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1.5 text-xs font-medium text-white mb-3">
-                  <Waves className="w-3.5 h-3.5" />
-                  {showcaseItems[0].label}
-                </span>
-                <h3 className="text-white text-xl font-medium" style={{ fontFamily: serifFont }}>
-                  {showcaseItems[0].title}
-                </h3>
-              </div>
-            </motion.div>
-
-            {showcaseItems.slice(1).map((item, i) => (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.1 + i * 0.1 }}
-                className="relative rounded-3xl overflow-hidden aspect-[16/9] group"
-              >
-                <img
-                  src={item.img}
-                  alt={item.label}
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0f0818]/80 via-transparent to-transparent" />
-                <div className="absolute bottom-0 inset-x-0 p-5">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1.5 text-xs font-medium text-white">
-                    <item.icon className="w-3.5 h-3.5" />
-                    {item.label}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
           </div>
         </div>
       </section>
 
-      {/* =====================================================
-          ABOUT
-      ===================================================== */}
-      <section id="about" className="relative bg-[#F7F5F1] pb-24 sm:pb-28">
-        <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-12 items-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="text-[11px] font-medium text-[#141118]/40 tracking-wide mb-4">
-              {t.aboutLabel}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] leading-[1.15] mb-5"
-              style={{ fontFamily: serifFont }}
-            >
-              {t.aboutTitle}
-            </h2>
-            <p className="text-[#141118]/55 text-sm sm:text-base leading-relaxed mb-8 max-w-md">
-              {t.aboutDesc}
-            </p>
-            <button
-              type="button"
-              onClick={onLoginClick}
-              className="inline-flex items-center gap-2 rounded-full bg-[#141118] text-white px-6 py-3 text-sm font-medium hover:bg-purple-700 transition-colors sawtify-focus"
-            >
-              {t.learnMore}
-              <ArrowIcon />
-            </button>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30, rotate: -2 }}
-            whileInView={{ opacity: 1, y: 0, rotate: -2 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
-            className="relative mx-auto w-full max-w-[280px]"
-          >
-            <div className="rounded-3xl bg-[#141118] text-white p-6 shadow-[0_30px_60px_rgba(20,17,24,0.25)]">
-              <div className="flex items-center gap-2 mb-6">
-                <span className="w-6 h-6 rounded-full bg-violet-400/20 text-violet-400 flex items-center justify-center">
-                  <Volume2 className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-xs font-medium text-white/70">{t.perfLabel}</span>
-              </div>
-
-              <div className="text-xs text-white/40 mb-1">{t.perfSubLabel}</div>
-              <div className="flex items-end gap-3 mb-2">
-                <Num
-                  className="text-4xl font-medium tracking-tight text-violet-400"
-                  style={{ fontFamily: serifFont }}
-                >
-                  {t.perfStat}
-                </Num>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-white/10 mb-2 overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  whileInView={{ width: "68%" }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 1, delay: 0.3 }}
-                  className="h-full rounded-full bg-violet-400"
-                />
-              </div>
-              <div className="text-[11px] text-white/35 mb-6">{t.perfNote}</div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {perfTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-[10px] font-medium text-white/70 bg-white/5 border border-white/10 rounded-full px-2.5 py-1.5 text-center"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+      <div className="mx-auto max-w-[1200px] px-6">
+        <div className="sw-hairline" />
+      </div>
 
       {/* =====================================================
-          VOICES
+          PRICING — minimal, deux plans par ligne
       ===================================================== */}
-      <section id="voices" className="bg-white border-t border-[#141118]/10">
-        <div className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-10"
-            style={{ fontFamily: serifFont }}
-          >
-            {isRTL ? "أصوات " : "Des voix "}
-            <span className="text-purple-700">
-              {isRTL ? "بعاطفة حقيقية." : "avec du caractère."}
-            </span>
-          </motion.h2>
-
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="divide-y divide-[#141118]/10 border-t border-b border-[#141118]/10"
-          >
-            {voices.map((v) => {
-              const active = playingId === v.id;
-              return (
-                <motion.button
-                  key={v.id}
-                  type="button"
-                  variants={fadeUp}
-                  onClick={() => toggleVoice(v.id, v.url)}
-                  aria-label={`${active ? "Pause" : "Play"} ${v.name}`}
-                  aria-pressed={active}
-                  className="w-full flex items-center gap-4 sm:gap-5 py-5 text-start group sawtify-focus"
-                >
-                  <div
-                    className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center border transition-colors ${
-                      active
-                        ? "bg-purple-700 border-purple-700 text-white"
-                        : "border-[#141118]/15 text-[#141118] group-hover:border-purple-400"
-                    }`}
-                  >
-                    {active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
-                  </div>
-
-                  <div className="w-28 sm:w-40 shrink-0">
-                    <div className="font-medium text-[#141118]">{v.name}</div>
-                    <div className="text-xs text-[#141118]/45">{v.tag}</div>
-                  </div>
-
-                  <div className="flex-1 flex items-end gap-[3px] h-8" aria-hidden="true">
-                    {bars.map((h, i) => (
-                      <span
-                        key={i}
-                        className={`flex-1 rounded-full transition-all duration-150 ${
-                          active ? "bg-purple-600" : "bg-[#141118]/10"
-                        }`}
-                        style={{ height: active ? `${h}%` : "20%" }}
-                      />
-                    ))}
-                  </div>
-
-                  <ArrowIcon className="w-4 h-4 text-[#141118]/20 group-hover:text-purple-600 transition-colors shrink-0" />
-                </motion.button>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          #2 — TÉMOIGNAGES
-      ===================================================== */}
-      <section
-        className="relative bg-[#0f0818] py-20 sm:py-28 overflow-hidden"
-        aria-label="Témoignages"
-      >
-        <div
-          aria-hidden="true"
-          className="absolute -top-20 start-1/4 w-[420px] h-[420px] bg-violet-600/20 blur-[130px] rounded-full pointer-events-none"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute -bottom-20 end-1/4 w-[420px] h-[420px] bg-fuchsia-600/15 blur-[130px] rounded-full pointer-events-none"
-        />
-
-        <div className="relative mx-auto max-w-4xl px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <div className="text-[11px] font-medium text-violet-400/80 tracking-wide mb-3">
-              {t.testiLabel}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl font-medium tracking-tight text-white"
-              style={{ fontFamily: serifFont }}
-            >
-              {t.testiTitle}
-            </h2>
-          </motion.div>
-
-          {/* Carte */}
-          <div className="relative min-h-[300px] sm:min-h-[260px]">
-            <AnimatePresence mode="wait">
-              <motion.figure
-                key={activeTesti}
-                initial={{ opacity: 0, y: 24, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -18, scale: 0.98 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                className="rounded-[1.75rem] bg-white/[0.04] backdrop-blur-sm border border-white/10 p-8 sm:p-10 text-center"
+      <section id="pricing" className="py-24 sm:py-36">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="grid lg:grid-cols-12 gap-12 mb-16">
+            <Reveal className="lg:col-span-7">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
+                {t.pricingKicker}
+              </p>
+              <h2
+                className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
+                style={{ fontFamily: serif }}
               >
-                <Quote
-                  className="w-8 h-8 text-violet-400/50 mx-auto mb-5"
-                  aria-hidden="true"
-                  style={{ transform: isRTL ? "scaleX(-1)" : undefined }}
-                />
-
-                <blockquote
-                  className="text-white/90 text-lg sm:text-[22px] leading-relaxed font-light mb-7 max-w-2xl mx-auto"
-                  style={{ fontFamily: serifFont }}
-                >
-                  {testimonials[activeTesti].quote}
-                </blockquote>
-
-                <div className="flex items-center justify-center gap-1 mb-5" aria-label="5 / 5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                  ))}
-                </div>
-
-                <figcaption className="flex items-center justify-center gap-3">
-                  <span
-                    className={`w-11 h-11 rounded-full ${testimonials[activeTesti].color} text-white flex items-center justify-center text-[13px] font-bold shrink-0`}
-                    aria-hidden="true"
-                  >
-                    {testimonials[activeTesti].initials}
-                  </span>
-                  <span className="text-start">
-                    <span className="block text-sm font-semibold text-white">
-                      {testimonials[activeTesti].name}
-                    </span>
-                    <span className="block text-[12px] text-white/45">
-                      {testimonials[activeTesti].role} · {testimonials[activeTesti].meta}
-                    </span>
-                  </span>
-                </figcaption>
-              </motion.figure>
-            </AnimatePresence>
+                {t.pricingTitle}
+              </h2>
+            </Reveal>
+            <Reveal delay={0.1} className="lg:col-span-4 lg:col-start-9 lg:mt-3">
+              <p className="text-[14px] leading-[1.65] text-[#111]/55">{t.pricingSub}</p>
+            </Reveal>
           </div>
 
-          {/* Contrôles */}
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <button
-              type="button"
-              onClick={() =>
-                setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)
-              }
-              aria-label="Précédent"
-              className="w-9 h-9 rounded-full border border-white/15 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center transition-colors sawtify-focus"
-            >
-              {isRTL ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </button>
-
-            <div className="flex items-center gap-2">
-              {testimonials.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setActiveTesti(i)}
-                  aria-label={`Témoignage ${i + 1}`}
-                  aria-current={activeTesti === i}
-                  className={`h-2 rounded-full transition-all duration-300 sawtify-focus ${
-                    activeTesti === i ? "w-7 bg-violet-400" : "w-2 bg-white/20 hover:bg-white/40"
-                  }`}
-                />
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
-              aria-label="Suivant"
-              className="w-9 h-9 rounded-full border border-white/15 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center transition-colors sawtify-focus"
-            >
-              {isRTL ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          CTA FLOTTANT
-      ===================================================== */}
-      <section className="bg-[#141118] py-8">
-        <div className="mx-auto max-w-6xl px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            animate={{ y: [0, -8, 0], rotate: [-1, 0.5, -1] }}
-            transition={{
-              opacity: { duration: 0.7 },
-              y: { duration: 5, repeat: Infinity, ease: "easeInOut" },
-              rotate: { duration: 6, repeat: Infinity, ease: "easeInOut" },
-            }}
-            className="relative rounded-[2rem] overflow-hidden border border-[#141118]/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
-          >
-            <motion.div
-              aria-hidden="true"
-              className="absolute w-72 h-72 bg-violet-300/30 blur-[100px] rounded-full pointer-events-none"
-              animate={{ x: ["-10%", "10%", "-10%"], y: ["-20%", "10%", "-20%"] }}
-              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-              style={{ top: "-30%", right: "-10%" }}
-            />
-            <motion.div
-              aria-hidden="true"
-              className="absolute w-72 h-72 bg-fuchsia-200/25 blur-[100px] rounded-full pointer-events-none"
-              animate={{ x: ["10%", "-10%", "10%"], y: ["10%", "-10%", "10%"] }}
-              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-              style={{ bottom: "-30%", left: "-10%" }}
-            />
-
-            {PARTICLES.map((p, i) => (
-              <motion.div
-                key={i}
-                aria-hidden="true"
-                className="absolute rounded-full bg-violet-400/40 pointer-events-none"
-                style={{ left: p.x, width: p.size, height: p.size, bottom: "10%" }}
-                animate={{ y: [0, -80, 0], opacity: [0, 0.8, 0] }}
-                transition={{
-                  duration: p.duration,
-                  repeat: Infinity,
-                  delay: p.delay,
-                  ease: "easeInOut",
-                }}
-              />
-            ))}
-
-            <div className="relative flex flex-col md:flex-row items-center justify-between gap-8 px-8 sm:px-12 py-12 sm:py-14">
-              <div className="text-center md:text-start flex-1">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-purple-100 border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 mb-5"
-                >
-                  <motion.span
-                    animate={{ rotate: [0, 15, -15, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                  </motion.span>
-                  {t.ctaBadge}
-                </motion.div>
-
-                <motion.h2
-                  initial={{ opacity: 0, y: 15 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                  className="text-2xl sm:text-4xl font-medium tracking-tight text-[#141118] leading-[1.2] mb-3"
-                  style={{ fontFamily: serifFont }}
-                >
-                  {t.ctaTitle}
-                </motion.h2>
-
-                <motion.p
-                  initial={{ opacity: 0, y: 15 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  className="text-[#141118]/50 text-sm sm:text-base max-w-md mx-auto md:mx-0"
-                >
-                  {t.ctaSub}
-                </motion.p>
-              </div>
-
-              <motion.button
-                type="button"
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onSigninClick}
-                className="group relative inline-flex items-center gap-3 rounded-full bg-violet-600 text-white pe-2 ps-7 py-2.5 text-sm font-semibold shrink-0 shadow-[0_10px_30px_rgba(124,58,237,0.35)] sawtify-focus"
-              >
-                <motion.span
-                  aria-hidden="true"
-                  className="absolute inset-0 rounded-full bg-violet-600"
-                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <span className="relative">{t.ctaButton}</span>
-                <span className="relative w-10 h-10 rounded-full bg-white text-violet-600 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
-                  <ArrowIcon className="w-4 h-4" />
-                </span>
-              </motion.button>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          PRICING (#9 tilt 3D)
-      ===================================================== */}
-      <section id="pricing" className="bg-[#FAFAFC] py-20 sm:py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-xl mx-auto mb-14"
-          >
-            <div className="text-[11px] font-medium text-purple-700 tracking-wide mb-3">
-              {t.pricingLabel}
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl font-medium tracking-tight text-[#141118] mb-3"
-              style={{ fontFamily: serifFont }}
-            >
-              {t.pricingTitle}
-            </h2>
-            <p className="text-[#141118]/50 text-sm sm:text-base">{t.pricingSub}</p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-4"
-          >
-            {pricingPlans.map((p) => (
-              <motion.div key={p.points} variants={fadeUp}>
-                <TiltCard
-                  className={`relative rounded-3xl p-6 pt-8 bg-white h-full transition-shadow ${
-                    p.popular
-                      ? "border-2 border-violet-500 shadow-[0_20px_50px_rgba(139,92,246,0.15)]"
-                      : "border border-[#141118]/10 hover:shadow-[0_14px_40px_rgba(0,0,0,0.08)]"
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 border-t border-l border-[#111]/12">
+            {pricing.map((p, i) => (
+              <Reveal key={p.pts} delay={i * 0.06}>
+                <div
+                  className={`relative p-8 border-r border-b border-[#111]/12 h-full flex flex-col transition-colors duration-300 group ${
+                    p.featured ? "bg-[#111] text-[#FAFAF7]" : "bg-transparent hover:bg-black/[0.02]"
                   }`}
                 >
-                  {p.popular && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full bg-violet-600 text-white text-[11px] font-bold px-4 py-1.5 shadow-lg whitespace-nowrap">
-                      <Zap className="w-3 h-3 fill-white" />
-                      {isRTL ? "الأكثر طلباً" : "PLUS POPULAIRE"}
-                    </div>
+                  {p.featured && (
+                    <span className="absolute top-4 end-4 text-[10px] uppercase tracking-[0.15em] text-white/60">
+                      {isRTL ? "الأكثر اختياراً" : "Populaire"}
+                    </span>
                   )}
 
-                  <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <Num
+                      className={`text-[44px] leading-none tracking-[-0.02em] block mb-2 ${
+                        p.featured ? "text-white" : "text-[#111]"
+                      }`}
+                      style={{ fontFamily: serif }}
+                    >
+                      {p.pts}
+                    </Num>
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        p.popular
-                          ? "bg-violet-100 text-violet-700"
-                          : "bg-[#141118]/5 text-[#141118]/60"
+                      className={`text-[13px] mb-8 ${
+                        p.featured ? "text-white/60" : "text-[#111]/50"
                       }`}
                     >
-                      <p.icon className="w-5 h-5" />
+                      {isRTL ? "نقطة" : "points"}
                     </div>
-                    {p.bonus && (
-                      <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 rounded-full px-2.5 py-1">
-                        <Num>{p.bonus}</Num> Bonus
-                      </span>
-                    )}
                   </div>
 
-                  <div className="text-2xl font-semibold text-[#141118] mb-1.5">
-                    <Num>{p.points}</Num> {isRTL ? "نقطة" : "Points"}
-                  </div>
-                  <p className="text-[13px] text-[#141118]/50 leading-relaxed mb-5 min-h-[42px]">
+                  <p
+                    className={`text-[13px] leading-relaxed mb-8 ${
+                      p.featured ? "text-white/70" : "text-[#111]/55"
+                    }`}
+                  >
                     {p.desc}
                   </p>
 
-                  <div className="flex items-baseline gap-1.5 mb-6">
-                    <Num
-                      className="text-3xl font-bold tracking-tight text-[#141118]"
-                      style={{ fontFamily: serifFont }}
-                    >
-                      {p.price}
-                    </Num>
-                    <span className="text-sm text-[#141118]/40 font-medium">DZD</span>
-                  </div>
+                  <div
+                    className={`h-px mb-6 ${p.featured ? "bg-white/15" : "bg-[#111]/10"}`}
+                  />
 
-                  <div className="h-px bg-[#141118]/10 mb-5" />
-
-                  <ul className="space-y-2.5 mb-6 list-none">
-                    {pricingFeatures.map((f) => (
+                  <ul className="space-y-2 mb-10 list-none">
+                    {features.map((f) => (
                       <li
                         key={f}
-                        className="flex items-center gap-2.5 text-[13px] text-[#141118]/70"
+                        className={`flex items-center gap-2 text-[12px] ${
+                          p.featured ? "text-white/70" : "text-[#111]/55"
+                        }`}
                       >
-                        <Check className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+                        <Check
+                          className={`w-3 h-3 shrink-0 ${
+                            p.featured ? "text-white" : "text-[#111]"
+                          }`}
+                        />
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  <button
-                    type="button"
-                    onClick={onSigninClick}
-                    className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors sawtify-focus ${
-                      p.popular
-                        ? "bg-violet-600 text-white hover:bg-violet-700"
-                        : "bg-[#141118]/5 text-[#141118] hover:bg-[#141118]/10"
-                    }`}
-                  >
-                    {p.popular ? (
-                      <>
-                        ✓ {isRTL ? "الأكثر اختياراً" : "Choix recommandé"}
-                      </>
-                    ) : (
-                      <>
-                        {isRTL ? "اختيار" : "Choisir"} <Num>{p.points}</Num>{" "}
-                        {isRTL ? "نقطة" : "points"}
-                      </>
-                    )}
-                  </button>
-                </TiltCard>
-              </motion.div>
-            ))}
-          </motion.div>
+                  <div className="mt-auto">
+                    <div className="flex items-baseline gap-1.5 mb-6">
+                      <Num
+                        className={`text-[28px] tracking-[-0.02em] ${
+                          p.featured ? "text-white" : "text-[#111]"
+                        }`}
+                        style={{ fontFamily: serif }}
+                      >
+                        {p.price}
+                      </Num>
+                      <span
+                        className={`text-[12px] ${
+                          p.featured ? "text-white/50" : "text-[#111]/45"
+                        }`}
+                      >
+                        DZD
+                      </span>
+                    </div>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="text-center text-[12px] text-[#141118]/40 mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-violet-600" /> SATIM · Edahabia · CIB
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Check className="w-3.5 h-3.5 text-violet-600" />
-              {isRTL ? "بدون التزام" : "Sans engagement"}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-violet-600" />
-              {isRTL ? "أسعار بالدينار" : "Prix en dinars"}
-            </span>
-          </motion.p>
+                    <button
+                      type="button"
+                      onClick={onSigninClick}
+                      className={`w-full h-11 rounded-full text-[13px] font-medium transition-colors sw-focus ${
+                        p.featured
+                          ? "bg-white text-[#111] hover:bg-white/90"
+                          : "border border-[#111]/15 text-[#111] hover:border-[#111] hover:bg-[#111] hover:text-[#FAFAF7]"
+                      }`}
+                    >
+                      {isRTL ? "اختيار" : "Choisir"}
+                    </button>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={0.3}>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-[#111]/45">
+              <span>SATIM</span>
+              <span className="w-px h-3 bg-[#111]/20" />
+              <span>Edahabia</span>
+              <span className="w-px h-3 bg-[#111]/20" />
+              <span>CIB</span>
+              <span className="w-px h-3 bg-[#111]/20" />
+              <span>{isRTL ? "بالدينار الجزائري" : "En dinars algériens"}</span>
+            </div>
+          </Reveal>
         </div>
       </section>
 
       {/* =====================================================
-          FAQ (#10 AnimatePresence)
+          FAQ — accordion pure
       ===================================================== */}
-      <section id="faq" className="bg-white border-t border-[#141118]/10">
-        <div className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
-          <div className="text-xs text-purple-700 font-medium mb-3">{t.faqKicker}</div>
-          <h2
-            className="text-3xl font-medium tracking-tight text-[#141118] mb-8"
-            style={{ fontFamily: serifFont }}
-          >
-            {t.faqTitle}
-          </h2>
+      <section id="faq" className="py-24 sm:py-36 bg-[#F4F3EF]">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="grid lg:grid-cols-12 gap-12">
+            <Reveal className="lg:col-span-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
+                {t.faqKicker}
+              </p>
+              <h2
+                className="text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
+                style={{ fontFamily: serif }}
+              >
+                {t.faqTitle}
+              </h2>
+            </Reveal>
 
-          <div className="border-t border-[#141118]/10">
-            {faqs.map((f, i) => {
-              const open = openFaq === i;
-              return (
-                <div key={f.q} className="border-b border-[#141118]/10">
-                  <h3>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFaq(open ? null : i)}
-                      aria-expanded={open}
-                      aria-controls={`faq-panel-${i}`}
-                      id={`faq-btn-${i}`}
-                      className="w-full py-5 flex items-start gap-4 text-start sawtify-focus"
-                    >
-                      <span className="text-xs font-mono text-[#141118]/30 pt-0.5 w-6 shrink-0">
-                        <Num>{String(i + 1).padStart(2, "0")}</Num>
-                      </span>
-                      <span className="flex-1 font-medium text-[15px] text-[#141118]">{f.q}</span>
-                      <ChevronDown
-                        aria-hidden="true"
-                        className={`w-4 h-4 text-[#141118]/35 mt-0.5 shrink-0 transition-transform duration-300 ${
-                          open ? "rotate-180 text-purple-600" : ""
-                        }`}
-                      />
-                    </button>
-                  </h3>
+            <div className="lg:col-span-7 lg:col-start-6">
+              <div className="border-t border-[#111]/15">
+                {faqs.map((f, i) => {
+                  const open = openFaq === i;
+                  return (
+                    <Reveal key={f.q} delay={i * 0.04}>
+                      <div className="border-b border-[#111]/15">
+                        <button
+                          type="button"
+                          onClick={() => setOpenFaq(open ? null : i)}
+                          aria-expanded={open}
+                          className="w-full py-6 flex items-start gap-6 text-start sw-focus"
+                        >
+                          <span className="flex-1 text-[16px] sm:text-[17px] text-[#111] leading-snug pt-0.5">
+                            {f.q}
+                          </span>
+                          <span className="w-6 h-6 rounded-full border border-[#111]/25 flex items-center justify-center shrink-0 mt-0.5">
+                            <motion.div
+                              animate={{ rotate: open ? 45 : 0 }}
+                              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </motion.div>
+                          </span>
+                        </button>
 
-                  <AnimatePresence initial={false}>
-                    {open && (
-                      <motion.div
-                        id={`faq-panel-${i}`}
-                        role="region"
-                        aria-labelledby={`faq-btn-${i}`}
-                        key="content"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                        className="overflow-hidden"
-                      >
-                        <p className="ps-10 pb-5 text-sm text-[#141118]/55 leading-relaxed max-w-xl">
-                          {f.a}
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
+                        <AnimatePresence initial={false}>
+                          {open && (
+                            <motion.div
+                              key="content"
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{
+                                height: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                                opacity: { duration: 0.25, delay: open ? 0.1 : 0 },
+                              }}
+                              className="overflow-hidden"
+                            >
+                              <p className="pb-6 pe-12 text-[14px] leading-[1.7] text-[#111]/60 max-w-xl">
+                                {f.a}
+                              </p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </Reveal>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* =====================================================
-          #13 — FOOTER ENRICHI
+          CTA — silence, une phrase, un bouton
       ===================================================== */}
-      <footer className="bg-[#0f0818] text-white/50">
-        <div className="mx-auto max-w-6xl px-6 pt-16 pb-10">
-          <div className="grid gap-12 lg:grid-cols-[1.4fr_repeat(3,1fr)] mb-14">
-            {/* Marque */}
-            <div>
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-9 h-9 rounded-full overflow-hidden bg-white shrink-0">
+      <section className="py-32 sm:py-48">
+        <div className="mx-auto max-w-[900px] px-6 text-center">
+          <Reveal>
+            <h2
+              className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] tracking-[-0.025em] text-[#111]"
+              style={{ fontFamily: serif }}
+            >
+              {t.ctaTitle}
+            </h2>
+          </Reveal>
+          <Reveal delay={0.15}>
+            <p className="mt-6 text-[15px] text-[#111]/55">{t.ctaSub}</p>
+          </Reveal>
+          <Reveal delay={0.25}>
+            <button
+              type="button"
+              onClick={onSigninClick}
+              className="group mt-10 inline-flex items-center gap-2 h-12 px-6 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/85 transition-all duration-300 sw-focus"
+            >
+              {t.start}
+              <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* =====================================================
+          FOOTER — minimal typographique
+      ===================================================== */}
+      <footer className="border-t border-[#111]/10">
+        <div className="mx-auto max-w-[1200px] px-6 py-14">
+          <div className="grid md:grid-cols-12 gap-10 mb-16">
+            <div className="md:col-span-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-full overflow-hidden bg-black">
                   <img
                     src={LOGO_URL}
-                    alt="Sawtify"
+                    alt=""
                     loading="lazy"
-                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <span className="font-semibold text-white text-base">Sawtify</span>
+                <span className="text-[14px] font-medium">Sawtify</span>
               </div>
-              <p className="text-[13px] leading-relaxed text-white/40 max-w-xs mb-6">
-                {t.footTagline}
+              <p className="text-[13px] text-[#111]/55 max-w-xs leading-relaxed">
+                {t.footTag}
               </p>
+            </div>
 
-              <div className="flex items-center gap-2">
-                {socials.map((s) => (
-                  <a
-                    key={s.label}
-                    href="#"
-                    aria-label={s.label}
-                    className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-violet-600 hover:border-violet-600 transition-colors sawtify-focus"
-                  >
-                    <s.icon className="w-4 h-4" />
-                  </a>
-                ))}
+            <div className="md:col-span-2">
+              <div className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4">
+                {isRTL ? "المنتج" : "Produit"}
               </div>
+              <ul className="space-y-2.5 list-none text-[13px]">
+                <li>
+                  <a
+                    href="#voices"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      smoothTo("#voices");
+                    }}
+                    className="text-[#111]/70 hover:text-[#111] transition-colors"
+                  >
+                    {t.navWork}
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#pricing"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      smoothTo("#pricing");
+                    }}
+                    className="text-[#111]/70 hover:text-[#111] transition-colors"
+                  >
+                    {t.navPricing}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    API
+                  </a>
+                </li>
+              </ul>
             </div>
 
-            {/* Colonnes de liens */}
-            {footerCols.map((col) => (
-              <nav key={col.title} aria-label={col.title}>
-                <h4 className="text-white text-[13px] font-semibold mb-4">{col.title}</h4>
-                <ul className="space-y-2.5 list-none">
-                  {col.links.map((l) => (
-                    <li key={l.label}>
-                      <a
-                        href={l.href}
-                        onClick={
-                          l.href.startsWith("#") && l.href.length > 1
-                            ? (e) => handleNavClick(e, l.href)
-                            : undefined
-                        }
-                        className="text-[13px] text-white/40 hover:text-violet-300 transition-colors sawtify-focus"
-                      >
-                        {l.label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            ))}
-          </div>
-
-          {/* Newsletter */}
-          <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-6 sm:p-8 flex flex-col md:flex-row md:items-center gap-6 justify-between mb-10">
-            <div>
-              <h4 className="text-white text-[15px] font-semibold flex items-center gap-2 mb-1.5">
-                <Mail className="w-4 h-4 text-violet-400" />
-                {t.footNewsletter}
-              </h4>
-              <p className="text-[13px] text-white/40 max-w-sm">{t.footNewsletterSub}</p>
+            <div className="md:col-span-2">
+              <div className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4">
+                {isRTL ? "الشركة" : "Compagnie"}
+              </div>
+              <ul className="space-y-2.5 list-none text-[13px]">
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    {isRTL ? "من نحن" : "À propos"}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    {isRTL ? "اتصل" : "Contact"}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    {isRTL ? "المدونة" : "Blog"}
+                  </a>
+                </li>
+              </ul>
             </div>
 
-            <form
-              onSubmit={handleSubscribe}
-              className="flex items-center gap-2 w-full md:w-auto md:min-w-[340px]"
-            >
-              <label htmlFor="newsletter-email" className="sr-only">
-                {t.emailPlaceholder}
-              </label>
-              <input
-                id="newsletter-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t.emailPlaceholder}
-                className="flex-1 rounded-full bg-white/5 border border-white/15 px-4 py-3 text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:border-violet-400 focus:bg-white/10 transition-colors"
-              />
-              <button
-                type="submit"
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-5 py-3 text-[13px] font-semibold transition-colors sawtify-focus ${
-                  subscribed
-                    ? "bg-green-500 text-white"
-                    : "bg-violet-500 text-white hover:bg-violet-400"
-                }`}
-              >
-                {subscribed ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" /> {t.subscribed}
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-3.5 h-3.5" /> {t.subscribe}
-                  </>
-                )}
-              </button>
-            </form>
+            <div className="md:col-span-3">
+              <div className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4">
+                {isRTL ? "قانوني" : "Légal"}
+              </div>
+              <ul className="space-y-2.5 list-none text-[13px]">
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    {isRTL ? "شروط الاستخدام" : "Conditions"}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    {isRTL ? "الخصوصية" : "Confidentialité"}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                    Cookies
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
 
-          {/* Bas de page */}
-          <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-start">
-            <p className="text-[12px] text-white/35">
-              © <Num>2026</Num> Sawtify —{" "}
-              <span className="inline-flex items-center gap-1">
-                {t.madeIn.replace("💜", "")}
-                <Heart className="w-3 h-3 text-violet-400 fill-violet-400 inline" />
-              </span>
+          <div className="pt-8 border-t border-[#111]/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-[12px] text-[#111]/40">
+              © <Num>2026</Num> Sawtify
             </p>
-
-            <div className="flex items-center gap-3">
-              {["SATIM", "Edahabia", "CIB"].map((p) => (
-                <span
-                  key={p}
-                  className="text-[11px] font-medium text-white/45 bg-white/5 border border-white/10 rounded-md px-2.5 py-1"
-                >
-                  {p}
-                </span>
-              ))}
+            <div className="flex items-center gap-4 text-[12px] text-[#111]/40">
+              <span>{t.footPay}</span>
+              <span>·</span>
+              <span>SATIM · Edahabia · CIB</span>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* =====================================================
-          #12 — BACK TO TOP
-      ===================================================== */}
+      {/* Back to top */}
       <AnimatePresence>
         {scrolled && (
           <motion.button
             type="button"
-            initial={{ opacity: 0, scale: 0.7, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.7, y: 12 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.3 }}
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            aria-label={t.backTop}
-            className="fixed bottom-6 end-6 z-40 w-11 h-11 rounded-full bg-violet-600 text-white shadow-[0_10px_30px_rgba(124,58,237,0.45)] flex items-center justify-center hover:bg-violet-500 transition-colors sawtify-focus"
+            aria-label={t.back}
+            className="fixed bottom-6 end-6 z-40 w-10 h-10 rounded-full bg-[#111] text-[#FAFAF7] flex items-center justify-center hover:bg-[#111]/85 transition-colors sw-focus"
           >
             <ArrowUp className="w-4 h-4" />
           </motion.button>
