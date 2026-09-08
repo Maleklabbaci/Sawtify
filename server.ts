@@ -539,7 +539,7 @@ async function startServer() {
   app.post("/api/v1/tts/generate", handleTTSGenerate);
   app.post("/api/tts/generate", handleTTSGenerate);
 
-  /* ==========================================================================
+   /* ==========================================================================
      LLM SYSTEM PROMPT (SAWTIFY DARIJA ÉLITE - ANTI-RÉPÉTITION)
      ========================================================================== */
   const LLM_SYSTEM_PROMPT = `Tu es un rédacteur publicitaire professionnel en Darija Algérienne, spécialisé dans les scripts vocaux (TTS) pour vidéos courtes.
@@ -551,103 +551,130 @@ RÈGLES STRICTES :
 - Mots FR/techniques TOUJOURS en alphabet LATIN : livraison, WhatsApp, Instagram, Facebook, marketing digital, B2B, leads, closing, clients, service, formation, promotion, chiffre d'affaires, rendez-vous, réservation, etc.
 - JAMAIS de translittération arabe de ces mots ("لا ليفريزون" INTERDIT).
 
-2. ACCROCHES — INTERDICTION DE RÉPÉTER :
-- INTERDIT de commencer TOUJOURS par : "أسمع مليح", "يا خاوتي", "يا خوتي", "شوف معايا".
-- Invente une accroche UNIQUE et SPÉCIFIQUE au sujet à chaque fois.
-- Varie : questions directes ("عندك مشكل مع...?"), constats ("راك تخسر..."), promesses ("لوكان نقولك..."), défis ("جرب هادي...").
-
-3. BALISES D'ÉMOTION :
+2. BALISES D'ÉMOTION :
 - UNE SEULE balise par phrase, placée au début : [excited], [natural], [calm], [whisper], [fast].
 - JAMAIS deux balises collées ([excited][natural] INTERDIT).
 - La première phrase DOIT commencer par une balise d'émotion claire.
 
-4. LONGUEUR DES SCRIPTS (STRICT) :
+3. LONGUEUR DES SCRIPTS (STRICT) :
 - Durée cible à l'oral : 30 à 50 secondes. JAMAIS plus de 60 secondes.
 - Environ 90 à 140 mots.
 - Texte complet et argumenté, mais concis — pas de remplissage inutile pour atteindre la limite.
 
-5. SORTIE :
+4. SORTIE :
 - UNIQUEMENT le texte final à vocaliser.
 - Aucun titre, markdown (* #), étoile, guillemets, commentaire, note, "TTS Refinement".`;
 
   /* ==========================================================================
-     LLM ENHANCE — المحسن السحري (-2 pts) — AVEC RÉGION
+     MATRICES DE COPYWRITING (1.6 MILLION DE COMBINAISONS)
      ========================================================================== */
-  const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
-    try {
-      const userId = await getUserIdFromAuthHeader(req);
-      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+  const HOOKS = [
+    "LE SECRET : اكشف عن سر أو حيلة (السر اللي ما حابينكش تعرفوه...)",
+    "L'ERREUR : حذر من غلطة شائعة (أكبر غلطة راهي تخسّرك دراهمك...)",
+    "STORYTELLING : قصة سريعة (لوكان نحكيكم واش صرالي...)",
+    "QUESTION CHOC : سؤال يستفز المتابع (علاش مازلت تضيع وقتك في...)",
+    "AVANT/APRÈS : مقارنة صريحة (كيفاش تحولت من المعاناة إلى...)",
+    "PROMESSE DIRECTE : نتيجة سريعة (كيفاش تتحصل على النتيجة في أقل من...)",
+    "POV : مشهد تخيلي (POV: لما تجرّب هاد الحل لأول مرة...)",
+    "DISQUALIFICATION : تصفية المتابعين (إذا كنت حاب نتائج بدون تعب، فوت هاد الفيديو...)",
+    "MYTH BUSTING : تفكيك خرافة (أكبر كذبة مأمنين بيها الناس هي...)",
+    "FRUSTRATION : ضرب على الوتر الحساس (عييت من نفس المشكل كل يوم؟)",
+    "ÉCONOMIE : توفير المال (كيفاش توفر كثر من 50% من مصاريفك...)",
+    "DÉFI : تحدي مباشر (نتحداك تجرّب هاد المنتوج وما يعجبكش...)",
+    "CONFESSION : اعتراف صادق (باش نكون صريح معاك 100%...)",
+    "PREUVE SOCIALE : دليل الجماهير (علاش آلاف الجزائريين شراو هاد...)",
+    "LAZY-FIX : حل للناس العجازين (أسهل طريقة للناس اللي ماعندهُمش الوقت...)",
+    "COMPARAISON : مقارنة شرسة (علاش هاد الحل خير بـ 10 مرات من القديم...)",
+    "NICHE TARGETING : استهداف فئة (إلى كنت طالب/خدام/أم، هاد الفيديو ليك...)",
+    "REGRET : ندم مستقبلي (الندم الوحيد اللي راح تحس بيه هو علاش ما شريتوش بكري...)",
+    "STATISTIQUE : رقم صادم (80% من الناس يضيعوا دراهمهم في باطل بسبب...)",
+    "CURIOSITÉ : تشويق واكتشاف (شوف واش كاين داخل هاد الباكي اللي داير حالة...)"
+  ];
 
-      const { text, region = "general" } = req.body;
-      if (!text || typeof text !== "string" || !text.trim()) {
-        return res.status(400).json({ error: "Texte manquant ou invalide" });
-      }
+  const PROBLEMS = [
+    "PERTE D'ARGENT : الشعور بتضييع الدراهم في السلعة العيانة.",
+    "PERTE DE TEMPS : المعاناة مع الطرق البطيئة اللي تدي الوقت.",
+    "FRUSTRATION/ÉCHECS : جرب بزاف صوالح من قبل وما نفعووش.",
+    "HONTE/GÊNE : الإحراج وانعدام الثقة بالنفس قدام الناس.",
+    "COMPLEXITÉ : التعقيد والخطوات الصعبة اللي تعيّي الراس.",
+    "FAUSSE QUALITÉ : السلعة المقلدة اللي تخسر بالخف.",
+    "MAUVAIS SERVICE : غياب خدمة ما بعد البيع والمتابعة.",
+    "PEUR DE L'ARNAQUE : الخوف من الشراء أونلاين والنصب.",
+    "STRESS : الضغط العصبي والتخمام الزايد.",
+    "IGNORANCE : عدم معرفة منين يبدا وكيفاش يتصرف.",
+    "PRIX EXCESSIFS : الأسعار الغالية بلا فايدة.",
+    "DÉLAIS DE LIVRAISON : الروطار في التوصيل أو السلعة توصل مكسرة.",
+    "RUPTURE : تبرك على السلعة وما تلقاهاش.",
+    "FATIGUE : التعب الجسدي والجهد الكبير.",
+    "ROUTINE : الملل من الحلول التقليدية العادية.",
+    "INSECURITÉ : الشك في القدرات أو عدم الرضا عن المظهر.",
+    "OVERWHELM : التشتت وكثرة الخيارات في السوق.",
+    "NON-LOCALISÉ : منتجات ما تليقش للعقلية والواقع الجزائري.",
+    "SANS GARANTIE : الشراء بلا ضمان (ضمانة).",
+    "DÉPENDANCE : الاحتياج للناس باش يكملولك خدمتك."
+  ];
 
-      const pointsCost = 2;
-      const currentBalance = await getUserBalance(userId);
-      if (currentBalance !== null && currentBalance < pointsCost) {
-        return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
-      }
+  const SOLUTIONS = [
+    "LE SHORTCUT : حل يختصر أشهر من التعب في دقائق.",
+    "L'ALL-IN-ONE : كلشي متوفر في منتج/خدمة وحدة.",
+    "PLUG & PLAY : واجد للاستعمال، ساهل ماهل.",
+    "ALTERNATIVE INTELLIGENTE : البديل الذكي والأرخص.",
+    "QUALITÉ PREMIUM : كاليتي واعرة تشد معاك عوام.",
+    "AUTOMATISATION : الخدمة تدار وحدها بلا ما تعيي روحك.",
+    "SECRET DES PROS : التقنية اللي يستعملوها غير المحترفين.",
+    "PACK ÉCONOMIQUE : باك كامل بسعر مهبول.",
+    "FORMULE GARANTIE : حل مضمون مع إمكانية التبديل.",
+    "SIMPLICITÉ : تصميم بسيط يخدم بيه الصغير والكبير.",
+    "ADAPTATION DZ : مخدوم خصيصاً للمواطن الجزائري.",
+    "BOOST CONFIANCE : يرجعلك الثقة في روحك بالخف.",
+    "DESIGN MODERNE : مظهر شباب يحمر الوجه.",
+    "GAIN DE TEMPS : تكمل خدمتك في ثواني.",
+    "RENTABILITÉ : يرجعلك دراهمو من الاستعمال الأول.",
+    "VIP SERVICE : توصيل للدار مع شوف السلعة وخلص.",
+    "ÉCOLOGIQUE/DURABLE : حل اقتصادي ما يضرش الجيب.",
+    "EXCLUSIVITÉ : حصري وما تلقاهش في الحوانت.",
+    "GUIDE PAS À PAS : تبعك خطوة بخطوة حتى تنجح.",
+    "TRANQUILLITÉ : راحة البال، تهنى من التخمام."
+  ];
 
-      const regionGuide = getRegionGuide(region);
+  const PROOFS = [
+    "CHIFFRES : أرقام حقيقية (+90% نسبة رضا، 5000 طلب).",
+    "TÉMOIGNAGES : آراء الزبائن فرحانين بالنتيجة.",
+    "DÉMO DIRECTE : النتيجة تبان قدام عينيك في الفيديو.",
+    "GARANTIE : ضمان استرجاع الأموال إلى ما عجبكش.",
+    "LIVRAISON : توصيل لـ 58 ولاية سريع ومضمون.",
+    "AVANT/APRÈS : الفرق الواضح بين كيفاش كان وكيفاش ولى.",
+    "CERTIFICATION : سلعة أصلية ومطابقة للمعايير.",
+    "PRIX IMBATTABLE : أحسن سومة في السوق مقارنة بالكاليتي.",
+    "RAPIDITÉ : نتيجة تبان في أقل من أسبوع.",
+    "SUPPORT : خدمة زبائن معاك 7/7 أيام."
+  ];
 
-      const enhancePrompt = `Tu es un expert rédacteur TTS en Darija Algérienne.
-
-LAHDJA CIBLE : ${regionGuide}
-
-TÂCHE : Réécris et optimise le texte ci-dessous pour qu'il soit naturel, captivant et rythmé à l'oral, en respectant la Lahdja demandée ci-dessus.
-
-RÈGLES ABSOLUES :
-1. NE COUPE RIEN : garde TOUTES les idées et la longueur du texte original (même ordre de grandeur ou un peu plus long).
-2. INTERDICTION de résumer. INTERDICTION de raccourcir un long texte en 2-3 phrases.
-3. CODE-SWITCHING : garde les mots FR/techniques en LATIN (WhatsApp, Instagram, TikTok, Facebook, livraison, service, formation, marketing digital, B2B, leads, etc.).
-4. Ajoute UNE balise d'émotion au début de chaque phrase clé : [excited], [natural], [calm], [whisper], [fast]. Jamais deux collées.
-5. La première phrase DOIT commencer par une balise (ex: [excited] ou [natural]).
-6. Aucun titre, aucune note, aucun markdown (* #), aucun commentaire du type "TTS Refinement" ou "Note".
-7. Renvoie UNIQUEMENT le texte final à vocaliser.
-
-Texte original :
-${text}`;
-
-      let enhancedText = await callGeminiTextAPI(enhancePrompt, 0.3);
-
-      // Nettoyage anti-parasites
-      enhancedText = enhancedText
-        .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
-        .replace(/\*+/g, "")
-        .replace(/^#+\s*.*$/gm, "")
-        .replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Modifications)\s*:?/gi, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-
-      // Sécurité : si l'IA a trop raccourci, on garde l'original
-      if (enhancedText.length < text.length * 0.5) {
-        console.warn("[LLM Enhance] Réponse trop courte, fallback texte original");
-        enhancedText = text;
-      }
-
-      const reduction = await deductCredits(userId, pointsCost);
-      const finalBalance = reduction.success ? reduction.remaining : currentBalance;
-
-      return res.json({
-        success: true,
-        enhanced_text: enhancedText,
-        points_deducted: pointsCost,
-        points_cost: pointsCost,
-        notification: "-2 Points",
-        remaining_balance: finalBalance,
-        region_used: region
-      });
-    } catch (err: any) {
-      console.error("[LLM Enhance Error]", err.message || err);
-      return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" });
-    }
-  };
-  app.post("/api/v1/llm/enhance", handleLLMEnhance);
-  app.post("/api/llm/enhance", handleLLMEnhance);
+  const CTAS = [
+    "WHATSAPP : ابعتلنا ميساج في الواتساب ذروك...",
+    "LIEN SITE : كليكي على الرابط في البيو واطلب...",
+    "DM : ابعتلنا ميساج في البريفي نبعتولك التفاصيل...",
+    "APPEL : عيطلنا في الرقم الظاهر في الشاشة...",
+    "URGENCE STOCK : اطلب ذروك قبل ما يخلص الاستوك...",
+    "LIVRAISON GRATUITE : كوموندي اليوم والـ livraison باطل...",
+    "OFFRE 24H : العرض يخلص بعد 24 ساعة، زرب روحك...",
+    "COMMENTAIRE : خلي كومنتار بـ [مهتم] نبعتولك...",
+    "PROMO 1+1 : اشري وحدة ودي الزاوجة باطل، كليكي هنا...",
+    "RÉSERVATION : ريزيرفي بلاصتك قبل ما يكمل العدد...",
+    "BÉNÉFICE : حاب تتهنى من هاد المشكل؟ كليكي واطلب...",
+    "PROFIL : ادخل للبروفيل وشوف الكاتالوج كامل...",
+    "CODE PROMO : استعمل كود SAWTIFY10 ودي تخفيض...",
+    "SAUVEGARDER : خبي هاد الفيديو وبارطاجيه مع صاحبك...",
+    "SANS RISQUE : جرب السلعة وخلص عند الباب...",
+    "MAGASIN : زورونا في الحانوت ديالنا أو طلب أونلاين...",
+    "DÉFI CTA : ما تراطيش هاد لافار، كليكي واشري...",
+    "ÉTUDIANT/PRO : كاين برومو سبيسيال لأول 20 واحد...",
+    "FORMULAIRE : عمر الفورميلار في 30 ثانية وتجيك للدار...",
+    "CADEAU : اطلب اليوم ويدي كادو مجاني مع السلعة..."
+  ];
 
   /* ==========================================================================
-     LLM SCRIPT GENERATOR — منشئ سيناريو تيك توك (-5 pts) — AVEC RÉGION + SECTEUR
+     LLM SCRIPT GENERATOR — MOTEUR HYPER PERFORMANT (-5 pts)
      ========================================================================== */
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
@@ -665,6 +692,13 @@ ${text}`;
         return res.status(402).json({ error: "Solde de points insuffisant (5 points requis)." });
       }
 
+      // SÉLECTION ALÉATOIRE CÔTÉ SERVEUR (TRUE RANDOMNESS)
+      const selectedHook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
+      const selectedProblem = PROBLEMS[Math.floor(Math.random() * PROBLEMS.length)];
+      const selectedSolution = SOLUTIONS[Math.floor(Math.random() * SOLUTIONS.length)];
+      const selectedProof = PROOFS[Math.floor(Math.random() * PROOFS.length)];
+      const selectedCTA = CTAS[Math.floor(Math.random() * CTAS.length)];
+
       const regionGuide = getRegionGuide(region);
       const detectedSector = detectSector(product);
 
@@ -672,33 +706,39 @@ ${text}`;
 
 LAHDJA CIBLE : ${regionGuide}
 SECTEUR DÉTECTÉ : ${detectedSector}
+SUJET / PRODUIT : "${product}"
 
-TÂCHE SPÉCIFIQUE : Écris un script publicitaire COMPLET pour une vidéo courte de 30 à 50 secondes maximum (jamais plus de 60s), adapté au secteur "${detectedSector}" et à la Lahdja cible.
+🎯 ARCHITECTURE OBLIGATOIRE DU SCRIPT (À SUIVRE À LA LETTRE) :
+Tu dois rédiger le script en suivant EXACTEMENT ces 4 étapes créatives :
 
-STRUCTURE OBLIGATOIRE :
-1. HOOK (3–5s) avec [excited] — Accroche UNIQUE et SPÉCIFIQUE au sujet (interdiction de commencer par "أسمع مليح" ou "يا خاوتي").
-2. PROBLÈME + SOLUTION (12–18s) avec [natural] ou [calm] — Décris le vrai problème du client et présente la solution.
-3. BÉNÉFICES / PREUVE (5–8s) avec [calm] — Résultats concrets, chiffres, preuve sociale.
-4. CTA FINAL (5s) avec [excited] ou [whisper] — Appel à l'action clair (WhatsApp, lien, commande, réservation...).
+1. ACCROCHE (HOOK) [3-5 sec] -> Applique cet angle : "${selectedHook}"
+(Rédige une phrase forte avec le tag [excited] ou [dramatic]. Ne commence JAMAIS par une phrase générique).
 
-CONTRAINTES :
-- Longueur cible : 90 à 140 mots (30 à 50 secondes à voix haute). Ne JAMAIS dépasser 60 secondes.
-- Darija algérienne fluide et naturelle (pas de traduction littérale) + mots FR en latin.
-- UNE seule balise par phrase.
-- Renvoie UNIQUEMENT le script final, sans titre, sans commentaire.
+2. LE PROBLÈME [8-12 sec] -> Insiste sur ce point de douleur : "${selectedProblem}"
+(Utilise [natural] ou [calm]. Fais ressentir le problème au spectateur en Darija).
 
-Sujet / Produit / Service :
-${product}
-Style souhaité : ${style || "excited"}`;
+3. LA SOLUTION & PREUVE [15-20 sec] -> Présente le produit avec cet angle : "${selectedSolution}" ET valide-le avec cette preuve : "${selectedProof}"
+(Utilise [natural] ou [excited]).
 
-      let scriptText = await callGeminiTextAPI(scriptPrompt, 0.85);
+4. APPEL À L'ACTION (CTA) [5 sec] -> Termine la vidéo EXACTEMENT avec ce type de CTA : "${selectedCTA}"
+(Utilise [fast] ou [excited]).
 
-      // Nettoyage
+⚠️ RAPPEL DES CONTRAINTES :
+- L'ensemble doit être ultra-fluide et s'enchaîner logiquement en Darija Algérienne.
+- Longueur totale : 90 à 140 mots (30 à 50 secondes).
+- PAS DE TITRE, pas de description, renvoie JUSTE LE TEXTE DU SCRIPT.
+
+Style vocal souhaité : ${style || "excited"}`;
+
+      // Température à 0.95 pour une hyper-créativité et un vocabulaire riche
+      let scriptText = await callGeminiTextAPI(scriptPrompt, 0.95);
+
+      // Nettoyage rigoureux
       scriptText = scriptText
         .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
         .replace(/\*+/g, "")
         .replace(/^#+\s*.*$/gm, "")
-        .replace(/(TTS\s*Refinement|Refinement|Note|Remarque)\s*:?/gi, "")
+        .replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Structure|Accroche|Problème|Solution|CTA)\s*:?/gi, "")
         .trim();
 
       const reduction = await deductCredits(userId, pointsCost);
@@ -712,13 +752,15 @@ Style souhaité : ${style || "excited"}`;
         notification: "-5 Points",
         remaining_balance: finalBalance,
         sector_used: detectedSector,
-        region_used: region
+        region_used: region,
+        debug_framework: { hook: selectedHook, problem: selectedProblem, cta: selectedCTA } // Info optionnelle pour dev
       });
     } catch (err: any) {
       console.error("[LLM Script Generator Error]", err.message || err);
       return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" });
     }
   };
+  
   app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
   app.post("/api/llm/generate-script", handleLLMGenerateScript);
 
