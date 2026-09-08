@@ -3,14 +3,19 @@ import {
   ArrowRight,
   ArrowLeft,
   ArrowUp,
+  ArrowUpRight,
   Play,
   Pause,
   Plus,
-  Minus,
   Menu,
   X,
   Check,
   Star,
+  Sparkles,
+  Command,
+  Cpu,
+  Waves,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 
@@ -22,7 +27,7 @@ interface LandingPageProps {
 }
 
 /* =========================================================
-   GLOBAL — polices, focus, motion-safe
+   GLOBAL — typographie premium + touches AI
 ========================================================= */
 const GlobalStyles = () => (
   <style>{`
@@ -35,19 +40,92 @@ const GlobalStyles = () => (
     body { overflow-x: hidden; }
 
     .sw-focus:focus-visible {
-      outline: 1.5px solid #111;
+      outline: 1.5px solid #6366F1;
       outline-offset: 3px;
       border-radius: 4px;
     }
 
-    /* Séparateur ultra-fin premium */
+    /* Hairlines premium */
     .sw-hairline {
       background-image: linear-gradient(to right, transparent, rgba(17,17,17,0.12), transparent);
       height: 1px;
     }
-    .sw-hairline-dark {
-      background-image: linear-gradient(to right, transparent, rgba(255,255,255,0.14), transparent);
-      height: 1px;
+
+    /* Grille perspective AI subtile */
+    .sw-grid {
+      background-image:
+        linear-gradient(rgba(99,102,241,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.08) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+    .sw-grid-dark {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+
+    /* Dot pattern */
+    .sw-dots {
+      background-image: radial-gradient(rgba(17,17,17,0.14) 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+
+    /* Glow subtil */
+    .sw-glow {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(80px);
+      pointer-events: none;
+    }
+
+    /* Noise texture optionnelle */
+    .sw-noise::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.025;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* Shimmer texte AI */
+    @keyframes sw-shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    .sw-shimmer-text {
+      background: linear-gradient(90deg, #6366F1 0%, #A78BFA 25%, #6366F1 50%, #A78BFA 75%, #6366F1 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: sw-shimmer 5s linear infinite;
+    }
+
+    /* Pulse live discret */
+    @keyframes sw-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .sw-pulse { animation: sw-pulse 2s ease-in-out infinite; }
+
+    /* Border gradient AI */
+    .sw-border-gradient {
+      position: relative;
+      background: #FAFAF7;
+    }
+    .sw-border-gradient::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(167,139,250,0.15), rgba(99,102,241,0.4));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -83,7 +161,7 @@ const Num = ({
 );
 
 /* =========================================================
-   Counter animé (subtle, ease profond)
+   Counter animé
 ========================================================= */
 const Counter = ({
   target,
@@ -112,7 +190,7 @@ const Counter = ({
         const start = performance.now();
         const tick = (now: number) => {
           const p = Math.min((now - start) / duration, 1);
-          const eased = 1 - Math.pow(1 - p, 4); // easeOutQuart
+          const eased = 1 - Math.pow(1 - p, 4);
           setCount(Math.round(eased * target));
           if (p < 1) requestAnimationFrame(tick);
         };
@@ -140,7 +218,7 @@ const Counter = ({
 function useAudioVisualizer(
   audioEl: HTMLAudioElement | null,
   isPlaying: boolean,
-  barCount = 42
+  barCount = 48
 ) {
   const [bars, setBars] = useState<number[]>(Array(barCount).fill(8));
   const ctxRef = useRef<AudioContext | null>(null);
@@ -155,7 +233,6 @@ function useAudioVisualizer(
       return;
     }
     let analyser: AnalyserNode | null = null;
-
     try {
       if (!ctxRef.current) {
         ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -168,7 +245,6 @@ function useAudioVisualizer(
         source = ctx.createMediaElementSource(audioEl);
         sourceMap.current.set(audioEl, source);
       }
-
       analyser = ctx.createAnalyser();
       analyser.fftSize = 128;
       analyser.smoothingTimeConstant = 0.82;
@@ -177,7 +253,6 @@ function useAudioVisualizer(
 
       const data = new Uint8Array(analyser.frequencyBinCount);
       const local = analyser;
-
       const tick = () => {
         local.getByteFrequencyData(data);
         setBars(
@@ -198,7 +273,7 @@ function useAudioVisualizer(
 }
 
 /* =========================================================
-   Scroll state (subtle header)
+   Scroll state
 ========================================================= */
 function useScrollState() {
   const [scrolled, setScrolled] = useState(false);
@@ -212,20 +287,18 @@ function useScrollState() {
 }
 
 /* =========================================================
-   Reveal on scroll — animation UNIVERSELLE subtile
+   Reveal on scroll
 ========================================================= */
 const Reveal = ({
   children,
   delay = 0,
   y = 20,
   className = "",
-  as: Tag = "div",
 }: {
   children: React.ReactNode;
   delay?: number;
   y?: number;
   className?: string;
-  as?: any;
 }) => (
   <motion.div
     initial={{ opacity: 0, y }}
@@ -256,11 +329,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTesti, setActiveTesti] = useState(0);
+  const [demoStep, setDemoStep] = useState(0);
 
   const bars = useAudioVisualizer(currentAudioEl, playingId !== null);
   const scrolled = useScrollState();
 
-  // Parallax hero très subtil
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -268,6 +341,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   });
   const heroTitleY = useTransform(scrollYProgress, [0, 1], [0, 80]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+  const heroGridY = useTransform(scrollYProgress, [0, 1], [0, 150]);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -285,6 +359,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Cycle terminal demo
+  useEffect(() => {
+    const id = setInterval(() => setDemoStep((s) => (s + 1) % 4), 2600);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -307,12 +387,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     signin: isRTL ? "دخول" : "Connexion",
     start: isRTL ? "ابدأ" : "Commencer",
 
-    heroKicker: isRTL ? "استوديو صوتي بالدارجة" : "Voix off en darija algérienne",
+    liveBadge: isRTL ? "النموذج v2.1 مباشر" : "Modèle v2.1 en ligne",
+    heroKicker: isRTL ? "استوديو صوتي بالذكاء الاصطناعي" : "Studio vocal propulsé par IA",
     heroTitle1: isRTL ? "الصوت الذي" : "La voix que",
     heroTitle2: isRTL ? "يستحقه نصك." : "mérite ton texte.",
     heroSub: isRTL
-      ? "أصوات ذكاء اصطناعي بالدارجة الجزائرية. طبيعية، دقيقة، جاهزة في ثوانٍ."
-      : "Des voix IA en darija algérienne. Naturelles, précises, prêtes en quelques secondes.",
+      ? "نموذج ذكاء اصطناعي مدرّب على الدارجة الجزائرية. توليد صوتي طبيعي في أقل من 30 ثانية."
+      : "Un modèle d'IA entraîné sur la darija algérienne. Génération vocale naturelle en moins de 30 secondes.",
     tryFree: isRTL ? "جرّب مجاناً" : "Essayer gratuitement",
     listenDemo: isRTL ? "استمع للعرض" : "Écouter la démo",
 
@@ -331,7 +412,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ? "أربعة أصوات مختارة يدوياً، مدربة على الدارجة الحقيقية."
       : "Quatre voix sélectionnées à la main, entraînées sur de la vraie darija.",
 
-    metricsKicker: isRTL ? "أرقام" : "En chiffres",
+    metricsKicker: isRTL ? "أرقام" : "Metrics",
     metricsTitle: isRTL ? "بناء بصبر. استخدام كل يوم." : "Construit patiemment. Utilisé chaque jour.",
 
     testKicker: isRTL ? "شهادات" : "Témoignages",
@@ -369,9 +450,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const steps = [
-    { n: "01", t: t.step1t, d: t.step1d },
-    { n: "02", t: t.step2t, d: t.step2d },
-    { n: "03", t: t.step3t, d: t.step3d },
+    { n: "01", t: t.step1t, d: t.step1d, icon: Command },
+    { n: "02", t: t.step2t, d: t.step2d, icon: Waves },
+    { n: "03", t: t.step3t, d: t.step3d, icon: ArrowUpRight },
   ];
 
   const voices = [
@@ -380,6 +461,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       name: isRTL ? "أمين" : "Amin",
       tag: isRTL ? "تجاري" : "Commercial",
       duration: "0:24",
+      lang: "DZ · M",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
     },
     {
@@ -387,6 +469,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       name: isRTL ? "ياسمين" : "Yasmine",
       tag: isRTL ? "إعلاني" : "Publicitaire",
       duration: "0:18",
+      lang: "DZ · F",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
     },
     {
@@ -394,6 +477,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       name: isRTL ? "خالد" : "Khalid",
       tag: isRTL ? "وثائقي" : "Documentaire",
       duration: "0:31",
+      lang: "DZ · M",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
     },
     {
@@ -401,6 +485,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       name: isRTL ? "ليلى" : "Layla",
       tag: isRTL ? "سوشيال" : "Social",
       duration: "0:22",
+      lang: "DZ · F",
       url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
     },
   ];
@@ -414,38 +499,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const testimonials = isRTL
     ? [
-        {
-          q: "Sawtify ولّاني نخرج الريلز في وقت قصير. الجودة قريبة من الاستوديو.",
-          n: "أمين بلعيد",
-          r: "منشئ محتوى، الجزائر",
-        },
-        {
-          q: "الدارجة طبيعية، الزبائن ما حسّوش أن الصوت اصطناعي.",
-          n: "ياسمين قادري",
-          r: "وكالة إشهار، وهران",
-        },
-        {
-          q: "الدفع بالذهبية سهّل عليّ كلش. أحسن أداة لقيتها.",
-          n: "خالد مرزوق",
-          r: "متجر إلكتروني، قسنطينة",
-        },
+        { q: "Sawtify ولّاني نخرج الريلز في وقت قصير. الجودة قريبة من الاستوديو.", n: "أمين بلعيد", r: "منشئ محتوى، الجزائر" },
+        { q: "الدارجة طبيعية، الزبائن ما حسّوش أن الصوت اصطناعي.", n: "ياسمين قادري", r: "وكالة إشهار، وهران" },
+        { q: "الدفع بالذهبية سهّل عليّ كلش. أحسن أداة لقيتها.", n: "خالد مرزوق", r: "متجر إلكتروني، قسنطينة" },
       ]
     : [
-        {
-          q: "Sawtify me fait sortir mes reels en un temps record. La qualité frôle celle du studio.",
-          n: "Amine Belaid",
-          r: "Créateur, Alger",
-        },
-        {
-          q: "La darija est naturelle. Les clients ne réalisent pas que la voix est synthétique.",
-          n: "Yasmine Kadri",
-          r: "Agence pub, Oran",
-        },
-        {
-          q: "Le paiement Edahabia a tout changé pour moi. Le meilleur outil que j'ai testé.",
-          n: "Khaled Merzoug",
-          r: "E-commerce, Constantine",
-        },
+        { q: "Sawtify me fait sortir mes reels en un temps record. La qualité frôle celle du studio.", n: "Amine Belaid", r: "Créateur, Alger" },
+        { q: "La darija est naturelle. Les clients ne réalisent pas que la voix est synthétique.", n: "Yasmine Kadri", r: "Agence pub, Oran" },
+        { q: "Le paiement Edahabia a tout changé pour moi. Le meilleur outil que j'ai testé.", n: "Khaled Merzoug", r: "E-commerce, Constantine" },
       ];
 
   useEffect(() => {
@@ -458,12 +519,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const pricing = [
     { pts: "100", price: "500", desc: isRTL ? "للتجربة." : "Pour tester." },
-    {
-      pts: "220",
-      price: "1 000",
-      desc: isRTL ? "الأكثر اختياراً." : "Le plus choisi.",
-      featured: true,
-    },
+    { pts: "220", price: "1 000", desc: isRTL ? "الأكثر اختياراً." : "Le plus choisi.", featured: true },
     { pts: "600", price: "2 500", desc: isRTL ? "للمنتظمين." : "Pour les réguliers." },
     { pts: "1 350", price: "5 000", desc: isRTL ? "للوكالات." : "Pour les agences." },
   ];
@@ -490,6 +546,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         { q: "Combien de temps prend une génération ?", a: "Moins de 30 secondes pour un texte standard." },
         { q: "Puis-je tester avant d'acheter ?", a: "Oui. 50 points offerts à l'inscription." },
       ];
+
+  const demoLines = [
+    { label: "input", text: isRTL ? "«مرحبا بيكم في متجرنا…»" : "« Ahlan bikoum fi matjarna… »" },
+    { label: "voice", text: "Amin · DZ" },
+    { label: "model", text: "sawtify-v2.1 · 24 kHz" },
+    { label: "output", text: "voice_a72f.mp3 · 0:24 · 1.2 MB" },
+  ];
 
   /* ---------------------- HANDLERS ---------------------- */
   const toggleVoice = (id: string, url: string) => {
@@ -521,6 +584,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const sans = isRTL
     ? "'Cairo', 'Inter', ui-sans-serif, system-ui, sans-serif"
     : "'Inter', ui-sans-serif, system-ui, sans-serif";
+  const mono = "'JetBrains Mono', 'SF Mono', ui-monospace, monospace";
 
   /* =======================================================
      RENDER
@@ -528,12 +592,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div
       dir={isRTL ? "rtl" : "ltr"}
-      className="min-h-screen bg-[#FAFAF7] text-[#111111] selection:bg-[#111] selection:text-[#FAFAF7]"
+      className="min-h-screen bg-[#FAFAF7] text-[#111111] selection:bg-[#6366F1] selection:text-white"
       style={{ fontFamily: sans }}
     >
       <GlobalStyles />
 
-      {/* Skip link */}
       <a
         href="#home"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] focus:bg-[#111] focus:text-white focus:px-4 focus:py-2 focus:rounded text-xs font-medium"
@@ -542,12 +605,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </a>
 
       {/* =====================================================
-          HEADER — minimal, blur discret au scroll
+          HEADER
       ===================================================== */}
       <header
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-out ${
           scrolled
-            ? "bg-[#FAFAF7]/75 backdrop-blur-xl border-b border-black/[0.06]"
+            ? "bg-[#FAFAF7]/80 backdrop-blur-xl border-b border-black/[0.06]"
             : "bg-transparent border-b border-transparent"
         }`}
       >
@@ -573,6 +636,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <span className="font-medium text-[14px] text-[#111] tracking-tight">
               Sawtify
+            </span>
+            <span
+              className="hidden sm:inline text-[10px] text-[#6366F1] border border-[#6366F1]/25 rounded px-1.5 py-px ms-1"
+              style={{ fontFamily: mono }}
+            >
+              v2.1
             </span>
           </a>
 
@@ -601,6 +670,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
               aria-label={t.switchLang}
               className="hidden sm:inline-flex w-8 h-8 items-center justify-center text-[11px] font-medium text-[#111]/60 hover:text-[#111] transition-colors sw-focus rounded"
+              style={{ fontFamily: mono }}
             >
               {language === "fr" ? "AR" : "FR"}
             </button>
@@ -635,9 +705,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </header>
 
-      {/* =====================================================
-          MOBILE MENU — clean drawer
-      ===================================================== */}
+      {/* MOBILE DRAWER */}
       <AnimatePresence>
         {menuOpen && (
           <>
@@ -696,7 +764,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   className="flex items-center justify-between py-4 text-[17px] text-[#111]/60 border-b border-black/[0.05] sw-focus"
                 >
                   {language === "fr" ? "العربية" : "Français"}
-                  <span className="text-xs">{language === "fr" ? "AR" : "FR"}</span>
+                  <span className="text-xs" style={{ fontFamily: mono }}>
+                    {language === "fr" ? "AR" : "FR"}
+                  </span>
                 </button>
               </nav>
 
@@ -728,21 +798,65 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </AnimatePresence>
 
       {/* =====================================================
-          HERO — éditorial, whitespace, parallax subtil
+          HERO — luxury + grille AI perspective
       ===================================================== */}
       <section
         id="home"
         ref={heroRef}
-        className="relative pt-40 sm:pt-48 pb-24 sm:pb-32"
+        className="relative pt-36 sm:pt-44 pb-20 sm:pb-28 overflow-hidden sw-noise"
         aria-label="Introduction"
       >
-        <div className="mx-auto max-w-[1200px] px-6">
+        {/* Grille perspective AI */}
+        <motion.div
+          aria-hidden="true"
+          style={{ y: heroGridY }}
+          className="absolute inset-0 sw-grid opacity-70 pointer-events-none"
+        />
+        {/* Fade top/bottom sur la grille */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(to bottom, #FAFAF7 0%, transparent 20%, transparent 60%, #FAFAF7 100%)",
+          }}
+        />
+        {/* Glow subtils indigo */}
+        <div
+          aria-hidden="true"
+          className="sw-glow w-[500px] h-[500px] bg-[#6366F1]/12"
+          style={{ top: "-10%", right: "-10%" }}
+        />
+        <div
+          aria-hidden="true"
+          className="sw-glow w-[400px] h-[400px] bg-[#A78BFA]/10"
+          style={{ top: "40%", left: "-5%" }}
+        />
+
+        <div className="relative mx-auto max-w-[1200px] px-6">
           <motion.div style={{ y: heroTitleY, opacity: heroOpacity }}>
+            {/* Live badge */}
             <Reveal>
+              <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-black/[0.06] shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                <span className="relative flex w-1.5 h-1.5">
+                  <span className="absolute inset-0 rounded-full bg-emerald-500 sw-pulse" />
+                  <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
+                </span>
+                <span
+                  className="text-[11px] text-[#111]/70 tracking-wide"
+                  style={{ fontFamily: mono }}
+                >
+                  {t.liveBadge}
+                </span>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.05}>
               <p
-                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-8"
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-6"
                 style={{ letterSpacing: isRTL ? "0.05em" : "0.18em" }}
               >
+                <Sparkles className="inline w-3 h-3 me-1.5 -mt-0.5 text-[#6366F1]" />
                 {t.heroKicker}
               </p>
             </Reveal>
@@ -754,7 +868,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 {t.heroTitle1}
                 <br />
-                <span className="italic text-[#111]/85">{t.heroTitle2}</span>
+                <span className="italic sw-shimmer-text">{t.heroTitle2}</span>
               </h1>
             </Reveal>
 
@@ -769,10 +883,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   type="button"
                   onClick={onSigninClick}
-                  className="group inline-flex items-center gap-2 h-11 px-5 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/88 transition-all duration-300 sw-focus"
+                  className="group relative inline-flex items-center gap-2 h-11 px-5 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/88 transition-all duration-300 sw-focus overflow-hidden"
                 >
-                  {t.tryFree}
-                  <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  {/* Subtle inner glow */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)",
+                    }}
+                  />
+                  <span className="relative flex items-center gap-2">
+                    {t.tryFree}
+                    <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  </span>
                 </button>
 
                 <button
@@ -780,7 +905,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => smoothTo("#voices")}
                   className="group inline-flex items-center gap-2 h-11 px-5 text-[14px] font-medium text-[#111] rounded-full hover:bg-black/5 transition-colors sw-focus"
                 >
-                  <span className="w-6 h-6 rounded-full border border-[#111]/25 flex items-center justify-center group-hover:border-[#111] transition-colors">
+                  <span className="w-6 h-6 rounded-full border border-[#111]/25 flex items-center justify-center group-hover:border-[#6366F1] transition-colors">
                     <Play className="w-2.5 h-2.5 ms-0.5 fill-current" />
                   </span>
                   {t.listenDemo}
@@ -789,32 +914,103 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </Reveal>
           </motion.div>
 
-          {/* Waveform décorative statique */}
+          {/* Terminal AI card + waveform */}
           <Reveal delay={0.5}>
-            <div
-              className="mt-20 sm:mt-28 flex items-end gap-[3px] h-16 opacity-60"
-              dir="ltr"
-              aria-hidden="true"
-            >
-              {Array.from({ length: 90 }).map((_, i) => {
-                const seed = Math.sin(i * 0.6) * Math.cos(i * 0.3);
-                const h = 8 + Math.abs(seed) * 55;
-                return (
-                  <motion.span
-                    key={i}
-                    initial={{ scaleY: 0.2, opacity: 0 }}
-                    whileInView={{ scaleY: 1, opacity: 1 }}
-                    viewport={{ once: true }}
-                    transition={{
-                      duration: 0.6,
-                      delay: 0.5 + i * 0.008,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className="flex-1 rounded-full bg-[#111] origin-bottom"
-                    style={{ height: `${h}%`, maxWidth: 3 }}
-                  />
-                );
-              })}
+            <div className="mt-20 sm:mt-28 grid lg:grid-cols-12 gap-6 items-start">
+              {/* Terminal card */}
+              <div className="lg:col-span-5 rounded-2xl bg-white border border-black/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.04)] overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-black/[0.06] bg-[#FAFAF7]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-black/15" />
+                    <span className="w-2 h-2 rounded-full bg-black/15" />
+                    <span className="w-2 h-2 rounded-full bg-black/15" />
+                  </div>
+                  <span
+                    className="text-[10px] text-[#111]/40"
+                    style={{ fontFamily: mono }}
+                  >
+                    sawtify.dz
+                  </span>
+                </div>
+                <div
+                  className="p-5 space-y-2 min-h-[180px]"
+                  style={{ fontFamily: mono }}
+                >
+                  {demoLines.map((line, i) => (
+                    <motion.div
+                      key={line.label}
+                      initial={{ opacity: 0.3 }}
+                      animate={{
+                        opacity: i <= demoStep ? 1 : 0.3,
+                      }}
+                      transition={{ duration: 0.4 }}
+                      className="flex items-baseline gap-3 text-[12px]"
+                    >
+                      <span className="text-[#6366F1] w-14 shrink-0">
+                        {line.label}
+                      </span>
+                      <span className="text-[#111]/85 truncate">
+                        {i <= demoStep ? line.text : "—"}
+                      </span>
+                      {i === demoStep && (
+                        <motion.span
+                          animate={{ opacity: [1, 0, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                          className="text-[#111]/40"
+                        >
+                          ▊
+                        </motion.span>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Waveform */}
+              <div className="lg:col-span-7">
+                <div
+                  className="flex items-end gap-[3px] h-16 opacity-80"
+                  dir="ltr"
+                  aria-hidden="true"
+                >
+                  {Array.from({ length: 90 }).map((_, i) => {
+                    const seed = Math.sin(i * 0.6) * Math.cos(i * 0.3);
+                    const h = 8 + Math.abs(seed) * 55;
+                    return (
+                      <motion.span
+                        key={i}
+                        initial={{ scaleY: 0.2, opacity: 0 }}
+                        whileInView={{ scaleY: 1, opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{
+                          duration: 0.6,
+                          delay: 0.5 + i * 0.008,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className="flex-1 rounded-full origin-bottom"
+                        style={{
+                          height: `${h}%`,
+                          maxWidth: 3,
+                          background:
+                            i % 7 === 0
+                              ? "#6366F1"
+                              : i % 5 === 0
+                              ? "#A78BFA"
+                              : "#111",
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div
+                  className="mt-3 flex items-center justify-between text-[10px] text-[#111]/40"
+                  style={{ fontFamily: mono }}
+                >
+                  <span>00:00</span>
+                  <span>24 kHz · stereo</span>
+                  <span>00:24</span>
+                </div>
+              </div>
             </div>
           </Reveal>
         </div>
@@ -825,14 +1021,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
 
       {/* =====================================================
-          PROCESS — trois étapes éditoriales
+          PROCESS
       ===================================================== */}
-      <section id="process" className="py-24 sm:py-36">
+      <section id="process" className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1200px] px-6">
           <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 mb-20">
             <Reveal className="lg:col-span-5">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
-                {t.processKicker}
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5"
+                style={{ fontFamily: mono }}
+              >
+                <span className="text-[#6366F1]">/</span> {t.processKicker}
               </p>
               <h2
                 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
@@ -854,11 +1053,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="grid md:grid-cols-3 gap-x-8 gap-y-12 md:gap-x-12">
             {steps.map((s, i) => (
               <Reveal key={s.n} delay={i * 0.1}>
-                <div className="border-t border-[#111]/12 pt-6">
+                <div className="border-t border-[#111]/12 pt-6 group">
                   <div className="flex items-baseline justify-between mb-8">
-                    <Num className="text-[11px] font-mono text-[#111]/40 tabular-nums">
-                      {s.n}
-                    </Num>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-[11px] text-[#111]/40 tabular-nums"
+                        style={{ fontFamily: mono }}
+                      >
+                        <Num>{s.n}</Num>
+                      </span>
+                      <s.icon className="w-3.5 h-3.5 text-[#6366F1] opacity-70" />
+                    </div>
                     <motion.div
                       initial={{ scaleX: 0 }}
                       whileInView={{ scaleX: 1 }}
@@ -869,11 +1074,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         ease: [0.22, 1, 0.36, 1],
                       }}
                       style={{ transformOrigin: isRTL ? "right" : "left" }}
-                      className="h-px w-16 bg-[#111]/30"
+                      className="h-px w-16 bg-gradient-to-r from-[#111]/30 to-transparent"
                     />
                   </div>
                   <h3
-                    className="text-[26px] leading-tight tracking-[-0.01em] text-[#111] mb-3"
+                    className="text-[26px] leading-tight tracking-[-0.01em] text-[#111] mb-3 group-hover:text-[#6366F1] transition-colors duration-500"
                     style={{ fontFamily: serif }}
                   >
                     {s.t}
@@ -893,14 +1098,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
 
       {/* =====================================================
-          VOICES — le cœur du produit
+          VOICES
       ===================================================== */}
-      <section id="voices" className="py-24 sm:py-36">
+      <section id="voices" className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1200px] px-6">
           <div className="grid lg:grid-cols-12 gap-8 mb-16 items-end">
             <Reveal className="lg:col-span-7">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
-                {t.voicesKicker}
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5"
+                style={{ fontFamily: mono }}
+              >
+                <span className="text-[#6366F1]">/</span> {t.voicesKicker}
               </p>
               <h2
                 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
@@ -925,21 +1133,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.6, delay: idx * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                  className="border-b border-[#111]/12 group"
+                  transition={{
+                    duration: 0.6,
+                    delay: idx * 0.05,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className={`border-b border-[#111]/12 group transition-colors duration-500 ${
+                    active ? "bg-white" : ""
+                  }`}
                 >
                   <button
                     type="button"
                     onClick={() => toggleVoice(v.id, v.url)}
                     aria-label={`${active ? "Pause" : "Play"} ${v.name}`}
                     aria-pressed={active}
-                    className="w-full flex items-center gap-6 sm:gap-8 py-6 sm:py-7 text-start sw-focus"
+                    className="w-full flex items-center gap-4 sm:gap-6 py-6 sm:py-7 px-2 text-start sw-focus"
                   >
-                    {/* Play/Pause */}
                     <div
                       className={`w-10 h-10 shrink-0 rounded-full border flex items-center justify-center transition-all duration-300 ${
                         active
-                          ? "bg-[#111] border-[#111] text-[#FAFAF7]"
+                          ? "bg-[#6366F1] border-[#6366F1] text-white shadow-[0_0_0_4px_rgba(99,102,241,0.15)]"
                           : "border-[#111]/20 text-[#111] group-hover:border-[#111] group-hover:bg-[#111] group-hover:text-[#FAFAF7]"
                       }`}
                     >
@@ -950,18 +1163,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       )}
                     </div>
 
-                    {/* Nom */}
-                    <div className="w-28 sm:w-40 shrink-0">
-                      <div
-                        className="text-[18px] sm:text-[20px] text-[#111] tracking-[-0.01em]"
-                        style={{ fontFamily: serif }}
-                      >
-                        {v.name}
+                    <div className="w-24 sm:w-40 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="text-[18px] sm:text-[20px] text-[#111] tracking-[-0.01em]"
+                          style={{ fontFamily: serif }}
+                        >
+                          {v.name}
+                        </div>
+                        <span
+                          className="hidden sm:inline text-[9px] text-[#111]/40 border border-[#111]/15 rounded px-1 py-px"
+                          style={{ fontFamily: mono }}
+                        >
+                          {v.lang}
+                        </span>
                       </div>
                       <div className="text-[12px] text-[#111]/45 mt-0.5">{v.tag}</div>
                     </div>
 
-                    {/* Waveform */}
                     <div
                       className="flex-1 flex items-center gap-[2px] h-10 min-w-0"
                       aria-hidden="true"
@@ -970,19 +1189,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       {bars.map((h, i) => (
                         <span
                           key={i}
-                          className={`flex-1 rounded-full transition-all duration-100 ${
-                            active ? "bg-[#111]" : "bg-[#111]/12 group-hover:bg-[#111]/25"
-                          }`}
+                          className="flex-1 rounded-full transition-all duration-100"
                           style={{
                             height: active ? `${Math.max(10, h)}%` : "18%",
                             maxWidth: 3,
+                            background: active
+                              ? i % 5 === 0
+                                ? "#6366F1"
+                                : "#111"
+                              : "rgba(17,17,17,0.12)",
                           }}
                         />
                       ))}
                     </div>
 
-                    {/* Durée */}
-                    <Num className="text-[12px] font-mono text-[#111]/40 tabular-nums shrink-0 hidden sm:inline">
+                    <Num
+                      className="text-[11px] text-[#111]/40 tabular-nums shrink-0 hidden sm:inline"
+                      style={{ fontFamily: mono }}
+                    >
                       {v.duration}
                     </Num>
                   </button>
@@ -992,23 +1216,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <Reveal delay={0.2}>
-            <div className="mt-10 flex items-center gap-4 text-[13px] text-[#111]/50">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#111]/50 animate-pulse" />
-              {isRTL ? "أصوات جديدة كل شهر." : "Nouvelles voix chaque mois."}
+            <div
+              className="mt-10 flex items-center gap-2.5 text-[12px] text-[#111]/50"
+              style={{ fontFamily: mono }}
+            >
+              <span className="relative flex w-1.5 h-1.5">
+                <span className="absolute inset-0 rounded-full bg-[#6366F1] sw-pulse" />
+                <span className="relative rounded-full w-1.5 h-1.5 bg-[#6366F1]" />
+              </span>
+              {isRTL ? "أصوات جديدة كل شهر" : "New voices monthly"}
             </div>
           </Reveal>
         </div>
       </section>
 
       {/* =====================================================
-          MÉTRIQUES — dark section
+          MÉTRIQUES — dark, avec grille AI
       ===================================================== */}
-      <section className="bg-[#0E0E0E] text-[#FAFAF7] py-24 sm:py-36">
-        <div className="mx-auto max-w-[1200px] px-6">
+      <section className="relative bg-[#0A0A0B] text-[#FAFAF7] py-24 sm:py-36 overflow-hidden">
+        <div className="absolute inset-0 sw-grid-dark opacity-40 pointer-events-none" />
+        <div
+          aria-hidden="true"
+          className="sw-glow w-[600px] h-[600px] bg-[#6366F1]/15"
+          style={{ top: "-20%", right: "-15%" }}
+        />
+        <div
+          aria-hidden="true"
+          className="sw-glow w-[400px] h-[400px] bg-[#A78BFA]/10"
+          style={{ bottom: "-10%", left: "-10%" }}
+        />
+
+        <div className="relative mx-auto max-w-[1200px] px-6">
           <div className="grid lg:grid-cols-12 gap-12 mb-16">
             <Reveal className="lg:col-span-6">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/40 mb-5">
-                {t.metricsKicker}
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-white/40 mb-5"
+                style={{ fontFamily: mono }}
+              >
+                <span className="text-[#A78BFA]">/</span> {t.metricsKicker}
               </p>
               <h2
                 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-white"
@@ -1017,12 +1262,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {t.metricsTitle}
               </h2>
             </Reveal>
+            <Reveal delay={0.1} className="lg:col-span-4 lg:col-start-9 lg:mt-4">
+              <div
+                className="flex items-center gap-2 text-[11px] text-white/50"
+                style={{ fontFamily: mono }}
+              >
+                <Cpu className="w-3.5 h-3.5 text-[#A78BFA]" />
+                {isRTL ? "محدّث في الوقت الحقيقي" : "Updated in real time"}
+              </div>
+            </Reveal>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-6">
             {metrics.map((m, i) => (
               <Reveal key={m.l} delay={i * 0.08}>
-                <div className="border-t border-white/15 pt-6">
+                <div className="border-t border-white/15 pt-6 relative">
+                  <div
+                    className="absolute -top-px start-0 w-8 h-px bg-[#6366F1]"
+                    aria-hidden="true"
+                  />
                   <Counter
                     target={m.n}
                     suffix={m.s}
@@ -1038,14 +1296,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          TESTIMONIALS — éditorial
+          TESTIMONIALS
       ===================================================== */}
-      <section className="py-24 sm:py-36">
+      <section className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1200px] px-6">
           <div className="grid lg:grid-cols-12 gap-8 mb-16">
             <Reveal className="lg:col-span-6">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
-                {t.testKicker}
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5"
+                style={{ fontFamily: mono }}
+              >
+                <span className="text-[#6366F1]">/</span> {t.testKicker}
               </p>
               <h2
                 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
@@ -1068,7 +1329,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 >
                   <div className="flex gap-1 mb-6" aria-label="5 / 5">
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 text-[#111] fill-[#111]" />
+                      <Star
+                        key={i}
+                        className="w-3.5 h-3.5 text-[#6366F1] fill-[#6366F1]"
+                      />
                     ))}
                   </div>
                   <blockquote
@@ -1078,7 +1342,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     "{testimonials[activeTesti].q}"
                   </blockquote>
                   <figcaption className="mt-8 flex items-center gap-3">
-                    <div className="w-px h-10 bg-[#111]/25" />
+                    <div className="w-px h-10 bg-gradient-to-b from-[#6366F1] to-transparent" />
                     <div>
                       <div className="text-[14px] font-medium text-[#111]">
                         {testimonials[activeTesti].n}
@@ -1093,7 +1357,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="lg:col-span-3 lg:col-start-10 flex lg:flex-col items-center lg:items-end gap-4 lg:gap-6">
-              {/* Dots */}
               <div className="flex lg:flex-col gap-2">
                 {testimonials.map((_, i) => (
                   <button
@@ -1107,7 +1370,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span
                       className={`block transition-all duration-500 ${
                         activeTesti === i
-                          ? "w-8 h-px bg-[#111]"
+                          ? "w-8 h-px bg-[#6366F1]"
                           : "w-4 h-px bg-[#111]/25 group-hover:bg-[#111]/50"
                       }`}
                     />
@@ -1115,7 +1378,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 ))}
               </div>
 
-              {/* Controls */}
               <div className="flex items-center gap-2 ms-auto lg:ms-0">
                 <button
                   type="button"
@@ -1125,7 +1387,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     )
                   }
                   aria-label={t.prev}
-                  className="w-9 h-9 rounded-full border border-[#111]/15 flex items-center justify-center hover:border-[#111]/50 transition-colors sw-focus"
+                  className="w-9 h-9 rounded-full border border-[#111]/15 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors sw-focus"
                 >
                   {isRTL ? (
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1137,7 +1399,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   type="button"
                   onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
                   aria-label={t.next}
-                  className="w-9 h-9 rounded-full border border-[#111]/15 flex items-center justify-center hover:border-[#111]/50 transition-colors sw-focus"
+                  className="w-9 h-9 rounded-full border border-[#111]/15 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors sw-focus"
                 >
                   {isRTL ? (
                     <ArrowLeft className="w-3.5 h-3.5" />
@@ -1156,14 +1418,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
 
       {/* =====================================================
-          PRICING — minimal, deux plans par ligne
+          PRICING
       ===================================================== */}
-      <section id="pricing" className="py-24 sm:py-36">
+      <section id="pricing" className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1200px] px-6">
           <div className="grid lg:grid-cols-12 gap-12 mb-16">
             <Reveal className="lg:col-span-7">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
-                {t.pricingKicker}
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5"
+                style={{ fontFamily: mono }}
+              >
+                <span className="text-[#6366F1]">/</span> {t.pricingKicker}
               </p>
               <h2
                 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
@@ -1182,16 +1447,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <Reveal key={p.pts} delay={i * 0.06}>
                 <div
                   className={`relative p-8 border-r border-b border-[#111]/12 h-full flex flex-col transition-colors duration-300 group ${
-                    p.featured ? "bg-[#111] text-[#FAFAF7]" : "bg-transparent hover:bg-black/[0.02]"
+                    p.featured
+                      ? "bg-[#0A0A0B] text-[#FAFAF7]"
+                      : "bg-transparent hover:bg-black/[0.02]"
                   }`}
                 >
                   {p.featured && (
-                    <span className="absolute top-4 end-4 text-[10px] uppercase tracking-[0.15em] text-white/60">
-                      {isRTL ? "الأكثر اختياراً" : "Populaire"}
-                    </span>
+                    <>
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 sw-grid-dark opacity-30 pointer-events-none"
+                      />
+                      <span
+                        className="absolute top-4 end-4 z-10 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#A78BFA] bg-white/5 border border-white/10 rounded-full px-2 py-1"
+                        style={{ fontFamily: mono }}
+                      >
+                        <Zap className="w-2.5 h-2.5" />
+                        {isRTL ? "شائع" : "popular"}
+                      </span>
+                    </>
                   )}
 
-                  <div>
+                  <div className="relative">
                     <Num
                       className={`text-[44px] leading-none tracking-[-0.02em] block mb-2 ${
                         p.featured ? "text-white" : "text-[#111]"
@@ -1210,7 +1487,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <p
-                    className={`text-[13px] leading-relaxed mb-8 ${
+                    className={`relative text-[13px] leading-relaxed mb-8 ${
                       p.featured ? "text-white/70" : "text-[#111]/55"
                     }`}
                   >
@@ -1218,10 +1495,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </p>
 
                   <div
-                    className={`h-px mb-6 ${p.featured ? "bg-white/15" : "bg-[#111]/10"}`}
+                    className={`relative h-px mb-6 ${
+                      p.featured ? "bg-white/15" : "bg-[#111]/10"
+                    }`}
                   />
 
-                  <ul className="space-y-2 mb-10 list-none">
+                  <ul className="relative space-y-2 mb-10 list-none">
                     {features.map((f) => (
                       <li
                         key={f}
@@ -1231,7 +1510,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       >
                         <Check
                           className={`w-3 h-3 shrink-0 ${
-                            p.featured ? "text-white" : "text-[#111]"
+                            p.featured ? "text-[#A78BFA]" : "text-[#6366F1]"
                           }`}
                         />
                         {f}
@@ -1239,7 +1518,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     ))}
                   </ul>
 
-                  <div className="mt-auto">
+                  <div className="relative mt-auto">
                     <div className="flex items-baseline gap-1.5 mb-6">
                       <Num
                         className={`text-[28px] tracking-[-0.02em] ${
@@ -1253,6 +1532,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         className={`text-[12px] ${
                           p.featured ? "text-white/50" : "text-[#111]/45"
                         }`}
+                        style={{ fontFamily: mono }}
                       >
                         DZD
                       </span>
@@ -1261,10 +1541,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <button
                       type="button"
                       onClick={onSigninClick}
-                      className={`w-full h-11 rounded-full text-[13px] font-medium transition-colors sw-focus ${
+                      className={`w-full h-11 rounded-full text-[13px] font-medium transition-all sw-focus ${
                         p.featured
-                          ? "bg-white text-[#111] hover:bg-white/90"
-                          : "border border-[#111]/15 text-[#111] hover:border-[#111] hover:bg-[#111] hover:text-[#FAFAF7]"
+                          ? "bg-white text-[#111] hover:bg-[#A78BFA] hover:text-white"
+                          : "border border-[#111]/15 text-[#111] hover:border-[#6366F1] hover:bg-[#6366F1] hover:text-white"
                       }`}
                     >
                       {isRTL ? "اختيار" : "Choisir"}
@@ -1276,7 +1556,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <Reveal delay={0.3}>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-[#111]/45">
+            <div
+              className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-[#111]/45"
+              style={{ fontFamily: mono }}
+            >
               <span>SATIM</span>
               <span className="w-px h-3 bg-[#111]/20" />
               <span>Edahabia</span>
@@ -1290,14 +1573,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          FAQ — accordion pure
+          FAQ
       ===================================================== */}
-      <section id="faq" className="py-24 sm:py-36 bg-[#F4F3EF]">
+      <section id="faq" className="py-24 sm:py-36 bg-[#F4F3EF] relative">
         <div className="mx-auto max-w-[1200px] px-6">
           <div className="grid lg:grid-cols-12 gap-12">
             <Reveal className="lg:col-span-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5">
-                {t.faqKicker}
+              <p
+                className="text-[11px] uppercase tracking-[0.18em] text-[#111]/45 mb-5"
+                style={{ fontFamily: mono }}
+              >
+                <span className="text-[#6366F1]">/</span> {t.faqKicker}
               </p>
               <h2
                 className="text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.05] tracking-[-0.02em] text-[#111]"
@@ -1318,12 +1604,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           type="button"
                           onClick={() => setOpenFaq(open ? null : i)}
                           aria-expanded={open}
-                          className="w-full py-6 flex items-start gap-6 text-start sw-focus"
+                          className="w-full py-6 flex items-start gap-6 text-start sw-focus group"
                         >
-                          <span className="flex-1 text-[16px] sm:text-[17px] text-[#111] leading-snug pt-0.5">
+                          <span className="flex-1 text-[16px] sm:text-[17px] text-[#111] leading-snug pt-0.5 group-hover:text-[#6366F1] transition-colors duration-300">
                             {f.q}
                           </span>
-                          <span className="w-6 h-6 rounded-full border border-[#111]/25 flex items-center justify-center shrink-0 mt-0.5">
+                          <span
+                            className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 mt-0.5 transition-colors duration-300 ${
+                              open ? "border-[#6366F1] bg-[#6366F1] text-white" : "border-[#111]/25"
+                            }`}
+                          >
                             <motion.div
                               animate={{ rotate: open ? 45 : 0 }}
                               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -1363,10 +1653,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          CTA — silence, une phrase, un bouton
+          CTA — luxury minimal avec glow AI
       ===================================================== */}
-      <section className="py-32 sm:py-48">
-        <div className="mx-auto max-w-[900px] px-6 text-center">
+      <section className="py-32 sm:py-48 relative overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="sw-glow w-[500px] h-[500px] bg-[#6366F1]/8"
+          style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+        />
+        <div className="relative mx-auto max-w-[900px] px-6 text-center">
           <Reveal>
             <h2
               className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] tracking-[-0.025em] text-[#111]"
@@ -1382,17 +1677,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <button
               type="button"
               onClick={onSigninClick}
-              className="group mt-10 inline-flex items-center gap-2 h-12 px-6 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/85 transition-all duration-300 sw-focus"
+              className="group relative mt-10 inline-flex items-center gap-2 h-12 px-6 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/85 transition-all duration-300 sw-focus overflow-hidden"
             >
-              {t.start}
-              <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent)",
+                }}
+              />
+              <span className="relative flex items-center gap-2">
+                {t.start}
+                <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </span>
             </button>
           </Reveal>
         </div>
       </section>
 
       {/* =====================================================
-          FOOTER — minimal typographique
+          FOOTER
       ===================================================== */}
       <footer className="border-t border-[#111]/10">
         <div className="mx-auto max-w-[1200px] px-6 py-14">
@@ -1408,14 +1713,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   />
                 </div>
                 <span className="text-[14px] font-medium">Sawtify</span>
+                <span
+                  className="text-[10px] text-[#6366F1] border border-[#6366F1]/25 rounded px-1.5 py-px"
+                  style={{ fontFamily: mono }}
+                >
+                  v2.1
+                </span>
               </div>
-              <p className="text-[13px] text-[#111]/55 max-w-xs leading-relaxed">
+              <p className="text-[13px] text-[#111]/55 max-w-xs leading-relaxed mb-6">
                 {t.footTag}
               </p>
+              <div
+                className="inline-flex items-center gap-2 text-[11px] text-[#111]/45"
+                style={{ fontFamily: mono }}
+              >
+                <span className="relative flex w-1.5 h-1.5">
+                  <span className="absolute inset-0 rounded-full bg-emerald-500 sw-pulse" />
+                  <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
+                </span>
+                All systems operational
+              </div>
             </div>
 
             <div className="md:col-span-2">
-              <div className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4">
+              <div
+                className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4"
+                style={{ fontFamily: mono }}
+              >
                 {isRTL ? "المنتج" : "Produit"}
               </div>
               <ul className="space-y-2.5 list-none text-[13px]">
@@ -1426,7 +1750,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       e.preventDefault();
                       smoothTo("#voices");
                     }}
-                    className="text-[#111]/70 hover:text-[#111] transition-colors"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
                   >
                     {t.navWork}
                   </a>
@@ -1438,13 +1762,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       e.preventDefault();
                       smoothTo("#pricing");
                     }}
-                    className="text-[#111]/70 hover:text-[#111] transition-colors"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
                   >
                     {t.navPricing}
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     API
                   </a>
                 </li>
@@ -1452,22 +1779,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="md:col-span-2">
-              <div className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4">
+              <div
+                className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4"
+                style={{ fontFamily: mono }}
+              >
                 {isRTL ? "الشركة" : "Compagnie"}
               </div>
               <ul className="space-y-2.5 list-none text-[13px]">
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     {isRTL ? "من نحن" : "À propos"}
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     {isRTL ? "اتصل" : "Contact"}
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     {isRTL ? "المدونة" : "Blog"}
                   </a>
                 </li>
@@ -1475,22 +1814,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="md:col-span-3">
-              <div className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4">
+              <div
+                className="text-[11px] uppercase tracking-[0.15em] text-[#111]/35 mb-4"
+                style={{ fontFamily: mono }}
+              >
                 {isRTL ? "قانوني" : "Légal"}
               </div>
               <ul className="space-y-2.5 list-none text-[13px]">
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     {isRTL ? "شروط الاستخدام" : "Conditions"}
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     {isRTL ? "الخصوصية" : "Confidentialité"}
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-[#111]/70 hover:text-[#111] transition-colors">
+                  <a
+                    href="#"
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                  >
                     Cookies
                   </a>
                 </li>
@@ -1499,10 +1850,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="pt-8 border-t border-[#111]/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-[12px] text-[#111]/40">
-              © <Num>2026</Num> Sawtify
+            <p
+              className="text-[12px] text-[#111]/40"
+              style={{ fontFamily: mono }}
+            >
+              © <Num>2026</Num> Sawtify · All rights reserved
             </p>
-            <div className="flex items-center gap-4 text-[12px] text-[#111]/40">
+            <div
+              className="flex items-center gap-4 text-[12px] text-[#111]/40"
+              style={{ fontFamily: mono }}
+            >
               <span>{t.footPay}</span>
               <span>·</span>
               <span>SATIM · Edahabia · CIB</span>
@@ -1522,7 +1879,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             transition={{ duration: 0.3 }}
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             aria-label={t.back}
-            className="fixed bottom-6 end-6 z-40 w-10 h-10 rounded-full bg-[#111] text-[#FAFAF7] flex items-center justify-center hover:bg-[#111]/85 transition-colors sw-focus"
+            className="fixed bottom-6 end-6 z-40 w-10 h-10 rounded-full bg-[#111] text-[#FAFAF7] flex items-center justify-center hover:bg-[#6366F1] transition-colors sw-focus"
           >
             <ArrowUp className="w-4 h-4" />
           </motion.button>
