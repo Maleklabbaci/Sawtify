@@ -87,6 +87,18 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
   }
 }
 
+// ==========================================================================
+// TARIFICATION PAR PALIER : 20 pts pour 0-60s, puis +10 pts par tranche
+// de 60s supplémentaire entamée (61s->10, 121s->10, etc.)
+// ==========================================================================
+const BASE_POINTS_COST = 20;
+const EXTRA_POINTS_PER_MINUTE = 10;
+function computePointsCost(durationSeconds: number): number {
+  if (durationSeconds <= 60) return BASE_POINTS_COST;
+  const extraBlocks = Math.ceil((durationSeconds - 60) / 60);
+  return BASE_POINTS_COST + extraBlocks * EXTRA_POINTS_PER_MINUTE;
+}
+
 function pcmToWavBuffer(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
   const byteRate = (sampleRate * numChannels * bitsPerSample) / 8; const blockAlign = (numChannels * bitsPerSample) / 8; const dataLength = pcmBuffer.length; const header = Buffer.alloc(44);
   header.write("RIFF", 0); header.writeUInt32LE(36 + dataLength, 4); header.write("WAVE", 8); header.write("fmt ", 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(numChannels, 22); header.writeUInt32LE(sampleRate, 24); header.writeUInt32LE(byteRate, 28); header.writeUInt16LE(blockAlign, 32); header.writeUInt16LE(bitsPerSample, 34); header.write("data", 36); header.writeUInt32LE(dataLength, 40);
@@ -368,12 +380,15 @@ async function startServer() {
       return res.status(400).json({ detail: "Le texte fourni ne contient aucun caractère vocalement synthétisable." });
     }
 
-    const pointsCost = 20;
-
+    // Vérification préalable avec le coût plancher (20 pts) : le coût réel
+    // (dépendant de la durée réelle générée) est calculé plus bas, et c'est
+    // le frontend (RPC Supabase deduct_user_credits, seule source de vérité)
+    // qui effectue le débit atomique final avec ce coût dynamique.
+    // -> évite tout double débit (ne JAMAIS déduire les points ici aussi).
     if (userId) {
       const currentBalance = await getUserBalance(userId);
-      if (currentBalance !== null && currentBalance < pointsCost) {
-        return res.status(402).json({ error: "Solde de points insuffisant (20 points requis)." });
+      if (currentBalance !== null && currentBalance < BASE_POINTS_COST) {
+        return res.status(402).json({ error: "Solde de points insuffisant (20 points minimum requis)." });
       }
     }
 
@@ -394,11 +409,14 @@ async function startServer() {
       wavBase64 = generateSmoothVocalWavBuffer(durationSeconds, basePitchFreq * numPitch).toString("base64");
     }
 
-    let remainingBalance: number | null = null;
-    if (userId) {
-      const reduction = await deductCredits(userId, pointsCost);
-      remainingBalance = reduction.success ? (reduction.remaining ?? null) : null;
-    }
+    // Coût réel basé sur la durée effectivement générée (palier 0-60s = 20 pts,
+    // puis +10 pts par tranche de 60s supplémentaire entamée).
+    const finalPointsCost = computePointsCost(durationSeconds);
+
+    // Le débit réel du solde se fait UNIQUEMENT côté frontend via le RPC
+    // Supabase deduct_user_credits (seule source de vérité), avec ce coût
+    // dynamique. On ne débite jamais ici pour éviter un double débit.
+    const remainingBalance: number | null = userId ? await getUserBalance(userId) : null;
 
     return res.json({
       status: "success",
@@ -410,9 +428,9 @@ async function startServer() {
       generation_id: `gen_${Date.now()}`,
       duration_seconds: durationSeconds,
       latency_ms: Date.now() - startTime,
-      points_deducted: pointsCost,
-      points_cost: pointsCost,
-      notification: "-20 Points",
+      points_deducted: finalPointsCost,
+      points_cost: finalPointsCost,
+      notification: `-${finalPointsCost} Points`,
       remaining_balance: remainingBalance,
       voice_id: requestedVoice,
       gemini_voice: selectedVoiceName,
@@ -426,12 +444,13 @@ async function startServer() {
   /* ==========================================================================
      LLM SYSTEM PROMPT (SAWTIFY DARIJA ÉLITE - ANTI-RÉPÉTITION)
      ========================================================================== */
-  const LLM_SYSTEM_PROMPT = `Tu es un expert rédacteur publicitaire TikTok/Reels en Darija Algérienne pour la synthèse vocale (TTS).
+  const LLM_SYSTEM_PROMPT = `Tu es un rédacteur publicitaire professionnel en Darija Algérienne, spécialisé dans les scripts vocaux (TTS) pour vidéos courtes.
 
 RÈGLES STRICTES :
 
-1. CODE-SWITCHING LATIN :
-- Mots FR/techniques TOUJOURS en alphabet LATIN : livraison, WhatsApp, Instagram, TikTok, Facebook, marketing digital, B2B, leads, closing, clients, service, formation, promotion, chiffre d'affaires, rendez-vous, réservation, etc.
+1. TRADUCTION / RÉDACTION NATURELLE :
+- Le texte en darija doit être fluide, naturel et bien construit grammaticalement — jamais une traduction mot-à-mot rigide.
+- Mots FR/techniques TOUJOURS en alphabet LATIN : livraison, WhatsApp, Instagram, Facebook, marketing digital, B2B, leads, closing, clients, service, formation, promotion, chiffre d'affaires, rendez-vous, réservation, etc.
 - JAMAIS de translittération arabe de ces mots ("لا ليفريزون" INTERDIT).
 
 2. ACCROCHES — INTERDICTION DE RÉPÉTER :
@@ -443,9 +462,10 @@ RÈGLES STRICTES :
 - UNE SEULE balise par phrase, placée au début : [excited], [natural], [calm], [whisper], [fast].
 - JAMAIS deux balises collées ([excited][natural] INTERDIT).
 
-4. LONGUEUR DES SCRIPTS :
-- Reels/TikTok = 110 à 160 mots (35–45 secondes à voix haute).
-- Texte LONG, complet, argumenté. Pas de mini-résumé de 3 phrases.
+4. LONGUEUR DES SCRIPTS (STRICT) :
+- Durée cible à l'oral : 30 à 50 secondes. JAMAIS plus de 60 secondes.
+- Environ 90 à 140 mots.
+- Texte complet et argumenté, mais concis — pas de remplissage inutile pour atteindre la limite.
 
 5. SORTIE :
 - UNIQUEMENT le texte final à vocaliser.
@@ -553,17 +573,17 @@ ${text}`;
 LAHDJA CIBLE : ${regionGuide}
 SECTEUR DÉTECTÉ : ${detectedSector}
 
-TÂCHE SPÉCIFIQUE : Écris un script publicitaire COMPLET pour un Reel / TikTok de 35 à 45 secondes, adapté au secteur "${detectedSector}" et à la Lahdja cible.
+TÂCHE SPÉCIFIQUE : Écris un script publicitaire COMPLET pour une vidéo courte de 30 à 50 secondes maximum (jamais plus de 60s), adapté au secteur "${detectedSector}" et à la Lahdja cible.
 
 STRUCTURE OBLIGATOIRE :
 1. HOOK (3–5s) avec [excited] — Accroche UNIQUE et SPÉCIFIQUE au sujet (interdiction de commencer par "أسمع مليح" ou "يا خاوتي").
-2. PROBLÈME + SOLUTION (15–20s) avec [natural] ou [calm] — Décris le vrai problème du client et présente la solution.
+2. PROBLÈME + SOLUTION (12–18s) avec [natural] ou [calm] — Décris le vrai problème du client et présente la solution.
 3. BÉNÉFICES / PREUVE (5–8s) avec [calm] — Résultats concrets, chiffres, preuve sociale.
 4. CTA FINAL (5s) avec [excited] ou [whisper] — Appel à l'action clair (WhatsApp, lien, commande, réservation...).
 
 CONTRAINTES :
-- Longueur cible : 110 à 160 mots (35–45 secondes).
-- Darija algérienne + mots FR en latin.
+- Longueur cible : 90 à 140 mots (30 à 50 secondes à voix haute). Ne JAMAIS dépasser 60 secondes.
+- Darija algérienne fluide et naturelle (pas de traduction littérale) + mots FR en latin.
 - UNE seule balise par phrase.
 - Renvoie UNIQUEMENT le script final, sans titre, sans commentaire.
 
