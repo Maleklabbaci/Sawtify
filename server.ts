@@ -673,6 +673,293 @@ RÈGLES STRICTES :
     "CADEAU : اطلب اليوم ويدي كادو مجاني مع السلعة..."
   ];
 
+  
+  /* ==========================================================================
+     LLM ENHANCE — المحسن السحري HYPER PERFORMANT (-2 pts)
+     Analyse intelligente + boost aléatoire + validation multi-niveaux
+     ========================================================================== */
+
+  // Boosters créatifs (rotation aléatoire pour éviter les résultats identiques)
+  const ENHANCE_BOOSTERS = [
+    "Rends le rythme plus PUNCHY : phrases courtes, impact immédiat, comme un pub TikTok qui accroche en 3 secondes.",
+    "Ajoute une DIMENSION ÉMOTIONNELLE plus profonde : joue sur la curiosité, l'urgence ou la connivence avec l'auditeur.",
+    "Injecte de la SPONTANÉITÉ ORALE : petites hésitations naturelles, expressions typiques Darija (يا خويا, واللاه, بصح, راهو), comme un vrai humain qui parle.",
+    "Optimise pour le SCROLL-STOPPING : la première phrase doit obliger l'auditeur à s'arrêter et écouter.",
+    "Renforce la DIMENSION STORYTELLING : transforme les infos en mini-scène vivante que l'auditeur peut visualiser.",
+    "Améliore le FLOW & RYTHME : alterne phrases courtes et longues, joue sur les pauses pour créer du suspense.",
+    "Boost le CÔTÉ AUTHENTIQUE ALGÉRIEN : utilise des tournures locales fortes (والله غير, حاجة واعرة, بصح راك تشوف...)."
+  ];
+
+  // Détection automatique du type de texte
+  function detectTextType(text: string): { type: string; guidance: string } {
+    const lower = text.toLowerCase();
+    const hasCTA = /whatsapp|kliki|cliquez|ابعت|اطلب|كوموندي|كليكي|رابط|lien|dm|inbox/i.test(text);
+    const hasStory = /كنت|كان|واحد النهار|قصة|صرالي|سمعت|شفت/i.test(text);
+    const hasEducation = /كيفاش|علاش|طريقة|نتعلم|فورماسيون|formation|cours|dars/i.test(text);
+    const hasCommercial = /سومة|prix|dzd|دج|promo|تخفيض|solde|livraison/i.test(text);
+    const hasProfessional = /b2b|service|entreprise|société|شركة|professionnel|expert/i.test(text);
+
+    if (hasCTA && hasCommercial) return {
+      type: "PUBLICITÉ COMMERCIALE avec CTA",
+      guidance: "Optimise pour la CONVERSION : hook fort, bénéfice clair, urgence à la fin. CTA doit sonner naturel, pas forcé."
+    };
+    if (hasStory) return {
+      type: "STORYTELLING / RÉCIT",
+      guidance: "Préserve la narration : garde le suspense, les détails vivants, les émotions du récit. Utilise [natural] et [calm] majoritairement."
+    };
+    if (hasEducation) return {
+      type: "CONTENU ÉDUCATIF / TUTORIEL",
+      guidance: "Rends l'info CLAIRE et STRUCTURÉE : ton pédagogique, phrases logiquement enchaînées. Utilise [calm] et [natural] avec occasionnels [excited] sur les points clés."
+    };
+    if (hasCommercial) return {
+      type: "PRÉSENTATION COMMERCIALE",
+      guidance: "Mets en valeur les BÉNÉFICES clients : ton confiant et convaincant, sans être agressif. Alterne [excited] et [natural]."
+    };
+    if (hasProfessional) return {
+      type: "CONTENU PROFESSIONNEL / B2B",
+      guidance: "Ton POSÉ et CRÉDIBLE : évite le vocabulaire trop familier, garde une Darija propre. Privilégie [calm] et [natural]."
+    };
+    return {
+      type: "CONTENU GÉNÉRAL",
+      guidance: "Adapte-toi au ton naturel du texte original : ni trop excité, ni trop plat. Équilibre les émotions."
+    };
+  }
+
+  // Analyse du niveau d'énergie du texte original
+  function analyzeEnergyLevel(text: string): string {
+    const exclamations = (text.match(/[!؟?]/g) || []).length;
+    const hasStrongWords = /رائع|مذهل|مهبول|واعر|خطير|فرصة|urgence|فوراً|زربوا|احنا/i.test(text);
+    const wordCount = text.split(/\s+/).length;
+    const exclamRatio = exclamations / Math.max(wordCount, 1);
+
+    if (exclamRatio > 0.05 || hasStrongWords) return "ÉNERGIE HAUTE : garde un ton dynamique avec [excited] fréquent (mais pas partout).";
+    if (exclamRatio < 0.01 && wordCount > 40) return "ÉNERGIE POSÉE : garde un ton calme et posé, privilégie [natural] et [calm], évite les [excited] excessifs.";
+    return "ÉNERGIE ÉQUILIBRÉE : alterne intelligemment [natural], [excited] et [calm] selon le contenu de chaque phrase.";
+  }
+
+  // Extraction des mots FR/latins présents dans l'original (pour vérification)
+  function extractLatinWords(text: string): string[] {
+    const matches = text.match(/[a-zA-Z][a-zA-Z0-9]{2,}/g) || [];
+    return [...new Set(matches.map(w => w.toLowerCase()))];
+  }
+
+  // Validation : vérifie que les mots FR sont toujours présents après enhance
+  function validateLatinPreservation(original: string, enhanced: string): boolean {
+    const originalLatins = extractLatinWords(original);
+    const enhancedLower = enhanced.toLowerCase();
+    if (originalLatins.length === 0) return true;
+    const preserved = originalLatins.filter(w => enhancedLower.includes(w));
+    return preserved.length >= Math.floor(originalLatins.length * 0.7); // 70% des mots latins doivent rester
+  }
+
+  // Compte les balises d'émotion dans le texte
+  function countEmotionTags(text: string): number {
+    return (text.match(/\[(excited|natural|calm|whisper|fast|dramatic)\]/gi) || []).length;
+  }
+
+  const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+
+      const { text, region = "general" } = req.body;
+      if (!text || typeof text !== "string" || !text.trim()) {
+        return res.status(400).json({ error: "Texte manquant ou invalide" });
+      }
+
+      const pointsCost = 2;
+      const currentBalance = await getUserBalance(userId);
+      if (currentBalance !== null && currentBalance < pointsCost) {
+        return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
+      }
+
+      // === ANALYSE INTELLIGENTE DU TEXTE ORIGINAL ===
+      const regionGuide = getRegionGuide(region);
+      const { type: textType, guidance: typeGuidance } = detectTextType(text);
+      const energyLevel = analyzeEnergyLevel(text);
+      const originalLatinWords = extractLatinWords(text);
+      const wordCount = text.split(/\s+/).length;
+      const expectedMinTags = Math.max(2, Math.floor(wordCount / 25));
+
+      // Booster créatif aléatoire (rotation pour varier les résultats)
+      const randomBooster = ENHANCE_BOOSTERS[Math.floor(Math.random() * ENHANCE_BOOSTERS.length)];
+
+      const buildEnhancePrompt = (isRetry: boolean = false) => `Tu es un DIRECTEUR ARTISTIQUE + rédacteur TTS ÉLITE spécialisé en Darija Algérienne pour vidéos courtes (TikTok, Reels, Shorts).
+
+📍 LAHDJA CIBLE : ${regionGuide}
+
+🎯 TYPE DE TEXTE DÉTECTÉ : ${textType}
+${typeGuidance}
+
+⚡ NIVEAU D'ÉNERGIE ORIGINAL : ${energyLevel}
+
+🎨 DIRECTION CRÉATIVE POUR CETTE VERSION :
+${randomBooster}
+
+${originalLatinWords.length > 0 ? `
+🔒 MOTS FRANÇAIS/TECHNIQUES À GARDER OBLIGATOIREMENT EN LATIN (ne JAMAIS traduire) :
+${originalLatinWords.join(", ")}
+` : ""}
+
+═══════════════════════════════════════════════
+📋 TÂCHE PRÉCISE :
+Réécris et OPTIMISE le texte ci-dessous pour qu'il soit ultra-naturel, captivant et parfaitement rythmé à l'oral, en respectant la Lahdja et le type de contenu détecté.
+
+═══════════════════════════════════════════════
+🚨 RÈGLES ABSOLUES (INTERDICTION DE LES VIOLER) :
+
+1. LONGUEUR :
+- NE COUPE RIEN : garde TOUTES les idées du texte original.
+- Longueur cible : ${wordCount} à ${Math.floor(wordCount * 1.3)} mots (même ordre de grandeur, ou légèrement plus riche).
+- INTERDICTION de résumer ou de raccourcir.
+
+2. CODE-SWITCHING (FR ↔ Darija) :
+- Garde TOUS les mots FR/techniques en ALPHABET LATIN.
+- JAMAIS de translittération arabe des mots FR (ex: "لا ليفريزون" ❌).
+- Mots courants à garder : WhatsApp, Instagram, TikTok, Facebook, livraison, service, formation, marketing, digital, B2B, leads, promo, client, contact, DM, lien, kliki, etc.
+
+3. BALISES D'ÉMOTION (OBLIGATOIRE) :
+- Ajoute AU MINIMUM ${expectedMinTags} balises d'émotion différentes dans le texte.
+- Une balise au DÉBUT de chaque phrase clé : [excited], [natural], [calm], [whisper], [fast].
+- JAMAIS deux balises collées (INTERDIT : [excited][natural]).
+- La PREMIÈRE phrase DOIT commencer par une balise.
+- ADAPTE les balises au sens : [excited] pour hook/CTA, [natural] pour explication, [calm] pour crédibilité, [whisper] pour secret/intimité, [fast] pour urgence.
+
+4. RYTHME & PROSODIE ORALE :
+- Alterne phrases courtes (impact) et phrases moyennes (développement).
+- Utilise "..." pour marquer les pauses naturelles.
+- Ajoute des virgules pour les respirations : "بصح, راهو, واللاه".
+- Termine les phrases par "." "!" ou "؟" selon l'intention.
+
+5. AUTHENTICITÉ DARIJA :
+- Utilise des tournures LOCALES vivantes : "راهو, بصح, واعرة, يا خويا, تعرف, شوف, عيّي, راك تشوف".
+- Évite l'arabe littéraire (فصحى) : reste en Darija parlée.
+- Le texte doit sonner comme un VRAI ALGÉRIEN qui parle, pas comme une traduction.
+
+6. SORTIE :
+- Renvoie UNIQUEMENT le texte final à vocaliser.
+- Aucun titre, aucun markdown (* #), aucune note, aucun commentaire.
+- Aucune explication du type "Voici le texte amélioré :" ou "TTS Refinement".
+
+${isRetry ? `
+⚠️ TENTATIVE #2 - RENFORCEMENT :
+La première tentative a échoué (texte trop court, pas assez de balises, ou mots FR traduits).
+CETTE FOIS, RESPECTE STRICTEMENT :
+- Minimum ${expectedMinTags} balises d'émotion.
+- Longueur minimale : ${Math.floor(wordCount * 0.9)} mots.
+- Tous les mots FR de la liste ci-dessus DOIVENT rester en latin.
+` : ""}
+
+═══════════════════════════════════════════════
+📝 TEXTE ORIGINAL À AMÉLIORER :
+
+${text}
+
+═══════════════════════════════════════════════
+Génère maintenant la version optimisée (UNIQUEMENT le texte, rien d'autre) :`;
+
+      // === PREMIÈRE TENTATIVE ===
+      let enhancedText = await callGeminiTextAPI(buildEnhancePrompt(false), 0.6);
+
+      // Nettoyage anti-parasites (double passe)
+      const cleanOutput = (raw: string): string => {
+        return raw
+          .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1") // Balises collées
+          .replace(/\*+/g, "") // Étoiles markdown
+          .replace(/^#+\s*.*$/gm, "") // Titres markdown
+          .replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Modifications|Voici|Texte\s*amélioré|Version\s*optimisée)\s*:?/gi, "")
+          .replace(/^["«»']|["«»']$/g, "") // Guillemets début/fin
+          .replace(/```[a-z]*/g, "").replace(/```/g, "") // Code blocks
+          .replace(/\n{3,}/g, "\n\n") // Sauts de ligne excessifs
+          .trim();
+      };
+
+      enhancedText = cleanOutput(enhancedText);
+
+      // === VALIDATION MULTI-NIVEAUX ===
+      const tagCount = countEmotionTags(enhancedText);
+      const isTooShort = enhancedText.length < text.length * 0.6;
+      const missingTags = tagCount < expectedMinTags;
+      const latinPreserved = validateLatinPreservation(text, enhancedText);
+      const startsWithTag = /^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim());
+
+      const needsRetry = isTooShort || missingTags || !latinPreserved || !startsWithTag;
+
+      // === DEUXIÈME TENTATIVE (si validation échoue) ===
+      if (needsRetry) {
+        console.warn(`[LLM Enhance] Retry nécessaire → tooShort:${isTooShort}, missingTags:${missingTags} (${tagCount}/${expectedMinTags}), latinLost:${!latinPreserved}, noStartTag:${!startsWithTag}`);
+        try {
+          let retryText = await callGeminiTextAPI(buildEnhancePrompt(true), 0.4);
+          retryText = cleanOutput(retryText);
+          
+          // Si le retry est meilleur, on le garde
+          const retryTagCount = countEmotionTags(retryText);
+          const retryLength = retryText.length;
+          if (retryLength >= text.length * 0.7 && retryTagCount >= 2) {
+            enhancedText = retryText;
+            console.log("[LLM Enhance] Retry réussi ✓");
+          }
+        } catch (retryErr) {
+          console.warn("[LLM Enhance] Retry échoué, on garde la 1ère version");
+        }
+      }
+
+      // === FALLBACK ULTIME : si toujours trop court, on garde l'original ===
+      if (enhancedText.length < text.length * 0.4) {
+        console.warn("[LLM Enhance] Fallback : texte final toujours trop court, retour à l'original avec balise ajoutée");
+        enhancedText = /^\[/.test(text.trim()) ? text.trim() : `[natural] ${text.trim()}`;
+      }
+
+      // === AJOUT BALISE INITIALE SI MANQUANTE ===
+      if (!/^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim())) {
+        // Choix intelligent de la balise initiale selon le type
+        const initialTag = textType.includes("PUBLICITÉ") || textType.includes("COMMERCIALE") 
+          ? "[excited]" 
+          : textType.includes("STORYTELLING") 
+          ? "[natural]" 
+          : "[natural]";
+        enhancedText = `${initialTag} ${enhancedText}`;
+      }
+
+      // === DÉBIT DES POINTS ===
+      const reduction = await deductCredits(userId, pointsCost);
+      const finalBalance = reduction.success ? reduction.remaining : currentBalance;
+
+      // === STATISTIQUES POUR LE FRONTEND ===
+      const finalTagCount = countEmotionTags(enhancedText);
+      const finalWordCount = enhancedText.split(/\s+/).length;
+      const improvementRatio = Math.round(((enhancedText.length - text.length) / text.length) * 100);
+
+      return res.json({
+        success: true,
+        enhanced_text: enhancedText,
+        points_deducted: pointsCost,
+        points_cost: pointsCost,
+        notification: "-2 Points",
+        remaining_balance: finalBalance,
+        region_used: region,
+        // Métadonnées enrichies
+        analysis: {
+          detected_type: textType,
+          energy_level: energyLevel.split(":")[0].trim(),
+          original_word_count: wordCount,
+          enhanced_word_count: finalWordCount,
+          emotion_tags_count: finalTagCount,
+          improvement_ratio_percent: improvementRatio,
+          latin_words_preserved: originalLatinWords.length > 0 ? validateLatinPreservation(text, enhancedText) : true
+        }
+      });
+    } catch (err: any) {
+      console.error("[LLM Enhance Error]", err.message || err);
+      return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" });
+    }
+  };
+
+  // Enregistrement des routes
+  app.post("/api/v1/llm/enhance", handleLLMEnhance);
+  app.post("/api/llm/enhance", handleLLMEnhance);
+
+  
   /* ==========================================================================
      LLM SCRIPT GENERATOR — MOTEUR HYPER PERFORMANT (-5 pts)
      ========================================================================== */
