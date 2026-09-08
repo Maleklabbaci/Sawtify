@@ -18,7 +18,11 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE
 if (!SLICKPAY_KEY) console.warn("[Config] SLICKPAY_KEY manquante");
 
 let supabaseClient: any = null;
-try { supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); } catch (err) { console.warn("[Supabase] Init warning:", err); }
+try { 
+  supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); 
+} catch (err) { 
+  console.warn("[Supabase] Init warning:", err); 
+}
 
 const INVOICE_REGISTRY = new Map<string | number, {
   invoiceId: string | number; packId: string; packName: string; points: number; amountDZD: number;
@@ -38,7 +42,9 @@ async function getUserIdFromAuthHeader(req: express.Request): Promise<string | n
 }
 
 const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
-function mapGateway(method: string | undefined): string { return VALID_GATEWAYS.has((method || '').toLowerCase()) ? method!.toLowerCase() : 'slickpay'; }
+function mapGateway(method: string | undefined): string { 
+  return VALID_GATEWAYS.has((method || '').toLowerCase()) ? method!.toLowerCase() : 'slickpay'; 
+}
 
 async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boolean; newBalance?: number; error?: string }> {
   const entry = INVOICE_REGISTRY.get(String(invoiceId));
@@ -88,8 +94,7 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 }
 
 // ==========================================================================
-// TARIFICATION PAR PALIER : 20 pts pour 0-60s, puis +10 pts par tranche
-// de 60s supplémentaire entamée (61s->10, 121s->10, etc.)
+// TARIFICATION PAR PALIER : 20 pts pour 0-60s, puis +10 pts par minute suppl.
 // ==========================================================================
 const BASE_POINTS_COST = 20;
 const EXTRA_POINTS_PER_MINUTE = 10;
@@ -127,19 +132,13 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
   voice_layla: "أهلاً وسهلاً بيكم! صوت حيوي وخفيف، يوالم ستوريات إنستغرام وتيك توك.",
   voice_bilal: "صحا خاوتي، مع صوتيفي الصوت يخرج طبيعي وسلس كأنو متحدث جزائري حقيقي.",
   voice_nour: "مرحباً بيكم، تمتعوا بنطق دارجة واضحة، بنبرة خفيفة ومريحة تسمعها بلا ما تعيا.",
-  voice_faycal: "واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر احترافية للمشروع ديالك، راك في المكان الصحيح.",
-  voice_dz_amine: "سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي.",
-  voice_dz_yasmine: "مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق وصوت دافئ.",
-  voice_ar_sofiane: "السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي.",
-  voice_fr_ines: "سلام، استمعوا لنطق دارجة جزائرية نقية وسلسة، تزيد لمسة احترافية لكل الفيديوهات.",
-  voice_dz_rachid: "يا هلا بيكم خاوتنا العزاز! هاذي تجربة صوتية جزائرية قوية وحماسية!",
-  voice_en_lina: "أهلاً وسهلاً بيكم! صوت حيوي وخفيف، يوالم ستوريات إنستغرام وتيك توك."
+  voice_faycal: "واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر احترافية للمشروع ديالك، راك في المكان الصحيح."
 };
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 
 // ==========================================================================
-// NORMALISATION & ARTICULATION OPTIMALE (FIX FIN DES MOTS)
+// NORMALISATION & ARTICULATION OPTIMALE
 // ==========================================================================
 function normalizeTextForTTS(text: string): string {
   let normalized = text;
@@ -149,8 +148,6 @@ function normalizeTextForTTS(text: string): string {
   normalized = normalized.replace(/([ا-ي])([a-zA-Z])/g, '$1 $2');
   normalized = normalized.replace(/\s+/g, ' ').trim();
 
-  // FIX FIN DES MOTS : Toujours terminer par une pause douce
-  // pour éviter que la dernière syllabe soit coupée par le TTS
   if (!/[.!؟?…]$/.test(normalized)) {
     normalized = normalized + " ...";
   }
@@ -159,22 +156,16 @@ function normalizeTextForTTS(text: string): string {
 }
 
 // ==========================================================================
-// 🛠️ FIX GEMINI #1 — ANTI-ROBOT COLD START
-// Avant: fillers aléatoires (ممم / إيه / أها) qui cassaient le début
-// Après: micro-silence "..." pour chauffer la prosodie AVANT le 1er mot
+// FIX GEMINI #1 — ANTI-ROBOT COLD START
 // ==========================================================================
 function injectNaturalFiller(text: string): string {
   let clean = text.trim();
-  // Si déjà un silence au début, on ne double pas
   if (clean.startsWith("...") || clean.startsWith("…")) return clean;
-  // Silence court uniquement (PAS de filler parlé type "ممم")
   return `... ${clean}`;
 }
 
 // ==========================================================================
-// 🛠️ FIX GEMINI #2 — MAPPING DES TAGS D'ÉMOTION → INSTRUCTIONS ARABE
-// Les tags [excited] etc. étaient SUPPRIMÉS et JAMAIS envoyés à Gemini TTS.
-// On les convertit en didascalies orales + instruction globale dans le prompt.
+// FIX GEMINI #2 — MAPPING DES TAGS D'ÉMOTION → INSTRUCTIONS ARABE
 // ==========================================================================
 const EMOTION_TAG_MAP: Record<string, { inline: string; prompt: string }> = {
   excited: {
@@ -221,8 +212,6 @@ const EMOTION_TAG_MAP: Record<string, { inline: string; prompt: string }> = {
 
 function extractAndApplyEmotionTags(rawText: string): { textForSpeech: string; tags: string[] } {
   const tags: string[] = [];
-  // Remplace chaque [tag] par une didascalie arabe (non lue comme mot anglais)
-  // pour que Gemini change d'émotion AU BON ENDROIT dans le script
   const textForSpeech = rawText.replace(/\[([^\]]+)\]/g, (_match, rawTag: string) => {
     const tag = String(rawTag).toLowerCase().trim();
     tags.push(tag);
@@ -234,7 +223,6 @@ function extractAndApplyEmotionTags(rawText: string): { textForSpeech: string; t
 
 function buildEmotionPromptInstruction(tags: string[]): string {
   if (!tags.length) return "";
-  // Première émotion = dominante pour le début (cold start)
   const unique = [...new Set(tags.map(t => t.toLowerCase()))];
   const lines = unique
     .map(t => EMOTION_TAG_MAP[t]?.prompt)
@@ -269,13 +257,12 @@ async function synthesizeWithRetry(
   speed = 1.0,
   pitch = 1.0,
   originalVoiceId: string = "",
-  emotionTags: string[] = [] // 🛠️ FIX: tags reçus depuis handleTTSGenerate
+  emotionTags: string[] = []
 ): Promise<{ pcmBuffer: Buffer | null; error: string | null }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée" };
   let lastError: any = null;
 
-  // rawText ici est déjà nettoyé des [tags] OU contient les didascalies inline
   const cleanText = normalizeTextForTTS(rawText.replace(/\s+/g, " ").trim());
   const femaleVoices = ["Kore", "Zephyr", "Aoede", "Sulafat", "Leda"];
   const isFemale = femaleVoices.includes(selectedVoiceName);
@@ -292,10 +279,7 @@ async function synthesizeWithRetry(
   if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
 
-  // 🛠️ FIX GEMINI #2b — Injecter les émotions dans le prompt de perf
   performancePrompt += buildEmotionPromptInstruction(emotionTags);
-
-  // 🛠️ FIX GEMINI #1b — Micro-silence anti cold-start robotique
   const preparedText = injectNaturalFiller(cleanText);
 
   const enrichedSpeechPrompt = `${performancePrompt}
@@ -381,9 +365,6 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   throw new Error(`Google API: ${allErrors.join(" | ")}`);
 }
 
-// ==========================================================================
-// DÉTECTEUR DE SECTEUR (pour tracking feedback IA)
-// ==========================================================================
 function detectSector(product: string): string {
   const p = product.toLowerCase();
   if (/formation|cours|école|université|study|apprend|learn/i.test(p)) return "education";
@@ -397,6 +378,191 @@ function detectSector(product: string): string {
   return "general";
 }
 
+/* ==========================================================================
+   MATRICES DE COPYWRITING (1.6 MILLION DE COMBINAISONS)
+   ========================================================================== */
+const HOOKS = [
+  "LE SECRET : اكشف عن سر أو حيلة (السر اللي ما حابينكش تعرفوه...)",
+  "L'ERREUR : حذر من غلطة شائعة (أكبر غلطة راهي تخسّرك دراهمك...)",
+  "STORYTELLING : قصة سريعة (لوكان نحكيكم واش صرالي...)",
+  "QUESTION CHOC : سؤال يستفز المتابع (علاش مازلت تضيع وقتك في...)",
+  "AVANT/APRÈS : مقارنة صريحة (كيفاش تحولت من المعاناة إلى...)",
+  "PROMESSE DIRECTE : نتيجة سريعة (كيفاش تتحصل على النتيجة في أقل من...)",
+  "POV : مشهد تخيلي (POV: لما تجرّب هاد الحل لأول مرة...)",
+  "DISQUALIFICATION : تصفية المتابعين (إذا كنت حاب نتائج بدون تعب، فوت هاد الفيديو...)",
+  "MYTH BUSTING : تفكيك خرافة (أكبر كذبة مأمنين بيها الناس هي...)",
+  "FRUSTRATION : ضرب على الوتر الحساس (عييت من نفس المشكل كل يوم؟)",
+  "ÉCONOMIE : توفير المال (كيفاش توفر كثر من 50% من مصاريفك...)",
+  "DÉFI : تحدي مباشر (نتحداك تجرّب هاد المنتوج وما يعجبكش...)",
+  "CONFESSION : اعتراف صادق (باش نكون صريح معاك 100%...)",
+  "PREUVE SOCIALE : دليل الجماهير (علاش آلاف الجزائريين شراو هاد...)",
+  "LAZY-FIX : حل للناس العجازين (أسهل طريقة للناس اللي ماعندهُمش الوقت...)",
+  "COMPARAISON : مقارنة شرسة (علاش هاد الحل خير بـ 10 مرات من القديم...)",
+  "NICHE TARGETING : استهداف فئة (إلى كنت طالب/خدام/أم، هاد الفيديو ليك...)",
+  "REGRET : ندم مستقبلي (الندم الوحيد اللي راح تحس بيه هو علاش ما شريتوش بكري...)",
+  "STATISTIQUE : رقم صادم (80% من الناس يضيعوا دراهمهم في باطل بسبب...)",
+  "CURIOSITÉ : تشويق واكتشاف (شوف واش كاين داخل هاد الباكي اللي داير حالة...)"
+];
+
+const PROBLEMS = [
+  "PERTE D'ARGENT : الشعور بتضييع الدراهم في السلعة العيانة.",
+  "PERTE DE TEMPS : المعاناة مع الطرق البطيئة اللي تدي الوقت.",
+  "FRUSTRATION/ÉCHECS : جرب بزاف صوالح من قبل وما نفعووش.",
+  "HONTE/GÊNE : الإحراج وانعدام الثقة بالنفس قدام الناس.",
+  "COMPLEXITÉ : التعقيد والخطوات الصعبة اللي تعيّي الراس.",
+  "FAUSSE QUALITÉ : السلعة المقلدة اللي تخسر بالخف.",
+  "MAUVAIS SERVICE : غياب خدمة ما بعد البيع والمتابعة.",
+  "PEUR DE L'ARNAQUE : الخوف من الشراء أونلاين والنصب.",
+  "STRESS : الضغط العصبي والتخمام الزايد.",
+  "IGNORANCE : عدم معرفة منين يبدا وكيفاش يتصرف.",
+  "PRIX EXCESSIFS : الأسعار الغالية بلا فايدة.",
+  "DÉLAIS DE LIVRAISON : الروطار في التوصيل أو السلعة توصل مكسرة.",
+  "RUPTURE : تبرك على السلعة وما تلقاهاش.",
+  "FATIGUE : التعب الجسدي والجهد الكبير.",
+  "ROUTINE : الملل من الحلول التقليدية العادية.",
+  "INSECURITÉ : الشك في القدرات أو عدم الرضا عن المظهر.",
+  "OVERWHELM : التشتت وكثرة الخيارات في السوق.",
+  "NON-LOCALISÉ : منتجات ما تليقش للعقلية والواقع الجزائري.",
+  "SANS GARANTIE : الشراء بلا ضمان (ضمانة).",
+  "DÉPENDANCE : الاحتياج للناس باش يكملولك خدمتك."
+];
+
+const SOLUTIONS = [
+  "LE SHORTCUT : حل يختصر أشهر من التعب في دقائق.",
+  "L'ALL-IN-ONE : كلشي متوفر في منتج/خدمة وحدة.",
+  "PLUG & PLAY : واجد للاستعمال، ساهل ماهل.",
+  "ALTERNATIVE INTELLIGENTE : البديل الذكي والأرخص.",
+  "QUALITÉ PREMIUM : كاليتي واعرة تشد معاك عوام.",
+  "AUTOMATISATION : الخدمة تدار وحدها بلا ما تعيي روحك.",
+  "SECRET DES PROS : التقنية اللي يستعملوها غير المحترفين.",
+  "PACK ÉCONOMIQUE : باك كامل بسعر مهبول.",
+  "FORMULE GARANTIE : حل مضمون مع إمكانية التبديل.",
+  "SIMPLICITÉ : تصميم بسيط يخدم بيه الصغير والكبير.",
+  "ADAPTATION DZ : مخدوم خصيصاً للمواطن الجزائري.",
+  "BOOST CONFIANCE : يرجعلك الثقة في روحك بالخف.",
+  "DESIGN MODERNE : مظهر شباب يحمر الوجه.",
+  "GAIN DE TEMPS : تكمل خدمتك في ثواني.",
+  "RENTABILITÉ : يرجعلك دراهمو من الاستعمال الأول.",
+  "VIP SERVICE : توصيل للدار مع شوف السلعة وخلص.",
+  "ÉCOLOGIQUE/DURABLE : حل اقتصادي ما يضرش الجيب.",
+  "EXCLUSIVITÉ : حصري وما تلقاهش في الحوانت.",
+  "GUIDE PAS À PAS : تبعك خطوة بخطوة حتى تنجح.",
+  "TRANQUILLITÉ : راحة البال، تهنى من التخمام."
+];
+
+const PROOFS = [
+  "CHIFFRES : أرقام حقيقية (+90% نسبة رضا، 5000 طلب).",
+  "TÉMOIGNAGES : آراء الزبائن فرحانين بالنتيجة.",
+  "DÉMO DIRECTE : النتيجة تبان قدام عينيك في الفيديو.",
+  "GARANTIE : ضمان استرجاع الأموال إلى ما عجبكش.",
+  "LIVRAISON : توصيل لـ 58 ولاية سريع ومضمون.",
+  "AVANT/APRÈS : الفرق الواضح بين كيفاش كان وكيفاش ولى.",
+  "CERTIFICATION : سلعة أصلية ومطابقة للمعايير.",
+  "PRIX IMBATTABLE : أحسن سومة في السوق مقارنة بالكاليتي.",
+  "RAPIDITÉ : نتيجة تبان في أقل من أسبوع.",
+  "SUPPORT : خدمة زبائن معاك 7/7 أيام."
+];
+
+const CTAS = [
+  "WHATSAPP : ابعتلنا ميساج في الواتساب ذروك...",
+  "LIEN SITE : كليكي على الرابط في البيو واطلب...",
+  "DM : ابعتلنا ميساج في البريفي نبعتولك التفاصيل...",
+  "APPEL : عيطلنا في الرقم الظاهر في الشاشة...",
+  "URGENCE STOCK : اطلب ذروك قبل ما يخلص الاستوك...",
+  "LIVRAISON GRATUITE : كوموندي اليوم والـ livraison باطل...",
+  "OFFRE 24H : العرض يخلص بعد 24 ساعة، زرب روحك...",
+  "COMMENTAIRE : خلي كومنتار بـ [مهتم] نبعتولك...",
+  "PROMO 1+1 : اشري وحدة ودي الزاوجة باطل، كليكي هنا...",
+  "RÉSERVATION : ريزيرفي بلاصتك قبل ما يكمل العدد...",
+  "BÉNÉFICE : حاب تتهنى من هاد المشكل؟ كليكي واطلب...",
+  "PROFIL : ادخل للبروفيل وشوف الكاتالوج كامل...",
+  "CODE PROMO : استعمل كود SAWTIFY10 ودي تخفيض...",
+  "SAUVEGARDER : خبي هاد الفيديو وبارطاجيه مع صاحبك...",
+  "SANS RISQUE : جرب السلعة وخلص عند الباب...",
+  "MAGASIN : زورونا في الحانوت ديالنا أو طلب أونلاين...",
+  "DÉFI CTA : ما تراطيش هاد لافار، كليكي واشري...",
+  "ÉTUDIANT/PRO : كاين برومو سبيسيال لأول 20 واحد...",
+  "FORMULAIRE : عمر الفورميلار في 30 ثانية وتجيك للدار...",
+  "CADEAU : اطلب اليوم ويدي كادو مجاني مع السلعة..."
+];
+
+/* ==========================================================================
+   LLM ENHANCE — HELPER FUNCTIONS
+   ========================================================================== */
+const ENHANCE_BOOSTERS = [
+  "Rends le rythme plus PUNCHY : phrases courtes, impact immédiat, comme un pub TikTok qui accroche en 3 secondes.",
+  "Ajoute une DIMENSION ÉMOTIONNELLE plus深い : joue sur la curiosité, l'urgence ou la connivence avec l'auditeur.",
+  "Injecte de la SPONTANÉITÉ ORALE : petites hésitations naturelles, expressions typiques Darija (يا خويا, واللاه, بصح, راهو), comme un vrai humain qui parle.",
+  "Optimise pour le SCROLL-STOPPING : la première phrase doit obliger l'auditeur à s'arrêter et écouter.",
+  "Renforce la DIMENSION STORYTELLING : transforme les infos en mini-scène vivante que l'auditeur peut visualiser.",
+  "Améliore le FLOW & RYTHME : alterne phrases courtes et longues, joue sur les pauses pour créer du suspense.",
+  "Boost le CÔTÉ AUTHENTIQUE ALGÉRIEN : utilise des tournures locales fortes (والله غير, حاجة واعرة, بصح راك تشوف...)."
+];
+
+function detectTextType(text: string): { type: string; guidance: string } {
+  const hasCTA = /whatsapp|kliki|cliquez|ابعت|اطلب|كوموندي|كليكي|رابط|lien|dm|inbox/i.test(text);
+  const hasStory = /كنت|كان|واحد النهار|قصة|صرالي|سمعت|شفت/i.test(text);
+  const hasEducation = /كيفاش|علاش|طريقة|نتعلم|فورماسيون|formation|cours|dars/i.test(text);
+  const hasCommercial = /سومة|prix|dzd|دج|promo|تخفيض|solde|livraison/i.test(text);
+  const hasProfessional = /b2b|service|entreprise|société|شركة|professionnel|expert/i.test(text);
+
+  if (hasCTA && hasCommercial) return {
+    type: "PUBLICITÉ COMMERCIALE avec CTA",
+    guidance: "Optimise pour la CONVERSION : hook fort, bénéfice clair, urgence à la fin. CTA doit sonner naturel, pas forcé."
+  };
+  if (hasStory) return {
+    type: "STORYTELLING / RÉCIT",
+    guidance: "Préserve la narration : garde le suspense, les détails vivants, les émotions du récit. Utilise [natural] et [calm] majoritairement."
+  };
+  if (hasEducation) return {
+    type: "CONTENU ÉDUCATIF / TUTORIEL",
+    guidance: "Rends l'info CLAIRE et STRUCTURÉE : ton pédagogique, phrases logiquement enchaînées. Utilise [calm] et [natural] avec occasionnels [excited] sur les points clés."
+  };
+  if (hasCommercial) return {
+    type: "PRÉSENTATION COMMERCIALE",
+    guidance: "Mets en valeur les BÉNÉFICES clients : ton confiant et convaincant, sans être agressif. Alterne [excited] et [natural]."
+  };
+  if (hasProfessional) return {
+    type: "CONTENU PROFESSIONNEL / B2B",
+    guidance: "Ton POSÉ et CRÉDIBLE : évite le vocabulaire trop familier, garde une Darija propre. Privilégie [calm] et [natural]."
+  };
+  return {
+    type: "CONTENU GÉNÉRAL",
+    guidance: "Adapte-toi au ton naturel du texte original : ni trop excité, ni trop plat. Équilibre les émotions."
+  };
+}
+
+function analyzeEnergyLevel(text: string): string {
+  const exclamations = (text.match(/[!؟?]/g) || []).length;
+  const hasStrongWords = /رائع|مذهل|مهبول|واعر|خطير|فرصة|urgence|فوراً|زربوا|احنا/i.test(text);
+  const wordCount = text.split(/\s+/).length;
+  const exclamRatio = exclamations / Math.max(wordCount, 1);
+
+  if (exclamRatio > 0.05 || hasStrongWords) return "ÉNERGIE HAUTE : garde un ton dynamique avec [excited] fréquent (mais pas partout).";
+  if (exclamRatio < 0.01 && wordCount > 40) return "ÉNERGIE POSÉE : garde un ton calme et posé, privilégie [natural] et [calm], évite les [excited] excessifs.";
+  return "ÉNERGIE ÉQUILIBRÉE : alterne intelligemment [natural], [excited] et [calm] selon le contenu de chaque phrase.";
+}
+
+function extractLatinWords(text: string): string[] {
+  const matches = text.match(/[a-zA-Z][a-zA-Z0-9]{2,}/g) || [];
+  return [...new Set(matches.map(w => w.toLowerCase()))];
+}
+
+function validateLatinPreservation(original: string, enhanced: string): boolean {
+  const originalLatins = extractLatinWords(original);
+  const enhancedLower = enhanced.toLowerCase();
+  if (originalLatins.length === 0) return true;
+  const preserved = originalLatins.filter(w => enhancedLower.includes(w));
+  return preserved.length >= Math.floor(originalLatins.length * 0.7);
+}
+
+function countEmotionTags(text: string): number {
+  return (text.match(/\[(excited|natural|calm|whisper|fast|dramatic)\]/gi) || []).length;
+}
+
+/* ==========================================================================
+   START SERVER
+   ========================================================================== */
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -434,7 +600,6 @@ async function startServer() {
     const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
     const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
     let wavBase64 = "";
-    // Preview: pas de tags émotion → tableau vide
     const { pcmBuffer } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 2, speed, pitch, voiceId, []);
 
     if (pcmBuffer) {
@@ -452,7 +617,7 @@ async function startServer() {
   app.get("/api/tts/preview", handleTTSPreview);
 
   /* ==========================================================================
-     TTS GENERATE (-20 pts + notification)
+     TTS GENERATE
      ========================================================================== */
   const handleTTSGenerate = async (req: express.Request, res: express.Response) => {
     const startTime = Date.now();
@@ -466,11 +631,6 @@ async function startServer() {
       return res.status(400).json({ detail: "Le texte fourni ne contient aucun caractère vocalement synthétisable." });
     }
 
-    // Vérification préalable avec le coût plancher (20 pts) : le coût réel
-    // (dépendant de la durée réelle générée) est calculé plus bas, et c'est
-    // le frontend (RPC Supabase deduct_user_credits, seule source de vérité)
-    // qui effectue le débit atomique final avec ce coût dynamique.
-    // -> évite tout double débit (ne JAMAIS déduire les points ici aussi).
     if (userId) {
       const currentBalance = await getUserBalance(userId);
       if (currentBalance !== null && currentBalance < BASE_POINTS_COST) {
@@ -478,9 +638,6 @@ async function startServer() {
       }
     }
 
-    // 🛠️ FIX GEMINI #2c — Extraire + convertir les tags AVANT de synthétiser
-    // Avant: text.replace(/\[.*?\]/g, " ") → tags jetés, Gemini ne les voyait jamais
-    // Après: tags → didascalies inline + liste passée au prompt de performance
     const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
     const cleanText = normalizeTextForTTS(textForSpeech.replace(/\s+/g, " ").trim());
     const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
@@ -488,7 +645,6 @@ async function startServer() {
     let wavBase64 = "";
     let durationSeconds = Math.max(1.5, Math.round((cleanText.split(/\s+/).length / (2.8 * numSpeed)) * 10) / 10);
 
-    // 🛠️ On passe emotionTags à synthesizeWithRetry
     const { pcmBuffer, error } = await synthesizeWithRetry(
       cleanText,
       selectedVoiceName,
@@ -507,13 +663,7 @@ async function startServer() {
       wavBase64 = generateSmoothVocalWavBuffer(durationSeconds, basePitchFreq * numPitch).toString("base64");
     }
 
-    // Coût réel basé sur la durée effectivement générée (palier 0-60s = 20 pts,
-    // puis +10 pts par tranche de 60s supplémentaire entamée).
     const finalPointsCost = computePointsCost(durationSeconds);
-
-    // Le débit réel du solde se fait UNIQUEMENT côté frontend via le RPC
-    // Supabase deduct_user_credits (seule source de vérité), avec ce coût
-    // dynamique. On ne débite jamais ici pour éviter un double débit.
     const remainingBalance: number | null = userId ? await getUserBalance(userId) : null;
 
     return res.json({
@@ -539,8 +689,8 @@ async function startServer() {
   app.post("/api/v1/tts/generate", handleTTSGenerate);
   app.post("/api/tts/generate", handleTTSGenerate);
 
-   /* ==========================================================================
-     LLM SYSTEM PROMPT (SAWTIFY DARIJA ÉLITE - ANTI-RÉPÉTITION)
+  /* ==========================================================================
+     LLM SYSTEM PROMPT
      ========================================================================== */
   const LLM_SYSTEM_PROMPT = `Tu es un rédacteur publicitaire professionnel en Darija Algérienne, spécialisé dans les scripts vocaux (TTS) pour vidéos courtes.
 
@@ -566,197 +716,8 @@ RÈGLES STRICTES :
 - Aucun titre, markdown (* #), étoile, guillemets, commentaire, note, "TTS Refinement".`;
 
   /* ==========================================================================
-     MATRICES DE COPYWRITING (1.6 MILLION DE COMBINAISONS)
+     LLM ENHANCE — المحسن السحري (-2 pts)
      ========================================================================== */
-  const HOOKS = [
-    "LE SECRET : اكشف عن سر أو حيلة (السر اللي ما حابينكش تعرفوه...)",
-    "L'ERREUR : حذر من غلطة شائعة (أكبر غلطة راهي تخسّرك دراهمك...)",
-    "STORYTELLING : قصة سريعة (لوكان نحكيكم واش صرالي...)",
-    "QUESTION CHOC : سؤال يستفز المتابع (علاش مازلت تضيع وقتك في...)",
-    "AVANT/APRÈS : مقارنة صريحة (كيفاش تحولت من المعاناة إلى...)",
-    "PROMESSE DIRECTE : نتيجة سريعة (كيفاش تتحصل على النتيجة في أقل من...)",
-    "POV : مشهد تخيلي (POV: لما تجرّب هاد الحل لأول مرة...)",
-    "DISQUALIFICATION : تصفية المتابعين (إذا كنت حاب نتائج بدون تعب، فوت هاد الفيديو...)",
-    "MYTH BUSTING : تفكيك خرافة (أكبر كذبة مأمنين بيها الناس هي...)",
-    "FRUSTRATION : ضرب على الوتر الحساس (عييت من نفس المشكل كل يوم؟)",
-    "ÉCONOMIE : توفير المال (كيفاش توفر كثر من 50% من مصاريفك...)",
-    "DÉFI : تحدي مباشر (نتحداك تجرّب هاد المنتوج وما يعجبكش...)",
-    "CONFESSION : اعتراف صادق (باش نكون صريح معاك 100%...)",
-    "PREUVE SOCIALE : دليل الجماهير (علاش آلاف الجزائريين شراو هاد...)",
-    "LAZY-FIX : حل للناس العجازين (أسهل طريقة للناس اللي ماعندهُمش الوقت...)",
-    "COMPARAISON : مقارنة شرسة (علاش هاد الحل خير بـ 10 مرات من القديم...)",
-    "NICHE TARGETING : استهداف فئة (إلى كنت طالب/خدام/أم، هاد الفيديو ليك...)",
-    "REGRET : ندم مستقبلي (الندم الوحيد اللي راح تحس بيه هو علاش ما شريتوش بكري...)",
-    "STATISTIQUE : رقم صادم (80% من الناس يضيعوا دراهمهم في باطل بسبب...)",
-    "CURIOSITÉ : تشويق واكتشاف (شوف واش كاين داخل هاد الباكي اللي داير حالة...)"
-  ];
-
-  const PROBLEMS = [
-    "PERTE D'ARGENT : الشعور بتضييع الدراهم في السلعة العيانة.",
-    "PERTE DE TEMPS : المعاناة مع الطرق البطيئة اللي تدي الوقت.",
-    "FRUSTRATION/ÉCHECS : جرب بزاف صوالح من قبل وما نفعووش.",
-    "HONTE/GÊNE : الإحراج وانعدام الثقة بالنفس قدام الناس.",
-    "COMPLEXITÉ : التعقيد والخطوات الصعبة اللي تعيّي الراس.",
-    "FAUSSE QUALITÉ : السلعة المقلدة اللي تخسر بالخف.",
-    "MAUVAIS SERVICE : غياب خدمة ما بعد البيع والمتابعة.",
-    "PEUR DE L'ARNAQUE : الخوف من الشراء أونلاين والنصب.",
-    "STRESS : الضغط العصبي والتخمام الزايد.",
-    "IGNORANCE : عدم معرفة منين يبدا وكيفاش يتصرف.",
-    "PRIX EXCESSIFS : الأسعار الغالية بلا فايدة.",
-    "DÉLAIS DE LIVRAISON : الروطار في التوصيل أو السلعة توصل مكسرة.",
-    "RUPTURE : تبرك على السلعة وما تلقاهاش.",
-    "FATIGUE : التعب الجسدي والجهد الكبير.",
-    "ROUTINE : الملل من الحلول التقليدية العادية.",
-    "INSECURITÉ : الشك في القدرات أو عدم الرضا عن المظهر.",
-    "OVERWHELM : التشتت وكثرة الخيارات في السوق.",
-    "NON-LOCALISÉ : منتجات ما تليقش للعقلية والواقع الجزائري.",
-    "SANS GARANTIE : الشراء بلا ضمان (ضمانة).",
-    "DÉPENDANCE : الاحتياج للناس باش يكملولك خدمتك."
-  ];
-
-  const SOLUTIONS = [
-    "LE SHORTCUT : حل يختصر أشهر من التعب في دقائق.",
-    "L'ALL-IN-ONE : كلشي متوفر في منتج/خدمة وحدة.",
-    "PLUG & PLAY : واجد للاستعمال، ساهل ماهل.",
-    "ALTERNATIVE INTELLIGENTE : البديل الذكي والأرخص.",
-    "QUALITÉ PREMIUM : كاليتي واعرة تشد معاك عوام.",
-    "AUTOMATISATION : الخدمة تدار وحدها بلا ما تعيي روحك.",
-    "SECRET DES PROS : التقنية اللي يستعملوها غير المحترفين.",
-    "PACK ÉCONOMIQUE : باك كامل بسعر مهبول.",
-    "FORMULE GARANTIE : حل مضمون مع إمكانية التبديل.",
-    "SIMPLICITÉ : تصميم بسيط يخدم بيه الصغير والكبير.",
-    "ADAPTATION DZ : مخدوم خصيصاً للمواطن الجزائري.",
-    "BOOST CONFIANCE : يرجعلك الثقة في روحك بالخف.",
-    "DESIGN MODERNE : مظهر شباب يحمر الوجه.",
-    "GAIN DE TEMPS : تكمل خدمتك في ثواني.",
-    "RENTABILITÉ : يرجعلك دراهمو من الاستعمال الأول.",
-    "VIP SERVICE : توصيل للدار مع شوف السلعة وخلص.",
-    "ÉCOLOGIQUE/DURABLE : حل اقتصادي ما يضرش الجيب.",
-    "EXCLUSIVITÉ : حصري وما تلقاهش في الحوانت.",
-    "GUIDE PAS À PAS : تبعك خطوة بخطوة حتى تنجح.",
-    "TRANQUILLITÉ : راحة البال، تهنى من التخمام."
-  ];
-
-  const PROOFS = [
-    "CHIFFRES : أرقام حقيقية (+90% نسبة رضا، 5000 طلب).",
-    "TÉMOIGNAGES : آراء الزبائن فرحانين بالنتيجة.",
-    "DÉMO DIRECTE : النتيجة تبان قدام عينيك في الفيديو.",
-    "GARANTIE : ضمان استرجاع الأموال إلى ما عجبكش.",
-    "LIVRAISON : توصيل لـ 58 ولاية سريع ومضمون.",
-    "AVANT/APRÈS : الفرق الواضح بين كيفاش كان وكيفاش ولى.",
-    "CERTIFICATION : سلعة أصلية ومطابقة للمعايير.",
-    "PRIX IMBATTABLE : أحسن سومة في السوق مقارنة بالكاليتي.",
-    "RAPIDITÉ : نتيجة تبان في أقل من أسبوع.",
-    "SUPPORT : خدمة زبائن معاك 7/7 أيام."
-  ];
-
-  const CTAS = [
-    "WHATSAPP : ابعتلنا ميساج في الواتساب ذروك...",
-    "LIEN SITE : كليكي على الرابط في البيو واطلب...",
-    "DM : ابعتلنا ميساج في البريفي نبعتولك التفاصيل...",
-    "APPEL : عيطلنا في الرقم الظاهر في الشاشة...",
-    "URGENCE STOCK : اطلب ذروك قبل ما يخلص الاستوك...",
-    "LIVRAISON GRATUITE : كوموندي اليوم والـ livraison باطل...",
-    "OFFRE 24H : العرض يخلص بعد 24 ساعة، زرب روحك...",
-    "COMMENTAIRE : خلي كومنتار بـ [مهتم] نبعتولك...",
-    "PROMO 1+1 : اشري وحدة ودي الزاوجة باطل، كليكي هنا...",
-    "RÉSERVATION : ريزيرفي بلاصتك قبل ما يكمل العدد...",
-    "BÉNÉFICE : حاب تتهنى من هاد المشكل؟ كليكي واطلب...",
-    "PROFIL : ادخل للبروفيل وشوف الكاتالوج كامل...",
-    "CODE PROMO : استعمل كود SAWTIFY10 ودي تخفيض...",
-    "SAUVEGARDER : خبي هاد الفيديو وبارطاجيه مع صاحبك...",
-    "SANS RISQUE : جرب السلعة وخلص عند الباب...",
-    "MAGASIN : زورونا في الحانوت ديالنا أو طلب أونلاين...",
-    "DÉFI CTA : ما تراطيش هاد لافار، كليكي واشري...",
-    "ÉTUDIANT/PRO : كاين برومو سبيسيال لأول 20 واحد...",
-    "FORMULAIRE : عمر الفورميلار في 30 ثانية وتجيك للدار...",
-    "CADEAU : اطلب اليوم ويدي كادو مجاني مع السلعة..."
-  ];
-
-  
-  /* ==========================================================================
-     LLM ENHANCE — المحسن السحري HYPER PERFORMANT (-2 pts)
-     Analyse intelligente + boost aléatoire + validation multi-niveaux
-     ========================================================================== */
-
-  // Boosters créatifs (rotation aléatoire pour éviter les résultats identiques)
-  const ENHANCE_BOOSTERS = [
-    "Rends le rythme plus PUNCHY : phrases courtes, impact immédiat, comme un pub TikTok qui accroche en 3 secondes.",
-    "Ajoute une DIMENSION ÉMOTIONNELLE plus profonde : joue sur la curiosité, l'urgence ou la connivence avec l'auditeur.",
-    "Injecte de la SPONTANÉITÉ ORALE : petites hésitations naturelles, expressions typiques Darija (يا خويا, واللاه, بصح, راهو), comme un vrai humain qui parle.",
-    "Optimise pour le SCROLL-STOPPING : la première phrase doit obliger l'auditeur à s'arrêter et écouter.",
-    "Renforce la DIMENSION STORYTELLING : transforme les infos en mini-scène vivante que l'auditeur peut visualiser.",
-    "Améliore le FLOW & RYTHME : alterne phrases courtes et longues, joue sur les pauses pour créer du suspense.",
-    "Boost le CÔTÉ AUTHENTIQUE ALGÉRIEN : utilise des tournures locales fortes (والله غير, حاجة واعرة, بصح راك تشوف...)."
-  ];
-
-  // Détection automatique du type de texte
-  function detectTextType(text: string): { type: string; guidance: string } {
-    const lower = text.toLowerCase();
-    const hasCTA = /whatsapp|kliki|cliquez|ابعت|اطلب|كوموندي|كليكي|رابط|lien|dm|inbox/i.test(text);
-    const hasStory = /كنت|كان|واحد النهار|قصة|صرالي|سمعت|شفت/i.test(text);
-    const hasEducation = /كيفاش|علاش|طريقة|نتعلم|فورماسيون|formation|cours|dars/i.test(text);
-    const hasCommercial = /سومة|prix|dzd|دج|promo|تخفيض|solde|livraison/i.test(text);
-    const hasProfessional = /b2b|service|entreprise|société|شركة|professionnel|expert/i.test(text);
-
-    if (hasCTA && hasCommercial) return {
-      type: "PUBLICITÉ COMMERCIALE avec CTA",
-      guidance: "Optimise pour la CONVERSION : hook fort, bénéfice clair, urgence à la fin. CTA doit sonner naturel, pas forcé."
-    };
-    if (hasStory) return {
-      type: "STORYTELLING / RÉCIT",
-      guidance: "Préserve la narration : garde le suspense, les détails vivants, les émotions du récit. Utilise [natural] et [calm] majoritairement."
-    };
-    if (hasEducation) return {
-      type: "CONTENU ÉDUCATIF / TUTORIEL",
-      guidance: "Rends l'info CLAIRE et STRUCTURÉE : ton pédagogique, phrases logiquement enchaînées. Utilise [calm] et [natural] avec occasionnels [excited] sur les points clés."
-    };
-    if (hasCommercial) return {
-      type: "PRÉSENTATION COMMERCIALE",
-      guidance: "Mets en valeur les BÉNÉFICES clients : ton confiant et convaincant, sans être agressif. Alterne [excited] et [natural]."
-    };
-    if (hasProfessional) return {
-      type: "CONTENU PROFESSIONNEL / B2B",
-      guidance: "Ton POSÉ et CRÉDIBLE : évite le vocabulaire trop familier, garde une Darija propre. Privilégie [calm] et [natural]."
-    };
-    return {
-      type: "CONTENU GÉNÉRAL",
-      guidance: "Adapte-toi au ton naturel du texte original : ni trop excité, ni trop plat. Équilibre les émotions."
-    };
-  }
-
-  // Analyse du niveau d'énergie du texte original
-  function analyzeEnergyLevel(text: string): string {
-    const exclamations = (text.match(/[!؟?]/g) || []).length;
-    const hasStrongWords = /رائع|مذهل|مهبول|واعر|خطير|فرصة|urgence|فوراً|زربوا|احنا/i.test(text);
-    const wordCount = text.split(/\s+/).length;
-    const exclamRatio = exclamations / Math.max(wordCount, 1);
-
-    if (exclamRatio > 0.05 || hasStrongWords) return "ÉNERGIE HAUTE : garde un ton dynamique avec [excited] fréquent (mais pas partout).";
-    if (exclamRatio < 0.01 && wordCount > 40) return "ÉNERGIE POSÉE : garde un ton calme et posé, privilégie [natural] et [calm], évite les [excited] excessifs.";
-    return "ÉNERGIE ÉQUILIBRÉE : alterne intelligemment [natural], [excited] et [calm] selon le contenu de chaque phrase.";
-  }
-
-  // Extraction des mots FR/latins présents dans l'original (pour vérification)
-  function extractLatinWords(text: string): string[] {
-    const matches = text.match(/[a-zA-Z][a-zA-Z0-9]{2,}/g) || [];
-    return [...new Set(matches.map(w => w.toLowerCase()))];
-  }
-
-  // Validation : vérifie que les mots FR sont toujours présents après enhance
-  function validateLatinPreservation(original: string, enhanced: string): boolean {
-    const originalLatins = extractLatinWords(original);
-    const enhancedLower = enhanced.toLowerCase();
-    if (originalLatins.length === 0) return true;
-    const preserved = originalLatins.filter(w => enhancedLower.includes(w));
-    return preserved.length >= Math.floor(originalLatins.length * 0.7); // 70% des mots latins doivent rester
-  }
-
-  // Compte les balises d'émotion dans le texte
-  function countEmotionTags(text: string): number {
-    return (text.match(/\[(excited|natural|calm|whisper|fast|dramatic)\]/gi) || []).length;
-  }
-
   const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
@@ -773,15 +734,12 @@ RÈGLES STRICTES :
         return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
       }
 
-      // === ANALYSE INTELLIGENTE DU TEXTE ORIGINAL ===
       const regionGuide = getRegionGuide(region);
       const { type: textType, guidance: typeGuidance } = detectTextType(text);
       const energyLevel = analyzeEnergyLevel(text);
       const originalLatinWords = extractLatinWords(text);
       const wordCount = text.split(/\s+/).length;
       const expectedMinTags = Math.max(2, Math.floor(wordCount / 25));
-
-      // Booster créatif aléatoire (rotation pour varier les résultats)
       const randomBooster = ENHANCE_BOOSTERS[Math.floor(Math.random() * ENHANCE_BOOSTERS.length)];
 
       const buildEnhancePrompt = (isRetry: boolean = false) => `Tu es un DIRECTEUR ARTISTIQUE + rédacteur TTS ÉLITE spécialisé en Darija Algérienne pour vidéos courtes (TikTok, Reels, Shorts).
@@ -823,60 +781,47 @@ Réécris et OPTIMISE le texte ci-dessous pour qu'il soit ultra-naturel, captiva
 - Une balise au DÉBUT de chaque phrase clé : [excited], [natural], [calm], [whisper], [fast].
 - JAMAIS deux balises collées (INTERDIT : [excited][natural]).
 - La PREMIÈRE phrase DOIT commencer par une balise.
-- ADAPTE les balises au sens : [excited] pour hook/CTA, [natural] pour explication, [calm] pour crédibilité, [whisper] pour secret/intimité, [fast] pour urgence.
 
 4. RYTHME & PROSODIE ORALE :
-- Alterne phrases courtes (impact) et phrases moyennes (développement).
+- Alterne phrases courtes et moyennes.
 - Utilise "..." pour marquer les pauses naturelles.
-- Ajoute des virgules pour les respirations : "بصح, راهو, واللاه".
-- Termine les phrases par "." "!" ou "؟" selon l'intention.
+- Termine les phrases par "." "!" ou "؟".
 
 5. AUTHENTICITÉ DARIJA :
-- Utilise des tournures LOCALES vivantes : "راهو, بصح, واعرة, يا خويا, تعرف, شوف, عيّي, راك تشوف".
-- Évite l'arabe littéraire (فصحى) : reste en Darija parlée.
-- Le texte doit sonner comme un VRAI ALGÉRIEN qui parle, pas comme une traduction.
+- Utilise des tournures LOCALES vivantes : "راهو, بصح, واعرة, يا خويا, تعرف, شوف, عيّي".
+- Reste en Darija parlée naturelle.
 
 6. SORTIE :
-- Renvoie UNIQUEMENT le texte final à vocaliser.
-- Aucun titre, aucun markdown (* #), aucune note, aucun commentaire.
-- Aucune explication du type "Voici le texte amélioré :" ou "TTS Refinement".
+- Renvoie UNIQUEMENT le texte final à vocaliser. Aucun titre, aucun markdown.
 
 ${isRetry ? `
-⚠️ TENTATIVE #2 - RENFORCEMENT :
-La première tentative a échoué (texte trop court, pas assez de balises, ou mots FR traduits).
-CETTE FOIS, RESPECTE STRICTEMENT :
-- Minimum ${expectedMinTags} balises d'émotion.
-- Longueur minimale : ${Math.floor(wordCount * 0.9)} mots.
-- Tous les mots FR de la liste ci-dessus DOIVENT rester en latin.
+⚠️ TENTATIVE #2 :
+Respecte STRICTEMENT : minimum ${expectedMinTags} balises d'émotion, longueur minimale ${Math.floor(wordCount * 0.9)} mots, tous les mots FR en latin.
 ` : ""}
 
 ═══════════════════════════════════════════════
-📝 TEXTE ORIGINAL À AMÉLIORER :
+📝 TEXTE ORIGINAL :
 
 ${text}
 
-═══════════════════════════════════════════════
-Génère maintenant la version optimisée (UNIQUEMENT le texte, rien d'autre) :`;
+Génère maintenant la version optimisée (UNIQUEMENT le texte) :`;
 
-      // === PREMIÈRE TENTATIVE ===
       let enhancedText = await callGeminiTextAPI(buildEnhancePrompt(false), 0.6);
 
-      // Nettoyage anti-parasites (double passe)
       const cleanOutput = (raw: string): string => {
         return raw
-          .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1") // Balises collées
-          .replace(/\*+/g, "") // Étoiles markdown
-          .replace(/^#+\s*.*$/gm, "") // Titres markdown
+          .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
+          .replace(/\*+/g, "")
+          .replace(/^#+\s*.*$/gm, "")
           .replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Modifications|Voici|Texte\s*amélioré|Version\s*optimisée)\s*:?/gi, "")
-          .replace(/^["«»']|["«»']$/g, "") // Guillemets début/fin
-          .replace(/```[a-z]*/g, "").replace(/```/g, "") // Code blocks
-          .replace(/\n{3,}/g, "\n\n") // Sauts de ligne excessifs
+          .replace(/^["«»']|["«»']$/g, "")
+          .replace(/```[a-z]*/g, "").replace(/```/g, "")
+          .replace(/\n{3,}/g, "\n\n")
           .trim();
       };
 
       enhancedText = cleanOutput(enhancedText);
 
-      // === VALIDATION MULTI-NIVEAUX ===
       const tagCount = countEmotionTags(enhancedText);
       const isTooShort = enhancedText.length < text.length * 0.6;
       const missingTags = tagCount < expectedMinTags;
@@ -885,50 +830,26 @@ Génère maintenant la version optimisée (UNIQUEMENT le texte, rien d'autre) :`
 
       const needsRetry = isTooShort || missingTags || !latinPreserved || !startsWithTag;
 
-      // === DEUXIÈME TENTATIVE (si validation échoue) ===
       if (needsRetry) {
-        console.warn(`[LLM Enhance] Retry nécessaire → tooShort:${isTooShort}, missingTags:${missingTags} (${tagCount}/${expectedMinTags}), latinLost:${!latinPreserved}, noStartTag:${!startsWithTag}`);
         try {
           let retryText = await callGeminiTextAPI(buildEnhancePrompt(true), 0.4);
           retryText = cleanOutput(retryText);
-          
-          // Si le retry est meilleur, on le garde
-          const retryTagCount = countEmotionTags(retryText);
-          const retryLength = retryText.length;
-          if (retryLength >= text.length * 0.7 && retryTagCount >= 2) {
+          if (retryText.length >= text.length * 0.7 && countEmotionTags(retryText) >= 2) {
             enhancedText = retryText;
-            console.log("[LLM Enhance] Retry réussi ✓");
           }
-        } catch (retryErr) {
-          console.warn("[LLM Enhance] Retry échoué, on garde la 1ère version");
-        }
+        } catch (retryErr) {}
       }
 
-      // === FALLBACK ULTIME : si toujours trop court, on garde l'original ===
       if (enhancedText.length < text.length * 0.4) {
-        console.warn("[LLM Enhance] Fallback : texte final toujours trop court, retour à l'original avec balise ajoutée");
         enhancedText = /^\[/.test(text.trim()) ? text.trim() : `[natural] ${text.trim()}`;
       }
 
-      // === AJOUT BALISE INITIALE SI MANQUANTE ===
       if (!/^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim())) {
-        // Choix intelligent de la balise initiale selon le type
-        const initialTag = textType.includes("PUBLICITÉ") || textType.includes("COMMERCIALE") 
-          ? "[excited]" 
-          : textType.includes("STORYTELLING") 
-          ? "[natural]" 
-          : "[natural]";
-        enhancedText = `${initialTag} ${enhancedText}`;
+        enhancedText = `[natural] ${enhancedText}`;
       }
 
-      // === DÉBIT DES POINTS ===
       const reduction = await deductCredits(userId, pointsCost);
       const finalBalance = reduction.success ? reduction.remaining : currentBalance;
-
-      // === STATISTIQUES POUR LE FRONTEND ===
-      const finalTagCount = countEmotionTags(enhancedText);
-      const finalWordCount = enhancedText.split(/\s+/).length;
-      const improvementRatio = Math.round(((enhancedText.length - text.length) / text.length) * 100);
 
       return res.json({
         success: true,
@@ -938,14 +859,13 @@ Génère maintenant la version optimisée (UNIQUEMENT le texte, rien d'autre) :`
         notification: "-2 Points",
         remaining_balance: finalBalance,
         region_used: region,
-        // Métadonnées enrichies
         analysis: {
           detected_type: textType,
           energy_level: energyLevel.split(":")[0].trim(),
           original_word_count: wordCount,
-          enhanced_word_count: finalWordCount,
-          emotion_tags_count: finalTagCount,
-          improvement_ratio_percent: improvementRatio,
+          enhanced_word_count: enhancedText.split(/\s+/).length,
+          emotion_tags_count: countEmotionTags(enhancedText),
+          improvement_ratio_percent: Math.round(((enhancedText.length - text.length) / text.length) * 100),
           latin_words_preserved: originalLatinWords.length > 0 ? validateLatinPreservation(text, enhancedText) : true
         }
       });
@@ -954,14 +874,11 @@ Génère maintenant la version optimisée (UNIQUEMENT le texte, rien d'autre) :`
       return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" });
     }
   };
-
-  // Enregistrement des routes
   app.post("/api/v1/llm/enhance", handleLLMEnhance);
   app.post("/api/llm/enhance", handleLLMEnhance);
 
-  
   /* ==========================================================================
-     LLM SCRIPT GENERATOR — MOTEUR HYPER PERFORMANT (-5 pts)
+     LLM SCRIPT GENERATOR (-5 pts)
      ========================================================================== */
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
@@ -979,7 +896,6 @@ Génère maintenant la version optimisée (UNIQUEMENT le texte, rien d'autre) :`
         return res.status(402).json({ error: "Solde de points insuffisant (5 points requis)." });
       }
 
-      // SÉLECTION ALÉATOIRE CÔTÉ SERVEUR (TRUE RANDOMNESS)
       const selectedHook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
       const selectedProblem = PROBLEMS[Math.floor(Math.random() * PROBLEMS.length)];
       const selectedSolution = SOLUTIONS[Math.floor(Math.random() * SOLUTIONS.length)];
@@ -996,19 +912,10 @@ SECTEUR DÉTECTÉ : ${detectedSector}
 SUJET / PRODUIT : "${product}"
 
 🎯 ARCHITECTURE OBLIGATOIRE DU SCRIPT (À SUIVRE À LA LETTRE) :
-Tu dois rédiger le script en suivant EXACTEMENT ces 4 étapes créatives :
-
 1. ACCROCHE (HOOK) [3-5 sec] -> Applique cet angle : "${selectedHook}"
-(Rédige une phrase forte avec le tag [excited] ou [dramatic]. Ne commence JAMAIS par une phrase générique).
-
 2. LE PROBLÈME [8-12 sec] -> Insiste sur ce point de douleur : "${selectedProblem}"
-(Utilise [natural] ou [calm]. Fais ressentir le problème au spectateur en Darija).
-
 3. LA SOLUTION & PREUVE [15-20 sec] -> Présente le produit avec cet angle : "${selectedSolution}" ET valide-le avec cette preuve : "${selectedProof}"
-(Utilise [natural] ou [excited]).
-
 4. APPEL À L'ACTION (CTA) [5 sec] -> Termine la vidéo EXACTEMENT avec ce type de CTA : "${selectedCTA}"
-(Utilise [fast] ou [excited]).
 
 ⚠️ RAPPEL DES CONTRAINTES :
 - L'ensemble doit être ultra-fluide et s'enchaîner logiquement en Darija Algérienne.
@@ -1017,10 +924,8 @@ Tu dois rédiger le script en suivant EXACTEMENT ces 4 étapes créatives :
 
 Style vocal souhaité : ${style || "excited"}`;
 
-      // Température à 0.95 pour une hyper-créativité et un vocabulaire riche
       let scriptText = await callGeminiTextAPI(scriptPrompt, 0.95);
 
-      // Nettoyage rigoureux
       scriptText = scriptText
         .replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1")
         .replace(/\*+/g, "")
@@ -1040,19 +945,18 @@ Style vocal souhaité : ${style || "excited"}`;
         remaining_balance: finalBalance,
         sector_used: detectedSector,
         region_used: region,
-        debug_framework: { hook: selectedHook, problem: selectedProblem, cta: selectedCTA } // Info optionnelle pour dev
+        debug_framework: { hook: selectedHook, problem: selectedProblem, cta: selectedCTA }
       });
     } catch (err: any) {
       console.error("[LLM Script Generator Error]", err.message || err);
       return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" });
     }
   };
-  
   app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
   app.post("/api/llm/generate-script", handleLLMGenerateScript);
 
   /* ==========================================================================
-     AI FEEDBACK — Sauvegarde des retours utilisateurs (👍👎)
+     AI FEEDBACK
      ========================================================================== */
   const handleAIFeedback = async (req: express.Request, res: express.Response) => {
     try {
@@ -1075,7 +979,6 @@ Style vocal souhaité : ${style || "excited"}`;
             sector: sector || "general",
             created_at: new Date().toISOString()
           });
-          console.log(`[AI Feedback] ${rating >= 4 ? '👍' : '👎'} - Type: ${type} - Region: ${region} - Sector: ${sector}`);
         } catch (e: any) {
           console.warn("[AI Feedback] Insert failed:", e.message);
         }
