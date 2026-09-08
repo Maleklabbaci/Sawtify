@@ -787,50 +787,79 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       </div>
 
-      {/* ============ PLAYER AUDIO EN BAS ============ */}
+      {/* ==========================================================================
+         PLAYER AUDIO FLOTTANT HAUT DE GAMME (Style ElevenLabs / Spotify)
+         ========================================================================== */}
       {currentAudioUrl && (
-        <div className="shrink-0 bg-gradient-to-r from-white via-purple-50/40 to-white border-t border-purple-100 px-4 py-3 flex items-center gap-3 z-40 shadow-2xl animate-in slide-in-from-bottom-2">
-          <button 
-            onClick={togglePlay} 
-            className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/30 shrink-0">
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
-          </button>
+        <div className="fixed bottom-4 inset-x-4 max-w-3xl mx-auto bg-slate-900/95 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-800/80 backdrop-blur-xl z-50 flex items-center justify-between gap-3 sm:gap-5 animate-in slide-in-from-bottom-5 duration-300">
           
-          <div className="flex-1 min-w-0 max-w-2xl">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-[10px] font-bold text-purple-700 truncate">{currentVoice.name}</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold shrink-0">
-                {language === 'ar' ? '✓ جاهز' : '✓ Prêt'}
+          {/* ZONE 1 : Bouton Play & Infos Voix */}
+          <div className="flex items-center gap-3 shrink-0">
+            <button 
+              onClick={togglePlay} 
+              className="w-11 h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/25 shrink-0">
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
+            </button>
+            
+            <div className="hidden sm:flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white truncate">{currentVoice.name}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold shrink-0">
+                  {language === 'ar' ? 'جاهز ✓' : 'Prêt ✓'}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-num">
+                {currentTime.toFixed(1)}s / {audioDuration.toFixed(1)}s
               </span>
             </div>
-            <WaveformPlayer 
-              isPlaying={isPlaying}
-              hasAudio={!!currentAudioUrl}
-              currentTime={currentTime}
-              duration={audioDuration}
-            />
           </div>
-          
-          <span className="text-[10px] text-purple-700 font-num shrink-0 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200 font-semibold">
-            {currentTime.toFixed(1)}s / {audioDuration.toFixed(1)}s
-          </span>
-          
-          {mp3Url ? (
-            <a href={mp3Url} download="sawtify-audio.mp3" className="p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition shrink-0" title="Download MP3">
-              <Download className="w-4 h-4" />
-            </a>
-          ) : (
-            <a href={currentAudioUrl} download="sawtify-audio.wav" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition shrink-0" title="Download WAV">
-              <Download className="w-4 h-4" />
-            </a>
-          )}
-          
-          <button 
-            onClick={handleClosePlayer} 
-            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-          
+
+          {/* ZONE 2 : Waveform dynamique au centre */}
+          <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-800/50 px-3 py-2 rounded-xl border border-slate-700/40">
+            <div className="flex-1 min-w-0">
+              <WaveformPlayer 
+                isPlaying={isPlaying}
+                hasAudio={!!currentAudioUrl}
+                currentTime={currentTime}
+                duration={audioDuration}
+              />
+            </div>
+            {/* Temps affiché sur mobile si les infos voix sont cachées */}
+            <span className="sm:hidden text-[10px] text-purple-300 font-num font-bold shrink-0">
+              {currentTime.toFixed(1)}s
+            </span>
+          </div>
+
+          {/* ZONE 3 : Téléchargement et Fermeture */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {mp3Url ? (
+              <a 
+                href={mp3Url} 
+                download="sawtify-audio.mp3" 
+                className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-900/30"
+                title="Download MP3">
+                <Download className="w-4 h-4" />
+                <span className="hidden md:inline">MP3</span>
+              </a>
+            ) : (
+              <a 
+                href={currentAudioUrl} 
+                download="sawtify-audio.wav" 
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer border border-slate-700"
+                title="Download WAV">
+                <Download className="w-4 h-4" />
+                <span className="hidden md:inline">WAV</span>
+              </a>
+            )}
+
+            <button 
+              onClick={handleClosePlayer} 
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+              title={language === 'ar' ? 'إغلاق' : 'Fermer'}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
           <audio 
             ref={audioRef} 
             src={currentAudioUrl} 
