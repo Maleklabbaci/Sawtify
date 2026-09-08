@@ -604,106 +604,109 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {t.skip}
       </a>
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-      <header
-        className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-out ${
-          scrolled
-            ? "bg-[#FAFAF7]/80 backdrop-blur-xl border-b border-black/[0.06]"
-            : "bg-transparent border-b border-transparent"
-        }`}
+   {/* =====================================================
+    HEADER — nav centrée absolument
+===================================================== */}
+<header
+  className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-out ${
+    scrolled
+      ? "bg-[#FAFAF7]/80 backdrop-blur-xl border-b border-black/[0.06]"
+      : "bg-transparent border-b border-transparent"
+  }`}
+>
+  <div className="relative mx-auto max-w-[1200px] px-6 h-16 flex items-center justify-between">
+    {/* LOGO */}
+    <a
+      href="#home"
+      onClick={(e) => {
+        e.preventDefault();
+        smoothTo("#home");
+      }}
+      className="relative z-10 flex items-center gap-2 sw-focus"
+      aria-label="Sawtify"
+    >
+      <div className="w-6 h-6 rounded-full overflow-hidden bg-black shrink-0">
+        <img
+          src={LOGO_URL}
+          alt=""
+          width={24}
+          height={24}
+          decoding="async"
+          className="w-full h-full object-cover"
+        />
+      </div>
+      <span className="font-medium text-[14px] text-[#111] tracking-tight">
+        Sawtify
+      </span>
+      <span
+        className="hidden sm:inline text-[10px] text-[#6366F1] border border-[#6366F1]/25 rounded px-1.5 py-px ms-1"
+        style={{ fontFamily: mono }}
       >
-        <div className="mx-auto max-w-[1200px] px-6 h-16 flex items-center justify-between">
-          <a
-            href="#home"
-            onClick={(e) => {
-              e.preventDefault();
-              smoothTo("#home");
-            }}
-            className="flex items-center gap-2 sw-focus"
-            aria-label="Sawtify"
-          >
-            <div className="w-6 h-6 rounded-full overflow-hidden bg-black shrink-0">
-              <img
-                src={LOGO_URL}
-                alt=""
-                width={24}
-                height={24}
-                decoding="async"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span className="font-medium text-[14px] text-[#111] tracking-tight">
-              Sawtify
-            </span>
-            <span
-              className="hidden sm:inline text-[10px] text-[#6366F1] border border-[#6366F1]/25 rounded px-1.5 py-px ms-1"
-              style={{ fontFamily: mono }}
-            >
-              v2.1
-            </span>
-          </a>
+        v2.1
+      </span>
+    </a>
 
-          <nav
-            className="hidden md:flex items-center gap-8 text-[13px] text-[#111]/65"
-            aria-label="Principale"
-          >
-            {nav.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  smoothTo(l.href);
-                }}
-                className="hover:text-[#111] transition-colors duration-200 sw-focus"
-              >
-                {l.label}
-              </a>
-            ))}
-          </nav>
+    {/* NAV — centrée absolument au milieu du viewport */}
+    <nav
+      className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-8 text-[13px] text-[#111]/65"
+      aria-label="Principale"
+    >
+      {nav.map((l) => (
+        <a
+          key={l.href}
+          href={l.href}
+          onClick={(e) => {
+            e.preventDefault();
+            smoothTo(l.href);
+          }}
+          className="hover:text-[#111] transition-colors duration-200 sw-focus"
+        >
+          {l.label}
+        </a>
+      ))}
+    </nav>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
-              aria-label={t.switchLang}
-              className="hidden sm:inline-flex w-8 h-8 items-center justify-center text-[11px] font-medium text-[#111]/60 hover:text-[#111] transition-colors sw-focus rounded"
-              style={{ fontFamily: mono }}
-            >
-              {language === "fr" ? "AR" : "FR"}
-            </button>
+    {/* ACTIONS DROITE */}
+    <div className="relative z-10 flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => setLanguage(language === "fr" ? "ar" : "fr")}
+        aria-label={t.switchLang}
+        className="hidden sm:inline-flex w-8 h-8 items-center justify-center text-[11px] font-medium text-[#111]/60 hover:text-[#111] transition-colors sw-focus rounded"
+        style={{ fontFamily: mono }}
+      >
+        {language === "fr" ? "AR" : "FR"}
+      </button>
 
-            <button
-              type="button"
-              onClick={onLoginClick}
-              className="hidden md:inline-flex px-3 h-8 text-[13px] font-medium text-[#111]/70 hover:text-[#111] transition-colors sw-focus rounded"
-            >
-              {t.signin}
-            </button>
+      <button
+        type="button"
+        onClick={onLoginClick}
+        className="hidden md:inline-flex px-3 h-8 text-[13px] font-medium text-[#111]/70 hover:text-[#111] transition-colors sw-focus rounded"
+      >
+        {t.signin}
+      </button>
 
-            <button
-              type="button"
-              onClick={onSigninClick}
-              className="hidden md:inline-flex items-center gap-1.5 h-8 px-3.5 bg-[#111] text-[#FAFAF7] text-[13px] font-medium rounded-full hover:bg-[#111]/85 transition-colors sw-focus"
-            >
-              {t.start}
-              <ArrowIcon className="w-3.5 h-3.5" />
-            </button>
+    <button
+  type="button"
+  onClick={onSigninClick}
+  className="group relative inline-flex items-center gap-2 h-11 px-5 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#6366F1] hover:shadow-[0_0_0_4px_rgba(99,102,241,0.15)] transition-all duration-300 sw-focus"
+>
+  {t.tryFree}
+  <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+</button>
 
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label={t.open}
-              aria-expanded={menuOpen}
-              className="md:hidden w-9 h-9 flex items-center justify-center text-[#111] hover:bg-black/5 rounded transition-colors sw-focus"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <button
+        type="button"
+        onClick={() => setMenuOpen(true)}
+        aria-label={t.open}
+        aria-expanded={menuOpen}
+        className="md:hidden w-9 h-9 flex items-center justify-center text-[#111] hover:bg-black/5 rounded transition-colors sw-focus"
+      >
+        <Menu className="w-4 h-4" />
+      </button>
+    </div>
+  </div>
+</header>
 
       {/* MOBILE DRAWER */}
       <AnimatePresence>
