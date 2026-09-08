@@ -3,7 +3,7 @@ import {
   Play, Pause, Download, Volume2, AlertCircle, 
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
   AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown,
-  Menu, Settings
+  Menu, Settings, ChevronDown
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
@@ -12,6 +12,7 @@ import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestG
 import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
+import { WaveformPlayer } from './WaveformPlayer';
 
 interface TTSStudioProps {
   balance: number;
@@ -72,7 +73,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [insufficientAlert, setInsufficientAlert] = useState<boolean>(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
-  const [lastGeneratedCost, setLastGeneratedCost] = useState<number>(20);
+  const [, setLastGeneratedCost] = useState<number>(20);
+
+  // Menu emotions dropdown
+  const [isEmotionsMenuOpen, setIsEmotionsMenuOpen] = useState<boolean>(false);
+  const emotionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   // IA
   const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
@@ -80,9 +85,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('general');
 
-  // Drawers de navigation mobile
-  const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState<boolean>(false);
-  const [isRightDrawerOpen, setIsRightDrawerOpen] = useState<boolean>(false);
+  // Drawers mobiles (renommés par fonction, pas par position)
+  const [isScriptMenuOpen, setIsScriptMenuOpen] = useState<boolean>(false);
+  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState<boolean>(false);
 
   // Feedback (👍👎)
   const [lastGenType, setLastGenType] = useState<'script' | 'enhance' | null>(null);
@@ -100,8 +105,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const previousAudioUrlRef = useRef<string | null>(null);
   const previousMp3UrlRef = useRef<string | null>(null);
 
@@ -109,7 +112,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const filteredVoices = voices.filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter));
 
-  // Révocation automatique des blobs (Mémoire)
+  // Fermer dropdown emotions au clic extérieur
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (emotionsMenuRef.current && !emotionsMenuRef.current.contains(e.target as Node)) {
+        setIsEmotionsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Révocation automatique des blobs
   useEffect(() => {
     return () => {
       if (previousAudioUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousAudioUrlRef.current);
@@ -136,6 +150,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     const start = textareaRef.current.selectionStart;
     const end = textareaRef.current.selectionEnd;
     setText(prev => prev.substring(0, start) + ' ' + tag + ' ' + prev.substring(end));
+    setIsEmotionsMenuOpen(false);
   }, []);
 
   const handlePreviewVoice = useCallback(async (e: React.MouseEvent, voice: Voice) => {
@@ -168,11 +183,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     try {
       const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(tag => tag.replace(/[\[\]]/g, ''));
       const response = await requestTTSGeneration({ 
-        text, 
-        voice_id: currentVoice.id, 
-        speed, 
-        pitch, 
-        emotion_tags: extractedTags 
+        text, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags 
       }, balance);
 
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
@@ -190,21 +201,15 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         setAudioDuration(response.duration_seconds || 0);
       });
 
-      // Coût réel dynamique renvoyé par le serveur (palier 0-60s = 20 pts,
-      // puis +10 pts par tranche de 60s supplémentaire entamée).
       const realCost = response.points_deducted || POINTS_COST;
       setLastGeneratedCost(realCost);
       
       const record: GenerationRecord = { 
         id: response.generation_id || ('gen_' + Date.now()), 
-        text, 
-        voiceId: currentVoice.id, 
-        voiceName: currentVoice.name, 
-        audioUrl: response.audio_url, 
-        pointsDeducted: realCost, 
+        text, voiceId: currentVoice.id, voiceName: currentVoice.name, 
+        audioUrl: response.audio_url, pointsDeducted: realCost, 
         durationSec: response.duration_seconds || 0, 
-        latencyMs: response.latency_ms, 
-        createdAt: new Date().toISOString() 
+        latencyMs: response.latency_ms, createdAt: new Date().toISOString() 
       };
 
       await onDeductPoints(realCost, record);
@@ -241,10 +246,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const handleEnhanceText = async () => {
     if (!text.trim() || isEnhancing) return;
-    if (balance < 2) { 
-      setInsufficientAlert(true); 
-      return; 
-    }
+    if (balance < 2) { setInsufficientAlert(true); return; }
     setInsufficientAlert(false); 
     setIsEnhancing(true); 
     setFeedbackSent(false);
@@ -256,17 +258,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGenType('enhance');
       setLastGenInput(originalText);
       setLastGenOutput(result.enhanced_text);
-      // Effet "magique" sur le texte + son de confirmation
       setIsMagicActive(true);
       setTimeout(() => setIsMagicActive(false), 900);
       playEnhanceChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
-      if (e?.message?.includes('insuffisant')) {
-        setInsufficientAlert(true);
-      } else {
-        showNotif(language === 'ar' ? 'خطأ في التحسين' : 'Erreur d\'amélioration');
-      }
+      if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
+      else showNotif(language === 'ar' ? 'خطأ في التحسين' : 'Erreur d\'amélioration');
     } finally { 
       setIsEnhancing(false); 
     }
@@ -274,10 +272,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const handleGenerateScript = async () => {
     if (!productName.trim() || isGeneratingScript) return;
-    if (balance < 5) { 
-      setInsufficientAlert(true); 
-      return; 
-    }
+    if (balance < 5) { setInsufficientAlert(true); return; }
     setInsufficientAlert(false); 
     setIsGeneratingScript(true); 
     setFeedbackSent(false);
@@ -290,17 +285,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGenOutput(result.script);
       setLastGenSector(result.sector_used || 'general');
       setProductName('');
-      setIsLeftDrawerOpen(false); // Ferme le menu mobile après génération
+      setIsScriptMenuOpen(false);
       setIsMagicActive(true);
       setTimeout(() => setIsMagicActive(false), 900);
       playScriptChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
-      if (e?.message?.includes('insuffisant')) {
-        setInsufficientAlert(true);
-      } else {
-        showNotif(language === 'ar' ? 'خطأ في إنشاء السيناريو' : 'Erreur génération script');
-      }
+      if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
+      else showNotif(language === 'ar' ? 'خطأ في إنشاء السيناريو' : 'Erreur génération script');
     } finally { 
       setIsGeneratingScript(false); 
     }
@@ -315,12 +307,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setFeedbackError(false);
     try {
       await sendAIFeedback({
-        input_text: lastGenInput,
-        output_text: lastGenOutput,
-        rating,
-        type: lastGenType,
-        region: selectedRegion,
-        sector: lastGenSector
+        input_text: lastGenInput, output_text: lastGenOutput, rating,
+        type: lastGenType, region: selectedRegion, sector: lastGenSector
       });
       setFeedbackSent(true);
       showNotif(rating >= 4 
@@ -328,8 +316,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         : (language === 'ar' ? '👍 شكراً على ملاحظتك' : '👍 Merci pour ton retour'));
     } catch (e) { 
       console.warn('Feedback failed:', e); 
-      // Le clic reste visible pour l'utilisateur même en cas d'échec réseau,
-      // mais on signale clairement que ça n'a pas été envoyé (avant : échec silencieux).
       setFeedbackGiven(null);
       setFeedbackError(true);
       showNotif(language === 'ar' ? 'فشل إرسال التقييم' : "Échec de l'envoi du retour");
@@ -354,65 +340,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     if (audioRef.current) setCurrentTime(audioRef.current.currentTime); 
   }, []);
 
-  // Waveform canvas
-  useEffect(() => {
-    const canvas = canvasRef.current; 
-    if (!canvas) return;
-    
-    if (!currentAudioUrl && !isPlaying) {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-    
-    const ctx = canvas.getContext('2d'); 
-    if (!ctx) return;
-    
-    let step = 0; 
-    const bars = 32; 
-    const barWidth = 2;
-    
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < bars; i++) {
-        let h = 4;
-        if (isPlaying) {
-          h = Math.max(3, (Math.sin((i + step) * 0.25) * 0.5 + 0.5) * canvas.height * 0.85);
-        } else if (currentAudioUrl) {
-          h = Math.max(3, (Math.sin(i * 0.4) * 0.4 + 0.4) * canvas.height * 0.5);
-        }
-        ctx.fillStyle = i / bars <= (audioDuration > 0 ? currentTime / audioDuration : 0) ? '#7c3aed' : '#cbd5e1';
-        ctx.beginPath(); 
-        
-        if (typeof ctx.roundRect === 'function') {
-          ctx.roundRect(i * (barWidth + 2), (canvas.height - h) / 2, barWidth, h, 0.5);
-        } else {
-          ctx.rect(i * (barWidth + 2), (canvas.height - h) / 2, barWidth, h);
-        }
-        ctx.fill();
-      }
-      if (isPlaying) step++;
-      animationFrameRef.current = requestAnimationFrame(render);
-    };
-    render();
-    
-    return () => { 
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current); 
-        animationFrameRef.current = null;
-      }
-    };
-  }, [isPlaying, currentAudioUrl, currentTime, audioDuration]);
-
   const regionButtons: { id: RegionId; ar: string; fr: string }[] = [
     { id: 'general', ar: 'عام', fr: 'Général' },
     { id: 'centre', ar: 'الوسط', fr: 'Centre' },
     { id: 'ouest', ar: 'الغرب', fr: 'Ouest' },
     { id: 'est', ar: 'الشرق', fr: 'Est' },
+  ];
+
+  const categoryOptions: { id: CategoryFilter; label: string }[] = [
+    { id: 'all', label: t.categoryAll || 'Tous' },
+    { id: 'commercial', label: t.categoryCommercial || 'Commercial' },
+    { id: 'narrative', label: t.categoryNarrative || 'Narratif' },
+    { id: 'social', label: t.categorySocial || 'Social' },
+    { id: 'formal', label: t.categoryFormal || 'Formel' },
   ];
 
   const handleClosePlayer = useCallback(() => {
@@ -437,7 +377,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, [text, language, showNotif]);
 
   return (
-    // CONTENANT PRINCIPAL EN FLEX-COL (Pousse proprement le player en bas au lieu de le chevaucher !)
     <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative">
       
       {notification && (
@@ -447,10 +386,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
       )}
 
-      {/* TOP BAR MOBILE (Uniquement visible sur Mobile / Tablette pour ouvrir les menus) */}
+      {/* TOP BAR MOBILE */}
       <div className="lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2.5 z-30">
         <button 
-          onClick={() => setIsLeftDrawerOpen(true)} 
+          onClick={() => setIsScriptMenuOpen(true)} 
           className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
           <Menu className="w-4 h-4" />
           <span>{language === 'ar' ? 'السيناريو' : 'Script'}</span>
@@ -463,50 +402,46 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
 
         <button 
-          onClick={() => setIsRightDrawerOpen(true)} 
+          onClick={() => setIsVoiceMenuOpen(true)} 
           className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
           <Settings className="w-4 h-4" />
           <span>{language === 'ar' ? 'الأصوات' : 'Voix'}</span>
         </button>
       </div>
 
-      {/* 3-COLUMN STUDIO LAYOUT */}
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* ==========================================================================
-           LEFT PANEL: SCRIPT GENERATOR (vidéos courtes, 30-50s)
-           ========================================================================== */}
-        {/* Backdrop overlay Mobile */}
-        {isLeftDrawerOpen && <div onClick={() => setIsLeftDrawerOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
+        {/* ============ PANNEAU SCRIPT (Gauche en LTR, Droite en RTL) ============ */}
+        {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
         <div className={`
           fixed lg:static inset-y-0 start-0 z-50 lg:z-0
           w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col
           transition-transform duration-300 transform
-          ${isLeftDrawerOpen ? 'translate-x-0' : (isRTL ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0')}
+          ${isScriptMenuOpen ? 'translate-x-0' : (isRTL ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0')}
         `}>
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Video className="w-4 h-4 text-purple-600" /> 
               {language === 'ar' ? 'منشئ النصوص الإعلانية' : 'Générateur de Script'}
             </h3>
-            <button onClick={() => setIsLeftDrawerOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+            <button onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div className="p-4 border-b border-slate-100">
-            {/* Lahdja selector */}
+            {/* Lahdja - Segmented Control épuré */}
             <div className="mb-3">
-              <label className="text-[10px] font-bold text-slate-500 mb-1 block">
-                {language === 'ar' ? 'اللهجة :' : 'Lahdja :'}
+              <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">
+                {language === 'ar' ? 'اللهجة' : 'Lahdja'}
               </label>
-              <div className="grid grid-cols-4 gap-1 text-[10px]">
+              <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px]">
                 {regionButtons.map(r => (
                   <button 
                     key={r.id} 
                     type="button" 
                     onClick={() => setSelectedRegion(r.id)}
-                    className={`py-1 rounded-lg border font-medium transition cursor-pointer ${selectedRegion === r.id ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                    className={`flex-1 text-center py-1.5 rounded-md font-medium transition cursor-pointer ${selectedRegion === r.id ? 'bg-white text-purple-700 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-800'}`}>
                     {language === 'ar' ? r.ar : r.fr}
                   </button>
                 ))}
@@ -543,11 +478,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               {language === 'ar' ? 'الأخيرة' : 'Récentes'}
             </h3>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 space-y-1">
             {recentGenerations.slice(0, 8).map((gen) => (
               <button 
                 key={gen.id} 
-                onClick={() => { setText(gen.text); setIsLeftDrawerOpen(false); }} 
+                onClick={() => { setText(gen.text); setIsScriptMenuOpen(false); }} 
                 className="w-full text-left p-2 rounded-lg text-[11px] text-slate-500 hover:bg-slate-50 transition cursor-pointer truncate">
                 {gen.text.substring(0, 30)}...
               </button>
@@ -558,9 +493,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
         </div>
 
-        {/* ==========================================================================
-           CENTER PANEL: THE WRITING EDITOR & MAIN CARDS
-           ========================================================================== */}
+        {/* ============ EDITEUR CENTRAL ============ */}
         <div className="flex-1 min-w-0 flex flex-col p-3 sm:p-4">
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
@@ -578,39 +511,53 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
             
+            {/* HEADER : Dropdown Emotions + Compteur caractères */}
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
-              <div className="flex items-center gap-2 gap-y-1.5 flex-wrap max-w-[70%]">
-                {styleTags.map((tagObj) => (
-                  <button 
-                    key={tagObj.tag} 
-                    onClick={() => handleInsertTag(tagObj.tag)} 
-                    title={tagObj.desc} 
-                    className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 border border-slate-200 text-slate-600 hover:text-purple-800 transition cursor-pointer">
-                    {tagObj.tag}
-                  </button>
-                ))}
+              
+              {/* Dropdown "Insérer une émotion" (Compact et propre) */}
+              <div className="relative" ref={emotionsMenuRef}>
+                <button 
+                  onClick={() => setIsEmotionsMenuOpen(!isEmotionsMenuOpen)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                  <span>{language === 'ar' ? 'إدراج تأثير' : 'Insérer effet'}</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isEmotionsMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {isEmotionsMenuOpen && (
+                  <div className="absolute top-full mt-1.5 start-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-64 max-h-72 overflow-y-auto custom-scrollbar">
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pb-1.5 border-b border-slate-100 mb-1.5">
+                      {language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {styleTags.map((tagObj) => (
+                        <button 
+                          key={tagObj.tag}
+                          onClick={() => handleInsertTag(tagObj.tag)} 
+                          title={tagObj.desc}
+                          className="text-[10px] font-mono px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start">
+                          {tagObj.tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
-              <button 
-                onClick={handleEnhanceText} 
-                disabled={isEnhancing || !text.trim() || balance < 2}
-                className="shrink-0 px-3 py-1.5 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
-                title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
-                {isEnhancing ? (
-                  <><RefreshCw className="w-3.5 h-3.5 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
-                ) : (
-                  <><Wand2 className="w-3.5 h-3.5 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
-                )}
-              </button>
+              {/* Compteur caractères (Info discrète) */}
+              <div className="text-[11px] text-slate-400 font-num">
+                <span className="font-semibold text-slate-600">{text.length}</span> {t.charsCount}
+              </div>
             </div>
 
+            {/* ZONE DE TEXTE */}
             <div className="flex-1 min-h-0 relative">
               <textarea 
                 ref={textareaRef} 
                 value={text} 
                 onChange={(e) => setText(e.target.value)} 
                 placeholder={t.textPlaceholder || 'Écrivez...'} 
-                className={`w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
+                className={`w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto custom-scrollbar transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }}
                 dir="auto" 
               />
@@ -621,134 +568,163 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   <Sparkles className="absolute bottom-6 start-4 w-3 h-3 text-pink-500 animate-pulse" />
                 </div>
               )}
-              <button 
-                onClick={handleCopyText} 
-                className="absolute bottom-1.5 end-2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200">
-                {copied ? <Check className="w-3.5 h-3.5 text-purple-600" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
               <style>{`
                 @keyframes magicSweep { 0% { transform: translateX(-100%); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(100%); opacity: 0; } }
                 @keyframes magicPulse { 0%, 100% { filter: none; } 40% { filter: drop-shadow(0 0 6px rgba(168,85,247,0.35)); } }
               `}</style>
             </div>
 
-            {/* Feedback IA */}
-            {lastGenType && lastGenOutput && (
-              <div className="shrink-0 mt-2 pt-2 border-t border-slate-100 flex items-center justify-center gap-3">
-                <span className="text-[10px] text-slate-500">
-                  {feedbackSent
-                    ? (language === 'ar' ? '✅ تم استلام رأيك' : '✅ Merci pour ton retour')
-                    : (language === 'ar' ? 'كيفاش لقيت النتيجة؟' : 'Qualité du résultat ?')}
+            {/* BARRE DE STATUT (Feedback + Actions intégrées, plus de flottement) */}
+            <div className="shrink-0 pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+              
+              {/* Groupe gauche : Bouton Magique + Copie */}
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={handleEnhanceText} 
+                  disabled={isEnhancing || !text.trim() || balance < 2}
+                  className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                  title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
+                  {isEnhancing ? (
+                    <><RefreshCw className="w-3 h-3 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
+                  ) : (
+                    <><Wand2 className="w-3 h-3 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
+                  )}
+                </button>
+                
+                <button 
+                  onClick={handleCopyText} 
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200"
+                  title={language === 'ar' ? 'نسخ' : 'Copier'}>
+                  {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Feedback discret intégré dans la barre */}
+                {lastGenType && lastGenOutput && (
+                  <div className="flex items-center gap-1 ms-2 ps-2 border-s border-slate-200">
+                    <span className="text-[9px] text-slate-400 me-1">
+                      {feedbackSent
+                        ? (language === 'ar' ? '✅' : '✅')
+                        : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
+                    </span>
+                    <button 
+                      onClick={() => handleSendFeedback(5)} 
+                      disabled={feedbackSent}
+                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
+                      title="👍">
+                      <ThumbsUp className={`w-3 h-3 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-slate-400 hover:text-green-600'}`} />
+                    </button>
+                    <button 
+                      onClick={() => handleSendFeedback(1)} 
+                      disabled={feedbackSent}
+                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
+                      title="👎">
+                      <ThumbsDown className={`w-3 h-3 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-slate-400 hover:text-red-500'}`} />
+                    </button>
+                    {feedbackError && (
+                      <span className="text-[9px] text-rose-500 ms-1">{language === 'ar' ? 'أعد' : 'Retry'}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Groupe droite : Coût + Générer */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-500 hidden sm:block" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
+                  {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
                 </span>
                 <button 
-                  onClick={() => handleSendFeedback(5)} 
-                  disabled={feedbackSent}
-                  className={`p-1.5 rounded-lg border transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100 border-green-400' : 'hover:bg-green-50 border-green-200'}`}
-                  title="👍">
-                  <ThumbsUp className={`w-3.5 h-3.5 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-green-600'}`} />
+                  onClick={handleGenerate} 
+                  disabled={isGenerating || !text.trim()} 
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
+                  {isGenerating ? (
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>
+                  ) : (
+                    <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
+                  )}
                 </button>
-                <button 
-                  onClick={() => handleSendFeedback(1)} 
-                  disabled={feedbackSent}
-                  className={`p-1.5 rounded-lg border transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100 border-red-400' : 'hover:bg-red-50 border-red-200'}`}
-                  title="👎">
-                  <ThumbsDown className={`w-3.5 h-3.5 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-red-500'}`} />
-                </button>
-                {feedbackError && (
-                  <span className="text-[10px] text-rose-500">{language === 'ar' ? 'أعد المحاولة' : 'Réessayer'}</span>
-                )}
               </div>
-            )}
-
-            <div className="shrink-0 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-              <div className="flex items-center gap-2 text-[11px] text-slate-500" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية، +10 نقاط لكل دقيقة إضافية' : '20 pts pour 0-60s, +10 pts par minute supplémentaire'}>
-                <span><span className="font-num font-semibold text-slate-700">{text.length}</span> {t.charsCount}</span>
-                <span className="text-slate-300">•</span>
-                <span>{t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel} <span className="text-slate-400">({language === 'ar' ? '٠-٦٠ث، +١٠/دقيقة زيادة' : '0-60s, +10/min suppl.'})</span></span>
-              </div>
-              <button 
-                onClick={handleGenerate} 
-                disabled={isGenerating || !text.trim()} 
-                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
-                {isGenerating ? (
-                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>
-                ) : (
-                  <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
-                )}
-              </button>
             </div>
           </div>
         </div>
 
-        {/* ==========================================================================
-           RIGHT PANEL: CATALOG VOICES & SETTINGS
-           ========================================================================== */}
-        {/* Backdrop overlay Mobile */}
-        {isRightDrawerOpen && <div onClick={() => setIsRightDrawerOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
+        {/* ============ PANNEAU VOIX ============ */}
+        {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
         <div className={`
           fixed lg:static inset-y-0 end-0 z-50 lg:z-0
           w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-transform duration-300 transform
-          ${isRightDrawerOpen ? 'translate-x-0' : (isRTL ? '-translate-x-full lg:translate-x-0' : 'translate-x-full lg:translate-x-0')}
+          ${isVoiceMenuOpen ? 'translate-x-0' : (isRTL ? '-translate-x-full lg:translate-x-0' : 'translate-x-full lg:translate-x-0')}
         `}>
           <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
               <Layers className="w-3.5 h-3.5 text-purple-600" />
               <span>{t.catalogHeader}</span>
             </div>
-            <button onClick={() => setIsRightDrawerOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+            <button onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col">
+            
+            {/* Filtre Genre : Icônes + Texte pour clarté */}
             <div className="shrink-0 flex bg-slate-100 p-0.5 rounded-lg text-[10px] mb-2">
               <button 
                 onClick={() => setGenderFilter('all')} 
-                className={`flex-1 text-center py-1 rounded-md transition ${genderFilter === 'all' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
+                className={`flex-1 text-center py-1.5 rounded-md transition ${genderFilter === 'all' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
                 {t.allGenders}
               </button>
               <button 
                 onClick={() => setGenderFilter('male')} 
-                className={`flex-1 text-center py-1 rounded-md transition ${genderFilter === 'male' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
-                {t.maleGenders}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md transition ${genderFilter === 'male' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
+                <span className="text-[12px]">👨</span>
+                <span>{t.maleGenders}</span>
               </button>
               <button 
                 onClick={() => setGenderFilter('female')} 
-                className={`flex-1 text-center py-1 rounded-md transition ${genderFilter === 'female' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
-                {t.femaleGenders}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md transition ${genderFilter === 'female' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>
+                <span className="text-[12px]">👩</span>
+                <span>{t.femaleGenders}</span>
               </button>
             </div>
 
-            <div className="shrink-0 flex flex-wrap gap-1 pb-2 border-b border-slate-100 text-[9px] mb-2">
-              {(['all', 'commercial', 'narrative', 'social', 'formal'] as CategoryFilter[]).map((cat) => (
-                <button 
-                  key={cat} 
-                  onClick={() => setCategoryFilter(cat)} 
-                  className={`px-2 py-0.5 rounded-md border ${categoryFilter === cat ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
-                  {t[`category${cat.charAt(0).toUpperCase() + cat.slice(1)}` as keyof typeof t] || cat}
-                </button>
-              ))}
+            {/* Filtre Catégorie : Dropdown (Select) épuré */}
+            <div className="shrink-0 mb-2">
+              <div className="relative">
+                <select 
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+                  className="w-full appearance-none px-3 py-1.5 pe-8 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:border-purple-400 cursor-pointer">
+                  {categoryOptions.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2 pointer-events-none" />
+              </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+            {/* Liste des voix (scrollbar customisée) */}
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1 pe-1">
               {filteredVoices.map((voice) => {
                 const isSelected = voice.id === selectedVoiceId;
                 const isPreviewing = previewingVoiceId === voice.id;
                 return (
                   <div 
                     key={voice.id} 
-                    onClick={() => { setSelectedVoiceId(voice.id); setIsRightDrawerOpen(false); }} 
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
+                    onClick={() => { setSelectedVoiceId(voice.id); setIsVoiceMenuOpen(false); }} 
+                    className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className={`w-6 h-6 rounded-md flex items-center justify-center ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3 h-3" />
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
                       </div>
-                      <span className="text-[11px] font-medium text-slate-800 truncate">{voice.name}</span>
+                      <div className="min-w-0">
+                        <span className="text-[11px] font-medium text-slate-800 truncate block">{voice.name}</span>
+                        <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
+                      </div>
                     </div>
                     <button 
                       onClick={(e) => handlePreviewVoice(e, voice)} 
-                      className={`p-0.5 rounded ${isPreviewing ? 'text-purple-600' : 'text-slate-400 hover:text-slate-700'}`}>
-                      {isPreviewing ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className="w-3 h-3" />}
+                      className={`p-1 rounded shrink-0 ${isPreviewing ? 'text-purple-600' : 'text-slate-400 hover:text-slate-700'}`}>
+                      {isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 );
@@ -756,26 +732,28 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           </div>
 
+          {/* Voix sélectionnée + Sliders épais (tactile-friendly) */}
           <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
-                <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-4 h-4" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <span className="text-[11px] font-bold text-slate-900 truncate block">{currentVoice.name}</span>
                 <span className="text-[10px] text-slate-400 truncate block">{currentVoice.dialect}</span>
               </div>
               <button 
                 onClick={(e) => handlePreviewVoice(e, currentVoice)} 
-                className={`p-1 rounded-lg ms-auto ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-200 border border-slate-200 bg-white'}`}>
-                {previewingVoiceId === currentVoice.id ? <Volume2 className="w-3 h-3 animate-pulse" /> : <Play className="w-3 h-3" />}
+                className={`p-1.5 rounded-lg shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-200 border border-slate-200 bg-white'}`}>
+                {previewingVoiceId === currentVoice.id ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
               </button>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 mt-2">
+            {/* Sliders épais tactile-friendly */}
+            <div className="space-y-2.5">
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px]">
-                  <span className="text-slate-500">{t.speedLabel}</span>
+                  <span className="text-slate-500 font-medium">{t.speedLabel}</span>
                   <span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span>
                 </div>
                 <input 
@@ -785,12 +763,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   step="0.1" 
                   value={speed} 
                   onChange={(e) => setSpeed(parseFloat(e.target.value))} 
-                  className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" 
+                  className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" 
                 />
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px]">
-                  <span className="text-slate-500">{t.pitchLabel}</span>
+                  <span className="text-slate-500 font-medium">{t.pitchLabel}</span>
                   <span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span>
                 </div>
                 <input 
@@ -800,7 +778,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   step="0.1" 
                   value={pitch} 
                   onChange={(e) => setPitch(parseFloat(e.target.value))} 
-                  className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-purple-600" 
+                  className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" 
                 />
               </div>
             </div>
@@ -809,9 +787,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       </div>
 
-      {/* ==========================================================================
-         BOTTOM PLAYER AUDIO (S'affiche en BLOC sans chevaucher la zone d'édition !)
-         ========================================================================== */}
+      {/* ============ PLAYER AUDIO EN BAS ============ */}
       {currentAudioUrl && (
         <div className="shrink-0 bg-gradient-to-r from-white via-purple-50/40 to-white border-t border-purple-100 px-4 py-3 flex items-center gap-3 z-40 shadow-2xl animate-in slide-in-from-bottom-2">
           <button 
@@ -820,14 +796,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ms-0.5" />}
           </button>
           
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 max-w-2xl">
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="text-[10px] font-bold text-purple-700 truncate">{currentVoice.name}</span>
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold shrink-0">
                 {language === 'ar' ? '✓ جاهز' : '✓ Prêt'}
               </span>
             </div>
-            <canvas ref={canvasRef} width={300} height={22} className="w-full h-[22px]" />
+            <WaveformPlayer 
+              isPlaying={isPlaying}
+              hasAudio={!!currentAudioUrl}
+              currentTime={currentTime}
+              duration={audioDuration}
+            />
           </div>
           
           <span className="text-[10px] text-purple-700 font-num shrink-0 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200 font-semibold">
