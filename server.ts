@@ -159,23 +159,93 @@ function normalizeTextForTTS(text: string): string {
 }
 
 // ==========================================================================
-// FILLERS NATURELS (ANTI-ROBOT COLD START)
+// 🛠️ FIX GEMINI #1 — ANTI-ROBOT COLD START
+// Avant: fillers aléatoires (ممم / إيه / أها) qui cassaient le début
+// Après: micro-silence "..." pour chauffer la prosodie AVANT le 1er mot
 // ==========================================================================
-const NATURAL_FILLERS = [
-  "ممم... ",
-  "إيه... ",
-  "أها، ",
-  "أوكي، ",
-  "ياس، ",
-  "هاه... ",
-  "... "
-];
-
 function injectNaturalFiller(text: string): string {
   let clean = text.trim();
+  // Si déjà un silence au début, on ne double pas
   if (clean.startsWith("...") || clean.startsWith("…")) return clean;
-  const randomFiller = NATURAL_FILLERS[Math.floor(Math.random() * NATURAL_FILLERS.length)];
-  return `${randomFiller}${clean}`;
+  // Silence court uniquement (PAS de filler parlé type "ممم")
+  return `... ${clean}`;
+}
+
+// ==========================================================================
+// 🛠️ FIX GEMINI #2 — MAPPING DES TAGS D'ÉMOTION → INSTRUCTIONS ARABE
+// Les tags [excited] etc. étaient SUPPRIMÉS et JAMAIS envoyés à Gemini TTS.
+// On les convertit en didascalies orales + instruction globale dans le prompt.
+// ==========================================================================
+const EMOTION_TAG_MAP: Record<string, { inline: string; prompt: string }> = {
+  excited: {
+    inline: "، بحماس واضح وطاقة عالية، ",
+    prompt: "اقرأ بحماس شديد جداً، طاقة عالية، وفرح واضح في الصوت."
+  },
+  natural: {
+    inline: "، بشكل عفوي وطبيعي، ",
+    prompt: "اقرأ بأسلوب عفوي وطبيعي جداً كأنك تتحدث مع صديق."
+  },
+  calm: {
+    inline: "، بهدوء وطمأنينة، ",
+    prompt: "اقرأ بهدوء تام، راحة، وطمأنينة."
+  },
+  dramatic: {
+    inline: "، بنبرة درامية ومؤثرة، ",
+    prompt: "اقرأ بأسلوب درامي، مؤثر، وجدي جداً."
+  },
+  whispers: {
+    inline: "، بصوت خافت قريب من الهمس، ",
+    prompt: "اقرأ بصوت خافت جداً، أقرب إلى الهمس."
+  },
+  whisper: {
+    inline: "، بصوت خافت قريب من الهمس، ",
+    prompt: "اقرأ بصوت خافت جداً، أقرب إلى الهمس."
+  },
+  fast: {
+    inline: "، بسرعة وحيوية، ",
+    prompt: "اقرأ بسرعة فائقة وحيوية."
+  },
+  articulated: {
+    inline: "، بنطق واضح ومفصل، ",
+    prompt: "انطق كل حرف بوضوح تام وتأنٍ."
+  },
+  laughter: {
+    inline: "، مع لمسة ضحك خفيفة، ",
+    prompt: "أضف لمسة مرح وضحكة خفيفة طبيعية في النبرة."
+  },
+  breathing: {
+    inline: "، ... نفس عميق ... ، ",
+    prompt: "أدرج تنفسات طبيعية وقصيرة بين الجمل."
+  },
+};
+
+function extractAndApplyEmotionTags(rawText: string): { textForSpeech: string; tags: string[] } {
+  const tags: string[] = [];
+  // Remplace chaque [tag] par une didascalie arabe (non lue comme mot anglais)
+  // pour que Gemini change d'émotion AU BON ENDROIT dans le script
+  const textForSpeech = rawText.replace(/\[([^\]]+)\]/g, (_match, rawTag: string) => {
+    const tag = String(rawTag).toLowerCase().trim();
+    tags.push(tag);
+    const mapped = EMOTION_TAG_MAP[tag];
+    return mapped ? mapped.inline : "، ";
+  });
+  return { textForSpeech, tags };
+}
+
+function buildEmotionPromptInstruction(tags: string[]): string {
+  if (!tags.length) return "";
+  // Première émotion = dominante pour le début (cold start)
+  const unique = [...new Set(tags.map(t => t.toLowerCase()))];
+  const lines = unique
+    .map(t => EMOTION_TAG_MAP[t]?.prompt)
+    .filter(Boolean);
+  if (!lines.length) return "";
+  const dominant = EMOTION_TAG_MAP[unique[0]]?.prompt || "";
+  return `
+العواطف المطلوبة في هذا الأداء الصوتي (مهم جداً — يجب احترامها من أول كلمة):
+- العاطفة الرئيسية من البداية: ${dominant}
+${lines.length > 1 ? `- تغيّر العواطف أثناء النص حسب الإرشادات المدمجة في النص.\n- التزم بكل تغيير عاطفي مذكور.` : ""}
+- لا تبدأ بنبرة آلية محايدة ثم تتحول لاحقاً: ابدأ مباشرة بالعاطفة الرئيسية.`;
 }
 
 // ==========================================================================
@@ -192,11 +262,21 @@ function getRegionGuide(region: string): string {
   return REGION_GUIDES[region] || REGION_GUIDES.general;
 }
 
-async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, maxRetries = 3, speed = 1.0, pitch = 1.0, originalVoiceId: string = ""): Promise<{ pcmBuffer: Buffer | null; error: string | null }> {
+async function synthesizeWithRetry(
+  rawText: string,
+  selectedVoiceName: string,
+  maxRetries = 3,
+  speed = 1.0,
+  pitch = 1.0,
+  originalVoiceId: string = "",
+  emotionTags: string[] = [] // 🛠️ FIX: tags reçus depuis handleTTSGenerate
+): Promise<{ pcmBuffer: Buffer | null; error: string | null }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée" };
   let lastError: any = null;
-  const cleanText = normalizeTextForTTS(rawText.replace(/\[.*?\]/g, " ").replace(/\s+/g, " ").trim());
+
+  // rawText ici est déjà nettoyé des [tags] OU contient les didascalies inline
+  const cleanText = normalizeTextForTTS(rawText.replace(/\s+/g, " ").trim());
   const femaleVoices = ["Kore", "Zephyr", "Aoede", "Sulafat", "Leda"];
   const isFemale = femaleVoices.includes(selectedVoiceName);
 
@@ -212,7 +292,10 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
   if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
   if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
 
-  // Injection du filler naturel + pause de sécurité à la fin
+  // 🛠️ FIX GEMINI #2b — Injecter les émotions dans le prompt de perf
+  performancePrompt += buildEmotionPromptInstruction(emotionTags);
+
+  // 🛠️ FIX GEMINI #1b — Micro-silence anti cold-start robotique
   const preparedText = injectNaturalFiller(cleanText);
 
   const enrichedSpeechPrompt = `${performancePrompt}
@@ -220,7 +303,9 @@ async function synthesizeWithRetry(rawText: string, selectedVoiceName: string, m
 قواعد النطق ومخارج الحروف (مهمة جداً):
 - انطق كل كلمة بوضوح تام، واحرص على إخراج مخارج الحروف كاملة وبشكل صحيح.
 - لا تأكل أواخر الكلمات أو الحروف الأخيرة، وأعطِ كل حرف حقه في النطق.
-- ابدأ بالصوت التمهيدي (Filler) بنَفَس طبيعي وواقعي.
+- ابدأ مباشرة بالعاطفة المطلوبة من أول مقطع صوتي — ممنوع تبدأ بنبرة روبوتية محايدة.
+- النقاط الثلاث في البداية (...) هي صمت قصير فقط: لا تنطقها ولا تقل "نقطة".
+- إذا وُجدت إرشادات عاطفية داخل النص (مثل "بحماس" أو "بهدوء") فطبّقها فوراً عند تلك اللحظة، دون قراءتها ككلمات حرفية إن أمكن، أو ادمجها كنبرة.
 - عند نهاية الجمل، اخفض نبرة الصوت تدريجياً وبشكل مريح دون قطع مفاجئ في الصوت.
 
 النص:
@@ -349,7 +434,8 @@ async function startServer() {
     const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
     const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
     let wavBase64 = "";
-    const { pcmBuffer } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 2, speed, pitch, voiceId);
+    // Preview: pas de tags émotion → tableau vide
+    const { pcmBuffer } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 2, speed, pitch, voiceId, []);
 
     if (pcmBuffer) {
       wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
@@ -392,14 +478,26 @@ async function startServer() {
       }
     }
 
-    const rawCleaned = text.replace(/\[.*?\]/g, " ").replace(/\s+/g, " ").trim();
-    const cleanText = normalizeTextForTTS(rawCleaned);
-    const emotionTags = (text.match(/\[(.*?)\]/g) || []).map((t: string) => t.replace(/[\[\]]/g, ""));
+    // 🛠️ FIX GEMINI #2c — Extraire + convertir les tags AVANT de synthétiser
+    // Avant: text.replace(/\[.*?\]/g, " ") → tags jetés, Gemini ne les voyait jamais
+    // Après: tags → didascalies inline + liste passée au prompt de performance
+    const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
+    const cleanText = normalizeTextForTTS(textForSpeech.replace(/\s+/g, " ").trim());
     const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
 
     let wavBase64 = "";
     let durationSeconds = Math.max(1.5, Math.round((cleanText.split(/\s+/).length / (2.8 * numSpeed)) * 10) / 10);
-    const { pcmBuffer, error } = await synthesizeWithRetry(cleanText, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice);
+
+    // 🛠️ On passe emotionTags à synthesizeWithRetry
+    const { pcmBuffer, error } = await synthesizeWithRetry(
+      cleanText,
+      selectedVoiceName,
+      3,
+      numSpeed,
+      numPitch,
+      requestedVoice,
+      emotionTags
+    );
 
     if (pcmBuffer && pcmBuffer.length > 50) {
       wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
@@ -461,6 +559,7 @@ RÈGLES STRICTES :
 3. BALISES D'ÉMOTION :
 - UNE SEULE balise par phrase, placée au début : [excited], [natural], [calm], [whisper], [fast].
 - JAMAIS deux balises collées ([excited][natural] INTERDIT).
+- La première phrase DOIT commencer par une balise d'émotion claire.
 
 4. LONGUEUR DES SCRIPTS (STRICT) :
 - Durée cible à l'oral : 30 à 50 secondes. JAMAIS plus de 60 secondes.
@@ -503,8 +602,9 @@ RÈGLES ABSOLUES :
 2. INTERDICTION de résumer. INTERDICTION de raccourcir un long texte en 2-3 phrases.
 3. CODE-SWITCHING : garde les mots FR/techniques en LATIN (WhatsApp, Instagram, TikTok, Facebook, livraison, service, formation, marketing digital, B2B, leads, etc.).
 4. Ajoute UNE balise d'émotion au début de chaque phrase clé : [excited], [natural], [calm], [whisper], [fast]. Jamais deux collées.
-5. Aucun titre, aucune note, aucun markdown (* #), aucun commentaire du type "TTS Refinement" ou "Note".
-6. Renvoie UNIQUEMENT le texte final à vocaliser.
+5. La première phrase DOIT commencer par une balise (ex: [excited] ou [natural]).
+6. Aucun titre, aucune note, aucun markdown (* #), aucun commentaire du type "TTS Refinement" ou "Note".
+7. Renvoie UNIQUEMENT le texte final à vocaliser.
 
 Texte original :
 ${text}`;
@@ -807,7 +907,7 @@ Style souhaité : ${style || "excited"}`;
         const cacheKey = `${voiceId}_1.0_1.0`;
         if (!PREVIEW_AUDIO_CACHE.has(cacheKey)) {
           try {
-            const { pcmBuffer } = await synthesizeWithRetry(VOICE_PREVIEW_SCRIPTS[voiceId], GEMINI_VOICE_MAP[voiceId] || "Puck", 1, 1.0, 1.0, voiceId);
+            const { pcmBuffer } = await synthesizeWithRetry(VOICE_PREVIEW_SCRIPTS[voiceId], GEMINI_VOICE_MAP[voiceId] || "Puck", 1, 1.0, 1.0, voiceId, []);
             if (pcmBuffer) {
               const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
               PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
