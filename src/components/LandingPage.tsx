@@ -11,9 +11,10 @@ import {
   Check,
   Star,
   Sparkles,
+  ArrowUpRight,  // ✅ AJOUTÉ
   Volume2,
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll, useTransform, useMotionValue, useSpring } from "motion/react";
+import { motion, AnimatePresence, useScroll, useMotionValue, useSpring } from "motion/react";
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -42,7 +43,6 @@ const GlobalStyles = () => (
       font-family: 'Archivo', sans-serif;
     }
 
-    /* === Aurora === */
     @keyframes aurora {
       0%, 100% { transform: translate(0,0) scale(1); }
       50% { transform: translate(8%, -10%) scale(1.15); }
@@ -50,7 +50,6 @@ const GlobalStyles = () => (
     .aurora-1 { animation: aurora 20s ease-in-out infinite; }
     .aurora-2 { animation: aurora 25s ease-in-out infinite reverse; }
 
-    /* === Marquee === */
     @keyframes marquee {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
@@ -61,7 +60,6 @@ const GlobalStyles = () => (
       width: max-content;
     }
 
-    /* === Pulse === */
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.4; transform: scale(1.5); }
@@ -76,14 +74,12 @@ const GlobalStyles = () => (
       opacity: 0.5;
     }
 
-    /* === Wave idle === */
     @keyframes wave {
       0%, 100% { transform: scaleY(0.3); }
       50% { transform: scaleY(1); }
     }
     .wave-bar { animation: wave 1.4s ease-in-out infinite; transform-origin: bottom; }
 
-    /* === Float === */
     @keyframes float {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-10px); }
@@ -91,16 +87,13 @@ const GlobalStyles = () => (
     .float { animation: float 5s ease-in-out infinite; }
     .float-slow { animation: float 8s ease-in-out infinite; }
 
-    /* === Rotate === */
     @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .spin-slow { animation: spin-slow 20s linear infinite; }
     .spin-reverse { animation: spin-slow 30s linear infinite reverse; }
 
-    /* === Typing cursor === */
     @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
     .blink { animation: blink 1s step-end infinite; }
 
-    /* === Shimmer === */
     @keyframes shimmer {
       0% { background-position: 0% 50%; }
       100% { background-position: 200% 50%; }
@@ -114,85 +107,42 @@ const GlobalStyles = () => (
       animation: shimmer 5s linear infinite;
     }
 
-    /* === Glow === */
     .glow-sm { box-shadow: 0 0 30px -5px rgba(167, 139, 250, 0.4); }
     .glow-md { box-shadow: 0 0 60px -10px rgba(139, 92, 246, 0.5); }
     .glow-lg { box-shadow: 0 20px 80px -20px rgba(139, 92, 246, 0.6), 0 0 40px -10px rgba(167, 139, 250, 0.4); }
 
-    /* === Focus === */
     .focus-ring:focus-visible {
       outline: 2px solid #A78BFA;
       outline-offset: 3px;
     }
 
-    /* === Selection === */
     ::selection { background: #A78BFA; color: #0A0612; }
 
-    /* === Scrollbar === */
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #0A0612; }
     ::-webkit-scrollbar-thumb { background: #7C3AED; border-radius: 8px; }
 
-    /* === Reduced motion === */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         animation-duration: 0.01ms !important;
         transition-duration: 0.01ms !important;
       }
     }
-
-    /* === Stipple/noise overlay === */
-    .stipple {
-      background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
-      background-size: 3px 3px;
-    }
-
-    /* === Border animations === */
-    .border-rotate {
-      position: relative;
-    }
-    .border-rotate::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      padding: 1px;
-      border-radius: inherit;
-      background: linear-gradient(135deg, #A78BFA, transparent 40%, transparent 60%, #6366F1);
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      pointer-events: none;
-    }
-
-    /* === Big number bg === */
-    .num-bg {
-      font-family: 'Archivo Black', sans-serif;
-      font-size: clamp(8rem, 18vw, 16rem);
-      line-height: 0.85;
-      letter-spacing: -0.05em;
-      color: transparent;
-      -webkit-text-stroke: 1px rgba(167, 139, 250, 0.15);
-    }
   `}</style>
 );
 
 /* =========================================================
-   SVG COMPONENTS — 100% inline, no external
+   SVG COMPONENTS
 ========================================================= */
-
-/** Hero visual: abstract waveform sphere */
 const HeroVisual = () => (
   <div className="relative w-full aspect-square max-w-[500px] mx-auto">
-    {/* Outer ring */}
     <div className="absolute inset-0 rounded-full border border-white/10 spin-slow" />
     <div className="absolute inset-4 rounded-full border border-white/10 spin-reverse" />
     <div className="absolute inset-10 rounded-full border border-white/5" />
 
-    {/* Glowing core */}
     <div className="absolute inset-[20%] rounded-full bg-gradient-to-br from-[#A78BFA] via-[#7C3AED] to-[#4338CA] glow-lg float" />
     <div className="absolute inset-[25%] rounded-full bg-gradient-to-tr from-transparent via-white/20 to-transparent" />
 
-    {/* Concentric waveforms */}
     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 400" style={{ transform: "rotate(-90deg)" }}>
       {[180, 140, 100, 60].map((r, i) => (
         <circle
@@ -213,7 +163,6 @@ const HeroVisual = () => (
       </defs>
     </svg>
 
-    {/* Corner dots */}
     {[
       { top: "10%", left: "10%" },
       { top: "10%", right: "10%" },
@@ -227,7 +176,6 @@ const HeroVisual = () => (
       />
     ))}
 
-    {/* Badge */}
     <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#0A0612] border border-white/10 rounded-full px-3 py-1 text-[10px] text-[#A78BFA] font-mono">
       v2.1
     </div>
@@ -237,7 +185,6 @@ const HeroVisual = () => (
   </div>
 );
 
-/** Voice avatar: pure geometric pattern */
 const VoiceAvatar = ({ id, color, active }: { id: string; color: string; active: boolean }) => {
   const patterns: Record<string, React.ReactNode> = {
     amin: (
@@ -284,7 +231,6 @@ const VoiceAvatar = ({ id, color, active }: { id: string; color: string; active:
   );
 };
 
-/** Step illustration: pure icon composition */
 const StepIcon = ({ num, color }: { num: string; color: string }) => (
   <div className="relative w-16 h-16">
     <div
@@ -425,7 +371,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Typing effect for hero
   useEffect(() => {
     const phrases = isRTL
       ? ["«مرحبا بيكم في متجرنا»", "«نقدمو لكم أحسن العروض»", "«تواصلو معانا دروك»"]
@@ -452,7 +397,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const ArrowIcon = ({ className = "w-4 h-4" }: any) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
 
-  /* === COPY === */
   const t = {
     skip: isRTL ? "تخطي" : "Skip",
     navWork: isRTL ? "الأصوات" : "Voix",
@@ -503,8 +447,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     switchLang: isRTL ? "FR" : "AR",
     close: isRTL ? "إغلاق" : "Close",
     open: isRTL ? "قائمة" : "Menu",
-    prev: isRTL ? "السابق" : "Prev",
-    next: isRTL ? "التالي" : "Next",
     back: isRTL ? "للأعلى" : "Top",
   };
 
@@ -591,16 +533,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" });
   }, []);
 
-  // Font fix: Archivo for LTR, Noto Kufi Arabic for RTL
   const sans = isRTL ? "'Noto Kufi Arabic', sans-serif" : "'Archivo', sans-serif";
   const display = isRTL ? "'Noto Kufi Arabic', sans-serif" : "'Archivo Black', sans-serif";
-  const mono = "'IBM Plex Mono', monospace";
 
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="min-h-screen text-[#F4F1FF] relative" style={{ fontFamily: sans }}>
       <GlobalStyles />
 
-      {/* === BG AURORA === */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[#0A0612]" />
         <div
@@ -613,7 +552,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         />
       </div>
 
-      {/* === PROGRESS BAR === */}
       <motion.div
         aria-hidden="true"
         className="fixed top-0 inset-x-0 h-[3px] z-[60]"
@@ -624,7 +562,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         }}
       />
 
-      {/* === HEADER === */}
+      {/* HEADER */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? "bg-[#0A0612]/80 backdrop-blur-xl border-b border-white/5" : ""}`}>
         <div className="mx-auto max-w-[1400px] px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="flex items-center gap-2.5 focus-ring">
@@ -662,7 +600,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </header>
 
-      {/* === MOBILE DRAWER === */}
+      {/* MOBILE DRAWER */}
       <AnimatePresence>
         {menuOpen && (
           <>
@@ -679,7 +617,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </div>
               <nav className="flex-1 px-5 py-6 flex flex-col gap-1">
-                {nav.map((l, i) => (
+                {nav.map((l) => (
                   <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold border-b border-white/5 focus-ring">
                     {l.label}
                   </a>
@@ -695,13 +633,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* =====================================================
-          HERO
-      ===================================================== */}
+      {/* HERO */}
       <section id="home" className="relative pt-32 sm:pt-40 pb-20 overflow-hidden">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="grid lg:grid-cols-12 gap-10 items-center">
-            {/* LEFT: text */}
             <div className="lg:col-span-7">
               <Reveal>
                 <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03]">
@@ -731,7 +666,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <Reveal delay={0.25}>
                 <div className="mt-8 max-w-md">
                   <div className="font-mono text-[12px] text-white/40 mb-2">$ sawtify generate</div>
-                  <div className="text-[15px] text-white/80 min-h-[24px]" style={{ fontFamily: isRTL ? sans : mono }}>
+                  <div className="text-[15px] text-white/80 min-h-[24px]" style={{ fontFamily: isRTL ? sans : "'IBM Plex Mono', monospace" }}>
                     {typedText}
                     <span className="inline-block w-2 h-4 bg-[#A78BFA] ms-1 align-middle blink" />
                   </div>
@@ -773,12 +708,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </Reveal>
             </div>
 
-            {/* RIGHT: visual SVG */}
             <div className="lg:col-span-5">
               <Reveal delay={0.3}>
                 <div className="relative">
                   <HeroVisual />
-                  {/* Floating stat */}
                   <div className="absolute top-[20%] -start-6 sm:-start-12 bg-[#0A0612] border border-white/10 rounded-2xl px-4 py-3 float glow-sm">
                     <div className="text-[10px] font-mono text-white/40">GENERATION</div>
                     <div className="text-[20px] font-black text-white" style={{ fontFamily: display }}>~30s</div>
@@ -794,7 +727,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* === MARQUEE === */}
+      {/* MARQUEE */}
       <section className="py-8 border-y border-white/5 overflow-hidden bg-black/30">
         <div className="relative">
           <div className="absolute inset-y-0 start-0 w-24 bg-gradient-to-r from-[#0A0612] to-transparent z-10" />
@@ -814,9 +747,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          PROCESS
-      ===================================================== */}
+      {/* PROCESS */}
       <section id="process" className="py-24 sm:py-32 relative">
         <div className="mx-auto max-w-[1400px] px-6">
           <Reveal>
@@ -833,6 +764,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="group relative bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-3xl p-8 transition-all duration-500">
                   <div className="flex items-start justify-between mb-12">
                     <StepIcon num={s.n} color={s.color} />
+                    {/* ✅ ArrowUpRight maintenant correctement importé */}
                     <ArrowUpRight className="w-5 h-5 text-white/20 group-hover:text-[#A78BFA] group-hover:rotate-45 transition-all duration-500" />
                   </div>
                   <h3 className="text-[28px] tracking-[-0.02em] text-white mb-3" style={{ fontFamily: display }}>
@@ -846,9 +778,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          VOICES
-      ===================================================== */}
+      {/* VOICES */}
       <section id="voices" className="py-24 sm:py-32 relative">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="grid lg:grid-cols-12 gap-8 mb-16 items-end">
@@ -871,7 +801,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <button
                     onClick={() => toggleVoice(v.id, v.url)}
                     aria-label={`${active ? "Pause" : "Play"} ${v.name}`}
-                    className={`group w-full text-start rounded-2xl overflow-hidden border transition-all duration-500 ${
+                    className={`group relative w-full text-start rounded-2xl overflow-hidden border transition-all duration-500 ${
                       active ? "border-[#A78BFA] bg-white/[0.04] glow-md" : "border-white/5 hover:border-white/15 bg-white/[0.02] hover:bg-white/[0.04]"
                     } focus-ring`}
                   >
@@ -885,7 +815,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
                       <div className="text-[12px] text-white/50">{v.tag}</div>
                     </div>
-                    {/* Inline waveform when active */}
                     {active && (
                       <div className="px-5 pb-5 flex items-end gap-[2px] h-10" dir="ltr">
                         {Array.from({ length: 24 }).map((_, i) => {
@@ -900,7 +829,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         })}
                       </div>
                     )}
-                    {/* Play button overlay */}
                     <div className={`absolute top-7 end-7 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                       active ? "bg-[#A78BFA] text-[#0A0612]" : "bg-white text-[#0A0612] opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100"
                     }`}>
@@ -914,9 +842,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          METRICS
-      ===================================================== */}
+      {/* METRICS */}
       <section className="py-24 sm:py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1A0F2E]/40 to-transparent" />
         <div className="relative mx-auto max-w-[1400px] px-6">
@@ -942,9 +868,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          TESTIMONIALS
-      ===================================================== */}
+      {/* TESTIMONIALS */}
       <section className="py-24 sm:py-32 relative">
         <div className="mx-auto max-w-[1400px] px-6">
           <Reveal>
@@ -997,9 +921,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          PRICING
-      ===================================================== */}
+      {/* PRICING */}
       <section id="pricing" className="py-24 sm:py-32 relative">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="grid lg:grid-cols-12 gap-8 mb-16">
@@ -1056,9 +978,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          FAQ
-      ===================================================== */}
+      {/* FAQ */}
       <section id="faq" className="py-24 sm:py-32 relative">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="grid lg:grid-cols-12 gap-10">
@@ -1104,9 +1024,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          CTA
-      ===================================================== */}
+      {/* CTA */}
       <section className="py-32 sm:py-40 relative overflow-hidden">
         <div className="mx-auto max-w-[900px] px-6 text-center">
           <Reveal>
@@ -1128,7 +1046,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* === FOOTER === */}
+      {/* FOOTER */}
       <footer className="border-t border-white/5 py-10">
         <div className="mx-auto max-w-[1400px] px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
