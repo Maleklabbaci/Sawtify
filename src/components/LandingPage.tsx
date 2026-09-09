@@ -36,6 +36,9 @@ const GlobalStyles = () => (
     ::-webkit-scrollbar-track { background: ${PAPER}; }
     ::-webkit-scrollbar-thumb { background: ${ACCENT}; border-radius: 10px; }
 
+    @keyframes blink { 50% { opacity: 0; } }
+    .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
+
     .card-lift { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s; }
     @media (hover: hover) {
       .card-lift:hover { transform: translateY(-6px); box-shadow: 0 20px 50px -20px rgba(110, 95, 232, 0.3); }
@@ -163,12 +166,12 @@ const VOICES: VoiceCard[] = [
   { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#F59E0B", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
   { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#3B82F6", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
   { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#8B5CF6", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
-  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", color: "#EC4899", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
-  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", color: "#EF4444", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
-  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", color: "#0EA5E9", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
-  { id: "nour", nameFr: "Nour", nameAr: "نور", tagFr: "Doux & fluide", tagAr: "لطيف ومرن", location: "Annaba, DZ", gender: "female", category: "social", color: "#14B8A6", sampleFr: "Une intonation douce, confortable à écouter, pour stories et tutos.", sampleAr: "نبرة ناعمة ومريحة للسماع، للستوريز والشروحات." },
-  { id: "faycal", nameFr: "Fayçal", nameAr: "فيصل", tagFr: "Commerce & vente", tagAr: "تجارة وتسويق", location: "Alger, DZ", gender: "male", category: "commercial", color: "#A855F7", sampleFr: "Vous cherchez une voix-off pro pour votre marque ? Vous êtes au bon endroit.", sampleAr: "تحوس على فويس أوفر احترافي للمشروع تاعك؟ راك في المكان الصحيح." },
-  { id: "sofiane", nameFr: "Sofiane", nameAr: "سفيان", tagFr: "Officiel & IVR", tagAr: "رسمي وموزع", location: "Blida, DZ", gender: "male", category: "formal", color: "#64748B", sampleFr: "Bienvenue sur notre standard. Pour le commercial, tapez 1. Pour l'assistance, tapez 2.", sampleAr: "مرحباً بكم في خدمة الزبائن. للتجارة اضغط 1. للمساعدة اضغط 2." },
+  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#EC4899", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
+  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#EF4444", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
+  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#0EA5E9", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
+  { id: "nour", nameFr: "Nour", nameAr: "نور", tagFr: "Doux & fluide", tagAr: "لطيف ومرن", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.7, reviews: 119, color: "#14B8A6", sampleFr: "Une intonation douce, confortable à écouter, pour stories et tutos.", sampleAr: "نبرة ناعمة ومريحة للسماع، للستوريز والشروحات." },
+  { id: "faycal", nameFr: "Fayçal", nameAr: "فيصل", tagFr: "Commerce & vente", tagAr: "تجارة وتسويق", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.8, reviews: 163, color: "#A855F7", sampleFr: "Vous cherchez une voix-off pro pour votre marque ? Vous êtes au bon endroit.", sampleAr: "تحوس على فويس أوفر احترافي للمشروع تاعك؟ راك في المكان الصحيح." },
+  { id: "sofiane", nameFr: "Sofiane", nameAr: "سفيان", tagFr: "Officiel & IVR", tagAr: "رسمي وموزع", location: "Blida, DZ", gender: "male", category: "formal", rating: 4.9, reviews: 88, color: "#64748B", sampleFr: "Bienvenue sur notre standard. Pour le commercial, tapez 1. Pour l'assistance, tapez 2.", sampleAr: "مرحباً بكم في خدمة الزبائن. للتجارة اضغط 1. للمساعدة اضغط 2." },
 ];
 
 const COST_STEPS = [
@@ -212,6 +215,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [listenVoice, setListenVoice] = useState<VoiceCard | null>(null);
   const [legal, setLegal] = useState<null | "cgu" | "privacy">(null);
   const [costIdx, setCostIdx] = useState(0);
+  const [holdVoice, setHoldVoice] = useState(false);
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
@@ -250,34 +254,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     signin: isRTL ? "دخول" : "Connexion",
     start: isRTL ? "ابدأ الآن" : "Commencer",
     liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
-    heroKicker: isRTL ? "ستوديو صوتي · دارجة" : "STUDIO VOCAL · DARIJA",
-    heroTitle1: isRTL ? "صوت طبيعي." : "Une voix",
+    heroKicker: isRTL ? "غمض عينيك" : "FERME LES YEUX",
+    heroTitle1: isRTL ? "صوت" : "Une voix",
     heroTitle2: isRTL ? "ما يتفرّقش." : "qu'on ne peut distinguer.",
     heroSub: isRTL
-      ? "اكتب بالدارجة، بالعربية أو بالفرنسية. تولّد صوتاً طبيعياً في 30 ثانية. MP3 و WAV، بلا علامة مائية. الدفع بالذهبية و CIB."
-      : "Écrivez en darija, en arabe ou en français. Une voix naturelle en 30 secondes. MP3 et WAV, sans watermark. Paiement Edahabia & CIB.",
-    bookNow: isRTL ? "جرّب مجاناً" : "Tester gratuitement",
-    listenDemo: isRTL ? "اكتشف الأصوات" : "Écouter les voix",
-    welcomeChip: isRTL ? "50 نقطة مجانية · بلا بطاقة" : "50 points offerts · sans carte",
+      ? "دارجة. 30 ثانية. الزبون يظنها إنسان. تسمع البداية هنا — الباقي في الستوديو."
+      : "Darija. 30 secondes. Ton client croit à un humain. Tu entends le début ici — la suite est dans le studio.",
+    bookNow: isRTL ? "اسمع حتى الآخر" : "Entendre la suite",
+    listenDemo: isRTL ? "12 صوت، أي واحد؟" : "12 voix, laquelle ?",
+    welcomeChip: isRTL ? "50 نقطة. بلا بطاقة. البداية مجانية." : "50 points. Sans carte. Juste pour écouter.",
     creators: isRTL ? "مبدع" : "créateurs",
-    popularKicker: isRTL ? "الكاتالوغ" : "CATALOGUE",
-    popularTitle: isRTL ? "12 صوتاً طبيعياً." : "12 voix naturelles.",
+    popularKicker: isRTL ? "الأصوات البشرية" : "VOIX HUMAINES",
+    popularTitle: isRTL ? "12 صوتاً بشرياً 100%." : "12 voix 100% humaines.",
     popularSub: isRTL
-      ? "رجال ونساء، للإشهار، البودكاست، التيك توك والموزع الهاتفي. اختار، اسمع في الستوديو، حمّل."
-      : "Hommes et femmes, pour la pub, le podcast, TikTok et l'accueil téléphonique. Choisissez, écoutez dans le studio, téléchargez.",
+      ? "واحدة منهم تشبهك. اضغط، تسمع ثلاث ثواني، وتوقف. الباقي يستناك."
+      : "L'une d'elles te ressemble. Tu appuies, tu entends trois secondes, ça coupe. La suite t'attend.",
     nRatings: isRTL ? "تقييم" : "avis",
-    tryVoice: isRTL ? "جرّب في الستوديو" : "Essayer dans le studio",
-    listenInStudio: isRTL ? "الاستماع في الستوديو" : "Écouter dans le studio",
+    tryVoice: isRTL ? "كمّل السماع" : "Finir d'écouter",
+    listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
     listenBody: isRTL
-      ? "المعاينة الكاملة تتم في الستوديو، بصوت حقيقي للجودة 24 kHz. 50 نقطة مجانية عند التسجيل، بلا بطاقة بنكية."
-      : "L'écoute se fait dans le studio, en qualité 24 kHz. 50 points offerts à l'inscription, sans carte bancaire.",
-    journeyKicker: isRTL ? "الطريقة" : "COMMENT ÇA MARCHE",
-    journeyTitle: isRTL ? "صوت جاهز في 30 ثانية." : "Une voix prête en 30 secondes.",
-    journeySub: isRTL ? "أربع خطوات. بلا استوديو، بلا ميكروفون." : "Quatre étapes. Pas de cabine, pas de micro.",
-    useKicker: isRTL ? "الاستعمالات" : "USAGES",
-    useTitle: isRTL ? "من الإعلان إلى الموزع." : "De la pub au standard.",
-    costKicker: isRTL ? "التسعير" : "COÛT",
-    costTitle: isRTL ? "واضح قبل ما تولّد." : "Clair avant de générer.",
+      ? "هاد غير أول جملة. الصوت الكامل — 24 kHz — في الستوديو. 50 نقطة، بلا بطاقة."
+      : "Ce n'était que la première phrase. La voix entière — 24 kHz — est dans le studio. 50 points, sans carte.",
+    journeyKicker: isRTL ? "من غير ما تحكي" : "SANS RIEN DIRE",
+    journeyTitle: isRTL ? "أربع حركات. صوتك يخرج." : "Quatre gestes. Ta voix sort.",
+    journeySub: isRTL ? "بلا كابينة. بلا ميكرو. بلا ممثل." : "Pas de cabine. Pas de micro. Pas d'attente.",
+    useKicker: isRTL ? "وين تستعملو" : "OÙ ÇA VIT",
+    useTitle: isRTL ? "كيبدا يهدر، ما يعودش نص." : "Dès qu'elle parle, ce n'est plus du texte.",
+    costKicker: isRTL ? "وبكداش" : "ET ÇA COÛTE",
+    costTitle: isRTL ? "أقل مما تظن." : "Moins que tu crois.",
     costSub: isRTL
       ? "20 نقطة لأول 60 ثانية، ثم +10 نقاط لكل دقيقة إضافية. النقاط بلا تاريخ انتهاء."
       : "20 points pour les 60 premières secondes, puis +10 points par minute. Les points n'expirent jamais.",
@@ -301,8 +305,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     popular: isRTL ? "الأكثر طلباً" : "Populaire",
     faqKicker: "FAQ",
     faqTitle: isRTL ? "الأسئلة المتكررة" : "Questions fréquentes",
-    ctaTitle: isRTL ? "جرّب صوتاً طبيعياً الآن." : "Testez une voix naturelle maintenant.",
-    ctaSub: isRTL ? "50 نقطة مجانية بدون بطاقة بنكية" : "50 points offerts, sans carte bancaire",
+    ctaTitle: isRTL ? "باغي تسمعو حتى يكمّل؟" : "Tu veux l'entendre jusqu'au bout ?",
+    ctaSub: isRTL ? "50 نقطة. 12 صوت. بلا بطاقة." : "50 points. 12 voix. Sans carte.",
     footTag: isRTL ? "صنع في الجزائر" : "Fait en Algérie",
     switchLang: isRTL ? "FR" : "AR",
     close: isRTL ? "إغلاق" : "Fermer",
@@ -331,6 +335,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const featured = VOICES.find((v) => v.id === featuredId) || VOICES[0];
+  const sampleFull = isRTL ? featured.sampleAr : featured.sampleFr;
+  const [typed, setTyped] = useState("");
+  const [cutDone, setCutDone] = useState(false);
+
+  useEffect(() => {
+    setTyped("");
+    setCutDone(false);
+    const cutAt = Math.max(32, Math.floor(sampleFull.length * 0.44));
+    let i = 0;
+    const id = window.setInterval(() => {
+      i += 1;
+      if (i >= cutAt) {
+        setTyped(sampleFull.slice(0, cutAt).trimEnd());
+        setCutDone(true);
+        window.clearInterval(id);
+      } else {
+        setTyped(sampleFull.slice(0, i));
+      }
+    }, 22);
+    return () => window.clearInterval(id);
+  }, [featured.id, sampleFull]);
+
+  useEffect(() => {
+    if (listenVoice || holdVoice) return;
+    const id = window.setInterval(() => {
+      setFeaturedId((prev) => {
+        const i = VOICES.findIndex((v) => v.id === prev);
+        return VOICES[(i + 1) % VOICES.length].id;
+      });
+    }, 5200);
+    return () => window.clearInterval(id);
+  }, [listenVoice, holdVoice]);
 
   const filteredVoices = VOICES.filter((v) => {
     if (voiceFilter === "all") return true;
@@ -353,7 +389,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const metrics = [
-    { n: 12, s: "", l: isRTL ? "صوت طبيعي" : "Voix naturelles" },
+    { n: 12, s: "", l: isRTL ? "صوت بشري" : "Voix humaines" },
     { n: 1200, s: "+", l: isRTL ? "مستخدم" : "Utilisateurs" },
     { n: 50, s: "K+", l: isRTL ? "توليد صوتي" : "Voix générées" },
     { n: 99, s: "%", l: isRTL ? "لا يُفرَّق عن الإنسان" : "Indistinctable d'un humain" },
@@ -459,8 +495,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* HEADER */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-[#FAFAF7]/90 backdrop-blur-xl border-b border-[#0F0F1A]/5" : "bg-transparent"}`}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
-          <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring" aria-label="Sawtify">
+          <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
             <Logo size={40} />
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              v2.1
+            </span>
           </a>
           <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#0F0F1A]/65">
             {nav.map((l) => (
@@ -573,6 +613,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div key={c} className="w-7 h-7 rounded-full border-2 border-[#FAFAF7]" style={{ background: c }} />
                     ))}
                   </div>
+                  <span className="font-bold text-[#0F0F1A]/70"><Num>12</Num> {isRTL ? "أصوات" : "voix"}</span>
+                  <span>·</span>
                   <span><Num>1 200+</Num> {t.creators}</span>
                   <span>·</span>
                   <span className="inline-flex items-center gap-1"><Star className="w-3 h-3 fill-[#6E5FE8] text-[#6E5FE8]" /> 4.9 / 5</span>
@@ -597,21 +639,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div className="rounded-2xl px-4 py-5 mb-5" style={{ background: `${featured.color}12` }}>
-                    <Waveform color={featured.color} playing={playingId === featured.id} bars={42} />
+                    <Waveform color={featured.color} playing bars={42} />
                   </div>
 
                   <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 min-h-[64px]" dir="auto">
-                    “{isRTL ? featured.sampleAr : featured.sampleFr}”
+                    “{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}
                   </p>
+                  {cutDone && (
+                    <p className="mt-2 text-[11px] font-bold tracking-wide" style={{ color: featured.color }}>
+                      {isRTL ? "— الصوت تقطّع. كمّل في الستوديو." : "— ça coupe. La suite est dans le studio."}
+                    </p>
+                  )}
 
                   <div className="mt-5 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    {VOICES.slice(0, 6).map((v) => {
+                    {VOICES.map((v) => {
                       const on = v.id === featured.id;
                       return (
                         <button
                           key={v.id}
                           type="button"
-                          onClick={() => { setFeaturedId(v.id); setPlayingId(null); }}
+                          onClick={() => { setFeaturedId(v.id); setPlayingId(null); setHoldVoice(true); }}
                           className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold border transition focus-ring ${on ? "text-white border-transparent" : "bg-white text-[#0F0F1A]/70 border-[#0F0F1A]/10 hover:border-[#6E5FE8]"}`}
                           style={on ? { background: v.color } : undefined}
                         >
@@ -625,10 +672,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     type="button"
                     onClick={() => openListen(featured)}
                     className="mt-5 w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:opacity-90"
-                    style={{ background: featured.color }}
+                    style={{ background: featured.color, boxShadow: `0 10px 30px -8px ${featured.color}` }}
                   >
-                    {playingId === featured.id ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                    <Play className="w-4 h-4 fill-current" />
                     {t.listenInStudio}
+                    <span className="text-[11px] font-semibold opacity-80">· 3s</span>
                   </button>
                 </div>
               </SlideUp>
