@@ -110,6 +110,43 @@ const GlobalStyles = () => (
     }
     .sw-pulse { animation: sw-pulse 2s ease-in-out infinite; }
 
+    /* Dérive continue des halos lumineux -> la page respire même sans scroll */
+    @keyframes sw-float {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(3%, -4%) scale(1.06); }
+      66% { transform: translate(-3%, 3%) scale(0.96); }
+    }
+    .sw-float { animation: sw-float 14s ease-in-out infinite; }
+    .sw-float-slow { animation: sw-float 20s ease-in-out infinite reverse; }
+
+    /* Soulignement animé des liens nav */
+    .sw-nav-link { position: relative; }
+    .sw-nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: -4px;
+      height: 1px;
+      background: #6366F1;
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
+    }
+    [dir="rtl"] .sw-nav-link::after { transform-origin: left; }
+    .sw-nav-link:hover::after { transform: scaleX(1); transform-origin: left; }
+    [dir="rtl"] .sw-nav-link:hover::after { transform-origin: right; }
+
+    /* Idle discret sur la waveform hero (respire même si rien ne joue) */
+    @keyframes sw-wave-idle {
+      0%, 100% { transform: scaleY(0.85); opacity: 0.6; }
+      50% { transform: scaleY(1); opacity: 0.9; }
+    }
+    .sw-wave-idle { animation: sw-wave-idle 1.8s ease-in-out infinite; }
+
+    /* Lift tactile générique pour cartes cliquables */
+    .sw-lift { transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease; }
+    .sw-lift:hover { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(17,17,17,0.08); }
+    .sw-lift:active { transform: translateY(-1px); }
+
     /* Border gradient AI */
     .sw-border-gradient {
       position: relative;
@@ -342,6 +379,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroTitleY = useTransform(scrollYProgress, [0, 1], [0, 80]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
   const heroGridY = useTransform(scrollYProgress, [0, 1], [0, 150]);
+
+  // Progression de scroll globale (toute la page) -> barre en haut, pour que
+  // la page réponde en continu au défilement, pas juste par à-coups au scroll-in.
+  const { scrollYProgress: pageProgress } = useScroll();
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -620,6 +661,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     >
       <GlobalStyles />
 
+      {/* Barre de progression de lecture -> retour visuel continu au scroll */}
+      <motion.div
+        aria-hidden="true"
+        className="fixed top-0 inset-x-0 h-[2px] bg-gradient-to-r from-[#6366F1] to-[#A78BFA] origin-left z-[60]"
+        style={{ scaleX: pageProgress }}
+      />
+
       <a
         href="#home"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] focus:bg-[#111] focus:text-white focus:px-4 focus:py-2 focus:rounded text-xs font-medium"
@@ -682,7 +730,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             e.preventDefault();
             smoothTo(l.href);
           }}
-          className="hover:text-[#111] transition-colors duration-200 sw-focus"
+          className="hover:text-[#111] transition-colors duration-200 sw-focus sw-nav-link"
         >
           {l.label}
         </a>
@@ -712,7 +760,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <button
   type="button"
   onClick={onSigninClick}
-  className="group relative inline-flex items-center gap-2 h-11 px-5 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#6366F1] hover:shadow-[0_0_0_4px_rgba(99,102,241,0.15)] transition-all duration-300 sw-focus"
+  className="group relative inline-flex items-center gap-2 h-11 px-5 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#6366F1] hover:shadow-[0_0_0_4px_rgba(99,102,241,0.15)] hover:scale-105 active:scale-95 transition-all duration-300 sw-focus"
 >
   {t.tryFree}
   <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
@@ -850,12 +898,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* Glow subtils indigo */}
         <div
           aria-hidden="true"
-          className="sw-glow w-[500px] h-[500px] bg-[#6366F1]/12"
+          className="sw-glow sw-float w-[500px] h-[500px] bg-[#6366F1]/12"
           style={{ top: "-10%", right: "-10%" }}
         />
         <div
           aria-hidden="true"
-          className="sw-glow w-[400px] h-[400px] bg-[#A78BFA]/10"
+          className="sw-glow sw-float-slow w-[400px] h-[400px] bg-[#A78BFA]/10"
           style={{ top: "40%", left: "-5%" }}
         />
 
@@ -1013,10 +1061,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           delay: 0.5 + i * 0.008,
                           ease: [0.22, 1, 0.36, 1],
                         }}
-                        className="flex-1 rounded-full origin-bottom"
+                        className="flex-1 rounded-full origin-bottom sw-wave-idle"
                         style={{
                           height: `${h}%`,
                           maxWidth: 3,
+                          animationDelay: `${(i % 12) * 0.12}s`,
                           background:
                             i % 7 === 0
                               ? "#6366F1"
@@ -1164,7 +1213,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     delay: idx * 0.05,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className={`border-b border-[#111]/12 group transition-colors duration-500 ${
+                  className={`border-b border-[#111]/12 group transition-colors duration-500 sw-lift ${
                     active ? "bg-white" : ""
                   }`}
                 >
@@ -1263,12 +1312,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="absolute inset-0 sw-grid-dark opacity-40 pointer-events-none" />
         <div
           aria-hidden="true"
-          className="sw-glow w-[600px] h-[600px] bg-[#6366F1]/15"
+          className="sw-glow sw-float w-[600px] h-[600px] bg-[#6366F1]/15"
           style={{ top: "-20%", right: "-15%" }}
         />
         <div
           aria-hidden="true"
-          className="sw-glow w-[400px] h-[400px] bg-[#A78BFA]/10"
+          className="sw-glow sw-float-slow w-[400px] h-[400px] bg-[#A78BFA]/10"
           style={{ bottom: "-10%", left: "-10%" }}
         />
 
@@ -1472,7 +1521,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {pricing.map((p, i) => (
               <Reveal key={p.pts} delay={i * 0.06}>
                 <div
-                  className={`relative p-8 border-r border-b border-[#111]/12 h-full flex flex-col transition-colors duration-300 group ${
+                  className={`relative p-8 border-r border-b border-[#111]/12 h-full flex flex-col transition-colors duration-300 group sw-lift ${
                     p.featured
                       ? "bg-[#0A0A0B] text-[#FAFAF7]"
                       : "bg-transparent hover:bg-black/[0.02]"
@@ -1567,7 +1616,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <button
                       type="button"
                       onClick={onSigninClick}
-                      className={`w-full h-11 rounded-full text-[13px] font-medium transition-all sw-focus ${
+                      className={`w-full h-11 rounded-full text-[13px] font-medium transition-all duration-300 hover:scale-[1.03] active:scale-95 sw-focus ${
                         p.featured
                           ? "bg-white text-[#111] hover:bg-[#A78BFA] hover:text-white"
                           : "border border-[#111]/15 text-[#111] hover:border-[#6366F1] hover:bg-[#6366F1] hover:text-white"
@@ -1703,7 +1752,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <button
               type="button"
               onClick={onSigninClick}
-              className="group relative mt-10 inline-flex items-center gap-2 h-12 px-6 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/85 transition-all duration-300 sw-focus overflow-hidden"
+              className="group relative mt-10 inline-flex items-center gap-2 h-12 px-6 bg-[#111] text-[#FAFAF7] text-[14px] font-medium rounded-full hover:bg-[#111]/85 hover:scale-105 active:scale-95 transition-all duration-300 sw-focus overflow-hidden"
             >
               <span
                 aria-hidden="true"
