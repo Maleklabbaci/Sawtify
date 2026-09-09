@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, Suspense } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -15,12 +15,6 @@ import {
   Waves,
   ArrowUpRight,
   Volume2,
-  Zap,
-  Cpu,
-  AudioWaveform,
-  Mic,
-  Circle,
-  Hexagon,
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useTransform, useMotionValue, useSpring } from "motion/react";
 
@@ -32,11 +26,11 @@ interface LandingPageProps {
 }
 
 /* =========================================================
-   GLOBAL STYLES — Purple 3D Universe
+   GLOBAL STYLES
 ========================================================= */
 const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&family=Cairo:wght@200..900&family=Vazirmatn:wght@100..900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&family=Tajawal:wght@200;300;400;500;700;900&display=swap');
 
     * { -webkit-tap-highlight-color: transparent; }
     html {
@@ -47,18 +41,11 @@ const GlobalStyles = () => (
     }
     body {
       overflow-x: hidden;
-      background: #0A0612;
+      background: #08070F;
       color: #F4F1FF;
     }
 
-    /* ====== 3D STAGE ====== */
-    .sw-stage {
-      perspective: 2000px;
-      perspective-origin: 50% 30%;
-      transform-style: preserve-3d;
-    }
-
-    /* ====== AURORA BACKGROUND ====== */
+    /* ===== Aurora orbs ===== */
     @keyframes sw-aurora-1 {
       0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
       33% { transform: translate(15%, -10%) scale(1.15) rotate(120deg); }
@@ -78,37 +65,19 @@ const GlobalStyles = () => (
     .sw-aurora-2 { animation: sw-aurora-2 28s ease-in-out infinite; }
     .sw-aurora-3 { animation: sw-aurora-3 18s ease-in-out infinite; }
 
-    /* ====== GRID 3D ====== */
+    /* ===== Grid 3D floor ===== */
     .sw-grid-3d {
       background-image:
-        linear-gradient(rgba(168, 85, 247, 0.12) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(168, 85, 247, 0.12) 1px, transparent 1px);
+        linear-gradient(rgba(168, 85, 247, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(168, 85, 247, 0.15) 1px, transparent 1px);
       background-size: 50px 50px;
       transform: perspective(800px) rotateX(60deg) translateZ(-100px);
       transform-origin: center top;
       mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%);
       -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%);
     }
-    .sw-grid-fine {
-      background-image:
-        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-      background-size: 30px 30px;
-    }
 
-    /* ====== NOISE ====== */
-    .sw-noise::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      opacity: 0.06;
-      pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-      mix-blend-mode: overlay;
-      z-index: 1;
-    }
-
-    /* ====== SHIMMER TEXT ====== */
+    /* ===== Shimmer text ===== */
     @keyframes sw-shimmer {
       0% { background-position: 0% 50%; }
       100% { background-position: 200% 50%; }
@@ -121,14 +90,8 @@ const GlobalStyles = () => (
       color: transparent;
       animation: sw-shimmer 6s linear infinite;
     }
-    .sw-shimmer-radial {
-      background: radial-gradient(ellipse at center, #F4F1FF 0%, #A78BFA 50%, #6366F1 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
 
-    /* ====== GLASS MORPHISM ====== */
+    /* ===== Glass morphism ===== */
     .sw-glass {
       background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
       backdrop-filter: blur(20px) saturate(180%);
@@ -142,16 +105,7 @@ const GlobalStyles = () => (
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
-    /* ====== 3D CARD ====== */
-    .sw-3d-card {
-      transform-style: preserve-3d;
-      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .sw-3d-card:hover {
-      transform: translateY(-12px) rotateX(2deg);
-    }
-
-    /* ====== GRADIENT BORDERS ====== */
+    /* ===== Glow borders ===== */
     .sw-border-glow {
       position: relative;
     }
@@ -183,13 +137,13 @@ const GlobalStyles = () => (
       pointer-events: none;
     }
 
-    /* ====== GLOW SHADOWS ====== */
+    /* ===== Glow shadows ===== */
     .sw-glow-sm { box-shadow: 0 0 40px -10px rgba(167, 139, 250, 0.4); }
     .sw-glow-md { box-shadow: 0 0 80px -20px rgba(139, 92, 246, 0.5), 0 20px 60px -20px rgba(0,0,0,0.5); }
     .sw-glow-lg { box-shadow: 0 0 120px -20px rgba(139, 92, 246, 0.6), 0 40px 100px -30px rgba(0,0,0,0.7); }
     .sw-glow-text { text-shadow: 0 0 40px rgba(167, 139, 250, 0.5); }
 
-    /* ====== NEON BUTTON ====== */
+    /* ===== Neon button ===== */
     .sw-btn-neon {
       position: relative;
       background: linear-gradient(135deg, #A78BFA 0%, #6366F1 100%);
@@ -211,12 +165,11 @@ const GlobalStyles = () => (
     }
     .sw-btn-neon:hover::before { opacity: 1; }
 
-    /* ====== MARQUEE ====== */
+    /* ===== Marquee ===== */
     @keyframes sw-marquee {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
     }
-    [dir="rtl"] .sw-marquee-track { animation-direction: reverse; }
     .sw-marquee-track {
       animation: sw-marquee 35s linear infinite;
       display: flex;
@@ -224,7 +177,7 @@ const GlobalStyles = () => (
     }
     .sw-marquee-track:hover { animation-play-state: paused; }
 
-    /* ====== PULSE ====== */
+    /* ===== Pulse ===== */
     @keyframes sw-pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.4; transform: scale(1.4); }
@@ -239,30 +192,21 @@ const GlobalStyles = () => (
       opacity: 0.5;
     }
 
-    /* ====== WAVE IDLE ====== */
+    /* ===== Wave idle ===== */
     @keyframes sw-wave-idle {
       0%, 100% { transform: scaleY(0.3); }
       50% { transform: scaleY(1); }
     }
     .sw-wave-idle { animation: sw-wave-idle 1.4s ease-in-out infinite; transform-origin: bottom; }
 
-    /* ====== FLOAT ====== */
+    /* ===== Float ===== */
     @keyframes sw-float {
       0%, 100% { transform: translateY(0) rotateZ(0); }
       50% { transform: translateY(-12px) rotateZ(2deg); }
     }
     .sw-float { animation: sw-float 6s ease-in-out infinite; }
-    .sw-float-slow { animation: sw-float 8s ease-in-out infinite; }
 
-    /* ====== ROTATE SLOW ====== */
-    @keyframes sw-rotate {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .sw-rotate-slow { animation: sw-rotate 30s linear infinite; }
-    .sw-rotate-reverse { animation: sw-rotate 40s linear infinite reverse; }
-
-    /* ====== NAV LINK ====== */
+    /* ===== Nav link ===== */
     .sw-nav-link { position: relative; }
     .sw-nav-link::after {
       content: "";
@@ -275,7 +219,7 @@ const GlobalStyles = () => (
     }
     .sw-nav-link:hover::after { transform: scaleX(1); }
 
-    /* ====== SPOTLIGHT ====== */
+    /* ===== Spotlight ===== */
     .sw-spotlight {
       position: relative;
       overflow: hidden;
@@ -292,41 +236,26 @@ const GlobalStyles = () => (
     }
     .sw-spotlight:hover::after { opacity: 1; }
 
-    /* ====== CONIC GRADIENT ====== */
-    @keyframes sw-conic {
-      0% { --angle: 0deg; }
-      100% { --angle: 360deg; }
-    }
-    @property --angle {
-      syntax: '<angle>';
-      initial-value: 0deg;
-      inherits: false;
-    }
-    .sw-conic-border {
-      position: relative;
-      background: conic-gradient(from var(--angle), #A78BFA 0deg, transparent 60deg, transparent 300deg, #6366F1 360deg);
-      animation: sw-conic 4s linear infinite;
-    }
-
-    /* ====== ORB ====== */
-    .sw-orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(60px);
-      pointer-events: none;
-    }
-
-    /* ====== FOCUS ====== */
+    /* ===== Focus ===== */
     .sw-focus:focus-visible {
       outline: 1.5px solid #A78BFA;
       outline-offset: 3px;
       border-radius: 6px;
     }
 
-    /* ====== SELECTION ====== */
-    ::selection { background: #A78BFA; color: #0A0612; }
+    /* ===== Selection ===== */
+    ::selection { background: #A78BFA; color: #08070F; }
 
-    /* ====== REDUCED MOTION ====== */
+    /* ===== Scrollbar ===== */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: #08070F; }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #6366F1, #A78BFA);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: #A78BFA; }
+
+    /* ===== Reduced motion ===== */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         animation-duration: 0.01ms !important;
@@ -334,14 +263,18 @@ const GlobalStyles = () => (
       }
     }
 
-    /* ====== SCROLLBAR ====== */
-    ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-track { background: #0A0612; }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(180deg, #6366F1, #A78BFA);
-      border-radius: 10px;
+    /* ===== Image card 3D ===== */
+    .sw-img-card {
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s;
     }
-    ::-webkit-scrollbar-thumb:hover { background: #A78BFA; }
+
+    /* ===== Holographic gradient ===== */
+    .sw-holo {
+      background: linear-gradient(135deg,
+        rgba(167, 139, 250, 0.1) 0%,
+        rgba(99, 102, 241, 0.05) 50%,
+        rgba(196, 181, 253, 0.1) 100%);
+    }
   `}</style>
 );
 
@@ -424,7 +357,7 @@ const Reveal = ({ children, delay = 0, y = 32, className = "" }: any) => (
   </motion.div>
 );
 
-const Tilt = ({ children, intensity = 10, className = "" }: any) => {
+const Tilt = ({ children, intensity = 8, className = "" }: any) => {
   const ref = useRef<HTMLDivElement>(null);
   const rotateX = useSpring(0, { damping: 20, stiffness: 200 });
   const rotateY = useSpring(0, { damping: 20, stiffness: 200 });
@@ -466,19 +399,18 @@ function useScrollState() {
 const LOGO_URL = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 
 /* =========================================================
-   BACKGROUND DECORATION — Auroras + Orbs
+   Aurora background
 ========================================================= */
 const AuroraBackground = () => (
   <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-    <div className="absolute inset-0 bg-[#0A0612]" />
-    <div className="absolute inset-0 sw-grid-fine opacity-50" />
+    <div className="absolute inset-0 bg-[#08070F]" />
     <div
       className="sw-orb sw-aurora-1"
       style={{
         width: 800, height: 800,
         top: "-15%", left: "-10%",
         background: "radial-gradient(circle, #6366F1 0%, transparent 70%)",
-        opacity: 0.35,
+        opacity: 0.35, filter: "blur(60px)", position: "absolute", borderRadius: "50%",
       }}
     />
     <div
@@ -487,7 +419,7 @@ const AuroraBackground = () => (
         width: 700, height: 700,
         top: "30%", right: "-15%",
         background: "radial-gradient(circle, #A78BFA 0%, transparent 70%)",
-        opacity: 0.3,
+        opacity: 0.3, filter: "blur(60px)", position: "absolute", borderRadius: "50%",
       }}
     />
     <div
@@ -496,44 +428,14 @@ const AuroraBackground = () => (
         width: 600, height: 600,
         bottom: "-10%", left: "20%",
         background: "radial-gradient(circle, #7C3AED 0%, transparent 70%)",
-        opacity: 0.25,
+        opacity: 0.25, filter: "blur(60px)", position: "absolute", borderRadius: "50%",
       }}
     />
   </div>
 );
 
 /* =========================================================
-   3D ORB COMPONENT
-========================================================= */
-const Orb3D = ({ size = 300, color = "#A78BFA", className = "" }: any) => (
-  <div className={`relative ${className}`} style={{ width: size, height: size }}>
-    <div
-      className="absolute inset-0 rounded-full"
-      style={{
-        background: `radial-gradient(circle at 30% 30%, ${color}, transparent 60%)`,
-        filter: "blur(40px)",
-        opacity: 0.6,
-      }}
-    />
-    <div
-      className="absolute inset-2 rounded-full"
-      style={{
-        background: `radial-gradient(circle at 30% 30%, ${color}AA, ${color}44 40%, transparent 70%)`,
-        boxShadow: `inset -20px -20px 40px ${color}66, inset 20px 20px 60px rgba(255,255,255,0.1)`,
-      }}
-    />
-    <div
-      className="absolute top-[15%] left-[20%] w-[30%] h-[20%] rounded-full"
-      style={{
-        background: "radial-gradient(ellipse, rgba(255,255,255,0.6) 0%, transparent 70%)",
-        filter: "blur(10px)",
-      }}
-    />
-  </div>
-);
-
-/* =========================================================
-   MAIN COMPONENT
+   MAIN
 ========================================================= */
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick,
@@ -594,7 +496,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const ArrowIcon = ({ className = "w-4 h-4" }: any) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
 
-  /* COPY */
   const t = {
     skip: isRTL ? "تخطي إلى المحتوى" : "Aller au contenu",
     navWork: isRTL ? "الأصوات" : "Voix",
@@ -666,16 +567,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const steps = [
-    { n: "01", t: t.step1t, d: t.step1d, icon: Command, color: "#A78BFA" },
-    { n: "02", t: t.step2t, d: t.step2d, icon: Waves, color: "#818CF8" },
-    { n: "03", t: t.step3t, d: t.step3d, icon: ArrowUpRight, color: "#6366F1" },
+    { n: "01", t: t.step1t, d: t.step1d, icon: Command, color: "#A78BFA", img: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&h=600&fit=crop&q=80" },
+    { n: "02", t: t.step2t, d: t.step2d, icon: Waves, color: "#818CF8", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=800&h=600&fit=crop&q=80" },
+    { n: "03", t: t.step3t, d: t.step3d, icon: ArrowUpRight, color: "#6366F1", img: "https://images.unsplash.com/photo-1493421419110-74f4e85ba126?w=800&h=600&fit=crop&q=80" },
   ];
 
   const voices = [
-    { id: "amin", name: isRTL ? "أمين" : "Amin", tag: isRTL ? "تجاري" : "Commercial", duration: "0:24", lang: "DZ · M", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-    { id: "yasmine", name: isRTL ? "ياسمين" : "Yasmine", tag: isRTL ? "إعلاني" : "Publicitaire", duration: "0:18", lang: "DZ · F", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-    { id: "khalid", name: isRTL ? "خالد" : "Khalid", tag: isRTL ? "وثائقي" : "Documentaire", duration: "0:31", lang: "DZ · M", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
-    { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال" : "Social", duration: "0:22", lang: "DZ · F", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
+    { id: "amin", name: isRTL ? "أمين" : "Amin", tag: isRTL ? "تجاري" : "Commercial", duration: "0:24", lang: "DZ · M", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&q=80" },
+    { id: "yasmine", name: isRTL ? "ياسمين" : "Yasmine", tag: isRTL ? "إعلاني" : "Publicitaire", duration: "0:18", lang: "DZ · F", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&q=80" },
+    { id: "khalid", name: isRTL ? "خالد" : "Khalid", tag: isRTL ? "وثائقي" : "Documentaire", duration: "0:31", lang: "DZ · M", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&q=80" },
+    { id: "layla", name: isRTL ? "ليلى" : "Layla", tag: isRTL ? "سوشيال" : "Social", duration: "0:22", lang: "DZ · F", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&q=80" },
   ];
 
   const metrics = [
@@ -687,14 +588,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const testimonials = isRTL
     ? [
-        { q: "Sawtify ولّاني نخرج الريلز في وقت قصير. الجودة قريبة من الاستوديو.", n: "أمين بلعيد", r: "منشئ محتوى، الجزائر" },
-        { q: "الدارجة طبيعية، الزبائن ما حسّوش أن الصوت اصطناعي.", n: "ياسمين قادري", r: "وكالة إشهار، وهران" },
-        { q: "الدفع بالذهبية سهّل عليّ كلش. أحسن أداة لقيتها.", n: "خالد مرزوق", r: "متجر إلكتروني، قسنطينة" },
+        { q: "Sawtify ولّاني نخرج الريلز في وقت قصير. الجودة قريبة من الاستوديو.", n: "أمين بلعيد", r: "منشئ محتوى، الجزائر", img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop&q=80" },
+        { q: "الدارجة طبيعية، الزبائن ما حسّوش أن الصوت اصطناعي.", n: "ياسمين قادري", r: "وكالة إشهار، وهران", img: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop&q=80" },
+        { q: "الدفع بالذهبية سهّل عليّ كلش. أحسن أداة لقيتها.", n: "خالد مرزوق", r: "متجر إلكتروني، قسنطينة", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&q=80" },
       ]
     : [
-        { q: "Sawtify me fait sortir mes reels en un temps record. La qualité frôle celle du studio.", n: "Amine Belaid", r: "Créateur, Alger" },
-        { q: "La darija est naturelle. Les clients ne réalisent pas que la voix est synthétique.", n: "Yasmine Kadri", r: "Agence pub, Oran" },
-        { q: "Le paiement Edahabia a tout changé pour moi. Le meilleur outil que j'ai testé.", n: "Khaled Merzoug", r: "E-commerce, Constantine" },
+        { q: "Sawtify me fait sortir mes reels en un temps record. La qualité frôle celle du studio.", n: "Amine Belaid", r: "Créateur, Alger", img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop&q=80" },
+        { q: "La darija est naturelle. Les clients ne réalisent pas que la voix est synthétique.", n: "Yasmine Kadri", r: "Agence pub, Oran", img: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop&q=80" },
+        { q: "Le paiement Edahabia a tout changé pour moi. Le meilleur outil que j'ai testé.", n: "Khaled Merzoug", r: "E-commerce, Constantine", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&q=80" },
       ];
 
   useEffect(() => {
@@ -784,9 +685,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     },
   };
 
-  const serif = isRTL ? "'Vazirmatn', serif" : "'Fraunces', serif";
-  const display = isRTL ? "'Vazirmatn', sans-serif" : "'Instrument Serif', serif";
-  const sans = isRTL ? "'Vazirmatn', sans-serif" : "'Space Grotesk', sans-serif";
+  // FIX FONT : Tajawal pour l'arabe, plus de Vazirmatn
+  const display = isRTL ? "'Tajawal', sans-serif" : "'Instrument Serif', serif";
+  const sans = isRTL ? "'Tajawal', sans-serif" : "'Space Grotesk', sans-serif";
   const mono = "'JetBrains Mono', monospace";
 
   const handleSpotlight = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -798,13 +699,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div
       dir={isRTL ? "rtl" : "ltr"}
-      className="min-h-screen bg-[#0A0612] text-[#F4F1FF] relative"
+      className="min-h-screen bg-[#08070F] text-[#F4F1FF] relative"
       style={{ fontFamily: sans }}
     >
       <GlobalStyles />
       <AuroraBackground />
 
-      {/* Progress bar */}
+      {/* Progress bar — FIX RTL: use transform-origin based on dir */}
       <motion.div
         aria-hidden="true"
         className="fixed top-0 inset-x-0 h-[2px] z-[60] origin-left"
@@ -812,10 +713,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           scaleX: pageProgress,
           background: "linear-gradient(90deg, #6366F1, #A78BFA, #DDD6FE, #A78BFA, #6366F1)",
           backgroundSize: "200% 100%",
+          transformOrigin: isRTL ? "right center" : "left center",
         }}
       />
 
-      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] focus:bg-[#A78BFA] focus:text-[#0A0612] focus:px-4 focus:py-2 focus:rounded text-xs">
+      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] focus:bg-[#A78BFA] focus:text-[#08070F] focus:px-4 focus:py-2 focus:rounded text-xs">
         {t.skip}
       </a>
 
@@ -824,9 +726,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ===================================================== */}
       <header
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-700 ${
-          scrolled
-            ? "sw-glass-strong border-b border-white/[0.06]"
-            : "bg-transparent"
+          scrolled ? "sw-glass-strong border-b border-white/[0.06]" : "bg-transparent"
         }`}
       >
         <div className="relative mx-auto max-w-[1320px] px-6 h-16 flex items-center justify-between">
@@ -865,7 +765,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {t.signin}
             </button>
             <Magnetic strength={0.25}>
-              <button onClick={onSigninClick} className="sw-btn-neon group relative inline-flex items-center gap-2 h-11 px-5 text-[#0A0612] text-[14px] font-semibold rounded-full sw-focus">
+              <button onClick={onSigninClick} className="sw-btn-neon group relative inline-flex items-center gap-2 h-11 px-5 text-[#08070F] text-[14px] font-semibold rounded-full sw-focus">
                 <span className="relative flex items-center gap-2">
                   {t.tryFree}
                   <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
@@ -915,7 +815,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 ))}
               </nav>
               <div className="px-6 pb-8 pt-2 space-y-2">
-                <button onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full rounded-full sw-btn-neon text-[#0A0612] py-3.5 text-[14px] font-semibold sw-focus">
+                <button onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full rounded-full sw-btn-neon text-[#08070F] py-3.5 text-[14px] font-semibold sw-focus">
                   {t.start}
                 </button>
                 <button onClick={() => { setMenuOpen(false); onLoginClick(); }} className="w-full rounded-full border border-white/15 py-3.5 text-[14px] font-medium sw-focus">
@@ -933,22 +833,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section
         id="home"
         ref={heroRef}
-        className="relative pt-32 sm:pt-40 pb-24 overflow-hidden sw-noise"
+        className="relative pt-32 sm:pt-40 pb-24 overflow-hidden"
         aria-label="Introduction"
       >
-        {/* Grid 3D floor */}
         <div className="absolute inset-x-0 top-0 h-[60%] sw-grid-3d opacity-60 pointer-events-none" />
-
-        {/* Orb 3D flottante */}
-        <motion.div
-          className="absolute top-[10%] end-[8%] sw-float pointer-events-none hidden md:block"
-          style={{
-            x: mousePos.x * 0.5,
-            y: mousePos.y * 0.5,
-          }}
-        >
-          <Orb3D size={300} color="#A78BFA" />
-        </motion.div>
 
         <div className="relative mx-auto max-w-[1320px] px-6">
           <motion.div style={{ y: heroY, opacity: heroOpacity }}>
@@ -971,49 +859,97 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
             </Reveal>
 
-            <Reveal delay={0.1} y={40}>
-              <h1
-                className="text-[clamp(3rem,9vw,7.5rem)] leading-[0.95] tracking-[-0.04em] text-white max-w-5xl sw-glow-text"
-                style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}
-              >
-                {t.heroTitle1}
-                <br />
-                <span className="italic sw-shimmer">{t.heroTitle2}</span>
-              </h1>
-            </Reveal>
+            <div className="grid lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-7">
+                <Reveal delay={0.1} y={40}>
+                  <h1
+                    className="text-[clamp(3rem,9vw,7.5rem)] leading-[0.95] tracking-[-0.04em] text-white max-w-5xl sw-glow-text"
+                    style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}
+                  >
+                    {t.heroTitle1}
+                    <br />
+                    <span className="italic sw-shimmer">{t.heroTitle2}</span>
+                  </h1>
+                </Reveal>
 
-            <Reveal delay={0.25}>
-              <p className="mt-8 text-[16px] sm:text-[18px] leading-[1.55] text-white/55 max-w-lg">
-                {t.heroSub}
-              </p>
-            </Reveal>
+                <Reveal delay={0.25}>
+                  <p className="mt-8 text-[16px] sm:text-[18px] leading-[1.55] text-white/55 max-w-lg">
+                    {t.heroSub}
+                  </p>
+                </Reveal>
 
-            <Reveal delay={0.35}>
-              <div className="mt-10 flex flex-wrap items-center gap-3">
-                <Magnetic>
-                  <button onClick={onSigninClick} className="sw-btn-neon group relative inline-flex items-center gap-2 h-12 px-6 text-[#0A0612] text-[14px] font-semibold rounded-full sw-focus">
-                    <span className="relative flex items-center gap-2">
-                      {t.tryFree}
-                      <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-                    </span>
-                  </button>
-                </Magnetic>
+                <Reveal delay={0.35}>
+                  <div className="mt-10 flex flex-wrap items-center gap-3">
+                    <Magnetic>
+                      <button onClick={onSigninClick} className="sw-btn-neon group relative inline-flex items-center gap-2 h-12 px-6 text-[#08070F] text-[14px] font-semibold rounded-full sw-focus">
+                        <span className="relative flex items-center gap-2">
+                          {t.tryFree}
+                          <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+                        </span>
+                      </button>
+                    </Magnetic>
 
-                <button onClick={() => smoothTo("#voices")} className="group inline-flex items-center gap-3 h-12 px-5 text-[14px] font-medium text-white rounded-full sw-glass border border-white/10 hover:border-[#A78BFA]/40 transition-all sw-focus">
-                  <span className="relative w-7 h-7 rounded-full bg-gradient-to-br from-[#A78BFA] to-[#6366F1] flex items-center justify-center text-[#0A0612]">
-                    <Play className="w-2.5 h-3 fill-current" />
-                  </span>
-                  {t.listenDemo}
-                </button>
+                    <button onClick={() => smoothTo("#voices")} className="group inline-flex items-center gap-3 h-12 px-5 text-[14px] font-medium text-white rounded-full sw-glass border border-white/10 hover:border-[#A78BFA]/40 transition-all sw-focus">
+                      <span className="relative w-7 h-7 rounded-full bg-gradient-to-br from-[#A78BFA] to-[#6366F1] flex items-center justify-center text-[#08070F]">
+                        <Play className="w-2.5 h-3 fill-current" />
+                      </span>
+                      {t.listenDemo}
+                    </button>
+                  </div>
+                </Reveal>
               </div>
-            </Reveal>
+
+              {/* Hero visual: photo 3D */}
+              <div className="lg:col-span-5 hidden lg:block">
+                <Reveal delay={0.4}>
+                  <Tilt intensity={8}>
+                    <div
+                      className="relative sw-img-card rounded-3xl overflow-hidden sw-border-glow-strong sw-glow-lg"
+                      style={{ transformStyle: "preserve-3d" }}
+                    >
+                      <div
+                        className="aspect-[4/5] relative"
+                        style={{
+                          backgroundImage: "url('https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=900&h=1100&fit=crop&q=80')",
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#08070F] via-transparent to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#6366F1]/30 via-transparent to-[#A78BFA]/30 mix-blend-overlay" />
+                        <div className="absolute top-4 start-4 sw-glass rounded-full px-3 py-1.5 flex items-center gap-2 text-[11px] text-white" style={{ fontFamily: mono }}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          REC · 00:24
+                        </div>
+                        <div className="absolute bottom-4 start-4 end-4 sw-glass rounded-2xl p-4">
+                          <div className="flex items-end gap-[2px] h-8 mb-2" dir="ltr">
+                            {Array.from({ length: 32 }).map((_, i) => {
+                              const h = 20 + Math.abs(Math.sin(i * 0.7) * Math.cos(i * 0.4)) * 80;
+                              return (
+                                <span
+                                  key={i}
+                                  className="flex-1 rounded-full bg-gradient-to-t from-[#A78BFA] to-[#DDD6FE] sw-wave-idle"
+                                  style={{ height: `${h}%`, maxWidth: 3, animationDelay: `${(i % 8) * 0.1}s` }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-white/60" style={{ fontFamily: mono }}>
+                            sawtify-v2.1 · 24kHz · stereo
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Tilt>
+                </Reveal>
+              </div>
+            </div>
           </motion.div>
 
           {/* Terminal + Waveform */}
           <Reveal delay={0.5}>
-            <Tilt intensity={4} className="mt-20 sm:mt-28">
-              <div className="grid lg:grid-cols-12 gap-6 items-stretch">
-                {/* Terminal card */}
+            <Tilt intensity={4}>
+              <div className="mt-20 sm:mt-28 grid lg:grid-cols-12 gap-6 items-stretch">
                 <div className="lg:col-span-5 sw-glass rounded-2xl overflow-hidden sw-border-glow" style={{ transformStyle: "preserve-3d" }}>
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
                     <div className="flex items-center gap-1.5">
@@ -1021,9 +957,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <span className="w-2 h-2 rounded-full bg-white/20" />
                       <span className="w-2 h-2 rounded-full bg-white/20" />
                     </div>
-                    <span className="text-[10px] text-white/40" style={{ fontFamily: mono }}>
-                      sawtify.dz
-                    </span>
+                    <span className="text-[10px] text-white/40" style={{ fontFamily: mono }}>sawtify.dz</span>
                   </div>
                   <div className="p-5 space-y-2 min-h-[180px]" style={{ fontFamily: mono }}>
                     {demoLines.map((line, i) => (
@@ -1049,7 +983,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-                {/* Waveform */}
                 <div className="lg:col-span-7 sw-glass rounded-2xl p-6 sw-border-glow relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-3 text-[10px] text-white/50" style={{ fontFamily: mono }}>
                     <Volume2 className="w-3 h-3 text-[#A78BFA]" />
@@ -1099,8 +1032,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ===================================================== */}
       <section className="py-12 border-y border-white/10 bg-black/30 overflow-hidden backdrop-blur-sm">
         <div className="relative">
-          <div className="absolute inset-y-0 start-0 w-32 bg-gradient-to-r from-[#0A0612] to-transparent z-10 pointer-events-none" />
-          <div className="absolute inset-y-0 end-0 w-32 bg-gradient-to-l from-[#0A0612] to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 start-0 w-32 bg-gradient-to-r from-[#08070F] to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 end-0 w-32 bg-gradient-to-l from-[#08070F] to-transparent z-10 pointer-events-none" />
           <div className="sw-marquee-track">
             {[...Array(2)].map((_, dup) => (
               <div key={dup} className="flex items-center gap-12 px-6 shrink-0">
@@ -1125,7 +1058,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          PROCESS
+          PROCESS — avec photos 3D
       ===================================================== */}
       <section id="process" className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1320px] px-6">
@@ -1153,31 +1086,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <Reveal key={s.n} delay={i * 0.1}>
                 <Tilt intensity={6}>
                   <div
-                    className="sw-glass rounded-2xl p-8 h-full sw-border-glow sw-spotlight relative overflow-hidden group"
+                    className="sw-glass rounded-2xl h-full sw-border-glow sw-spotlight relative overflow-hidden group"
                     onMouseMove={handleSpotlight}
                     style={{ transformStyle: "preserve-3d" }}
                   >
-                    {/* Glow corner */}
-                    <div
-                      className="absolute -top-20 -end-20 w-40 h-40 rounded-full opacity-30 group-hover:opacity-60 transition-opacity duration-500"
-                      style={{ background: `radial-gradient(circle, ${s.color}66 0%, transparent 70%)`, filter: "blur(40px)" }}
-                    />
-
-                    <div className="flex items-center justify-between mb-12 relative">
-                      <span className="text-[11px] text-white/40" style={{ fontFamily: mono }}>
-                        <Num>{s.n}</Num>
-                      </span>
+                    <div className="relative aspect-[4/3] overflow-hidden">
+                      <img
+                        src={s.img}
+                        alt=""
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#08070F] via-[#08070F]/40 to-transparent" />
                       <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center sw-border-glow"
-                        style={{ background: `linear-gradient(135deg, ${s.color}33 0%, ${s.color}11 100%)` }}
+                        className="absolute inset-0 mix-blend-overlay opacity-50"
+                        style={{ background: `linear-gradient(135deg, ${s.color}66 0%, transparent 60%)` }}
+                      />
+                      <div className="absolute top-4 start-4 sw-glass rounded-full px-3 py-1 text-[11px] text-white flex items-center gap-2" style={{ fontFamily: mono }}>
+                        <span>{s.n}</span>
+                      </div>
+                      <div
+                        className="absolute top-4 end-4 w-11 h-11 rounded-xl flex items-center justify-center sw-border-glow sw-glass"
                       >
                         <s.icon className="w-5 h-5" style={{ color: s.color }} />
                       </div>
                     </div>
-                    <h3 className="text-[28px] leading-tight tracking-[-0.02em] text-white mb-3" style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}>
-                      {s.t}
-                    </h3>
-                    <p className="text-[14px] leading-[1.6] text-white/55">{s.d}</p>
+                    <div className="p-6">
+                      <h3 className="text-[24px] leading-tight tracking-[-0.02em] text-white mb-2" style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}>
+                        {s.t}
+                      </h3>
+                      <p className="text-[13px] leading-[1.6] text-white/55">{s.d}</p>
+                    </div>
                   </div>
                 </Tilt>
               </Reveal>
@@ -1187,7 +1126,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          VOICES
+          VOICES — avec portraits
       ===================================================== */}
       <section id="voices" className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1320px] px-6">
@@ -1205,74 +1144,68 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </Reveal>
           </div>
 
-          <div className="sw-glass rounded-2xl overflow-hidden sw-border-glow">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {voices.map((v, idx) => {
               const active = playingId === v.id;
               return (
-                <motion.div
-                  key={v.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.7, delay: idx * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                  className={`border-b border-white/5 last:border-b-0 sw-spotlight transition-colors duration-500 ${active ? "bg-white/[0.04]" : ""}`}
-                  onMouseMove={handleSpotlight}
-                >
-                  <button
-                    onClick={() => toggleVoice(v.id, v.url)}
-                    aria-label={`${active ? "Pause" : "Play"} ${v.name}`}
-                    aria-pressed={active}
-                    className="w-full flex items-center gap-4 sm:gap-6 py-6 sm:py-7 px-4 sm:px-6 text-start sw-focus relative z-10"
-                  >
-                    <div className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-all duration-500 ${
-                      active
-                        ? "bg-gradient-to-br from-[#A78BFA] to-[#6366F1] text-[#0A0612] scale-110 sw-glow-sm"
-                        : "border border-white/20 text-white/70 hover:border-[#A78BFA]/60"
-                    }`}>
-                      {active ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 ms-0.5 fill-current" />}
-                    </div>
-
-                    <div className="w-24 sm:w-40 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <div className="text-[19px] sm:text-[22px] text-white tracking-[-0.02em]" style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}>
-                          {v.name}
-                        </div>
-                        <span className="hidden sm:inline text-[9px] text-[#A78BFA] border border-[#A78BFA]/30 rounded-full px-1.5 py-px bg-[#A78BFA]/5" style={{ fontFamily: mono }}>
-                          {v.lang}
-                        </span>
-                      </div>
-                      <div className="text-[12px] text-white/45 mt-0.5">{v.tag}</div>
-                    </div>
-
-                    <div className="flex-1 flex items-center gap-[2px] h-12 min-w-0" aria-hidden="true" dir="ltr">
-                      {Array.from({ length: 48 }).map((_, i) => {
-                        const seed = (Math.sin(i * 0.6) + Math.cos(i * 0.4)) * 0.5;
-                        const h = 15 + Math.abs(seed) * 70;
-                        const isAccent = i % 7 === 0;
-                        return (
-                          <span
-                            key={i}
-                            className={`flex-1 rounded-full transition-all duration-300 ${active ? "sw-wave-idle" : ""}`}
-                            style={{
-                              height: `${active ? h : 30}%`,
-                              maxWidth: 3,
-                              animationDelay: `${(i % 10) * 0.1}s`,
-                              background: active
-                                ? isAccent
-                                  ? "linear-gradient(180deg, #A78BFA, #6366F1)"
-                                  : "rgba(255,255,255,0.6)"
-                                : "rgba(255,255,255,0.15)",
-                            }}
+                <Reveal key={v.id} delay={idx * 0.05}>
+                  <Tilt intensity={6}>
+                    <div
+                      className={`sw-glass rounded-2xl overflow-hidden sw-border-glow sw-spotlight group transition-all duration-500 ${active ? "sw-glow-md" : ""}`}
+                      onMouseMove={handleSpotlight}
+                      style={{ transformStyle: "preserve-3d" }}
+                    >
+                      <button
+                        onClick={() => toggleVoice(v.id, v.url)}
+                        aria-label={`${active ? "Pause" : "Play"} ${v.name}`}
+                        aria-pressed={active}
+                        className="w-full text-start sw-focus block"
+                      >
+                        <div className="relative aspect-square overflow-hidden">
+                          <img
+                            src={v.img}
+                            alt={v.name}
+                            loading="lazy"
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                           />
-                        );
-                      })}
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#08070F] via-transparent to-transparent" />
+                          <div className={`absolute inset-0 mix-blend-overlay transition-opacity duration-500 ${active ? "opacity-60" : "opacity-30"}`} style={{ background: "linear-gradient(135deg, #6366F1 0%, #A78BFA 100%)" }} />
+                          <div className={`absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 ${active ? "scale-110 sw-btn-neon" : "bg-white/10 backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100"}`}>
+                            {active ? <Pause className="w-5 h-5 text-[#08070F] fill-current" /> : <Play className="w-5 h-5 text-white fill-current ms-0.5" />}
+                          </div>
+                          {active && (
+                            <div className="absolute bottom-3 start-3 end-3 flex items-end gap-[2px] h-8" dir="ltr">
+                              {Array.from({ length: 24 }).map((_, i) => {
+                                const h = 20 + Math.abs(Math.sin((i + idx) * 0.7) * Math.cos(i * 0.4)) * 80;
+                                return (
+                                  <span
+                                    key={i}
+                                    className="flex-1 rounded-full bg-gradient-to-t from-[#A78BFA] to-[#DDD6FE] sw-wave-idle"
+                                    style={{ height: `${h}%`, maxWidth: 3, animationDelay: `${(i % 8) * 0.1}s` }}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="text-[18px] text-white tracking-[-0.01em]" style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}>
+                              {v.name}
+                            </div>
+                            <span className="text-[9px] text-[#A78BFA] border border-[#A78BFA]/30 rounded-full px-1.5 py-px bg-[#A78BFA]/5" style={{ fontFamily: mono }}>
+                              {v.lang}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-white/50">{v.tag}</span>
+                            <span className="text-white/40" style={{ fontFamily: mono }}>{v.duration}</span>
+                          </div>
+                        </div>
+                      </button>
                     </div>
-
-                    <Num className="text-[11px] text-white/40 shrink-0 hidden sm:inline" style={{ fontFamily: mono }}>
-                      {v.duration}
-                    </Num>
-                  </button>
-                </motion.div>
+                  </Tilt>
+                </Reveal>
               );
             })}
           </div>
@@ -1280,10 +1213,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          METRICS — Section sombre premium
+          METRICS
       ===================================================== */}
       <section className="relative py-24 sm:py-36 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0A0612] via-[#1A0F2E] to-[#0A0612] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#08070F] via-[#1A0F2E] to-[#08070F] pointer-events-none" />
 
         <div className="relative mx-auto max-w-[1320px] px-6">
           <div className="grid lg:grid-cols-12 gap-12 mb-16">
@@ -1318,7 +1251,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =====================================================
-          TESTIMONIALS
+          TESTIMONIALS — avec photos
       ===================================================== */}
       <section className="py-24 sm:py-36 relative">
         <div className="mx-auto max-w-[1320px] px-6">
@@ -1334,7 +1267,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="grid lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-8 relative min-h-[240px]">
+            <div className="lg:col-span-8 relative min-h-[280px]">
               <AnimatePresence mode="wait">
                 <motion.figure
                   key={activeTesti}
@@ -1353,10 +1286,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     {testimonials[activeTesti].q}
                     <span className="text-[#A78BFA]">"</span>
                   </blockquote>
-                  <figcaption className="mt-8 flex items-center gap-3">
-                    <div className="w-px h-12 bg-gradient-to-b from-[#A78BFA] to-transparent" />
+                  <figcaption className="mt-8 flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full overflow-hidden sw-border-glow shrink-0">
+                      <img src={testimonials[activeTesti].img} alt={testimonials[activeTesti].n} className="w-full h-full object-cover" />
+                    </div>
                     <div>
-                      <div className="text-[14px] font-medium text-white">{testimonials[activeTesti].n}</div>
+                      <div className="text-[15px] font-semibold text-white">{testimonials[activeTesti].n}</div>
                       <div className="text-[12px] text-white/50 mt-0.5">{testimonials[activeTesti].r}</div>
                     </div>
                   </figcaption>
@@ -1416,20 +1351,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <Tilt intensity={5}>
                   <div
                     className={`relative p-8 h-full flex flex-col rounded-2xl sw-spotlight overflow-hidden ${
-                      p.featured
-                        ? "sw-glass-strong sw-border-glow-strong sw-glow-md bg-gradient-to-br from-[#1A0F2E] to-[#0A0612]"
-                        : "sw-glass sw-border-glow hover:bg-white/[0.04]"
+                      p.featured ? "sw-glass-strong sw-border-glow-strong sw-glow-md bg-gradient-to-br from-[#1A0F2E] to-[#08070F]" : "sw-glass sw-border-glow"
                     }`}
                     onMouseMove={handleSpotlight}
                     style={{ transformStyle: "preserve-3d" }}
                   >
                     {p.featured && (
                       <>
-                        <div
-                          className="absolute -top-20 -end-20 w-60 h-60 rounded-full opacity-40 pointer-events-none"
-                          style={{ background: "radial-gradient(circle, #A78BFA 0%, transparent 70%)", filter: "blur(60px)" }}
-                        />
-                        <span className="absolute top-4 end-4 z-10 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#0A0612] bg-gradient-to-r from-[#A78BFA] to-[#DDD6FE] rounded-full px-2.5 py-1 font-semibold" style={{ fontFamily: mono }}>
+                        <div className="absolute -top-20 -end-20 w-60 h-60 rounded-full opacity-40 pointer-events-none" style={{ background: "radial-gradient(circle, #A78BFA 0%, transparent 70%)", filter: "blur(60px)" }} />
+                        <span className="absolute top-4 end-4 z-10 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#08070F] bg-gradient-to-r from-[#A78BFA] to-[#DDD6FE] rounded-full px-2.5 py-1 font-semibold" style={{ fontFamily: mono }}>
                           <Sparkles className="w-2.5 h-2.5" />
                           {isRTL ? "شائع" : "popular"}
                         </span>
@@ -1445,9 +1375,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
                     </div>
 
-                    <p className="relative text-[13px] leading-relaxed mb-8 text-white/55">
-                      {p.desc}
-                    </p>
+                    <p className="relative text-[13px] leading-relaxed mb-8 text-white/55">{p.desc}</p>
 
                     <div className="relative h-px mb-6 bg-white/10" />
 
@@ -1467,16 +1395,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         <Num className="text-[30px] tracking-[-0.02em] text-white" style={{ fontFamily: display, fontWeight: isRTL ? 700 : 400 }}>
                           {p.price}
                         </Num>
-                        <span className="text-[12px] text-white/50" style={{ fontFamily: mono }}>
-                          DZD
-                        </span>
+                        <span className="text-[12px] text-white/50" style={{ fontFamily: mono }}>DZD</span>
                       </div>
 
                       <Magnetic>
                         <button onClick={onSigninClick} className={`w-full h-11 rounded-full text-[13px] font-semibold transition-all duration-500 sw-focus ${
-                          p.featured
-                            ? "sw-btn-neon text-[#0A0612]"
-                            : "border border-white/15 hover:border-[#A78BFA] hover:bg-[#A78BFA] hover:text-[#0A0612] text-white"
+                          p.featured ? "sw-btn-neon text-[#08070F]" : "border border-white/15 hover:border-[#A78BFA] hover:bg-[#A78BFA] hover:text-[#08070F] text-white"
                         }`}>
                           {isRTL ? "اختيار" : "Choisir"}
                         </button>
@@ -1526,7 +1450,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div className="border-b border-white/5 last:border-b-0">
                         <button onClick={() => setOpenFaq(open ? null : i)} aria-expanded={open} className="w-full py-6 px-6 flex items-start gap-6 text-start sw-focus group">
                           <span className="flex-1 text-[16px] sm:text-[17px] leading-snug pt-0.5 text-white group-hover:text-[#A78BFA] transition-colors duration-300">{f.q}</span>
-                          <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${open ? "bg-gradient-to-br from-[#A78BFA] to-[#6366F1] text-[#0A0612] rotate-45" : "border border-white/20"}`}>
+                          <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${open ? "bg-gradient-to-br from-[#A78BFA] to-[#6366F1] text-[#08070F] rotate-45" : "border border-white/20"}`}>
                             <Plus className="w-3 h-3" />
                           </span>
                         </button>
@@ -1558,7 +1482,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ===================================================== */}
       <section className="py-32 sm:py-48 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="sw-orb sw-aurora-1" style={{ width: 800, height: 800, top: "10%", left: "20%", background: "radial-gradient(circle, #A78BFA 0%, transparent 70%)", opacity: 0.3 }} />
+          <div
+            className="sw-orb sw-aurora-1"
+            style={{ width: 800, height: 800, top: "10%", left: "20%", background: "radial-gradient(circle, #A78BFA 0%, transparent 70%)", opacity: 0.3, position: "absolute", borderRadius: "50%", filter: "blur(60px)" }}
+          />
         </div>
         <div className="relative mx-auto max-w-[900px] px-6 text-center">
           <Reveal>
@@ -1576,7 +1503,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </Reveal>
           <Reveal delay={0.25}>
             <Magnetic strength={0.35}>
-              <button onClick={onSigninClick} className="sw-btn-neon group relative mt-10 inline-flex items-center gap-2 h-12 px-7 text-[#0A0612] text-[14px] font-semibold rounded-full sw-focus">
+              <button onClick={onSigninClick} className="sw-btn-neon group relative mt-10 inline-flex items-center gap-2 h-12 px-7 text-[#08070F] text-[14px] font-semibold rounded-full sw-focus">
                 <span className="relative flex items-center gap-2">
                   {t.start}
                   <ArrowIcon className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -1599,9 +1526,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <img src={LOGO_URL} alt="" loading="lazy" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-[15px] font-semibold tracking-[-0.02em] text-white">Sawtify</span>
-                <span className="text-[10px] text-[#A78BFA] border border-[#A78BFA]/30 rounded-full px-2 py-px" style={{ fontFamily: mono }}>
-                  v2.1
-                </span>
+                <span className="text-[10px] text-[#A78BFA] border border-[#A78BFA]/30 rounded-full px-2 py-px" style={{ fontFamily: mono }}>v2.1</span>
               </div>
               <p className="text-[13px] text-white/50 max-w-xs leading-relaxed mb-6">{t.footTag}</p>
               <div className="inline-flex items-center gap-2 text-[11px] text-white/50" style={{ fontFamily: mono }}>
@@ -1698,7 +1623,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <p className="text-[13px] leading-relaxed text-white/70 mb-6">
                 {isRTL ? LEGAL_CONTENT[legalModal].ar[1] : LEGAL_CONTENT[legalModal].fr[1]}
               </p>
-              <button onClick={() => setLegalModal(null)} className="w-full py-2.5 rounded-xl sw-btn-neon text-[#0A0612] text-sm font-semibold cursor-pointer">
+              <button onClick={() => setLegalModal(null)} className="w-full py-2.5 rounded-xl sw-btn-neon text-[#08070F] text-sm font-semibold cursor-pointer">
                 {isRTL ? "إغلاق" : "Fermer"}
               </button>
             </motion.div>
