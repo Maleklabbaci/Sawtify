@@ -97,8 +97,9 @@ const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suf
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    const obs = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting || started.current) return;
+    const obs = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry?.isIntersecting || started.current) return;
       started.current = true;
       const start = performance.now();
       const tick = (now: number) => {
@@ -159,9 +160,9 @@ type VoiceCard = {
 };
 
 const VOICES: VoiceCard[] = [
-  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Sawt commercial", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#6E5FE8", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
-  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Sawt i3lani", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#F472B6", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
-  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Sawt watha2iqi", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#10B981", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
+  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#6E5FE8", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
+  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#F472B6", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
+  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#10B981", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
   { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#F59E0B", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
   { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#3B82F6", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
   { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#8B5CF6", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
@@ -225,7 +226,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
-    document.title = isRTL ? "صوتيفي — صوت طبيعي بالدارجة" : "Sawtify — Sawt tabi3i b darija";
+    document.title = isRTL ? "صوتيفي — صوت طبيعي بالدارجة" : "Sawtify — Voix naturelle en darija";
   }, [language, isRTL]);
 
   useEffect(() => {
@@ -246,77 +247,77 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, []);
 
   const t = {
-    skip: isRTL ? "روح للمحتوى" : "Rouh l contenu",
-    navVoices: isRTL ? "الأصوات" : "Swat",
-    navHow: isRTL ? "كيفاش" : "Kifach",
-    navPricing: isRTL ? "السوم" : "Soum",
+    skip: isRTL ? "Aller au contenu" : "Aller au contenu",
+    navVoices: isRTL ? "الأصوات" : "Voix",
+    navHow: isRTL ? "كيف يعمل" : "Comment ça marche",
+    navPricing: isRTL ? "الأسعار" : "Tarifs",
     navFaq: "FAQ",
-    navContact: isRTL ? "تواصل" : "Twasel",
-    signin: isRTL ? "دخول" : "Dkhoul",
-    start: isRTL ? "ابدا درك" : "Bda dorka",
-    liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · online",
-    heroKicker: isRTL ? "غمّض عينيك" : "GHAMMED 3INIK",
-    heroTitle1: isRTL ? "صوت" : "Sawt",
-    heroTitle2: isRTL ? "ما يتفرّقش." : "ma yetfarra9ch.",
+    navContact: isRTL ? "تواصل" : "Contact",
+    signin: isRTL ? "دخول" : "Connexion",
+    start: isRTL ? "ابدأ الآن" : "Commencer",
+    liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
+    heroKicker: isRTL ? "استوديو الدارجة" : "STUDIO DARIJA",
+    heroTitle1: isRTL ? "صوت" : "Une voix",
+    heroTitle2: isRTL ? "لا يُفرَّق." : "indiscernable.",
     heroSub: isRTL
-      ? "دارجة. 30 ثانية. الزبون يظنّها إنسان. تسمع غير البداية هنا… و يتقطّع."
-      : "Darija. 30 seconde. L'client ydhenn insan. Tesma3 ghir lbdya hna… w yqatta3.",
-    bookNow: isRTL ? "كمّل تسمع" : "Kmmel tesma3",
-    listenDemo: isRTL ? "شوف 3 أصوات برك" : "Chouf 3 swat bark",
-    welcomeChip: isRTL ? "50 نقطة. بلا كارتة." : "50 noqta. Bla carta.",
-    creators: isRTL ? "خدّام" : "kheddama",
-    popularKicker: isRTL ? "ما نوريوكش الكل" : "MA NWERRIWECH EL KOLL",
-    popularTitle: isRTL ? "12 صوت. هنا 3 برك." : "12 swat. Hna 3 bark.",
+      ? "نصّك بالدارجة يولي صوتًا طبيعيًا في 30 ثانية. هنا تسمع البداية فقط… والباقي في الاستوديو."
+      : "Votre texte en darija devient une voix naturelle en 30 secondes. Ici, vous n’entendez que le début… la suite est dans le studio.",
+    bookNow: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
+    listenDemo: isRTL ? "اسمع 3 أصوات فقط" : "Écouter 3 voix",
+    welcomeChip: isRTL ? "50 نقطة. بدون بطاقة." : "50 points. Sans carte.",
+    creators: isRTL ? "مستخدم" : "créateurs",
+    popularKicker: isRTL ? "لا نكشف الكل" : "ON NE MONTRE PAS TOUT",
+    popularTitle: isRTL ? "12 صوتًا. هنا 3 فقط." : "12 voix. Ici, seulement 3.",
     popularSub: isRTL
-      ? "أمين، ياسمين، خالد. التسعة الباقيين… تشوفهم كي تدخل للستوديو."
-      : "Amine, Yasmine, Khalid. L tes3a lbaqi… tchoufhom ki tdkhol l studio.",
+      ? "أمين، ياسمين، خالد. التسعة الباقون تسمعهم في الاستوديو."
+      : "Amine, Yasmine, Khalid. Les neuf autres s’écoutent dans le studio.",
     nRatings: isRTL ? "تقييم" : "avis",
-    tryVoice: isRTL ? "كمّل تسمع" : "Kmmel tesma3",
-    listenInStudio: isRTL ? "اسمع البداية" : "Sma3 lbdya",
+    tryVoice: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
+    listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
     listenBody: isRTL
-      ? "هاد غير أول جملة. الصوت كامل في الستوديو. 50 نقطة، بلا كارتة."
-      : "Hadi ghir awwel joumla. Sawt kaml f studio. 50 noqta, bla carta.",
-    journeyKicker: isRTL ? "من غير ما تهدر" : "BLA MA TEHDER",
-    journeyTitle: isRTL ? "ربع حركات. الصوت يخرج." : "Reb3a harakat. Sawt ykhrej.",
-    journeySub: isRTL ? "بلا كابينة. بلا ميكرو. بلا تسنا." : "Bla cabine. Bla micro. Bla tesna.",
-    useKicker: isRTL ? "وين تستعملو" : "WINE TSTA3MLO",
-    useTitle: isRTL ? "كي يهدر، ما عادش نص." : "Ki yehder, ma 3adech nass.",
-    costKicker: isRTL ? "و بكداش" : "W BCHHAL",
-    costTitle: isRTL ? "أقل مما تظن." : "Qall melli tdhenn.",
+      ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة، بدون بطاقة."
+      : "Ce n’est que la première phrase. La voix entière est dans le studio. 50 points, sans carte.",
+    journeyKicker: isRTL ? "بدون أن تتكلم" : "SANS MICRO",
+    journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
+    journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d’attente.",
+    useKicker: isRTL ? "أين تستعمله" : "USAGES",
+    useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n’est plus du texte.",
+    costKicker: isRTL ? "وبكم" : "ET COMBIEN",
+    costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne croyez.",
     costSub: isRTL
-      ? "20 نقطة لأول 60 ثانية، من بعد +10 لكل دقيقة. النقاط ما يموتوش."
-      : "20 noqta l awwel 60 seconde, men ba3d +10 l kol dqiqa. Nouqat ma ymoutouch.",
-    unleashTitle: isRTL ? "ما يعرفوش بلي ما عندكش ستوديو." : "Ma ya3rfouch belli ma 3andekch studio.",
+      ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي."
+      : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n’expirent pas.",
+    unleashTitle: isRTL ? "لن يعرفوا أنك بلا استوديو." : "Personne ne saura que vous n’avez pas de studio.",
     unleashSub: isRTL
-      ? "لا كابينة. لا واحد تخلّصو. صوت يبيع. 50 نقطة باش تسمع الفرق بروحك."
-      : "Bla cabine. Bla wahed tkhalles. Sawt ybi3. 50 noqta bach tesma3 l farq b rohek.",
-    unleashCTA: isRTL ? "الـ 9 الباقيين وين هم؟" : "W l 9 lbaqi wine hom?",
-    metricsKicker: "L ARQAM",
-    metricsTitle: isRTL ? "الأرقام ما تكذبش." : "L arqam ma ykedbouch.",
-    testKicker: isRTL ? "شكون جرب" : "CHKoun JARRAB",
-    testTitle: isRTL ? "اللي يسمع، يظنّها إنسان." : "Li yesma3, ydhenn-ha insan.",
-    pricingKicker: "SOUM",
-    pricingTitle: isRTL ? "نقاط. بلا اشتراك." : "Nouqat. Bla chtirak.",
-    pricingSub: isRTL ? "بالدينار. ما تفوتش الصلاحية." : "B dinar. Ma tfootch l salahia.",
+      ? "لا كابينة. لا ممثل تُدفع له. صوت يبيع. 50 نقطة لتسمع الفرق بنفسك."
+      : "Pas de cabine. Pas de comédien à payer. Une voix qui vend. 50 points pour entendre la différence.",
+    unleashCTA: isRTL ? "أين الـ 9 الباقون؟" : "Et les 9 autres voix ?",
+    metricsKicker: isRTL ? "الأرقام" : "LES CHIFFRES",
+    metricsTitle: isRTL ? "الأرقام لا تكذب." : "Les chiffres ne mentent pas.",
+    testKicker: isRTL ? "من جرّب" : "ILS ONT TESTÉ",
+    testTitle: isRTL ? "من يسمع، يظنّه إنسانًا." : "Qui écoute croit entendre quelqu’un.",
+    pricingKicker: isRTL ? "الأسعار" : "TARIFS",
+    pricingTitle: isRTL ? "نقاط. بلا اشتراك." : "Des points. Sans abonnement.",
+    pricingSub: isRTL ? "بالدينار. بلا تاريخ انتهاء." : "En dinars. Sans date d’expiration.",
     welcomeBanner: isRTL
-      ? "هدية الدخول: 50 نقطة = توليدين + 10 نقاط بقات."
-      : "Hadiya l dkhoul: 50 noqta = 2 toulidat + 10 nouqat bqaw.",
-    gens: isRTL ? "تسجيل" : "tsjilat",
-    choose: isRTL ? "اختار" : "Khtar",
-    popular: isRTL ? "الأكثر طلباً" : "L akthar",
+      ? "هدية الدخول: 50 نقطة = توليدان + 10 نقاط متبقية."
+      : "Cadeau d’inscription : 50 points = 2 générations + 10 points restants.",
+    gens: isRTL ? "تسجيل" : "générations",
+    choose: isRTL ? "اختيار" : "Choisir",
+    popular: isRTL ? "الأكثر طلبًا" : "Le plus demandé",
     faqKicker: "FAQ",
-    faqTitle: isRTL ? "أسئلة الناس" : "As2ila n nass",
-    ctaTitle: isRTL ? "باغي تسمعو حتى يكمّل؟" : "Bghit tesma3o hta ykmmel?",
-    ctaSub: isRTL ? "50 نقطة. 12 صوت. 3 برك هنا. بلا كارتة." : "50 noqta. 12 swat. 3 bark hna. Bla carta.",
-    footTag: isRTL ? "تصنع في الجزائر" : "Tsenna3 f Dzayer",
+    faqTitle: isRTL ? "أسئلة متكررة" : "Questions fréquentes",
+    ctaTitle: isRTL ? "تريد أن تسمعه حتى النهاية؟" : "Envie d’entendre la suite ?",
+    ctaSub: isRTL ? "50 نقطة. 12 صوتًا. 3 فقط هنا. بدون بطاقة." : "50 points. 12 voix. 3 seulement ici. Sans carte.",
+    footTag: isRTL ? "صُنع في الجزائر" : "Fait en Algérie",
     switchLang: isRTL ? "FR" : "AR",
-    close: isRTL ? "سكّر" : "Sekker",
-    open: isRTL ? "المنيو" : "Menu",
-    cgu: isRTL ? "شروط الخدمة" : "Chorout",
-    privacy: isRTL ? "الخصوصية" : "Privacy",
-    contact: isRTL ? "تواصل" : "Twasel",
-    pts: isRTL ? "نقطة" : "noqta",
-    moreVoices: isRTL ? "+9 في الستوديو" : "+9 f studio",
+    close: isRTL ? "إغلاق" : "Fermer",
+    open: isRTL ? "القائمة" : "Menu",
+    cgu: isRTL ? "شروط الخدمة" : "CGU",
+    privacy: isRTL ? "الخصوصية" : "Confidentialité",
+    contact: isRTL ? "تواصل" : "Contact",
+    pts: isRTL ? "نقطة" : "pts",
+    moreVoices: isRTL ? "+9 في الاستوديو" : "+9 dans le studio",
   };
 
   const nav = [
@@ -362,36 +363,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, [listenVoice, holdVoice]);
 
   const journeySteps = [
-    { n: "1", t: isRTL ? "اكتب" : "Kteb", d: isRTL ? "الصق النص بالدارجة، بالعربية ولا بالفرنسية." : "Lsaq nassek b darija, b 3arbi wela b français." },
-    { n: "2", t: isRTL ? "اختار" : "Khtar", d: isRTL ? "12 صوت. هنا نوريوك 3 برك." : "12 swat. Hna nwerriwek 3 bark." },
-    { n: "3", t: isRTL ? "ضبط" : "Regli", d: isRTL ? "السرعة، النبرة، التأثيرات… الباقي في الستوديو." : "L vitesse, nabra, l effet… lbaqi f studio." },
-    { n: "4", t: isRTL ? "حمّل" : "Telecharge", d: isRTL ? "MP3 ولا WAV. بلا علامة. استعملو تجاري." : "MP3 wela WAV. Bla marque. St3amlo commercial." },
+    { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصك بالدارجة، بالعربية أو بالفرنسية." : "Collez votre texte en darija, en arabe ou en français." },
+    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "12 صوتًا. هنا نعرض 3 فقط." : "12 voix. Ici, on n’en montre que 3." },
+    { n: "3", t: isRTL ? "اضبط" : "Régler", d: isRTL ? "السرعة، النبرة، التأثيرات… الباقي في الاستوديو." : "Vitesse, timbre, effets… le reste est dans le studio." },
+    { n: "4", t: isRTL ? "حمّل" : "Télécharger", d: isRTL ? "MP3 أو WAV. بلا علامة مائية. استعمال تجاري." : "MP3 ou WAV. Sans filigrane. Usage commercial." },
   ];
 
   const uses = [
-    { icon: ShoppingBag, t: isRTL ? "إيكوميرس" : "E-commerce", d: isRTL ? "سبوت، برومو، توصيل 58 ولاية." : "Spot, promo, tawsil 58 wilaya." },
-    { icon: Clapperboard, t: isRTL ? "ريلز وتيك توك" : "Reels & TikTok", d: isRTL ? "صوت قصير، حيوي، جاهز للستوري." : "Sawt qsir, hayawi, wahli l story." },
-    { icon: Mic2, t: isRTL ? "بودكاست ويوتيوب" : "Podcast & YouTube", d: isRTL ? "سرد طويل، نبرة ثابتة." : "Sard twil, nabra thabta." },
-    { icon: Phone, t: isRTL ? "موزع هاتفي" : "Standard", d: isRTL ? "مرحبا، اضغط 1، خدمة الزبائن." : "Marhba, presse 1, service client." },
+    { icon: ShoppingBag, t: isRTL ? "تجارة إلكترونية" : "E-commerce", d: isRTL ? "سبوت، عرض، توصيل 58 ولاية." : "Spots, promos, livraison 58 wilayas." },
+    { icon: Clapperboard, t: isRTL ? "ريلز وتيك توك" : "Reels & TikTok", d: isRTL ? "صوت قصير وحيوي، جاهز للقصص." : "Voix courte, vive, prête pour les stories." },
+    { icon: Mic2, t: isRTL ? "بودكاست ويوتيوب" : "Podcast & YouTube", d: isRTL ? "سرد طويل، نبرة ثابتة." : "Narration longue, timbre stable." },
+    { icon: Phone, t: isRTL ? "موزّع هاتفي" : "Standard", d: isRTL ? "مرحبًا، اضغط 1، خدمة الزبائن." : "Bienvenue, tapez 1, service client." },
   ];
 
   const metrics = [
-    { n: 12, s: "", l: isRTL ? "صوت" : "swat" },
-    { n: 1200, s: "+", l: isRTL ? "خدّام" : "kheddama" },
-    { n: 50, s: "K+", l: isRTL ? "صوت تولّد" : "sawt twaled" },
-    { n: 99, s: "%", l: isRTL ? "ما يتفرّقش" : "ma yetfarra9ch" },
+    { n: 12, s: "", l: isRTL ? "صوت" : "voix" },
+    { n: 1200, s: "+", l: isRTL ? "مستخدم" : "créateurs" },
+    { n: 50, s: "K+", l: isRTL ? "صوت مُولَّد" : "voix générées" },
+    { n: 99, s: "%", l: isRTL ? "لا يُفرَّق" : "indiscernable" },
   ];
 
   const testimonials = isRTL
     ? [
-        { q: "جربت 5 منصات قبل Sawtify. هنا الصوت فعلاً يبدو بشرياً. الزبائن لا يحسون الفرق.", n: "أمين ب.", r: "صانع محتوى، الجزائر", img: "AB" },
-        { q: "استخدمته لإعلانات تجارية. نتيجة احترافية دون الحاجة لاستوديو.", n: "ياسمين ق.", r: "وكالة إشهار، وهران", img: "YK" },
-        { q: "أحسن صوت جزائري سمعته. طبيعي 100% والدفع بالذهبية مريح.", n: "خالد م.", r: "صاحب متجر إلكتروني، قسنطينة", img: "KM" },
+        { q: "جرّبت 5 منصات قبل صوتيفي. هنا الصوت يبدو بشريًا فعلًا. الزبائن لا يلاحظون الفرق.", n: "أمين ب.", r: "صانع محتوى، الجزائر", img: "AB" },
+        { q: "استخدمته لإعلانات تجارية. نتيجة احترافية دون الحاجة إلى استوديو.", n: "ياسمين ق.", r: "وكالة إشهار، وهران", img: "YK" },
+        { q: "أفضل صوت جزائري سمعته. طبيعي 100٪ والدفع بالذهبية مريح.", n: "خالد م.", r: "تاجر إلكتروني، قسنطينة", img: "KM" },
       ]
     : [
-        { q: "Jarrabt 5 plateformes qbel Sawtify. Hna sawt yehder kima insan. L clients ma yfarra9ouch.", n: "Amine B.", r: "Créateur, Alger", img: "AB" },
-        { q: "St3amalto f i3lanat. Résultat pro, bla ma n7taj studio.", n: "Yasmine K.", r: "Agence pub, Oran", img: "YK" },
-        { q: "A7sen sawt dziri sme3to. Tabi3i 100% w payment Edahabia mri7.", n: "Khaled M.", r: "E-commerçant, Constantine", img: "KM" },
+        { q: "J’ai testé 5 plateformes avant Sawtify. Ici, la voix sonne vraiment humaine. Mes clients ne font pas la différence.", n: "Amine B.", r: "Créateur, Alger", img: "AB" },
+        { q: "Utilisé pour mes pubs. Un rendu pro, sans studio.", n: "Yasmine K.", r: "Agence pub, Oran", img: "YK" },
+        { q: "La meilleure voix algérienne que j’ai entendue. Naturelle à 100 %, et le paiement Edahabia est simple.", n: "Khaled M.", r: "E-commerçant, Constantine", img: "KM" },
       ];
 
   useEffect(() => {
@@ -400,34 +401,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, [testimonials.length]);
 
   const pricing = [
-    { pts: 100, ptsLabel: "100", price: "500", gens: 5, desc: isRTL ? "باش تجرب — 5 تسجيلات." : "Bach tjarrab — 5 tsjilat." },
-    { pts: 220, ptsLabel: "220", price: "1 000", gens: 11, featured: true, desc: isRTL ? "الأكثر طلباً — 11 تسجيل + 20 نقطة مهداة." : "L akthar — 11 tsjil + 20 noqta mehdiya." },
-    { pts: 600, ptsLabel: "600", price: "2 500", gens: 30, desc: isRTL ? "للي يخدم دايمن — وكالات وصنّاع محتوى." : "Li yekhdem daymen — agences w créateurs." },
-    { pts: 1350, ptsLabel: "1 350", price: "5 000", gens: 67, desc: isRTL ? "للبروفسيونال — حجم كبير." : "L professional — hajm kbir." },
+    { pts: 100, ptsLabel: "100", price: "500", gens: 5, desc: isRTL ? "للتجربة — 5 تسجيلات." : "Pour essayer — 5 générations." },
+    { pts: 220, ptsLabel: "220", price: "1 000", gens: 11, featured: true, desc: isRTL ? "الأكثر طلبًا — 11 تسجيلًا + 20 نقطة مهداة." : "Le plus demandé — 11 générations + 20 points offerts." },
+    { pts: 600, ptsLabel: "600", price: "2 500", gens: 30, desc: isRTL ? "لمن يعمل يوميًا — وكالات وصنّاع محتوى." : "Pour un usage régulier — agences et créateurs." },
+    { pts: 1350, ptsLabel: "1 350", price: "5 000", gens: 67, desc: isRTL ? "للمحترفين — حجم كبير." : "Pour les pros — gros volumes." },
   ];
 
   const faqs = isRTL
     ? [
-        { q: "الصوت يهدر كيما إنسان؟", a: "اه. دارجة حيّة، 24 kHz. 99% اللي يسمعو ما يفرّقوش." },
-        { q: "نقدر نستعملو في الإعلان؟", a: "اه. إعلان، يوتيوب، تيك توك، موزع — تجاري كامل، بلا علامة." },
-        { q: "النقاط كيفاه؟", a: "20 نقطة لـ 0–60 ثانية، من بعد +10 لكل دقيقة. ما يموتوش. 50 نقطة كي تسجّل." },
-        { q: "الذهبية و CIB؟", a: "اه، SATIM، بالدينار. ما تحتاجش كارتة برّانية." },
-        { q: "نجرب بلا فلس؟", a: "اه. 50 نقطة، بلا كارتة. وهنا غير 3 أصوات — الـ 9 في الستوديو." },
+        { q: "هل الصوت يبدو كإنسان؟", a: "نعم. دارجة حيّة، 24 kHz. 99٪ ممن يسمعون لا يفرّقون." },
+        { q: "هل يمكن استعماله في الإعلان؟", a: "نعم. إعلان، يوتيوب، تيك توك، موزّع — استعمال تجاري كامل، بلا علامة مائية." },
+        { q: "كيف تعمل النقاط؟", a: "20 نقطة لـ 0–60 ثانية، ثم +10 لكل دقيقة. لا تنتهي. 50 نقطة عند التسجيل." },
+        { q: "الذهبية و CIB؟", a: "نعم، SATIM، بالدينار. لا تحتاج بطاقة أجنبية." },
+        { q: "هل أجرّب مجانًا؟", a: "نعم. 50 نقطة، بدون بطاقة. وهنا 3 أصوات فقط — التسعة في الاستوديو." },
       ]
     : [
-        { q: "Sawt yehder kima insan?", a: "Ih. Darija hayya, 24 kHz. 99% li yesma3 ma yfarra9ch." },
-        { q: "Nqder nsta3mlo f i3lan?", a: "Ih. I3lan, YouTube, TikTok, standard — commercial kaml, bla marque." },
-        { q: "Nouqat kifach?", a: "20 noqta l 0–60 seconde, men ba3d +10 l kol dqiqa. Ma ymoutouch. 50 noqta ki tsajjal." },
-        { q: "Edahabia w CIB?", a: "Ih, SATIM, b dinar. Ma tehtejch carta berraniya." },
-        { q: "Njarrab bla flous?", a: "Ih. 50 noqta, bla carta. W hna ghir 3 swat — l 9 f studio." },
+        { q: "La voix parle comme quelqu’un ?", a: "Oui. Darija vivante, 24 kHz. 99 % de ceux qui écoutent ne font pas la différence." },
+        { q: "Puis-je l’utiliser en pub ?", a: "Oui. Pub, YouTube, TikTok, standard — usage commercial, sans filigrane." },
+        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points à l’inscription." },
+        { q: "Edahabia et CIB ?", a: "Oui, SATIM, en dinars. Pas besoin de carte étrangère." },
+        { q: "Je peux essayer sans payer ?", a: "Oui. 50 points, sans carte. Ici seulement 3 voix — les 9 autres sont dans le studio." },
       ];
 
   const trust = [
     { k: "Edahabia", v: isRTL ? "بريد الجزائر" : "La Poste" },
-    { k: "CIB", v: isRTL ? "البنوك" : "L bankat" },
-    { k: "SATIM", v: isRTL ? "دفع مأمون" : "Payment m2ammen" },
-    { k: "24 kHz", v: isRTL ? "جودة ستوديو" : "Jawda studio" },
-    { k: "MP3 · WAV", v: isRTL ? "بلا علامة" : "Bla marque" },
+    { k: "CIB", v: isRTL ? "البنوك" : "Banques" },
+    { k: "SATIM", v: isRTL ? "دفع آمن" : "Paiement sécurisé" },
+    { k: "24 kHz", v: isRTL ? "جودة استوديو" : "Qualité studio" },
+    { k: "MP3 · WAV", v: isRTL ? "بلا علامة مائية" : "Sans filigrane" },
   ];
 
   const smoothTo = useCallback((href: string) => {
@@ -450,11 +451,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const legalCopy = {
     cgu: isRTL
-      ? "الشروط: صوتيفي منصة جزائرية، النص يولي صوت. الحساب شخصي. النقاط ما تترجّعش دراهم وما تموتوش. الاستعمال التجاري مسموح. ممنوع المحتوى الحرام. الدفع SATIM (ذهبية / CIB). إذا فشل التوليد، النقاط ترجع."
-      : "Chorout: Sawtify plateforme dziriya, nass yewli sawt. L compte chakhsi. Nouqat ma yetraddech drahem w ma ymoutouch. Commercial mesmouh. Mamnou3 contenu haram. Payment SATIM (Edahabia / CIB). Ila fchel toulid, nouqat ywelou.",
+      ? "شروط الاستخدام: صوتيفي منصة جزائرية لتحويل النص إلى صوت بالدارجة. الحساب شخصي. النقاط غير قابلة للتحويل نقدًا ولا تنتهي صلاحيتها. الاستعمال التجاري مسموح في حدود القانون الجزائري. يُمنع توليد محتوى غير قانوني أو مسيء. الدفع عبر SATIM (الذهبية / CIB). في حال فشل التوليد، تُعاد النقاط إلى رصيدك."
+      : "Conditions d’utilisation : Sawtify est une plateforme algérienne de conversion texte → voix en darija. Le compte est personnel. Les points ne sont pas remboursables en dinars et n’expirent pas. L’usage commercial est autorisé dans le cadre de la loi algérienne. Tout contenu illicite ou injurieux est interdit. Le paiement passe par SATIM (Edahabia / CIB). En cas d’échec de génération, les points sont recrédités.",
     privacy: isRTL
-      ? "الخصوصية: نخزّنو غير اللازم (الإيميل، الرصيد، النصوص). ما نبيعوش بياناتك. تقدر تطلب مسح الحساب. الدفع SATIM — ما نخزّنوش رقم الكارتة."
-      : "Privacy: nkhazznou ghir l lazem (email, solde, nass). Ma nbi3ouch bayanetek. Tqder tleb mse7 l compte. Payment SATIM — ma nkhazznouch nimero l carta.",
+      ? "الخصوصية: نحتفظ بالحد الأدنى من البيانات (البريد، الرصيد، النصوص المولَّدة) لتشغيل الحساب. لا نبيع بياناتك. يمكنك طلب حذف حسابك عبر صفحة التواصل. المدفوعات تُعالَج من طرف SATIM — صوتيفي لا يخزّن أرقام البطاقات."
+      : "Confidentialité : nous conservons le minimum (e-mail, solde, textes générés) pour faire fonctionner le compte. Nous ne vendons pas vos données. Vous pouvez demander la suppression du compte via Contact. Les paiements sont traités par SATIM — Sawtify ne stocke aucun numéro de carte.",
   };
 
   return (
@@ -588,7 +589,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div key={c} className="w-7 h-7 rounded-full border-2 border-[#FAFAF7]" style={{ background: c }} />
                     ))}
                   </div>
-                  <span className="font-bold text-[#0F0F1A]/70"><Num>12</Num> {isRTL ? "صوت" : "swat"}</span>
+                  <span className="font-bold text-[#0F0F1A]/70"><Num>12</Num> {isRTL ? "صوتًا" : "voix"}</span>
                   <span>·</span>
                   <span><Num>1 200+</Num> {t.creators}</span>
                   <span>·</span>
@@ -622,7 +623,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </p>
                   {cutDone && (
                     <p className="mt-2 text-[11px] font-bold tracking-wide" style={{ color: featured.color }}>
-                      {isRTL ? "— تقطّع. كمّل في الستوديو." : "— tqatta3. Kmmel f studio."}
+                      {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
                     </p>
                   )}
 
@@ -661,7 +662,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* TRUST */}
-      <section className="py-7 border-y border-[#0F0F1A]/8 bg-white" aria-label={isRTL ? "وسائل الدفع والجودة" : "Payment w jawda"}>
+      <section className="py-7 border-y border-[#0F0F1A]/8 bg-white" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
           {trust.map((p) => (
             <div key={p.k} className="text-center">
@@ -722,7 +723,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <button type="button" onClick={onSigninClick} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
             <div className="text-[22px] font-extrabold tracking-tight" style={{ fontFamily: display }}>{t.moreVoices}</div>
-            <p className="mt-1 text-[13px] text-[#0F0F1A]/55">{isRTL ? "ما نوريوهمش هنا. دخل تشوف." : "Ma nwerriwhomch hna. Dkhoul tchouf."}</p>
+            <p className="mt-1 text-[13px] text-[#0F0F1A]/55">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
           </button>
         </div>
       </section>
@@ -791,9 +792,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <p className="mt-4 text-[14px] text-[#0F0F1A]/65 leading-relaxed">{t.costSub}</p>
               <ul className="mt-6 space-y-2.5 text-[13px] text-[#0F0F1A]/70">
                 {[
-                  isRTL ? "50 نقطة ترحيب = توليدان + 10 نقاط." : "50 noqta ter7ib = 2 toulidat + 10 nouqat.",
-                  isRTL ? "النقاط بلا انتهاء صلاحية." : "Nouqat ma ymoutouch.",
-                  isRTL ? "الدفع بالدينار عبر SATIM." : "Payment b dinar, SATIM.",
+                  isRTL ? "50 نقطة ترحيب = توليدان + 10 نقاط." : "50 points offerts = 2 générations + 10 points.",
+                  isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
+                  isRTL ? "الدفع بالدينار عبر SATIM." : "Paiement en DZD via SATIM.",
                 ].map((line) => (
                   <li key={line} className="flex items-start gap-2">
                     <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
@@ -806,7 +807,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="lg:col-span-7">
             <SlideUp delay={0.1}>
               <div className="rounded-[28px] bg-[#0F0F1A] text-white p-6 sm:p-8">
-                <div className="text-[12px] font-bold tracking-widest uppercase text-white/40 mb-4">{isRTL ? "حْسَب" : "Hseb"}</div>
+                <div className="text-[12px] font-bold tracking-widest uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</div>
                 <div className="grid grid-cols-4 gap-2 mb-6">
                   {COST_STEPS.map((s, i) => (
                     <button
@@ -821,7 +822,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <div className="text-[11px] text-white/50">{isRTL ? "التكلفة" : "Soum"}</div>
+                    <div className="text-[11px] text-white/50">{isRTL ? "التكلفة" : "Coût"}</div>
                     <div className="text-[48px] leading-none font-extrabold" style={{ fontFamily: "'Outfit', sans-serif" }}>
                       {COST_STEPS[costIdx].pts}
                       <span className="text-[16px] ms-2 font-bold text-white/50">{t.pts}</span>
@@ -852,7 +853,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
               </div>
               <div className="absolute bottom-6 start-6 bg-white rounded-2xl px-4 py-3 text-[#0F0F1A] shadow-xl">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/50">{isRTL ? "هدية الترحيب" : "Hadiya l dkhoul"}</div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/50">{isRTL ? "هدية الترحيب" : "Offre de bienvenue"}</div>
                 <div className="text-[22px] font-extrabold">50 {t.pts}</div>
               </div>
             </div>
@@ -1041,13 +1042,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <Logo size={40} />
               <p className="mt-4 text-[13px] text-[#0F0F1A]/55 max-w-sm leading-relaxed">
                 {isRTL
-                  ? "ستوديو صوتي جزائري. النص بالدارجة يولي صوت، جاهز للإعلان."
-                  : "Studio sawti dziri. Nass b darija yewli sawt, wahli l i3lan."}
+                  ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوتًا طبيعيًا، جاهزًا للإعلان."
+                  : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}
               </p>
               <p className="mt-3 text-[12px] font-semibold text-[#0F0F1A]/70">Alger, Algérie · {t.footTag}</p>
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40 mb-3">{isRTL ? "المنصة" : "L plateforme"}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40 mb-3">{isRTL ? "المنصة" : "Produit"}</div>
               <div className="flex flex-col gap-2 text-[13px] font-medium">
                 {nav.map((l) => (
                   <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-[#6E5FE8]">{l.label}</a>
@@ -1064,7 +1065,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-4 flex items-center gap-1.5 text-[11px] text-[#0F0F1A]/50">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#6E5FE8]" />
-                {isRTL ? "دفع مأمون، ما نخزّنوش الكارتة." : "Payment m2ammen, ma nkhazznouch l carta."}
+                {isRTL ? "دفع آمن، لا نخزّن رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}
               </div>
             </div>
           </div>
@@ -1153,4 +1154,3 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 };
 
 export default LandingPage;
-e;
