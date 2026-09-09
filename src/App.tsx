@@ -31,32 +31,23 @@ function AppContent() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
-  const [purchases, setPurchases] = useState<PurchaseRecord[]>([
-    {
-      id: 'pur_free_welcome',
-      packId: 'free_tier',
-      packName: 'Offre Gratuite (50 Points)',
-      pointsCredited: 50,
-      amountDZD: 0,
-      paymentMethod: 'edahabia',
-      transactionId: 'WELCOME_BONUS_50',
-      status: 'paid',
-      createdAt: new Date().toISOString()
-    }
-  ]);
-
-  // Recharge le solde de points ET l'historique réels depuis Supabase
+  // Recharge le solde, l'historique ET les achats réels depuis Supabase
+  // (avant : "purchases" démarrait avec un faux achat mocké "pur_free_welcome"
+  // qui n'existait pas forcément en base, désynchronisé de la réalité).
   const refreshAccountData = React.useCallback(async () => {
     setIsBalanceLoading(true);
     try {
-      const { fetchMyBalance, fetchMyGenerations } = await import('./services/supabaseClient');
-      const [realBalance, realGenerations] = await Promise.all([
+      const { fetchMyBalance, fetchMyGenerations, fetchMyPurchases } = await import('./services/supabaseClient');
+      const [realBalance, realGenerations, realPurchases] = await Promise.all([
         fetchMyBalance(),
         fetchMyGenerations(),
+        fetchMyPurchases(),
       ]);
       if (realBalance !== null) setBalance(realBalance);
       setGenerations(realGenerations);
+      setPurchases(realPurchases);
     } catch (e) {
       console.warn('[Sawtify] Impossible de charger le compte depuis Supabase:', e);
     } finally {
@@ -96,6 +87,14 @@ function AppContent() {
         if (event === 'SIGNED_OUT') {
           setIsLoggedIn(false);
         }
+        // Lien "mot de passe oublié" cliqué dans l'e-mail reçu : Supabase ouvre
+        // une session temporaire avec cet évènement -> on réutilise l'écran de
+        // définition de mot de passe existant pour laisser l'utilisateur en
+        // choisir un nouveau.
+        if (event === 'PASSWORD_RECOVERY' && session) {
+          setPendingUserEmail(session.user.email ?? null);
+          setNeedsPasswordSetup(true);
+        }
       });
 
       unsubscribe = () => listener.subscription.unsubscribe();
@@ -126,7 +125,7 @@ function AppContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleDeductPoints = async (cost: number, record: GenerationRecord): Promise<boolean> => {
+  const handleDeductPoints = async (cost: number, record: GenerationRecord, storagePath?: string | null): Promise<boolean> => {
     try {
       const { deductCreditsRPC } = await import('./services/supabaseClient');
       const result = await deductCreditsRPC({
@@ -137,6 +136,7 @@ function AppContent() {
         charCount: record.text.length,
         durationSec: record.durationSec,
         latencyMs: record.latencyMs,
+        storagePath: storagePath ?? null,
       });
 
       if (!result.success) {

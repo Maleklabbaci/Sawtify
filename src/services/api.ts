@@ -23,6 +23,8 @@ export interface TTSApiResponse {
   blob?: Blob;
   notice?: string;
   notification?: string;
+  /** true = audio de secours généré localement (offline/panne serveur), pas la vraie voix, jamais facturé */
+  degraded?: boolean;
 }
 
 export interface VoicePreviewResponse {
@@ -145,18 +147,28 @@ export async function requestTTSGeneration(params: TTSApiRequest, currentBalance
       }
     } else if (response.status === 402) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || 'Solde insuffisant.');
+      throw new Error(errorData.detail || errorData.error || 'Solde insuffisant.');
+    } else {
+      // Le serveur a répondu mais avec une erreur (500, panne Gemini, etc.) :
+      // on NE bascule PAS sur l'audio de secours ici. Avant, cette branche
+      // laissait le code continuer silencieusement vers la synthèse locale
+      // et facturait un son bidon comme si c'était la vraie génération.
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || errorData.error || 'Erreur du serveur de génération.');
     }
   } catch (err: any) {
-    if (err.message && err.message.includes('Solde insuffisant')) {
+    if (err.message && (err.message.includes('Solde insuffisant') || err.message.includes('serveur de génération'))) {
       throw err;
     }
-    console.info('Backend TTS fallback: synthèse locale réactive active');
+    // Ici uniquement : vraie panne réseau (offline, DNS, timeout de connexion)
+    // -> le serveur n'a jamais reçu la requête, donc rien n'a pu être facturé
+    // côté backend. On propose un aperçu local hors-ligne, clairement marqué
+    // "degraded" et à 0 point : le frontend ne doit PAS le facturer.
+    console.info('Backend TTS injoignable (réseau) : aperçu local hors-ligne, non facturé');
   }
 
   const audioResult = await generateSyntheticTTS(params.text, getLocaleForVoice(params.voice_id), params.speed, params.pitch);
   const latencyMs = Math.round(performance.now() - startTime) + 110;
-  const POINTS_COST = 20;
 
   return {
     success: true,
@@ -164,12 +176,13 @@ export async function requestTTSGeneration(params: TTSApiRequest, currentBalance
     audio_url: audioResult.url,
     duration_seconds: audioResult.durationSec,
     latency_ms: latencyMs,
-    points_deducted: POINTS_COST,
-    remaining_balance: Math.max(0, currentBalance - POINTS_COST),
+    points_deducted: 0,
+    remaining_balance: currentBalance,
     voice_id: params.voice_id,
     parsed_tags: params.emotion_tags || [],
     blob: audioResult.blob,
-    notice: "Génération complétée via moteur de secours"
+    degraded: true,
+    notice: "Serveur injoignable : aperçu hors-ligne (non facturé, ce n'est pas ta vraie voix)"
   };
 }
 

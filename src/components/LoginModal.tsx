@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, ShieldCheck, Sparkles, Volume2, Zap, Mic, AlertCircle, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { signInWithGoogle, signInWithEmailPassword } from '../services/supabaseClient';
+import { signInWithGoogle, signInWithEmailPassword, requestPasswordReset } from '../services/supabaseClient';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -45,6 +45,25 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setAuthError(null);
+    setIsResetLoading(true);
+    try {
+      await requestPasswordReset(email.trim());
+      setResetSent(true);
+    } catch (err: any) {
+      console.error('Erreur reset password:', err);
+      setAuthError(isRTL ? 'تعذر إرسال رابط إعادة التعيين.' : 'Impossible d\'envoyer le lien de réinitialisation.');
+    } finally {
+      setIsResetLoading(false);
+    }
+  };
 
   const handleGoogleAuth = async () => {
     setAuthError(null);
@@ -190,6 +209,65 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
 
           {/* Connexion classique e-mail + mot de passe (RTL Logical layout safe) */}
+          {isResetMode ? (
+            resetSent ? (
+              <div className="space-y-4 text-center">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-green-50 border border-green-200 flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-green-600" />
+                </div>
+                <p className="text-sm text-slate-600">
+                  {isRTL
+                    ? `تم إرسال رابط إعادة تعيين كلمة المرور إلى ${email}. تحقق من بريدك.`
+                    : `Un lien de réinitialisation a été envoyé à ${email}. Vérifie ta boîte mail.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setIsResetMode(false); setResetSent(false); }}
+                  className="text-purple-600 hover:text-purple-700 font-bold text-sm underline cursor-pointer"
+                >
+                  {isRTL ? 'العودة لتسجيل الدخول' : 'Retour à la connexion'}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handlePasswordReset} className="space-y-3">
+                <p className="text-xs text-slate-500 -mt-1">
+                  {isRTL ? 'أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين.' : 'Entre ton e-mail, on t\'envoie un lien de réinitialisation.'}
+                </p>
+                <div className="relative">
+                  <Mail className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={isRTL ? 'البريد الإلكتروني' : 'Adresse e-mail'}
+                    className="w-full ps-10 pe-4 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isResetLoading || !email.trim()}
+                  className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {isResetLoading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      <span>{isRTL ? 'جاري الإرسال...' : 'Envoi en cours...'}</span>
+                    </>
+                  ) : (
+                    <span>{isRTL ? 'إرسال رابط إعادة التعيين' : 'Envoyer le lien'}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsResetMode(false)}
+                  className="w-full text-center text-xs text-slate-500 hover:text-slate-700 cursor-pointer pt-1"
+                >
+                  {isRTL ? 'إلغاء' : 'Annuler'}
+                </button>
+              </form>
+            )
+          ) : (
           <form onSubmit={handleEmailLogin} className="space-y-3">
             <div className="relative">
               <Mail className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
@@ -223,6 +301,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </button>
             </div>
 
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={() => { setIsResetMode(true); setAuthError(null); }}
+                className="text-xs text-purple-600 hover:text-purple-700 font-semibold cursor-pointer"
+              >
+                {isRTL ? 'نسيت كلمة المرور؟' : 'Mot de passe oublié ?'}
+              </button>
+            </div>
+
             <button
               type="submit"
               id="btn-email-login"
@@ -239,6 +327,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               )}
             </button>
           </form>
+          )}
 
           <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
             <span>{isRTL ? 'ليس لديك حساب؟' : 'Pas encore de compte ?'}</span>{' '}

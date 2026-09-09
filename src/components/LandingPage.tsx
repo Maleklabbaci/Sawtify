@@ -580,6 +580,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     window.scrollTo({ top, behavior: "smooth" });
   }, []);
 
+  // Corrige les liens morts du footer (href="#" qui ne menaient nulle part) :
+  // toast pour "bientôt disponible", modale pour les pages légales.
+  const [footerToast, setFooterToast] = useState<string | null>(null);
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | 'cookies' | null>(null);
+  const showFooterToast = (msg: string) => {
+    setFooterToast(msg);
+    setTimeout(() => setFooterToast(null), 2800);
+  };
+  const LEGAL_CONTENT: Record<'terms' | 'privacy' | 'cookies', { fr: [string, string]; ar: [string, string] }> = {
+    terms: {
+      fr: ["Conditions d'utilisation", "En utilisant Sawtify, tu acceptes que le service soit fourni « en l'état ». Les points de génération achetés ne sont pas remboursables une fois consommés. L'usage de voix générées pour créer du contenu trompeur, diffamatoire ou usurpant l'identité d'un tiers sans consentement est interdit."],
+      ar: ["شروط الاستخدام", "باستخدامك لـ Sawtify، فإنك توافق على أن الخدمة تُقدَّم \"كما هي\". النقاط المشتراة غير قابلة للاسترجاع بعد استهلاكها. يُمنع استخدام الأصوات المولّدة لإنشاء محتوى مضلل أو تشهيري أو انتحال هوية شخص دون موافقته."],
+    },
+    privacy: {
+      fr: ["Politique de confidentialité", "Nous collectons ton e-mail, ton solde de points et l'historique de tes générations (texte + audio) pour faire fonctionner le service. Ces données ne sont jamais revendues à des tiers. Tu peux demander la suppression de ton compte et de tes données à tout moment via le support."],
+      ar: ["سياسة الخصوصية", "نجمع بريدك الإلكتروني، رصيد نقاطك، وسجل توليداتك (نص + صوت) لتشغيل الخدمة. لا تُباع هذه البيانات أبداً لأطراف ثالثة. يمكنك طلب حذف حسابك وبياناتك في أي وقت عبر الدعم."],
+    },
+    cookies: {
+      fr: ["Cookies", "Sawtify utilise uniquement des cookies techniques indispensables (session de connexion, préférence de langue). Aucun cookie publicitaire ou de tracking tiers n'est utilisé."],
+      ar: ["ملفات تعريف الارتباط", "يستخدم Sawtify فقط ملفات تعريف الارتباط التقنية الضرورية (جلسة الاتصال، تفضيل اللغة). لا يتم استخدام أي كوكيز إعلانية أو تتبع من أطراف ثالثة."],
+    },
+  };
+
   const serif = isRTL ? "'Cairo', serif" : "'Fraunces', 'Times New Roman', serif";
   const sans = isRTL
     ? "'Cairo', 'Inter', ui-sans-serif, system-ui, sans-serif"
@@ -1773,7 +1796,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <li>
                   <a
                     href="#"
-                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                    onClick={(e) => { e.preventDefault(); showFooterToast(isRTL ? "API قريباً" : "API bientôt disponible"); }}
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors cursor-pointer"
                   >
                     API
                   </a>
@@ -1791,15 +1815,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <ul className="space-y-2.5 list-none text-[13px]">
                 <li>
                   <a
-                    href="#"
-                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                    href="#process"
+                    onClick={(e) => { e.preventDefault(); smoothTo("#process"); }}
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors cursor-pointer"
                   >
                     {isRTL ? "من نحن" : "À propos"}
                   </a>
                 </li>
                 <li>
                   <a
-                    href="#"
+                    href="mailto:contact@sawtify.dz"
                     className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
                   >
                     {isRTL ? "اتصل" : "Contact"}
@@ -1808,7 +1833,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <li>
                   <a
                     href="#"
-                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                    onClick={(e) => { e.preventDefault(); showFooterToast(isRTL ? "المدونة قريباً" : "Blog bientôt disponible"); }}
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors cursor-pointer"
                   >
                     {isRTL ? "المدونة" : "Blog"}
                   </a>
@@ -1827,7 +1853,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <li>
                   <a
                     href="#"
-                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                    onClick={(e) => { e.preventDefault(); setLegalModal('terms'); }}
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors cursor-pointer"
                   >
                     {isRTL ? "شروط الاستخدام" : "Conditions"}
                   </a>
@@ -1835,7 +1862,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <li>
                   <a
                     href="#"
-                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                    onClick={(e) => { e.preventDefault(); setLegalModal('privacy'); }}
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors cursor-pointer"
                   >
                     {isRTL ? "الخصوصية" : "Confidentialité"}
                   </a>
@@ -1843,7 +1871,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <li>
                   <a
                     href="#"
-                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors"
+                    onClick={(e) => { e.preventDefault(); setLegalModal('cookies'); }}
+                    className="text-[#111]/70 hover:text-[#6366F1] transition-colors cursor-pointer"
                   >
                     Cookies
                   </a>
@@ -1886,6 +1915,55 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           >
             <ArrowUp className="w-4 h-4" />
           </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Toast footer : liens "bientôt disponible" (API, Blog) */}
+      <AnimatePresence>
+        {footerToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed bottom-6 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 z-[70] bg-[#111] text-white text-[13px] px-4 py-2.5 rounded-full shadow-xl"
+          >
+            {footerToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modale légale : Conditions / Confidentialité / Cookies */}
+      <AnimatePresence>
+        {legalModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6"
+            onClick={() => setLegalModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-md w-full p-7 shadow-2xl"
+              dir={isRTL ? "rtl" : "ltr"}
+            >
+              <h3 className="text-lg font-bold text-[#111] mb-3" style={{ fontFamily: serif }}>
+                {isRTL ? LEGAL_CONTENT[legalModal].ar[0] : LEGAL_CONTENT[legalModal].fr[0]}
+              </h3>
+              <p className="text-[13px] leading-relaxed text-[#111]/70 mb-6">
+                {isRTL ? LEGAL_CONTENT[legalModal].ar[1] : LEGAL_CONTENT[legalModal].fr[1]}
+              </p>
+              <button
+                onClick={() => setLegalModal(null)}
+                className="w-full py-2.5 rounded-xl bg-[#111] text-white text-sm font-semibold hover:bg-[#6366F1] transition-colors cursor-pointer"
+              >
+                {isRTL ? "إغلاق" : "Fermer"}
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

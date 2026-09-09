@@ -76,6 +76,40 @@ export async function getMyAccessToken(): Promise<string | null> {
 }
 
 /**
+ * Uploade le WAV généré vers Supabase Storage (bucket privé "audio-generations")
+ * sous {user_id}/{fileId}.wav, pour qu'il reste lisible/téléchargeable dans
+ * l'historique après un rechargement de page. Retourne le chemin de stockage
+ * (à transmettre à deductCreditsRPC), ou null si l'upload échoue (dégradation
+ * silencieuse : la génération reste utilisable dans la session en cours).
+ */
+export async function uploadGenerationAudio(userId: string, fileId: string, blob: Blob): Promise<string | null> {
+  try {
+    const path = `${userId}/${fileId}.wav`;
+    const { error } = await supabase.storage
+      .from('audio-generations')
+      .upload(path, blob, { contentType: 'audio/wav', upsert: false });
+    if (error) {
+      console.warn('[Sawtify] Upload audio échoué:', error.message);
+      return null;
+    }
+    return path;
+  } catch (e) {
+    console.warn('[Sawtify] Upload audio exception:', e);
+    return null;
+  }
+}
+
+// Envoie un e-mail de réinitialisation de mot de passe. Le lien reçu ramène
+// l'utilisateur sur l'app avec l'évènement Supabase 'PASSWORD_RECOVERY'
+// (géré dans App.tsx), qui réutilise l'écran SetPasswordScreen existant.
+export async function requestPasswordReset(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw error;
+}
+
+/**
  * Récupère le solde de points réel de l'utilisateur connecté (table profiles).
  * Retourne null si aucune session active ou en cas d'erreur réseau.
  */
@@ -97,12 +131,13 @@ export async function fetchMyBalance(): Promise<number | null> {
 }
 
 /**
- * Récupère l'historique réel des générations vocales de l'utilisateur (table voice_generations).
+ * Récupère l'historique réel des générations vocales de l'utilisateur (table voice_generations),
+ * avec une URL signée temporaire (1h) pour chaque audio réellement stocké sur Supabase Storage.
  */
 export async function fetchMyGenerations(limit: number = 100): Promise<GenerationRecord[]> {
   const { data, error } = await supabase
     .from('voice_generations')
-    .select('id, voice_id, voice_name, text_prompt, points_deducted, audio_duration_seconds, latency_ms, created_at')
+    .select('id, voice_id, voice_name, text_prompt, points_deducted, audio_duration_seconds, latency_ms, created_at, audio_storage_path')
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -111,7 +146,27 @@ export async function fetchMyGenerations(limit: number = 100): Promise<Generatio
     return [];
   }
 
-  return (data || []).map((row) => ({
+  const rows = data || [];
+
+  // Génère les URLs signées en parallèle pour toutes les lignes qui ont un
+  // fichier réellement stocké (les anciennes générations d'avant cette
+  // correction n'en ont pas -> pas de lecteur/téléchargement pour elles).
+  const signedUrls = await Promise.all(
+    rows.map(async (row) => {
+      if (!row.audio_storage_path) return null;
+      try {
+        const { data: signed, error: signErr } = await supabase.storage
+          .from('audio-generations')
+          .createSignedUrl(row.audio_storage_path, 3600);
+        if (signErr) return null;
+        return signed?.signedUrl ?? null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return rows.map((row, i) => ({
     id: row.id,
     text: row.text_prompt,
     voiceId: row.voice_id,
@@ -120,9 +175,37 @@ export async function fetchMyGenerations(limit: number = 100): Promise<Generatio
     durationSec: row.audio_duration_seconds || 0,
     latencyMs: row.latency_ms || 0,
     createdAt: row.created_at,
-    // L'audio n'est pas encore uploadé vers Supabase Storage : pas de lecture/téléchargement
-    // possible pour les anciennes générations après un reload (voir note séparée).
-    audioUrl: undefined,
+    audioUrl: signedUrls[i] || undefined,
+  }));
+}
+
+/**
+ * Récupère l'historique réel des achats/recharges de points de l'utilisateur
+ * (table transactions). Remplace l'ancien achat "pur_free_welcome" mocké en
+ * dur côté client, qui n'existait pas forcément réellement en base.
+ */
+export async function fetchMyPurchases(limit: number = 50): Promise<import('../types').PurchaseRecord[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('id, pack_id, gateway, gateway_reference, amount_dzd, points_credited, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.warn('[Sawtify] Erreur récupération achats:', error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    packId: row.pack_id || '',
+    packName: `${row.points_credited} Points`,
+    pointsCredited: row.points_credited,
+    amountDZD: row.amount_dzd,
+    paymentMethod: row.gateway === 'cib' ? 'cib' : 'edahabia',
+    transactionId: row.gateway_reference,
+    status: row.status === 'completed' ? 'paid' : row.status === 'refunded' ? 'failed' : (row.status as 'paid' | 'pending' | 'failed'),
+    createdAt: row.created_at,
   }));
 }
 

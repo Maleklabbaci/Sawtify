@@ -12,11 +12,12 @@ import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestG
 import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
+import { supabase, uploadGenerationAudio } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
 
 interface TTSStudioProps {
   balance: number;
-  onDeductPoints: (cost: number, record: GenerationRecord) => Promise<boolean>;
+  onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null) => Promise<boolean>;
   onOpenRecharge: () => void;
   recentGenerations?: GenerationRecord[];
 }
@@ -203,18 +204,32 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       const realCost = response.points_deducted || POINTS_COST;
       setLastGeneratedCost(realCost);
-      
-      const record: GenerationRecord = { 
-        id: response.generation_id || ('gen_' + Date.now()), 
-        text, voiceId: currentVoice.id, voiceName: currentVoice.name, 
-        audioUrl: response.audio_url, pointsDeducted: realCost, 
-        durationSec: response.duration_seconds || 0, 
-        latencyMs: response.latency_ms, createdAt: new Date().toISOString() 
-      };
 
-      await onDeductPoints(realCost, record);
-      showNotif(response.notification || `-${realCost} Points`);
-      playGenerationChime();
+      if (response.degraded) {
+        // Aperçu de secours généré localement (serveur injoignable) :
+        // ce n'est PAS la vraie voix, donc on ne débite JAMAIS de points.
+        showNotif(language === 'ar' ? '⚠️ الخادم غير متاح، معاينة محلية (بدون خصم نقاط)' : '⚠️ Serveur injoignable — aperçu local (non facturé)');
+      } else {
+        // Upload de l'audio vers Supabase Storage pour qu'il reste lisible et
+        // téléchargeable dans l'historique après un rechargement de page.
+        let storagePath: string | null = null;
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user && audioBlob.size > 0) {
+          storagePath = await uploadGenerationAudio(userData.user.id, response.generation_id || `gen_${Date.now()}`, audioBlob);
+        }
+
+        const record: GenerationRecord = { 
+          id: response.generation_id || ('gen_' + Date.now()), 
+          text, voiceId: currentVoice.id, voiceName: currentVoice.name, 
+          audioUrl: response.audio_url, pointsDeducted: realCost, 
+          durationSec: response.duration_seconds || 0, 
+          latencyMs: response.latency_ms, createdAt: new Date().toISOString() 
+        };
+
+        await onDeductPoints(realCost, record, storagePath);
+        showNotif(response.notification || `-${realCost} Points`);
+        playGenerationChime();
+      }
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
       
       setIsConvertingMp3(true); 

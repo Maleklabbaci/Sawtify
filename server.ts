@@ -71,23 +71,17 @@ async function getUserBalance(userId: string): Promise<number | null> {
 async function deductCredits(userId: string, amount: number): Promise<{ success: boolean; remaining?: number; error?: string }> {
   if (!supabaseClient) return { success: false, error: "Base de données inaccessible." };
   try {
-    const { data: profile, error: fetchErr } = await supabaseClient
-      .from("profiles")
-      .select("credits_balance")
-      .eq("id", userId)
-      .single();
-
-    if (fetchErr || !profile) return { success: false, error: "Profil utilisateur introuvable." };
-    if (profile.credits_balance < amount) return { success: false, error: "Solde de points insuffisant." };
-
-    const newBalance = profile.credits_balance - amount;
-    const { error: updateErr } = await supabaseClient
-      .from("profiles")
-      .update({ credits_balance: newBalance })
-      .eq("id", userId);
-
-    if (updateErr) return { success: false, error: "Échec de la mise à jour du solde." };
-    return { success: true, remaining: newBalance };
+    // Débit atomique via fonction SQL SECURITY DEFINER (row lock FOR UPDATE),
+    // réservée au service_role : élimine la race condition du précédent
+    // select puis update séparés (deux requêtes simultanées pouvaient faire
+    // passer le solde sous zéro).
+    const { data, error } = await supabaseClient.rpc('deduct_user_credits_service', {
+      p_user_id: userId,
+      p_amount: amount,
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || "Solde de points insuffisant." };
+    return { success: true, remaining: data.remaining_balance };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
