@@ -1,9 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
-  ArrowRight, ArrowLeft, Play, Pause, Plus, Menu, X,
-  Check, Star, ChevronLeft, ChevronRight, Mic, Volume2, Headphones, Radio, Music, AudioLines, Sparkles,
+  ArrowRight,
+  ArrowLeft,
+  Play,
+  Pause,
+  Plus,
+  Menu,
+  X,
+  Check,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  Mic,
+  Volume2,
+  Headphones,
+  AudioLines,
+  ArrowUpRight,  // ✅ AJOUTÉ
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll, useMotionValue, useSpring } from "motion/react";
+import { motion, AnimatePresence, useScroll } from "motion/react";
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -17,87 +31,51 @@ interface LandingPageProps {
 ========================================================= */
 const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
 
     * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     body {
       overflow-x: hidden;
-      background: #F4F1EA; /* beige/cream comme la maquette */
+      background: #F4F1EA;
       color: #1A1A2E;
       font-family: 'Plus Jakarta Sans', sans-serif;
     }
 
-    /* Marquee */
-    @keyframes marquee {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
-    .marquee-track { animation: marquee 30s linear infinite; display: flex; width: max-content; }
-
-    /* Pulse */
-    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.4); } }
-    .pulse-dot::after { content: ''; position: absolute; inset: -3px; border-radius: inherit; background: currentColor; animation: pulse 2s ease-in-out infinite; opacity: 0.4; }
-
-    /* Wave */
     @keyframes wave { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
     .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
 
-    /* Float */
     @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     .float { animation: float 5s ease-in-out infinite; }
     .float-slow { animation: float 7s ease-in-out infinite; }
 
-    /* Blink */
-    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
-    .blink { animation: blink 1s step-end infinite; }
-
-    /* Shimmer */
-    @keyframes shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-    .text-gradient {
-      background: linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-
-    /* Focus */
     .focus-ring:focus-visible { outline: 2px solid #6E5FE8; outline-offset: 3px; border-radius: 12px; }
-
-    /* Selection */
     ::selection { background: #6E5FE8; color: #F4F1EA; }
-
-    /* Scrollbar */
     ::-webkit-scrollbar { width: 10px; }
     ::-webkit-scrollbar-track { background: #F4F1EA; }
     ::-webkit-scrollbar-thumb { background: #6E5FE8; border-radius: 10px; }
 
-    /* Card hover */
     .card-lift { transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s; }
     .card-lift:hover { transform: translateY(-8px); box-shadow: 0 20px 50px -20px rgba(110, 95, 232, 0.3); }
 
-    /* Hero clouds animation */
-    @keyframes cloudMove { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-    .cloud-track { animation: cloudMove 60s linear infinite; }
+    .step-badge { box-shadow: 0 0 0 4px #F4F1EA, 0 0 0 5px #6E5FE8; }
 
-    /* Reduced motion */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
-
-    /* Step number badges */
-    .step-badge { box-shadow: 0 0 0 4px #F4F1EA, 0 0 0 5px #6E5FE8; }
   `}</style>
 );
 
 /* =========================================================
-   LOGO SVG — Zéro dépendance externe
+   LOGO SVG
 ========================================================= */
-const Logo = ({ size = 32, dark = false }: { size?: number; dark?: boolean }) => (
+const Logo = ({ size = 32 }: { size?: number }) => (
   <div className="flex items-center gap-2.5">
     <div
       className="rounded-2xl flex items-center justify-center shrink-0 relative"
       style={{
         width: size, height: size,
-        background: dark ? "#1A1A2E" : "#1A1A2E",
+        background: "#1A1A2E",
         boxShadow: "0 4px 12px rgba(26, 26, 46, 0.2)"
       }}
     >
@@ -107,9 +85,7 @@ const Logo = ({ size = 32, dark = false }: { size?: number; dark?: boolean }) =>
       </svg>
       <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#F4F1EA]" />
     </div>
-    <span className="font-extrabold text-[18px] tracking-tight" style={{ color: dark ? "#F4F1EA" : "#1A1A2E" }}>
-      Sawtify
-    </span>
+    <span className="font-extrabold text-[18px] tracking-tight text-[#1A1A2E]">Sawtify</span>
   </div>
 );
 
@@ -148,10 +124,15 @@ const Counter = ({ target, suffix = "", duration = 2000 }: any) => {
   return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
 };
 
-const Reveal = ({ children, delay = 0, y = 24, className = "" }: any) => (
-  <motion.div initial={{ opacity: 0, y }} whileInView={{ opacity: 1, y: 0 }}
+const Reveal = ({ children, delay = 0, y = 24, className = "", style }: any) => (
+  <motion.div
+    initial={{ opacity: 0, y }}
+    whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true, margin: "-60px" }}
-    transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }} className={className}>
+    transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
+    className={className}
+    style={style}
+  >
     {children}
   </motion.div>
 );
@@ -280,10 +261,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const journeySteps = [
-    { n: "1", t: isRTL ? "اكتب نصك" : "Écrivez Votre Texte", d: isRTL ? "ألصق أو أنشئ نصك بالذكاء الاصطناعي" : "Collez ou générez votre texte via IA", icon: "edit" },
-    { n: "2", t: isRTL ? "اختر الصوت" : "Choisissez La Voix", d: isRTL ? "12 صوتاً بمختلف اللهجات والنبرات" : "12 voix avec dialectes et tons variés", icon: "mic" },
-    { n: "3", t: isRTL ? "خصّص النبرة" : "Affinez Le Ton", d: isRTL ? "سرعة، نبرة، وقفة — كل شيء قابل للتعديل" : "Vitesse, ton, pauses — tout adjustable", icon: "tune" },
-    { n: "4", t: isRTL ? "صدّر الملف" : "Exportez Le Fichier", d: isRTL ? "MP3 أو WAV بدون علامة مائية" : "MP3 ou WAV, sans watermark", icon: "download" },
+    { n: "1", t: isRTL ? "اكتب نصك" : "Écrivez Votre Texte", d: isRTL ? "ألصق أو أنشئ نصك بالذكاء الاصطناعي" : "Collez ou générez votre texte via IA" },
+    { n: "2", t: isRTL ? "اختر الصوت" : "Choisissez La Voix", d: isRTL ? "12 صوتاً بمختلف اللهجات والنبرات" : "12 voix avec dialectes et tons variés" },
+    { n: "3", t: isRTL ? "خصّص النبرة" : "Affinez Le Ton", d: isRTL ? "سرعة، نبرة، وقفة — كل شيء قابل للتعديل" : "Vitesse, ton, pauses — tout adjustable" },
+    { n: "4", t: isRTL ? "صدّر الملف" : "Exportez Le Fichier", d: isRTL ? "MP3 أو WAV بدون علامة مائية" : "MP3 ou WAV, sans watermark" },
   ];
 
   const metrics = [
@@ -351,12 +332,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" });
   }, []);
 
-  // ✅ POLICE ARABE : Noto Naskh Arabic (élégante, lisible)
   const sans = isRTL ? "'Noto Naskh Arabic', serif" : "'Plus Jakarta Sans', sans-serif";
-  const display = isRTL ? "'Noto Naskh Arabic', serif" : "'Plus Jakarta Sans', sans-serif";
   const mono = "'JetBrains Mono', monospace";
 
-  // Voice pattern SVG component
   const VoicePattern = ({ pattern, color, playing }: { pattern: string; color: string; playing: boolean }) => {
     if (pattern === "wave") {
       return (
@@ -376,9 +354,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="relative w-32 h-32 mx-auto">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="absolute inset-0 rounded-full border-2" style={{
-              borderColor: color,
-              opacity: 0.8 - i * 0.2,
-              transform: `scale(${0.4 + i * 0.2})`,
+              borderColor: color, opacity: 0.8 - i * 0.2, transform: `scale(${0.4 + i * 0.2})`,
             }} />
           ))}
           <div className="absolute inset-0 m-auto w-8 h-8 rounded-full" style={{ background: color }} />
@@ -395,7 +371,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       );
     }
-    // dots
     return (
       <div className="grid grid-cols-6 gap-2 h-32 place-items-center">
         {Array.from({ length: 24 }).map((_, i) => (
@@ -412,7 +387,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <div dir={isRTL ? "rtl" : "ltr"} className="min-h-screen text-[#1A1A2E] relative" style={{ fontFamily: sans }}>
       <GlobalStyles />
 
-      {/* Progress bar — RTL FIX */}
       <motion.div aria-hidden="true" className="fixed top-0 inset-x-0 h-[3px] z-[60]"
         style={{
           scaleX: scrollYProgress,
@@ -421,7 +395,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         }}
       />
 
-      {/* === HEADER === */}
+      {/* HEADER */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? "bg-[#F4F1EA]/90 backdrop-blur-xl border-b border-[#1A1A2E]/5" : ""}`}>
         <div className="mx-auto max-w-[1280px] px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring">
@@ -482,30 +456,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* =====================================================
-          HERO — Style "avion voyage" mais pour la voix
-      ===================================================== */}
+      {/* HERO */}
       <section id="home" className="pt-24 pb-16 sm:pb-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
             <div className="relative rounded-[40px] overflow-hidden p-8 sm:p-12 lg:p-16 min-h-[480px] sm:min-h-[560px] flex items-center"
-              style={{
-                background: "linear-gradient(180deg, #DCE7F5 0%, #B8CFE8 60%, #9D8FFF 100%)"
-              }}>
+              style={{ background: "linear-gradient(180deg, #DCE7F5 0%, #B8CFE8 60%, #9D8FFF 100%)" }}>
 
-              {/* Cloud-like blobs animés */}
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-20 -end-20 w-96 h-96 rounded-full bg-white/30 blur-3xl" />
                 <div className="absolute top-1/3 start-1/4 w-72 h-72 rounded-full bg-white/20 blur-2xl float" />
                 <div className="absolute bottom-0 end-1/3 w-80 h-80 rounded-full bg-white/25 blur-3xl float-slow" />
-                {/* Petits points "data" */}
                 {[...Array(8)].map((_, i) => (
                   <div key={i} className="absolute w-1 h-1 rounded-full bg-white/60"
                     style={{ top: `${20 + i * 8}%`, left: `${10 + (i * 13) % 80}%` }} />
                 ))}
               </div>
 
-              {/* Stepper vertical à gauche comme la maquette */}
               <div className="absolute start-8 top-1/2 -translate-y-1/2 hidden lg:flex flex-col items-center gap-3 z-10">
                 {["1", "2", "3"].map((n, i) => (
                   <React.Fragment key={n}>
@@ -517,7 +484,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 ))}
               </div>
 
-              {/* Content */}
               <div className="relative z-10 max-w-2xl">
                 <Reveal delay={0.1}>
                   <p className="text-[12px] font-bold tracking-[0.2em] text-[#1A1A2E]/70 uppercase mb-4">
@@ -547,7 +513,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </Reveal>
               </div>
 
-              {/* "Know more" floating card à droite */}
               <div className="absolute bottom-8 end-8 z-10 hidden md:block">
                 <div className="bg-white rounded-2xl p-4 shadow-xl max-w-[220px] card-lift cursor-pointer">
                   <div className="flex items-center justify-between mb-3">
@@ -567,13 +532,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </Reveal>
 
-          {/* Follow + partners (style maquette) */}
           <Reveal delay={0.2}>
             <div className="mt-8 flex flex-wrap items-center gap-6">
               <span className="text-[12px] font-semibold text-[#1A1A2E]/60">{t.follow} ↓</span>
               <div className="flex items-center gap-2">
                 {["X", "f", "◎", "♪"].map((s, i) => (
-                  <div key={i} className="w-9 h-9 rounded-full bg-white border border-[#1A1A2E]/8 flex items-center justify-center text-[12px] font-bold text-[#1A1A2E]/70 hover:bg-[#1A1A2E] hover:text-white transition cursor-pointer focus-ring">
+                  <div key={i} className="w-9 h-9 rounded-full bg-white border border-[#1A1A2E]/10 flex items-center justify-center text-[12px] font-bold text-[#1A1A2E]/70 hover:bg-[#1A1A2E] hover:text-white transition cursor-pointer focus-ring">
                     {s}
                   </div>
                 ))}
@@ -588,9 +552,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          POPULAR VOICES — Avec carousel
-      ===================================================== */}
+      {/* POPULAR VOICES */}
       <section id="voices" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
@@ -653,9 +615,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          JOURNEY — "Du texte à la voix"
-      ===================================================== */}
+      {/* JOURNEY */}
       <section id="process" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
@@ -669,7 +629,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-stretch">
-            {/* Step 1 */}
             <Reveal delay={0.1} className="lg:col-span-2">
               <div className="bg-white rounded-3xl p-8 h-full flex flex-col justify-between min-h-[280px] card-lift border border-[#1A1A2E]/5">
                 <div className="w-12 h-12 rounded-2xl bg-[#6E5FE8]/10 flex items-center justify-center">
@@ -682,7 +641,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </Reveal>
 
-            {/* Card centrale "Book" (style maquette) */}
             <Reveal delay={0.2} className="lg:col-span-1">
               <div className="rounded-3xl p-7 h-full text-white relative overflow-hidden min-h-[280px] flex flex-col justify-between"
                 style={{ background: "linear-gradient(180deg, #6E5FE8 0%, #5B4DD8 100%)" }}>
@@ -700,7 +658,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </Reveal>
 
-            {/* Step 2 */}
             <Reveal delay={0.3} className="lg:col-span-2">
               <div className="bg-white rounded-3xl p-8 h-full flex flex-col justify-between min-h-[280px] card-lift border border-[#1A1A2E]/5">
                 <div className="w-12 h-12 rounded-2xl bg-[#6E5FE8]/10 flex items-center justify-center">
@@ -713,11 +670,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </Reveal>
 
-            {/* Step 3 */}
             <Reveal delay={0.4} className="lg:col-span-2">
               <div className="bg-white rounded-3xl p-8 h-full flex flex-col justify-between min-h-[280px] card-lift border border-[#1A1A2E]/5">
                 <div className="w-12 h-12 rounded-2xl bg-[#6E5FE8]/10 flex items-center justify-center">
-                  <span className="text-[#6A56E5] font-extrabold text-[18px]">03</span>
+                  <span className="text-[#6E5FE8] font-extrabold text-[18px]">03</span>
                 </div>
                 <div>
                   <h3 className="text-[22px] font-extrabold text-[#1A1A2E] mb-2">{journeySteps[2].t}</h3>
@@ -726,8 +682,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </Reveal>
 
-            {/* Step 4 */}
-            <Reveal delay={0.5} className="lg:col-span-2">
+            <Reveal delay={0.5} className="lg:col-span-3">
               <div className="bg-white rounded-3xl p-8 h-full flex flex-col justify-between min-h-[280px] card-lift border border-[#1A1A2E]/5">
                 <div className="w-12 h-12 rounded-2xl bg-[#6E5FE8]/10 flex items-center justify-center">
                   <span className="text-[#6E5FE8] font-extrabold text-[18px]">04</span>
@@ -742,24 +697,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          UNLEASH — Section style "wanderlust"
-      ===================================================== */}
+      {/* UNLEASH */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <div className="bg-white rounded-[40px] overflow-hidden grid lg:grid-cols-2 items-stretch">
-            {/* Photo placeholder (SVG illustration) */}
             <Reveal className="relative h-80 lg:h-auto overflow-hidden" style={{ background: "linear-gradient(135deg, #FFE4B5 0%, #FFB6C1 50%, #9D8FFF 100%)" }}>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative w-64 h-64">
-                  {/* Cercles concentriques façon "splash" */}
                   <div className="absolute inset-0 rounded-full bg-white/30 animate-pulse" />
                   <div className="absolute inset-6 rounded-full bg-white/40" />
                   <div className="absolute inset-12 rounded-full bg-white/50" />
                   <div className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>
                     <AudioLines className="w-16 h-16 text-white" strokeWidth={1.5} />
                   </div>
-                  {/* Petites notes */}
                   {["♪", "♫", "♬", "♩"].map((note, i) => (
                     <div key={i} className="absolute text-white/80 text-3xl font-bold float" style={{
                       top: `${20 + (i * 23) % 60}%`,
@@ -769,14 +719,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   ))}
                 </div>
               </div>
-              {/* Badge discount */}
               <div className="absolute bottom-6 start-6 bg-white rounded-2xl p-4 shadow-xl">
                 <div className="text-[24px] font-extrabold text-[#1A1A2E]">{t.discount}</div>
                 <div className="text-[11px] text-[#1A1A2E]/60 mt-1">{t.discountDate}</div>
               </div>
             </Reveal>
 
-            {/* Content */}
             <Reveal delay={0.1} className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
               <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {isRTL ? "إبداع" : "Créativité"}</p>
               <h2 className="text-[clamp(1.75rem,3.5vw,3rem)] leading-[1.05] tracking-[-0.03em] font-extrabold text-[#1A1A2E]">
@@ -794,9 +742,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          METRICS
-      ===================================================== */}
+      {/* METRICS */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
@@ -822,9 +768,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          TESTIMONIALS
-      ===================================================== */}
+      {/* TESTIMONIALS */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
@@ -870,9 +814,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          PRICING
-      ===================================================== */}
+      {/* PRICING */}
       <section id="pricing" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
@@ -914,9 +856,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          FAQ
-      ===================================================== */}
+      {/* FAQ */}
       <section id="faq" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <div className="grid lg:grid-cols-12 gap-10">
@@ -957,9 +897,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* =====================================================
-          CTA
-      ===================================================== */}
+      {/* CTA */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <Reveal>
