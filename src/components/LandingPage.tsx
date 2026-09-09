@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight, ArrowLeft, Play, Pause, Plus, Menu, X,
-  Check, Star, ChevronLeft, ChevronRight, Headphones, AudioLines, ArrowUpRight, Mic,
+  Check, Star, ChevronLeft, ChevronRight, Headphones, AudioLines, ArrowUpRight,
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll } from "motion/react";
+import { motion, AnimatePresence, useScroll, useTransform, useInView } from "motion/react";
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -46,12 +46,9 @@ const GlobalStyles = () => (
 
     .step-badge { box-shadow: 0 0 0 4px rgba(255,255,255,0.6), 0 4px 12px rgba(110, 95, 232, 0.3); }
 
-    /* Hero image animation */
-    @keyframes heroZoom { 
-      0%, 100% { transform: scale(1); } 
-      50% { transform: scale(1.05); } 
-    }
-    .hero-zoom { animation: heroZoom 20s ease-in-out infinite; }
+    /* Hero video parallax - bouge pas mais zoom léger */
+    .hero-video { transition: transform 8s ease-out; }
+    .hero-video:hover { transform: scale(1.05); }
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -60,24 +57,24 @@ const GlobalStyles = () => (
 );
 
 /* =========================================================
-   LOGO SVG — Corrigé avec icône micro visible
+   LOGO — Texte seul + Emoji micro pour fiabilité 100%
 ========================================================= */
-const Logo = ({ size = 32, showText = true }: { size?: number; showText?: boolean }) => (
-  <div className="flex items-center gap-2.5">
+const Logo = ({ size = 36, showText = true }: { size?: number; showText?: boolean }) => (
+  <div className="flex items-center gap-2.5 select-none">
     <div
       className="rounded-2xl flex items-center justify-center shrink-0 relative"
       style={{
         width: size, height: size,
         background: "linear-gradient(135deg, #6E5FE8 0%, #5B4DD8 100%)",
-        boxShadow: "0 4px 12px rgba(110, 95, 232, 0.3)"
+        boxShadow: "0 4px 14px rgba(110, 95, 232, 0.4)"
       }}
     >
-      {/* ✅ Icône micro bien visible */}
-      <Mic className="text-white" style={{ width: size * 0.55, height: size * 0.55 }} strokeWidth={2.5} />
+      {/* ✅ Emoji micro toujours visible (zéro risque d'erreur) */}
+      <span style={{ fontSize: size * 0.55, lineHeight: 1 }}>🎙️</span>
       <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-white" />
     </div>
     {showText && (
-      <span className="font-extrabold text-[18px] tracking-tight text-[#1A1A2E]">Sawtify</span>
+      <span className="font-extrabold text-[20px] tracking-tight text-[#1A1A2E]">Sawtify</span>
     )}
   </div>
 );
@@ -117,18 +114,75 @@ const Counter = ({ target, suffix = "", duration = 2000 }: any) => {
   return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
 };
 
-const Reveal = ({ children, delay = 0, y = 24, className = "", style }: any) => (
-  <motion.div
-    initial={{ opacity: 0, y }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-60px" }}
-    transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
-    className={className}
-    style={style}
-  >
-    {children}
-  </motion.div>
-);
+/* ✅ ANIMATION SLIDE-UP au scroll — text slide du bas vers le haut */
+const SlideUp = ({ children, delay = 0, className = "" }: any) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 60 }}
+      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 60 }}
+      transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+/* Slide depuis la gauche */
+const SlideLeft = ({ children, delay = 0, className = "" }: any) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, x: -60 }}
+      animate={inView ? { opacity: 1, x: 0 } : { opacity: 0, x: -60 }}
+      transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+/* Slide depuis la droite */
+const SlideRight = ({ children, delay = 0, className = "" }: any) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, x: 60 }}
+      animate={inView ? { opacity: 1, x: 0 } : { opacity: 0, x: 60 }}
+      transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+/* Scale up au scroll */
+const ScaleIn = ({ children, delay = 0, className = "" }: any) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={inView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
+      transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+const Reveal = SlideUp; // alias
 
 function useScrollState() {
   const [scrolled, setScrolled] = useState(false);
@@ -154,7 +208,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTesti, setActiveTesti] = useState(0);
   const [voiceSlide, setVoiceSlide] = useState(0);
-  const [imgError, setImgError] = useState(false);
   const { scrollYProgress } = useScroll();
   const scrolled = useScrollState();
 
@@ -179,7 +232,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const ArrowIcon = ({ className = "w-4 h-4" }: any) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
 
-  /* === COPY === */
+  /* === COPY === Texte 100% North African (Algerian) */
   const t = {
     navVoices: isRTL ? "الأصوات" : "Voix",
     navHow: isRTL ? "الطريقة" : "Process",
@@ -188,33 +241,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     signin: isRTL ? "دخول" : "Connexion",
     start: isRTL ? "ابدأ الآن" : "Commencer",
     liveBadge: isRTL ? "v2.1 · مباشر" : "v2.1 · En ligne",
-    heroKicker: isRTL ? "ارفع جودة صوتك" : "ÉLEVEZ VOTRE VOIX",
-    heroTitle1: isRTL ? "اختبر" : "Découvrez",
-    heroTitle2: isRTL ? "سحر الصوت!" : "La Magie De La Voix!",
-    heroSub: isRTL ? "حوّل النص إلى صوت طبيعي بالدارجة في 30 ثانية." : "Transformez votre texte en voix naturelle en darija en 30 secondes.",
-    bookNow: isRTL ? "جرّب الآن" : "Essayer Gratuitement",
+    heroKicker: isRTL ? "ارفع صوتك" : "ÉLEVEZ VOTRE SON",
+    heroTitle1: isRTL ? "اكتشف" : "Découvrez",
+    heroTitle2: isRTL ? "سحر الصوت الجزائري!" : "La Magie Du Son Algérien!",
+    heroSub: isRTL ? "نصائح صوتية طبيعية بالدارجة من شمال إفريقيا في 30 ثانية." : "Voix naturelles en darija nord-africaine, générées en 30 secondes.",
+    bookNow: isRTL ? "جرّب مجاناً" : "Essayer Gratuitement",
     knowMore: isRTL ? "اعرف المزيد" : "En savoir plus",
-    awesomeDesc: isRTL ? "اكتشف نماذجنا الصوتية المتطورة" : "Découvrez nos modèles vocaux de pointe",
+    awesomeDesc: isRTL ? "اكتشف نماذجنا الصوتية المتطورة" : "Découvrez nos modèles vocaux nord-africains",
     follow: isRTL ? "تابعنا" : "Suivez-nous",
-    popularKicker: isRTL ? "الأصوات الشائعة" : "SONS POPULAIRES",
-    popularTitle: isRTL ? "الوجهة المفضلة" : "Destination Phare",
-    popularSub: isRTL ? "اكتشف أفضل الأصوات لدينا" : "Découvrez nos meilleures voix, entraînées avec passion",
+    popularKicker: isRTL ? "الأصوات الشائعة" : "VOIX POPULAIRES",
+    popularTitle: isRTL ? "الأصوات المفضلة" : "Sons Phares",
+    popularSub: isRTL ? "أصوات جزائرية مختارة بدارجة أصيلة" : "Voix algériennes triées sur le volet, darija authentique",
     nRatings: isRTL ? "تقييم" : "avis",
     journeyKicker: isRTL ? "العملية" : "NOTRE PROCESSUS",
-    journeyTitle: isRTL ? "رحلتك إلى الصوت، أصبحت بسيطة!" : "Du Texte à la Voix, C'est Simple!",
-    journeySub: isRTL ? "أربع خطوات تفصلك عن صوت احترافي" : "Quatre étapes vous séparent d'une voix professionnelle",
-    unleashTitle: isRTL ? "أطلق العنان لإبداعك الصوتي" : "Libérez Votre Créativité Vocale",
-    unleashSub: isRTL ? "أدواتنا تجعل إنشاء المحتوى الصوتي سهلاً." : "Nos outils rendent la création audio facile. Une voix parfaite, à chaque fois.",
-    unleashCTA: isRTL ? "ابدأ رحلة الصوت" : "Commencer l'Aventure",
+    journeyTitle: isRTL ? "من النص إلى الصوت، في غاية البساطة!" : "Du Texte Au Son, Tout Simplement!",
+    journeySub: isRTL ? "أربع خطوات تفصلك عن صوت جزائري احترافي" : "Quatre étapes vous séparent d'une voix nord-africaine pro",
+    unleashTitle: isRTL ? "أطلق العنان لإبداعك الصوتي" : "Libérez Votre Voix Nord-Africaine",
+    unleashSub: isRTL ? "أدواتنا تجعل إنشاء المحتوى الصوتي سهلاً ومتاحاً." : "Nos outils rendent la création audio simple. Une voix authentique, à chaque fois.",
+    unleashCTA: isRTL ? "ابدأ المغامرة" : "Commencer l'Aventure",
     discount: isRTL ? "خصم 20%" : "20% DE RÉDUCTION",
     discountDate: isRTL ? "حتى 28 سبتمبر 2025" : "Jusqu'au 28 sept. 2025",
     metricsKicker: "CHIFFRES",
-    metricsTitle: isRTL ? "أرقام تتحدث" : "Des Chiffres Parlants",
+    metricsTitle: isRTL ? "أرقام تتكلم" : "Des Chiffres Qui Parlent",
     testKicker: "AVIS",
-    testTitle: isRTL ? "ما يقوله المبدعون" : "Ce Que Disent Les Créateurs",
+    testTitle: isRTL ? "المبدعون المغاربة يشهدون" : "Ce Que Disent Les Créateurs Nord-Africains",
     pricingKicker: "TARIFS",
     pricingTitle: isRTL ? "ادفع مرة، استخدم للأبد" : "Payez Une Fois, Utilisez Pour Toujours",
-    pricingSub: isRTL ? "باقات بسيطة بدون انتهاء صلاحية" : "Des forfaits simples, sans expiration",
+    pricingSub: isRTL ? "باقات بسيطة بدون انتهاء صلاحية" : "Forfaits simples, sans expiration",
     faqKicker: "FAQ",
     faqTitle: isRTL ? "الأسئلة الشائعة" : "Questions Fréquentes",
     ctaTitle: isRTL ? "جاهز للبدء؟" : "Prêt À Commencer?",
@@ -242,9 +295,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const journeySteps = [
-    { n: "1", t: isRTL ? "اكتب نصك" : "Écrivez Votre Texte", d: isRTL ? "ألصق أو أنشئ نصك بالذكاء الاصطناعي" : "Collez ou générez votre texte via IA" },
-    { n: "2", t: isRTL ? "اختر الصوت" : "Choisissez La Voix", d: isRTL ? "12 صوتاً بمختلف اللهجات والنبرات" : "12 voix avec dialectes et tons variés" },
-    { n: "3", t: isRTL ? "خصّص النبرة" : "Affinez Le Ton", d: isRTL ? "سرعة، نبرة، وقفة — كل شيء قابل للتعديل" : "Vitesse, ton, pauses — tout adjustable" },
+    { n: "1", t: isRTL ? "اكتب نصك" : "Écrivez Votre Texte", d: isRTL ? "ألصق أو أنشئ نصك بالذكاء الاصطناعي" : "Collez ou générez votre texte via notre IA" },
+    { n: "2", t: isRTL ? "اختر الصوت" : "Choisissez La Voix", d: isRTL ? "12 صوتاً جزائرياً بمختلف اللهجات والنبرات" : "12 voix nord-africaines, dialectes et tons variés" },
+    { n: "3", t: isRTL ? "خصّص النبرة" : "Affinez Le Ton", d: isRTL ? "سرعة، نبرة، وقفة — كل شيء قابل للتعديل" : "Vitesse, ton, pauses — tout est ajustable" },
     { n: "4", t: isRTL ? "صدّر الملف" : "Exportez Le Fichier", d: isRTL ? "MP3 أو WAV بدون علامة مائية" : "MP3 ou WAV, sans watermark" },
   ];
 
@@ -257,12 +310,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const testimonials = isRTL
     ? [
-        { q: "Sawtify غيّرت طريقة عملي. جودة استوديو في 30 ثانية فقط.", n: "أمين ب.", r: "صانع محتوى، الجزائر", img: "AB" },
+        { q: "Sawtify غيّرت طريقة عملي. جودة استوديو في 30 ثانية.", n: "أمين ب.", r: "صانع محتوى، الجزائر", img: "AB" },
         { q: "الزبائن لا يحسون أن الصوت اصطناعي. هذا ما يهمني.", n: "ياسمين ق.", r: "وكالة إشهار، وهران", img: "YK" },
         { q: "الدفع بالذهبية سهّل كل شيء. أحسن استثمار قمت به.", n: "خالد م.", r: "متجر إلكتروني، قسنطينة", img: "KM" },
       ]
     : [
-        { q: "Sawtify a changé ma façon de travailler. Qualité studio en 30 secondes.", n: "Amine B.", r: "Créateur, Alger", img: "AB" },
+        { q: "Sawtify a changé mon workflow. Qualité studio en 30 secondes.", n: "Amine B.", r: "Créateur de contenu, Alger", img: "AB" },
         { q: "Les clients ne remarquent pas que c'est synthétique. C'est ce qui compte.", n: "Yasmine K.", r: "Agence pub, Oran", img: "YK" },
         { q: "Le paiement Edahabia simplifie tout. Meilleur investissement.", n: "Khaled M.", r: "E-commerce, Constantine", img: "KM" },
       ];
@@ -281,14 +334,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const faqs = isRTL
     ? [
-        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم، جميع الأصوات قابلة للاستخدام التجاري دون قيود." },
+        { q: "هل الأصوات صالحة للاستخدام التجاري؟", a: "نعم، جميع الأصوات الجزائرية قابلة للاستخدام التجاري دون قيود." },
         { q: "كيف يعمل نظام النقاط؟", a: "تشتري النقاط مرة واحدة وتبقى رصيدك. كل توليد صوتي يستهلك 20 نقطة." },
         { q: "هل تدعمون الدفع بالذهبية و CIB؟", a: "نعم، نقبل جميع طرق الدفع الجزائرية عبر SATIM." },
         { q: "كم من الوقت يستغرق كل توليد؟", a: "أقل من 30 ثانية للنصوص القياسية." },
         { q: "هل يمكنني تجربة الخدمة مجاناً؟", a: "بالتأكيد! تحصل على 50 نقطة مجانية عند التسجيل." },
       ]
     : [
-        { q: "Les voix sont-elles libres de droits ?", a: "Oui, toutes les voix sont libres de droits pour un usage commercial." },
+        { q: "Les voix sont-elles libres de droits ?", a: "Oui, toutes les voix nord-africaines sont libres pour un usage commercial." },
         { q: "Comment fonctionne le système de points ?", a: "Vous achetez des points une seule fois, ils n'expirent jamais. 20 points par génération." },
         { q: "Edahabia et CIB sont-ils acceptés ?", a: "Oui, nous acceptons tous les moyens de paiement algériens via SATIM." },
         { q: "Combien de temps prend une génération ?", a: "Moins de 30 secondes pour un texte standard." },
@@ -297,14 +350,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const partners = ["Edahabia", "CIB", "SATIM", "Djezzy", "Mobilis", "Ooredoo", "Algérie Poste"];
 
-  const toggleVoice = (id: string, url: string) => {
+  const toggleVoice = useCallback((id: string, url: string) => {
     if (playingId === id) { audioRef.current?.pause(); setPlayingId(null); return; }
     audioRef.current?.pause();
     const audio = new Audio(); audio.src = url; audioRef.current = audio;
     audio.play().catch(() => setPlayingId(null));
     audio.onended = () => setPlayingId(null);
     setPlayingId(id);
-  };
+  }, [playingId]);
 
   const smoothTo = useCallback((href: string) => {
     setMenuOpen(false);
@@ -358,15 +411,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <div dir={isRTL ? "rtl" : "ltr"} className="min-h-screen text-[#1A1A2E] relative" style={{ fontFamily: sans }}>
       <GlobalStyles />
 
-      <motion.div aria-hidden="true" className="fixed top-0 inset-x-0 h-[3px] z-[60]"
-        style={{ scaleX: scrollYProgress, background: "linear-gradient(90deg, #6E5FE8, #9D8FFF)", transformOrigin: isRTL ? "100% 50%" : "0% 50%" }}
-      />
+      <motion.div aria-hidden="true" className="fixed top-0 inset-x-0 h-[3px] z-[60]" style={{ scaleX: scrollYProgress, background: "linear-gradient(90deg, #6E5FE8, #9D8FFF)", transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
 
       {/* HEADER */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? "bg-[#F4F1EA]/90 backdrop-blur-xl border-b border-[#1A1A2E]/5" : ""}`}>
         <div className="mx-auto max-w-[1280px] px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring">
-            <Logo size={32} />
+            <Logo size={36} />
           </a>
 
           <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-8 text-[14px] font-semibold text-[#1A1A2E]/70">
@@ -398,7 +449,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-black/50 md:hidden" />
             <motion.div initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }} transition={{ type: "spring", damping: 30, stiffness: 280 }} className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-[#F4F1EA] md:hidden flex flex-col">
               <div className="flex items-center justify-between px-5 h-16 border-b border-[#1A1A2E]/5">
-                <Logo size={28} />
+                <Logo size={32} />
                 <button onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-full hover:bg-[#1A1A2E]/5 flex items-center justify-center focus-ring">
                   <X className="w-5 h-5" />
                 </button>
@@ -415,75 +466,76 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </AnimatePresence>
 
       {/* =====================================================
-          HERO — AVEC PHOTO EN BACKGROUND
+          HERO — AVEC VIDÉO EN BACKGROUND
       ===================================================== */}
       <section id="home" className="pt-24 pb-16 sm:pb-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
-            <div className="relative rounded-[40px] overflow-hidden p-8 sm:p-12 lg:p-16 min-h-[560px] sm:min-h-[640px] flex items-center">
+          <SlideUp>
+            <div className="relative rounded-[40px] overflow-hidden p-8 sm:p-12 lg:p-16 min-h-[600px] sm:min-h-[680px] flex items-center bg-[#1A1A2E]">
 
-              {/* ✅ PHOTO EN BACKGROUND avec fallback */}
-              {!imgError && (
-                <img
-                  src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=1920&h=1080&fit=crop&q=80"
-                  alt=""
-                  loading="eager"
-                  className="absolute inset-0 w-full h-full object-cover hero-zoom"
-                  onError={() => setImgError(true)}
-                />
-              )}
-              {imgError && (
-                <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #DCE7F5 0%, #B8CFE8 60%, #9D8FFF 100%)" }} />
-              )}
-              {/* Overlay pour lisibilité */}
-              <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(220, 231, 245, 0.92) 0%, rgba(184, 207, 232, 0.85) 50%, rgba(157, 143, 255, 0.7) 100%)" }} />
+              {/* ✅ VIDÉO en background — autoplay, muted, loop */}
+              <video
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="auto"
+                className="absolute inset-0 w-full h-full object-cover hero-video"
+                poster=""
+                src="https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4"
+              >
+                <source src="https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4" type="video/mp4" />
+              </video>
 
-              {/* Stepper — DÉPLACÉ pour ne plus se superposer */}
+              {/* Overlay gradient pour lisibilité */}
+              <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(26, 26, 46, 0.92) 0%, rgba(45, 27, 105, 0.85) 50%, rgba(110, 95, 232, 0.75) 100%)" }} />
+
+              {/* Stepper vertical à gauche */}
               <div className="absolute start-4 sm:start-6 top-1/2 -translate-y-1/2 hidden md:flex flex-col items-center gap-3 z-10">
                 {["1", "2", "3"].map((n, i) => (
                   <React.Fragment key={n}>
-                    <div className={`step-badge w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-[13px] sm:text-[14px] font-bold transition-all ${i === 0 ? "bg-[#6E5FE8] text-white scale-110" : "bg-white text-[#1A1A2E]"}`}>
+                    <div className={`step-badge w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-[13px] sm:text-[14px] font-bold transition-all ${i === 0 ? "bg-[#6E5FE8] text-white scale-110" : "bg-white/90 backdrop-blur text-[#1A1A2E]"}`}>
                       {n}
                     </div>
-                    {i < 2 && <div className="w-px h-10 sm:h-12 bg-[#6E5FE8]/30" />}
+                    {i < 2 && <div className="w-px h-10 sm:h-12 bg-white/30" />}
                   </React.Fragment>
                 ))}
               </div>
 
-              {/* Content — DÉCALÉ À GAUCHE pour éviter le stepper */}
-              <div className="relative z-10 w-full md:ms-20 lg:ms-24 max-w-2xl">
-                <Reveal delay={0.1}>
-                  <p className="text-[12px] font-bold tracking-[0.2em] text-[#1A1A2E]/70 uppercase mb-4">
+              {/* Contenu décalé pour ne pas chevaucher le stepper */}
+              <div className="relative z-10 w-full md:ms-20 lg:ms-24 max-w-2xl text-white">
+                <SlideUp delay={0.1}>
+                  <p className="text-[12px] font-bold tracking-[0.2em] text-white/80 uppercase mb-4">
                     {t.heroKicker}
                   </p>
-                </Reveal>
-                <Reveal delay={0.2}>
-                  <h1 className="text-[clamp(2.5rem,6vw,5rem)] leading-[0.95] tracking-[-0.03em] font-extrabold text-[#1A1A2E]">
+                </SlideUp>
+                <SlideUp delay={0.2}>
+                  <h1 className="text-[clamp(2.5rem,6vw,5rem)] leading-[0.95] tracking-[-0.03em] font-extrabold text-white">
                     {t.heroTitle1}<br />{t.heroTitle2}
                   </h1>
-                </Reveal>
-                <Reveal delay={0.35}>
-                  <p className="mt-6 text-[15px] text-[#1A1A2E]/80 max-w-md leading-relaxed font-medium">
+                </SlideUp>
+                <SlideUp delay={0.35}>
+                  <p className="mt-6 text-[15px] text-white/85 max-w-md leading-relaxed font-medium">
                     {t.heroSub}
                   </p>
-                </Reveal>
-                <Reveal delay={0.45}>
-                  <div className="mt-8 flex items-center gap-3">
-                    <button onClick={onSigninClick} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:opacity-90" style={{ background: "#6E5FE8" }}>
+                </SlideUp>
+                <SlideUp delay={0.45}>
+                  <div className="mt-8 flex items-center gap-3 flex-wrap">
+                    <button onClick={onSigninClick} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:scale-105" style={{ background: "#6E5FE8", boxShadow: "0 0 30px rgba(110, 95, 232, 0.5)" }}>
                       {t.bookNow}
                     </button>
                     <button onClick={() => smoothTo("#voices")} className="w-12 h-12 rounded-full bg-white flex items-center justify-center focus-ring hover:scale-110 transition shadow-lg">
                       <Play className="w-4 h-4 fill-[#6E5FE8] text-[#6E5FE8] ms-0.5" />
                     </button>
                   </div>
-                </Reveal>
+                </SlideUp>
               </div>
 
               {/* Carte "Know More" en bas à droite */}
               <div className="absolute bottom-6 end-6 z-10 hidden md:block">
-                <div className="bg-white rounded-2xl p-4 shadow-2xl max-w-[220px] card-lift cursor-pointer">
+                <div className="bg-white rounded-2xl p-4 shadow-2xl max-w-[220px] card-lift cursor-pointer" onClick={() => smoothTo("#voices")}>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[13px] font-bold">{t.knowMore}</span>
+                    <span className="text-[13px] font-bold text-[#1A1A2E]">{t.knowMore}</span>
                     <ArrowUpRight className="w-4 h-4 text-[#6E5FE8]" />
                   </div>
                   <div className="text-[11px] text-[#1A1A2E]/60 leading-relaxed mb-3">{t.awesomeDesc}</div>
@@ -495,9 +547,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
               </div>
             </div>
-          </Reveal>
+          </SlideUp>
 
-          <Reveal delay={0.2}>
+          <SlideUp delay={0.2}>
             <div className="mt-8 flex flex-wrap items-center gap-6">
               <span className="text-[12px] font-semibold text-[#1A1A2E]/60">{t.follow} ↓</span>
               <div className="flex items-center gap-2">
@@ -509,14 +561,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {partners.map((p) => <span key={p} className="text-[14px] font-bold text-[#1A1A2E]">{p}</span>)}
               </div>
             </div>
-          </Reveal>
+          </SlideUp>
         </div>
       </section>
 
       {/* POPULAR VOICES */}
       <section id="voices" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
+          <SlideUp>
             <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
               <div>
                 <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {t.popularKicker}</p>
@@ -532,15 +584,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </div>
             </div>
-          </Reveal>
+          </SlideUp>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {popularVoices.slice(voiceSlide, voiceSlide + 3).map((v, idx) => {
               const active = playingId === v.id;
               return (
-                <Reveal key={v.id} delay={idx * 0.08}>
+                <SlideUp key={v.id} delay={idx * 0.1}>
                   <div className="group bg-white rounded-3xl overflow-hidden card-lift border border-[#1A1A2E]/5">
-                    <button onClick={() => toggleVoice(v.id, v.url)} className="w-full text-start focus-ring">
+                    <button type="button" onClick={() => toggleVoice(v.id, v.url)} className="w-full text-start focus-ring cursor-pointer">
                       <div className="relative p-6 h-48 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${v.color}15 0%, ${v.color}05 100%)` }}>
                         <VoicePattern pattern={v.pattern} color={v.color} playing={active} />
                         <div className={`absolute top-4 end-4 w-12 h-12 rounded-full flex items-center justify-center transition-all ${active ? "scale-110" : "scale-90 opacity-0 group-hover:opacity-100 group-hover:scale-100"}`} style={{ background: active ? v.color : "#1A1A2E", color: "white" }}>
@@ -562,7 +614,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
                     </button>
                   </div>
-                </Reveal>
+                </SlideUp>
               );
             })}
           </div>
@@ -572,17 +624,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* JOURNEY */}
       <section id="process" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
-            <div className="text-center mb-14">
+          <div className="text-center mb-14">
+            <SlideUp>
               <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {t.journeyKicker}</p>
+            </SlideUp>
+            <SlideUp delay={0.1}>
               <h2 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.03em] font-extrabold text-[#1A1A2E] max-w-3xl mx-auto">{t.journeyTitle}</h2>
+            </SlideUp>
+            <SlideUp delay={0.2}>
               <p className="text-[14px] text-[#1A1A2E]/60 mt-4 max-w-xl mx-auto">{t.journeySub}</p>
-            </div>
-          </Reveal>
+            </SlideUp>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {journeySteps.map((s, i) => (
-              <Reveal key={s.n} delay={i * 0.1}>
+              <SlideUp key={s.n} delay={i * 0.15}>
                 <div className="bg-white rounded-3xl p-8 h-full flex flex-col justify-between min-h-[260px] card-lift border border-[#1A1A2E]/5">
                   <div className="w-12 h-12 rounded-2xl bg-[#6E5FE8]/10 flex items-center justify-center">
                     <span className="text-[#6E5FE8] font-extrabold text-[18px]">0{s.n}</span>
@@ -592,7 +648,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <p className="text-[13px] text-[#1A1A2E]/60 leading-relaxed">{s.d}</p>
                   </div>
                 </div>
-              </Reveal>
+              </SlideUp>
             ))}
           </div>
         </div>
@@ -601,58 +657,62 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* UNLEASH */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <div className="bg-white rounded-[40px] overflow-hidden grid lg:grid-cols-2 items-stretch">
-            <Reveal className="relative h-80 lg:h-auto overflow-hidden" style={{ background: "linear-gradient(135deg, #FFE4B5 0%, #FFB6C1 50%, #9D8FFF 100%)" }}>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-64 h-64">
-                  <div className="absolute inset-0 rounded-full bg-white/30 animate-pulse" />
-                  <div className="absolute inset-6 rounded-full bg-white/40" />
-                  <div className="absolute inset-12 rounded-full bg-white/50" />
-                  <div className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>
-                    <AudioLines className="w-16 h-16 text-white" strokeWidth={1.5} />
+          <ScaleIn>
+            <div className="bg-white rounded-[40px] overflow-hidden grid lg:grid-cols-2 items-stretch">
+              <div className="relative h-80 lg:h-auto overflow-hidden" style={{ background: "linear-gradient(135deg, #FFE4B5 0%, #FFB6C1 50%, #9D8FFF 100%)" }}>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative w-64 h-64">
+                    <div className="absolute inset-0 rounded-full bg-white/30 animate-pulse" />
+                    <div className="absolute inset-6 rounded-full bg-white/40" />
+                    <div className="absolute inset-12 rounded-full bg-white/50" />
+                    <div className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>
+                      <AudioLines className="w-16 h-16 text-white" strokeWidth={1.5} />
+                    </div>
+                    {["♪", "♫", "♬", "♩"].map((note, i) => (
+                      <div key={i} className="absolute text-white/80 text-3xl font-bold float" style={{ top: `${20 + (i * 23) % 60}%`, left: `${10 + (i * 31) % 70}%`, animationDelay: `${i * 0.5}s` }}>{note}</div>
+                    ))}
                   </div>
-                  {["♪", "♫", "♬", "♩"].map((note, i) => (
-                    <div key={i} className="absolute text-white/80 text-3xl font-bold float" style={{ top: `${20 + (i * 23) % 60}%`, left: `${10 + (i * 31) % 70}%`, animationDelay: `${i * 0.5}s` }}>{note}</div>
-                  ))}
+                </div>
+                <div className="absolute bottom-6 start-6 bg-white rounded-2xl p-4 shadow-xl">
+                  <div className="text-[24px] font-extrabold text-[#1A1A2E]">{t.discount}</div>
+                  <div className="text-[11px] text-[#1A1A2E]/60 mt-1">{t.discountDate}</div>
                 </div>
               </div>
-              <div className="absolute bottom-6 start-6 bg-white rounded-2xl p-4 shadow-xl">
-                <div className="text-[24px] font-extrabold text-[#1A1A2E]">{t.discount}</div>
-                <div className="text-[11px] text-[#1A1A2E]/60 mt-1">{t.discountDate}</div>
-              </div>
-            </Reveal>
 
-            <Reveal delay={0.1} className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
-              <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {isRTL ? "إبداع" : "Créativité"}</p>
-              <h2 className="text-[clamp(1.75rem,3.5vw,3rem)] leading-[1.05] tracking-[-0.03em] font-extrabold text-[#1A1A2E]">{t.unleashTitle}</h2>
-              <p className="mt-5 text-[14px] text-[#1A1A2E]/65 leading-relaxed max-w-md">{t.unleashSub}</p>
-              <button onClick={onSigninClick} className="mt-7 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-[#1A1A2E] text-white text-[14px] font-bold hover:bg-[#6E5FE8] transition focus-ring w-fit">
-                {t.unleashCTA}<ArrowIcon className="w-4 h-4" />
-              </button>
-            </Reveal>
-          </div>
+              <SlideRight delay={0.2} className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
+                <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {isRTL ? "إبداع" : "Créativité"}</p>
+                <h2 className="text-[clamp(1.75rem,3.5vw,3rem)] leading-[1.05] tracking-[-0.03em] font-extrabold text-[#1A1A2E]">{t.unleashTitle}</h2>
+                <p className="mt-5 text-[14px] text-[#1A1A2E]/65 leading-relaxed max-w-md">{t.unleashSub}</p>
+                <button onClick={onSigninClick} className="mt-7 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-[#1A1A2E] text-white text-[14px] font-bold hover:bg-[#6E5FE8] transition focus-ring w-fit">
+                  {t.unleashCTA}<ArrowIcon className="w-4 h-4" />
+                </button>
+              </SlideRight>
+            </div>
+          </ScaleIn>
         </div>
       </section>
 
       {/* METRICS */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
-            <div className="text-center mb-12">
+          <div className="text-center mb-12">
+            <SlideUp>
               <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {t.metricsKicker}</p>
+            </SlideUp>
+            <SlideUp delay={0.1}>
               <h2 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.03em] font-extrabold">{t.metricsTitle}</h2>
-            </div>
-          </Reveal>
+            </SlideUp>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {metrics.map((m, i) => (
-              <Reveal key={m.l} delay={i * 0.08}>
+              <SlideUp key={m.l} delay={i * 0.1}>
                 <div className="bg-white rounded-3xl p-7 text-center card-lift border border-[#1A1A2E]/5">
                   <div className="text-[clamp(2.5rem,5vw,3.5rem)] leading-none font-extrabold text-[#1A1A2E] mb-2" style={{ fontFamily: mono }}>
                     <Counter target={m.n} suffix={m.s} />
                   </div>
                   <div className="text-[12px] text-[#1A1A2E]/60 font-semibold">{m.l}</div>
                 </div>
-              </Reveal>
+              </SlideUp>
             ))}
           </div>
         </div>
@@ -661,14 +721,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* TESTIMONIALS */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
-            <div className="text-center mb-12">
+          <div className="text-center mb-12">
+            <SlideUp>
               <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {t.testKicker}</p>
+            </SlideUp>
+            <SlideUp delay={0.1}>
               <h2 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.03em] font-extrabold">{t.testTitle}</h2>
-            </div>
-          </Reveal>
+            </SlideUp>
+          </div>
 
-          <Reveal delay={0.1}>
+          <SlideUp delay={0.2}>
             <div className="bg-white rounded-3xl p-8 sm:p-12 relative border border-[#1A1A2E]/5 min-h-[260px]">
               <AnimatePresence mode="wait">
                 <motion.div key={activeTesti} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.5 }}>
@@ -686,32 +748,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </motion.div>
               </AnimatePresence>
               <div className="absolute bottom-6 end-6 flex items-center gap-2">
-                <button onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)} className="w-11 h-11 rounded-full border border-[#1A1A2E]/10 hover:border-[#6E5FE8] flex items-center justify-center focus-ring">
+                <button onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)} className="w-11 h-11 rounded-full border border-[#1A1A2E]/10 hover:border-[#6E5FE8] flex items-center justify-center focus-ring transition">
                   {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
                 </button>
-                <button onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)} className="w-11 h-11 rounded-full bg-[#1A1A2E] text-white hover:bg-[#6E5FE8] flex items-center justify-center focus-ring">
+                <button onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)} className="w-11 h-11 rounded-full bg-[#1A1A2E] text-white hover:bg-[#6E5FE8] flex items-center justify-center focus-ring transition">
                   {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-          </Reveal>
+          </SlideUp>
         </div>
       </section>
 
       {/* PRICING */}
       <section id="pricing" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
-            <div className="text-center mb-12">
+          <div className="text-center mb-12">
+            <SlideUp>
               <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {t.pricingKicker}</p>
+            </SlideUp>
+            <SlideUp delay={0.1}>
               <h2 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.03em] font-extrabold">{t.pricingTitle}</h2>
+            </SlideUp>
+            <SlideUp delay={0.2}>
               <p className="text-[14px] text-[#1A1A2E]/60 mt-3 max-w-md mx-auto">{t.pricingSub}</p>
-            </div>
-          </Reveal>
+            </SlideUp>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {pricing.map((p, i) => (
-              <Reveal key={p.pts} delay={i * 0.06}>
+              <SlideUp key={p.pts} delay={i * 0.1}>
                 <div className={`bg-white rounded-3xl p-7 h-full flex flex-col card-lift border-2 transition-all ${p.featured ? "border-[#6E5FE8] relative" : "border-[#1A1A2E]/5 hover:border-[#6E5FE8]/30"}`}>
                   {p.featured && (
                     <div className="absolute -top-3 start-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider text-white" style={{ background: "#6E5FE8" }}>POPULAR</div>
@@ -728,7 +794,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     {isRTL ? "اختر" : "Choisir"}
                   </button>
                 </div>
-              </Reveal>
+              </SlideUp>
             ))}
           </div>
         </div>
@@ -738,17 +804,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section id="faq" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
           <div className="grid lg:grid-cols-12 gap-10">
-            <Reveal className="lg:col-span-4">
+            <SlideLeft className="lg:col-span-4">
               <p className="text-[12px] font-bold tracking-[0.2em] text-[#6E5FE8] uppercase mb-3">// {t.faqKicker}</p>
               <h2 className="text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05] tracking-[-0.03em] font-extrabold">{t.faqTitle}</h2>
-            </Reveal>
+            </SlideLeft>
 
-            <div className="lg:col-span-7 lg:col-start-6">
+            <SlideRight className="lg:col-span-7 lg:col-start-6">
               <div className="bg-white rounded-3xl overflow-hidden border border-[#1A1A2E]/5">
                 {faqs.map((f, i) => {
                   const open = openFaq === i;
                   return (
-                    <Reveal key={f.q} delay={i * 0.04}>
+                    <SlideUp key={f.q} delay={i * 0.05}>
                       <div className="border-b border-[#1A1A2E]/5 last:border-b-0">
                         <button onClick={() => setOpenFaq(open ? null : i)} className="w-full py-5 px-6 flex items-center gap-4 text-start focus-ring group">
                           <span className="flex-1 text-[15px] font-bold text-[#1A1A2E] group-hover:text-[#6E5FE8] transition-colors">{f.q}</span>
@@ -764,11 +830,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           )}
                         </AnimatePresence>
                       </div>
-                    </Reveal>
+                    </SlideUp>
                   );
                 })}
               </div>
-            </div>
+            </SlideRight>
           </div>
         </div>
       </section>
@@ -776,7 +842,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* CTA */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-6">
-          <Reveal>
+          <ScaleIn>
             <div className="rounded-[40px] p-12 sm:p-16 text-center text-white relative overflow-hidden" style={{ background: "linear-gradient(135deg, #1A1A2E 0%, #2D1B69 50%, #6E5FE8 100%)" }}>
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-0 start-1/4 w-96 h-96 rounded-full bg-[#9D8FFF]/20 blur-3xl float" />
@@ -790,14 +856,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </div>
             </div>
-          </Reveal>
+          </ScaleIn>
         </div>
       </section>
 
       {/* FOOTER */}
       <footer className="py-10 border-t border-[#1A1A2E]/5">
         <div className="mx-auto max-w-[1280px] px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Logo size={28} />
+          <Logo size={32} />
           <div className="text-[12px] text-[#1A1A2E]/50 font-mono">© <Num>2026</Num> · {t.footTag} · SATIM · Edahabia · CIB</div>
         </div>
       </footer>
