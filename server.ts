@@ -819,6 +819,7 @@ async function startServer() {
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
       const balanceBeforeGeneration = await getUserBalance(userId);
+      if (balanceBeforeGeneration === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (balanceBeforeGeneration !== null && balanceBeforeGeneration < BASE_POINTS_COST) {
         return res.status(402).json({ error: `Solde de points insuffisant (${BASE_POINTS_COST} points minimum requis).` });
       }
@@ -924,6 +925,7 @@ RÈGLES STRICTES :
 
       const pointsCost = 2;
       const currentBalance = await getUserBalance(userId);
+      if (currentBalance === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (currentBalance !== null && currentBalance < pointsCost) return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
 
       const regionGuide = getRegionGuide(region);
@@ -1001,6 +1003,7 @@ Génère maintenant la version optimisée :`;
 
       const pointsCost = 5;
       const currentBalance = await getUserBalance(userId);
+      if (currentBalance === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (currentBalance !== null && currentBalance < pointsCost) return res.status(402).json({ error: "Solde de points insuffisant (5 points requis)." });
 
       const selectedHook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
