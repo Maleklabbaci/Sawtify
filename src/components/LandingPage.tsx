@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight, ArrowLeft, Play, Plus, Menu, X,
-  Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift,
+  Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift, Pause
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
 
@@ -16,6 +16,7 @@ const ACCENT = "#6E5FE8";
 const INK = "#0F0F1A";
 const PAPER = "#FAFAF7";
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
+const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1788998622/discution.wav";
 
 const GlobalStyles = () => (
   <style>{`
@@ -221,6 +222,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
+  // Audio d'introduction lors de la première interaction
+  const introAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isIntroPlaying, setIsIntroPlaying] = useState(false);
+
   const overlayOpen = menuOpen || !!listenVoice || !!legal;
 
   useEffect(() => {
@@ -241,10 +246,66 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setListenVoice(null);
       setLegal(null);
       setPlayingId(null);
+      if (introAudioRef.current) {
+        introAudioRef.current.pause();
+        setIsIntroPlaying(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // CONFIGURATION DU DÉCLENCHEMENT AUDIO À LA PREMIÈRE INTERACTION
+  useEffect(() => {
+    const audio = new Audio(INTRO_AUDIO_URL);
+    audio.preload = "auto";
+    introAudioRef.current = audio;
+
+    // Événement quand l'audio se termine
+    audio.onended = () => {
+      setIsIntroPlaying(false);
+    };
+
+    const handleFirstInteraction = () => {
+      // Lance le script audio d'intro
+      audio.play()
+        .then(() => {
+          setIsIntroPlaying(true);
+        })
+        .catch((err) => {
+          console.warn("La lecture automatique a été bloquée par le navigateur :", err);
+        });
+
+      // Nettoie tous les écouteurs d'interaction après la première exécution
+      cleanupListeners();
+    };
+
+    const cleanupListeners = () => {
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("scroll", handleFirstInteraction);
+      window.removeEventListener("touchstart", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+
+    // Ajout des écouteurs d'événements pour capturer n'importe quelle première interaction
+    window.addEventListener("click", handleFirstInteraction, { passive: true, once: true });
+    window.addEventListener("scroll", handleFirstInteraction, { passive: true, once: true });
+    window.addEventListener("touchstart", handleFirstInteraction, { passive: true, once: true });
+    window.addEventListener("keydown", handleFirstInteraction, { passive: true, once: true });
+
+    return () => {
+      cleanupListeners();
+      audio.pause();
+    };
+  }, []);
+
+  // Fonction utilitaire pour stopper l'audio d'intro si l'utilisateur interagit avec d'autres boutons audio
+  const stopIntroAudio = () => {
+    if (introAudioRef.current && !introAudioRef.current.paused) {
+      introAudioRef.current.pause();
+      setIsIntroPlaying(false);
+    }
+  };
 
   const t = {
     skip: isRTL ? "Aller au contenu" : "Aller au contenu",
@@ -283,7 +344,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     useKicker: isRTL ? "أين تستعمله" : "USAGES",
     useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n’est plus du texte.",
     costKicker: isRTL ? "وبكم" : "ET COMBIEN",
-    costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne croyez.",
+    costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne couyez.",
     costSub: isRTL
       ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي."
       : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n’expirent pas.",
@@ -352,7 +413,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, [featured.id, sampleFull]);
 
   useEffect(() => {
-    if (listenVoice || holdVoice) return;
+    if (listenVoice || holdVoice || isIntroPlaying) return;
     const id = window.setInterval(() => {
       setFeaturedId((prev) => {
         const i = LANDING_VOICES.findIndex((v) => v.id === prev);
@@ -360,7 +421,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       });
     }, 5200);
     return () => window.clearInterval(id);
-  }, [listenVoice, holdVoice]);
+  }, [listenVoice, holdVoice, isIntroPlaying]);
 
   const journeySteps = [
     { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصك بالدارجة، بالعربية أو بالفرنسية." : "Collez votre texte en darija, en arabe ou en français." },
@@ -439,9 +500,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, []);
 
   const openListen = (voice: VoiceCard) => {
+    stopIntroAudio(); // Arête le lecteur global
     setFeaturedId(voice.id);
     setPlayingId(voice.id);
     setListenVoice(voice);
+  };
+
+  const handleToggleIntroAudio = () => {
+    if (!introAudioRef.current) return;
+    if (isIntroPlaying) {
+      introAudioRef.current.pause();
+      setIsIntroPlaying(false);
+    } else {
+      // S'assure que d'autres sons sont coupés avant d'activer l'intro
+      setPlayingId(null);
+      introAudioRef.current.play()
+        .then(() => setIsIntroPlaying(true))
+        .catch(err => console.log(err));
+    }
   };
 
   const display = isRTL ? "'Cairo', sans-serif" : "'Fraunces', serif";
@@ -571,11 +647,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <button type="button" onClick={onSigninClick} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:opacity-90" style={{ background: ACCENT, boxShadow: "0 0 30px rgba(110, 95, 232, 0.35)" }}>
                     {t.bookNow}
                   </button>
-                  <button type="button" onClick={() => { setFeaturedId("amine"); smoothTo("#voices"); }} className="group h-12 px-5 rounded-full border border-[#0F0F1A]/15 hover:border-[#6E5FE8] text-[14px] font-semibold flex items-center gap-2.5 transition focus-ring">
+                  <button type="button" onClick={handleToggleIntroAudio} className="group h-12 px-5 rounded-full border border-[#0F0F1A]/15 hover:border-[#6E5FE8] text-[14px] font-semibold flex items-center gap-2.5 transition focus-ring">
                     <span className="w-7 h-7 rounded-full text-white flex items-center justify-center" style={{ background: ACCENT }}>
-                      <Play className="w-2.5 h-3 fill-current" />
+                      {isIntroPlaying ? (
+                        <Pause className="w-2.5 h-3 fill-current" />
+                      ) : (
+                        <Play className="w-2.5 h-3 fill-current" />
+                      )}
                     </span>
-                    {t.listenDemo}
+                    {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
                 </div>
                 <p className="mt-4 text-[12px] font-semibold text-[#6E5FE8] flex items-center gap-1.5">
@@ -605,8 +685,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="flex items-center justify-between gap-3 mb-5">
                     <div>
                       <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">Studio</div>
-                      <div className="text-[18px] font-extrabold">{isRTL ? featured.nameAr : featured.nameFr}</div>
-                      <div className="text-[12px] text-[#0F0F1A]/55">{isRTL ? featured.tagAr : featured.tagFr} · {featured.location}</div>
+                      <div className="text-[18px] font-extrabold">{isIntroPlaying ? (isRTL ? "تقديم صوتي" : "Présentation audio") : (isRTL ? featured.nameAr : featured.nameFr)}</div>
+                      <div className="text-[12px] text-[#0F0F1A]/55">
+                        {isIntroPlaying ? (isRTL ? "مباشر" : "En cours de lecture") : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
+                      </div>
                     </div>
                     <div className="text-end">
                       <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">24 kHz</div>
@@ -615,13 +697,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div className="rounded-2xl px-4 py-5 mb-5" style={{ background: `${featured.color}12` }}>
-                    <Waveform color={featured.color} playing bars={42} />
+                    <Waveform color={featured.color} playing={isIntroPlaying} bars={42} />
                   </div>
 
                   <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 min-h-[64px]" dir="auto">
-                    “{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}
+                    {isIntroPlaying ? (
+                      isRTL 
+                        ? "“أنت تستمع حاليًا إلى الصوت التجريبي الحصري للمنصة الذي تم إطلاقه تلقائيًا عند تفاعلك الأول مع الصفحة...”"
+                        : "“Vous écoutez actuellement l'audio de démonstration exclusif de la plateforme, lancé automatiquement dès votre première interaction...”"
+                    ) : (
+                      <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
+                    )}
                   </p>
-                  {cutDone && (
+                  {cutDone && !isIntroPlaying && (
                     <p className="mt-2 text-[11px] font-bold tracking-wide" style={{ color: featured.color }}>
                       {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
                     </p>
@@ -629,12 +717,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                   <div className="mt-5 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                     {LANDING_VOICES.map((v) => {
-                      const on = v.id === featured.id;
+                      const on = v.id === featured.id && !isIntroPlaying;
                       return (
                         <button
                           key={v.id}
                           type="button"
-                          onClick={() => { setFeaturedId(v.id); setPlayingId(null); setHoldVoice(true); }}
+                          onClick={() => { setFeaturedId(v.id); setPlayingId(null); setHoldVoice(true); stopIntroAudio(); }}
                           className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold border transition focus-ring ${on ? "text-white border-transparent" : "bg-white text-[#0F0F1A]/70 border-[#0F0F1A]/10 hover:border-[#6E5FE8]"}`}
                           style={on ? { background: v.color } : undefined}
                         >
@@ -684,14 +772,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-5">
               {LANDING_VOICES.map((v, idx) => {
-                const active = playingId === v.id || featuredId === v.id;
+                const active = playingId === v.id || (featuredId === v.id && !isIntroPlaying);
                 const name = isRTL ? v.nameAr : v.nameFr;
                 return (
                   <SlideUp key={v.id} delay={idx * 0.08}>
                     <article className={`group bg-white rounded-3xl overflow-hidden card-lift border ${active ? "border-[#6E5FE8]/40 ring-2 ring-[#6E5FE8]/15" : "border-[#0F0F1A]/5"}`}>
                       <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
                         <div className="relative p-6 h-40 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${v.color}18 0%, ${v.color}06 100%)` }}>
-                          <Waveform color={v.color} playing={playingId === v.id || featuredId === v.id} bars={28} />
+                          <Waveform color={v.color} playing={playingId === v.id || (featuredId === v.id && !isIntroPlaying)} bars={28} />
                           <div
                             className={`absolute top-4 end-4 w-11 h-11 rounded-full flex items-center justify-center text-white transition ${playingId === v.id ? "scale-110" : "opacity-90 group-hover:scale-105"}`}
                             style={{ background: playingId === v.id ? v.color : INK }}
@@ -721,7 +809,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               })}
           </div>
 
-          <button type="button" onClick={onSigninClick} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
+          <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
             <div className="text-[22px] font-extrabold tracking-tight" style={{ fontFamily: display }}>{t.moreVoices}</div>
             <p className="mt-1 text-[13px] text-[#0F0F1A]/55">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
           </button>
@@ -828,7 +916,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <span className="text-[16px] ms-2 font-bold text-white/50">{t.pts}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={onSigninClick} className="h-11 px-5 rounded-full bg-[#6E5FE8] text-white text-[13px] font-bold hover:opacity-90">
+                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="h-11 px-5 rounded-full bg-[#6E5FE8] text-white text-[13px] font-bold hover:opacity-90">
                     {t.bookNow}
                   </button>
                 </div>
@@ -969,7 +1057,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span className="text-[26px] font-extrabold"><Num>{p.price}</Num></span>
                     <span className={`text-[11px] ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>DZD</span>
                   </div>
-                  <button type="button" onClick={onSigninClick} className={`h-11 rounded-full text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#0F0F1A] hover:bg-[#9D8FFF]" : "bg-[#0F0F1A] text-white hover:bg-[#6E5FE8]"}`}>
+                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className={`h-11 rounded-full text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#0F0F1A] hover:bg-[#9D8FFF]" : "bg-[#0F0F1A] text-white hover:bg-[#6E5FE8]"}`}>
                     {t.choose}
                   </button>
                 </div>
@@ -1026,7 +1114,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="relative">
               <h2 className="text-[clamp(2.2rem,5.5vw,4.2rem)] leading-[1.02] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.ctaTitle}</h2>
               <p className="mt-4 text-[15px] text-white/70 max-w-md mx-auto">{t.ctaSub}</p>
-              <button type="button" onClick={onSigninClick} className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full bg-white text-[#0F0F1A] text-[15px] font-bold hover:scale-[1.02] transition focus-ring">
+              <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full bg-white text-[#0F0F1A] text-[15px] font-bold hover:scale-[1.02] transition focus-ring">
                 {t.start}<ArrowIcon className="w-4 h-4" />
               </button>
             </div>
@@ -1081,7 +1169,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* STICKY MOBILE CTA */}
       <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#FAFAF7]/95 backdrop-blur-xl border-t border-[#0F0F1A]/8">
-        <button type="button" onClick={onSigninClick} className="w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT }}>
+        <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT }}>
           {t.bookNow} · 50 {t.pts}
         </button>
       </div>
@@ -1117,7 +1205,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
               </p>
               <p className="text-[13px] text-[#0F0F1A]/70 leading-relaxed mb-5">{t.listenBody}</p>
-              <button type="button" onClick={onSigninClick} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>
+              <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>
                 {t.tryVoice} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
               </button>
             </motion.div>
