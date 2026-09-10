@@ -16,7 +16,7 @@ const ACCENT = "#6E5FE8";
 const INK = "#0F0F1A";
 const PAPER = "#FAFAF7";
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
-const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1788998622/discution.wav";
+const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
 const HERO_VIDEO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4";
 
 const GlobalStyles = () => (
@@ -32,8 +32,6 @@ const GlobalStyles = () => (
     .float { animation: float 5s ease-in-out infinite; }
     .float-slow { animation: float 7s ease-in-out infinite; }
 
-    .robot-glow { filter: drop-shadow(0 8px 16px rgba(110, 95, 232, 0.35)); }
-
     .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
     ::selection { background: ${ACCENT}; color: ${PAPER}; }
     ::-webkit-scrollbar { width: 10px; }
@@ -47,6 +45,47 @@ const GlobalStyles = () => (
     @media (hover: hover) {
       .card-lift:hover { transform: translateY(-6px); box-shadow: 0 20px 50px -20px rgba(110, 95, 232, 0.3); }
     }
+
+    /* ---------- ROBOT WIDGET ---------- */
+    .robot-svg { width: 60px; height: auto; overflow: visible; }
+    @media (min-width: 640px) { .robot-svg { width: 100px; } }
+
+    @keyframes rb-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.06); } }
+    .rb-eye { animation: rb-blink 4.8s infinite; transform-box: fill-box; transform-origin: center; }
+    .rb-eye.rb-r2 { animation-delay: .05s; }
+
+    .rb-hand-l, .rb-hand-r { transition: transform .3s; }
+    .robot-svg.rb-on .rb-hand-l { animation: rb-gestL 1.2s ease-in-out infinite; }
+    .robot-svg.rb-on .rb-hand-r { animation: rb-gestR 1.2s ease-in-out infinite .15s; }
+    @keyframes rb-gestL {
+      0%, 100% { transform: rotate(0deg) translateY(0); }
+      25% { transform: rotate(-18deg) translateY(-6px); }
+      50% { transform: rotate(8deg) translateY(-2px); }
+      75% { transform: rotate(-10deg) translateY(-4px); }
+    }
+    @keyframes rb-gestR {
+      0%, 100% { transform: rotate(0deg) translateY(0); }
+      25% { transform: rotate(16deg) translateY(-5px); }
+      50% { transform: rotate(-10deg) translateY(-3px); }
+      75% { transform: rotate(12deg) translateY(-6px); }
+    }
+
+    .rb-head-g { transition: transform .3s; }
+    .robot-svg.rb-on .rb-head-g { animation: rb-bob 2s ease-in-out infinite; }
+    @keyframes rb-bob {
+      0%, 100% { transform: rotate(0deg) translateY(0); }
+      30% { transform: rotate(-3deg) translateY(-2px); }
+      60% { transform: rotate(2deg) translateY(-1px); }
+    }
+
+    .robot-svg .rb-ef { fill: ${ACCENT}; transition: fill .25s; }
+    .robot-svg.rb-on .rb-ef { fill: #00E5FF; }
+    .robot-svg .rb-core { fill: ${ACCENT}; transition: fill .25s; }
+    .robot-svg.rb-on .rb-core { fill: #00E5FF; }
+    .robot-svg .rb-ao { fill: ${ACCENT}; transition: fill .25s; }
+    .robot-svg.rb-on .rb-ao { fill: #10B981; }
+    .robot-svg .rb-mb { fill: #2D2D44; transition: fill .25s; }
+    .robot-svg.rb-on .rb-mb { fill: ${ACCENT}; }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -168,7 +207,7 @@ const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boole
   </div>
 );
 
-// --- ROBOT WIDGET WITH AUDIO SYNCHRONIZED HALF-BODY ANIMATION ---
+// --- ROBOT WIDGET : simple, avec mains qui gesticulent + bouche synchro audio ---
 const RobotWidget = ({
   isPlaying,
   volume,
@@ -180,24 +219,25 @@ const RobotWidget = ({
   onToggle: () => void;
   isRTL: boolean;
 }) => {
-  const mouthHeight = isPlaying ? Math.max(3, Math.min(20, 3 + volume * 22)) : 3;
+  const F = [0.6, 1, 0.6];
+  const heights = F.map((f) => (isPlaying ? Math.max(5, 5 + volume * 16 * f) : 5));
 
   return (
     <motion.div
-      initial={{ y: 140, opacity: 0 }}
+      initial={{ y: 120, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", damping: 22, stiffness: 100, delay: 0.6 }}
-      className="fixed bottom-0 end-2 sm:end-8 z-[80] flex flex-col items-center select-none"
+      transition={{ type: "spring", damping: 22, stiffness: 100, delay: 0.5 }}
+      className="fixed bottom-0 end-2 sm:end-6 z-[80] flex flex-col items-center select-none"
     >
-      {/* Speech Bubble */}
+      {/* Bubble */}
       <AnimatePresence>
         <motion.div
           key={isPlaying ? "speaking" : "idle"}
-          initial={{ opacity: 0, y: 12, scale: 0.85 }}
+          initial={{ opacity: 0, y: 10, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 12, scale: 0.85 }}
+          exit={{ opacity: 0, y: 10, scale: 0.9 }}
           onClick={onToggle}
-          className="mb-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-[#0F0F1A] text-white text-[11px] sm:text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition-all"
+          className="mb-1 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-[#0F0F1A] text-white text-[11px] sm:text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition whitespace-nowrap"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[#6E5FE8] animate-ping" />
           <span>
@@ -209,105 +249,107 @@ const RobotWidget = ({
         </motion.div>
       </AnimatePresence>
 
-      {/* Half-Body Robot Button */}
+      {/* Robot Button */}
       <button
         type="button"
         onClick={onToggle}
         aria-label="Toggle Audio Robot"
-        className="relative group focus:outline-none robot-glow cursor-pointer transition transform hover:-translate-y-1"
+        className="relative group focus:outline-none focus-ring cursor-pointer"
+        style={{ filter: "drop-shadow(0 6px 14px rgba(110, 95, 232, 0.3))" }}
       >
         <svg
-          viewBox="0 0 160 170"
-          fill="none"
+          className={`robot-svg ${isPlaying ? "rb-on" : ""}`}
+          viewBox="0 0 140 160"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-[85px] h-[95px] sm:w-[140px] sm:h-[155px] overflow-visible"
+          aria-hidden="true"
         >
-          {/* --- HALF BODY / SHOULDERS --- */}
-          <path
-            d="M 25 170 C 25 130 50 110 80 110 C 110 110 135 130 135 170 Z"
-            fill="#0F0F1A"
-            stroke="#6E5FE8"
-            strokeWidth="4"
-          />
-          {/* Metallic Shoulders Plates */}
-          <path d="M 28 152 C 35 132 50 122 68 120" stroke="rgba(110, 95, 232, 0.4)" strokeWidth="3" strokeLinecap="round" />
-          <path d="M 132 152 C 125 132 110 122 92 120" stroke="rgba(110, 95, 232, 0.4)" strokeWidth="3" strokeLinecap="round" />
+          <defs>
+            <linearGradient id="rbG1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1E1E36" />
+              <stop offset="100%" stopColor="#0F0F1A" />
+            </linearGradient>
+            <filter id="rbGl" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" />
+            </filter>
+          </defs>
 
-          {/* Chest Heart / Core (Lights up when playing) */}
-          <circle cx="80" cy="142" r="12" fill="#18182A" stroke="#6E5FE8" strokeWidth="2.5" />
-          <circle
-            cx="80"
-            cy="142"
-            r={isPlaying ? "7" : "5"}
-            fill={isPlaying ? "#00E5FF" : "#6E5FE8"}
-            className={isPlaying ? "animate-pulse" : ""}
-            style={{ transition: "all 0.2s" }}
-          />
+          {/* BODY */}
+          <path d="M25 160 C25 130 45 116 70 116 C95 116 115 130 115 160Z" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3" />
+          <circle className="rb-core" cx="70" cy="142" r="5" />
+          <circle className="rb-core" cx="70" cy="142" r="8" opacity={0.3 + volume * 0.7} filter="url(#rbGl)" />
 
-          {/* --- NECK --- */}
-          <rect x="70" y="94" width="20" height="20" rx="4" fill="#1F1F35" stroke="#6E5FE8" strokeWidth="3" />
-          <line x1="74" y1="104" x2="86" y2="104" stroke="#6E5FE8" strokeWidth="2" />
-
-          {/* --- ROBOT HEAD --- */}
-          {/* Ears */}
-          <rect x="24" y="52" width="8" height="22" rx="4" fill="#6E5FE8" />
-          <rect x="128" y="52" width="8" height="22" rx="4" fill="#6E5FE8" />
-          
-          {/* Head Outer Frame */}
-          <rect x="30" y="24" width="100" height="76" rx="26" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="4.5" />
-          
-          {/* Antenna */}
-          <line x1="80" y1="24" x2="80" y2="7" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="80" cy="6" r="6" fill={isPlaying ? "#10B981" : "#6E5FE8"} className={isPlaying ? "animate-pulse" : ""} />
-
-          {/* Visor Screen */}
-          <rect x="42" y="36" width="76" height="48" rx="16" fill="#18182A" stroke="rgba(110,95,232,0.4)" strokeWidth="2" />
-
-          {/* Glowing Eyes */}
-          <circle cx="62" cy="54" r="7.5" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
-          <circle cx="62" cy="51.5" r="2.5" fill="#FFFFFF" />
-          
-          <circle cx="98" cy="54" r="7.5" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
-          <circle cx="98" cy="51.5" r="2.5" fill="#FFFFFF" />
-
-          {/* Animated Mouth Synced to Audio */}
-          <g transform="translate(80, 74)">
-            <rect
-              x="-16"
-              y={-mouthHeight / 2}
-              width="32"
-              height={mouthHeight}
-              rx={Math.min(mouthHeight / 2, 6)}
-              fill={isPlaying ? "#6E5FE8" : "#2D2D44"}
-              className="transition-all duration-75 ease-out"
-            />
-            {isPlaying && (
-              <path
-                d={`M -10 0 L -5 ${-mouthHeight / 4} L 0 ${mouthHeight / 4} L 5 ${-mouthHeight / 4} L 10 0`}
-                stroke="#FFFFFF"
-                strokeWidth="2"
-                strokeLinecap="round"
-                fill="none"
-              />
-            )}
+          {/* LEFT ARM + HAND */}
+          <g className="rb-hand-l" style={{ transformOrigin: "30px 130px" }}>
+            <path d="M30 132 C16 136 8 144 6 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="5" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+            <line x1="1" y1="150" x2="-2" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="4" y1="149" x2="3" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="8" y1="150" x2="9" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
           </g>
 
-          {/* --- ARM / RETRO STUDIO MICROPHONE --- */}
-          {/* Left Mechanical Arm reaching bottom */}
-          <path d="M 26 156 Q 10 162 14 170" stroke="#6E5FE8" strokeWidth="5.5" strokeLinecap="round" />
+          {/* RIGHT ARM + HAND */}
+          <g className="rb-hand-r" style={{ transformOrigin: "110px 130px" }}>
+            <path d="M110 132 C124 136 132 144 134 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="135" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+            <line x1="131" y1="150" x2="129" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="135" y1="149" x2="134" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="139" y1="150" x2="142" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+          </g>
 
-          {/* Right Mechanical Arm holding microphone */}
-          <path d="M 134 156 Q 152 148 146 126" stroke="#6E5FE8" strokeWidth="5.5" strokeLinecap="round" fill="none" />
-          {/* Hand joint */}
-          <circle cx="145" cy="122" r="6" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="2.5" />
-          
-          {/* Retro Mic Stand */}
-          <line x1="145" y1="122" x2="145" y2="102" stroke="#6E5FE8" strokeWidth="3" strokeLinecap="round" />
-          {/* Retro Mic Body */}
-          <rect x="139" y="86" width="12" height="16" rx="5" fill="#0F0F1A" stroke={isPlaying ? "#00E5FF" : "#6E5FE8"} strokeWidth="2.5" />
-          {/* Mic grill */}
-          <line x1="142" y1="91" x2="148" y2="91" stroke={isPlaying ? "#00E5FF" : "#6E5FE8"} strokeWidth="1.5" />
-          <line x1="142" y1="95" x2="148" y2="95" stroke={isPlaying ? "#00E5FF" : "#6E5FE8"} strokeWidth="1.5" />
+          {/* NECK */}
+          <rect x="62" y="100" width="16" height="18" rx="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2.5" />
+
+          {/* HEAD GROUP */}
+          <g className="rb-head-g" style={{ transformOrigin: "70px 60px" }}>
+            <rect x="30" y="24" width="80" height="80" rx="26" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3.5" />
+            <line x1="70" y1="24" x2="70" y2="10" stroke="#6E5FE8" strokeWidth="3" strokeLinecap="round" />
+            <circle className="rb-ao" cx="70" cy="8" r="4.5" />
+
+            {/* EARS */}
+            <rect x="22" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+            <rect x="110" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+
+            {/* EYES */}
+            <g className="rb-eye">
+              <circle className="rb-ef" cx="54" cy="56" r="7" />
+              <circle cx="52" cy="54" r="2.2" fill="#fff" />
+            </g>
+            <g className="rb-eye rb-r2">
+              <circle className="rb-ef" cx="86" cy="56" r="7" />
+              <circle cx="84" cy="54" r="2.2" fill="#fff" />
+            </g>
+
+            {/* MOUTH: 3 bars synced to audio */}
+            <g transform="translate(70,80)">
+              <rect
+                className="rb-mb"
+                x="-12"
+                y={-heights[0] / 2}
+                width="5"
+                height={heights[0]}
+                rx={Math.min(heights[0] / 2, 2.5)}
+                style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }}
+              />
+              <rect
+                className="rb-mb"
+                x="-2.5"
+                y={-heights[1] / 2}
+                width="5"
+                height={heights[1]}
+                rx={Math.min(heights[1] / 2, 2.5)}
+                style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }}
+              />
+              <rect
+                className="rb-mb"
+                x="7"
+                y={-heights[2] / 2}
+                width="5"
+                height={heights[2]}
+                rx={Math.min(heights[2] / 2, 2.5)}
+                style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }}
+              />
+            </g>
+          </g>
         </svg>
       </button>
     </motion.div>
@@ -369,6 +411,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const scrolled = useScrolled();
 
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const analyserDataRef = useRef<Uint8Array | null>(null);
+  const useAnalyserRef = useRef<boolean>(true);
+  const smoothRef = useRef<number>(0);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
   const [audioVolume, setAudioVolume] = useState(0);
   const animFrameRef = useRef<number | null>(null);
@@ -402,8 +449,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const initAnalyser = useCallback(() => {
+    if (audioCtxRef.current || !useAnalyserRef.current || !introAudioRef.current) return;
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AC();
+      const src = ctx.createMediaElementSource(introAudioRef.current);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.7;
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+      analyserDataRef.current = new Uint8Array(analyser.frequencyBinCount);
+    } catch (e) {
+      useAnalyserRef.current = false;
+      console.warn("Analyser indisponible, mode simulé :", e);
+    }
+  }, []);
+
+  const readLevel = useCallback((): number => {
+    if (analyserRef.current && analyserDataRef.current) {
+      analyserRef.current.getByteFrequencyData(analyserDataRef.current);
+      let sum = 0;
+      const n = 30;
+      for (let i = 2; i < n; i++) sum += analyserDataRef.current[i];
+      return Math.min(1, (sum / (n - 2) / 255) * 2.2);
+    }
+    const t = performance.now() * 0.011;
+    return Math.min(1, Math.abs(Math.sin(t) * Math.cos(t * 0.7)) * 0.8 + Math.random() * 0.2);
+  }, []);
+
   useEffect(() => {
     const audio = new Audio(INTRO_AUDIO_URL);
+    audio.crossOrigin = "anonymous";
     audio.preload = "auto";
     introAudioRef.current = audio;
 
@@ -412,26 +492,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setAudioVolume(0);
     };
 
-    const updateRhythm = () => {
+    const tick = () => {
       if (introAudioRef.current && !introAudioRef.current.paused) {
-        const time = performance.now() * 0.012;
-        const v = Math.abs(Math.sin(time) * Math.cos(time * 0.7)) * 0.8 + Math.random() * 0.2;
-        setAudioVolume(v);
-        animFrameRef.current = requestAnimationFrame(updateRhythm);
+        const raw = readLevel();
+        smoothRef.current = smoothRef.current * 0.5 + raw * 0.5;
+        setAudioVolume(smoothRef.current);
+        animFrameRef.current = requestAnimationFrame(tick);
       } else {
         setAudioVolume(0);
       }
     };
 
     audio.onplay = () => {
+      initAnalyser();
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
       setIsIntroPlaying(true);
-      animFrameRef.current = requestAnimationFrame(updateRhythm);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = requestAnimationFrame(tick);
     };
 
     audio.onpause = () => {
       setIsIntroPlaying(false);
       setAudioVolume(0);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+
+    audio.onerror = () => {
+      if (!useAnalyserRef.current) return;
+      useAnalyserRef.current = false;
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+      audio.removeAttribute("crossorigin");
+      audio.src = INTRO_AUDIO_URL;
+      audio.load();
     };
 
     const handleFirstInteraction = () => {
@@ -458,7 +553,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       audio.pause();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, []);
+  }, [initAnalyser, readLevel]);
 
   const stopIntroAudio = () => {
     if (introAudioRef.current && !introAudioRef.current.paused) {
@@ -480,11 +575,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
     heroKicker: isRTL ? "استوديو الدارجة" : "STUDIO DARIJA",
     heroTitle1: isRTL ? "صوت" : "Une voix",
-    heroTitle2: isRTL ? "لا يُفرَّق." : "indiscernable.",
+    heroTitle2: isRTL ? "لا يُفرَّق." : "indiscernable.",
     heroSub: isRTL
       ? "نصّك بالدارجة يولي صوتًا طبيعيًا في 30 ثانية. هنا تسمع البداية فقط… والباقي في الاستوديو."
-      : "Votre texte en darija devient une voix naturelle en 30 secondes. Ici, vous n’entendez que le début… la suite est dans le studio.",
-    bookNow: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
+      : "Votre texte en darija devient une voix naturelle en 30 secondes. Ici, vous n'entendez que le début… la suite est dans le studio.",
+    bookNow: isRTL ? "أكمل الاستماع" : "Continuer l'écoute",
     listenDemo: isRTL ? "اسمع 3 أصوات فقط" : "Écouter 3 voix",
     welcomeChip: isRTL ? "50 نقطة مجاناً. بدون بطاقة." : "50 points offerts. Sans carte.",
     creators: isRTL ? "مستخدم" : "créateurs",
@@ -492,24 +587,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     popularTitle: isRTL ? "9 أصوات. هنا 3 فقط." : "9 voix. Ici, seulement 3.",
     popularSub: isRTL
       ? "أمين، ياسمين، خالد. باقي الأصوات تسمعهم في الاستوديو."
-      : "Amine, Yasmine, Khalid. Les autres voix s’écoutent dans le studio.",
+      : "Amine, Yasmine, Khalid. Les autres voix s'écoutent dans le studio.",
     nRatings: isRTL ? "تقييم" : "avis",
-    tryVoice: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
+    tryVoice: isRTL ? "أكمل الاستماع" : "Continuer l'écoute",
     listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
     listenBody: isRTL
       ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة مجاناً، بدون بطاقة."
-      : "Ce n’est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
+      : "Ce n'est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
     journeyKicker: isRTL ? "بدون أن تتكلم" : "SANS MICRO",
     journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
-    journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d’attente.",
+    journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d'attente.",
     useKicker: isRTL ? "أين تستعمله" : "USAGES",
-    useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n’est plus du texte.",
+    useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n'est plus du texte.",
     costKicker: isRTL ? "وبكم" : "ET COMBIEN",
-    costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne couyez.",
+    costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne croyez.",
     costSub: isRTL
       ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي."
-      : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n’expirent pas.",
-    unleashTitle: isRTL ? "لن يعرفوا أنك بلا استوديو." : "Personne ne saura que vous n’avez pas de studio.",
+      : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n'expirent pas.",
+    unleashTitle: isRTL ? "لن يعرفوا أنك بلا استوديو." : "Personne ne saura que vous n'avez pas de studio.",
     unleashSub: isRTL
       ? "لا كابينة. لا ممثل تُدفع له. صوت يبيع. 50 نقطة مجاناً لتسمع الفرق بنفسك."
       : "Pas de cabine. Pas de comédien à payer. Une voix qui vend. 50 points offerts pour entendre la différence.",
@@ -517,18 +612,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     metricsKicker: isRTL ? "الأرقام" : "LES CHIFFRES",
     metricsTitle: isRTL ? "الأرقام لا تكذب." : "Les chiffres ne mentent pas.",
     testKicker: isRTL ? "من جرّب" : "ILS ONT TESTÉ",
-    testTitle: isRTL ? "من يسمع، يظنّه إنسانًا." : "Qui écoute croit entendre quelqu’un.",
+    testTitle: isRTL ? "من يسمع، يظنّه إنسانًا." : "Qui écoute croit entendre quelqu'un.",
     pricingKicker: isRTL ? "الأسعار" : "TARIFS",
     pricingTitle: isRTL ? "نقاط. بلا اشتراك." : "Des points. Sans abonnement.",
-    pricingSub: isRTL ? "بالدينار. بلا تاريخ انتهاء." : "En dinars. Sans date d’expiration.",
+    pricingSub: isRTL ? "بالدينار. بلا تاريخ انتهاء." : "En dinars. Sans date d'expiration.",
     welcomeBanner: isRTL
       ? "هدية الدخول: 50 نقطة مجاناً عند التسجيل."
-      : "Cadeau d’inscription : 50 points offerts.",
+      : "Cadeau d'inscription : 50 points offerts.",
     choose: isRTL ? "اختيار" : "Choisir",
     popular: isRTL ? "الأكثر طلبًا" : "Le plus demandé",
     faqKicker: "FAQ",
     faqTitle: isRTL ? "أسئلة متكررة" : "Questions fréquentes",
-    ctaTitle: isRTL ? "تريد أن تسمعه حتى النهاية؟" : "Envie d’entendre la suite ?",
+    ctaTitle: isRTL ? "تريد أن تسمعه حتى النهاية؟" : "Envie d'entendre la suite ?",
     ctaSub: isRTL ? "50 نقطة مجاناً. 9 أصوات. 3 فقط هنا. بدون بطاقة." : "50 points offerts. 9 voix. 3 seulement ici. Sans carte.",
     footTag: isRTL ? "صُنع في الجزائر" : "Fait en Algérie",
     switchLang: isRTL ? "FR" : "AR",
@@ -585,7 +680,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const journeySteps = [
     { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصك بالدارجة، بالعربية أو بالفرنسية." : "Collez votre texte en darija, en arabe ou en français." },
-    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "9 أصوات. هنا نعرض 3 فقط." : "9 voix. Ici, on n’en montre que 3." },
+    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "9 أصوات. هنا نعرض 3 فقط." : "9 voix. Ici, on n'en montre que 3." },
     { n: "3", t: isRTL ? "اضبط" : "Régler", d: isRTL ? "السرعة، النبرة، التأثيرات… الباقي في الاستوديو." : "Vitesse, timbre, effets… le reste est dans le studio." },
     { n: "4", t: isRTL ? "حمّل" : "Télécharger", d: isRTL ? "MP3 أو WAV. بلا علامة مائية. استعمال تجاري." : "MP3 ou WAV. Sans filigrane. Usage commercial." },
   ];
@@ -600,8 +695,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const metrics = [
     { n: 9, s: "", l: isRTL ? "صوت" : "voix" },
     { n: 1200, s: "+", l: isRTL ? "مستخدم" : "créateurs" },
-    { n: 50, s: "K+", l: isRTL ? "صوت مُولَّد" : "voix générées" },
-    { n: 99, s: "%", l: isRTL ? "لا يُفرَّق" : "indiscernable" },
+    { n: 50, s: "K+", l: isRTL ? "صوت مُولَّد" : "voix générées" },
+    { n: 99, s: "%", l: isRTL ? "لا يُفرَّق" : "indiscernable" },
   ];
 
   const testimonials = isRTL
@@ -611,9 +706,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         { q: "أفضل صوت جزائري سمعته. طبيعي 100٪ والدفع بالذهبية مريح.", n: "خالد م.", r: "تاجر إلكتروني، قسنطينة", img: "KM" },
       ]
     : [
-        { q: "J’ai testé 5 plateformes avant Sawtify. Ici, la voix sonne vraiment humaine. Mes clients ne font pas la différence.", n: "Amine B.", r: "Créateur, Alger", img: "AB" },
+        { q: "J'ai testé 5 plateformes avant Sawtify. Ici, la voix sonne vraiment humaine. Mes clients ne font pas la différence.", n: "Amine B.", r: "Créateur, Alger", img: "AB" },
         { q: "Utilisé pour mes pubs. Un rendu pro, sans studio.", n: "Yasmine K.", r: "Agence pub, Oran", img: "YK" },
-        { q: "La meilleure voix algérienne que j’ai entendue. Naturelle à 100 %, et le paiement Edahabia est simple.", n: "Khaled M.", r: "E-commerçant, Constantine", img: "KM" },
+        { q: "La meilleure voix algérienne que j'ai entendue. Naturelle à 100 %, et le paiement Edahabia est simple.", n: "Khaled M.", r: "E-commerçant, Constantine", img: "KM" },
       ];
 
   useEffect(() => {
@@ -637,9 +732,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         { q: "هل أجرّب مجانًا؟", a: "نعم. 50 نقطة مجاناً، بدون بطاقة. وهنا 3 أصوات فقط — الباقي في الاستوديو." },
       ]
     : [
-        { q: "La voix parle comme quelqu’un ?", a: "Oui. Darija vivante, 24 kHz. 99 % de ceux qui écoutent ne font pas la différence." },
-        { q: "Puis-je l’utiliser en pub ?", a: "Oui. Pub, YouTube, TikTok, standard — usage commercial, sans filigrane." },
-        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points offerts à l'inscription." },
+        { q: "La voix parle comme quelqu'un ?", a: "Oui. Darija vivante, 24 kHz. 99 % de ceux qui écoutent ne font pas la différence." },
+        { q: "Puis-je l'utiliser en pub ?", a: "Oui. Pub, YouTube, TikTok, standard — usage commercial, sans filigrane." },
+        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n'expirent pas. 50 points offerts à l'inscription." },
         { q: "Edahabia et CIB ?", a: "Oui, SATIM, en dinars. Pas besoin de carte étrangère." },
         { q: "Je peux essayer sans payer ?", a: "Oui. 50 points offerts, sans carte. Ici seulement 3 voix — les autres sont dans le studio." },
       ];
@@ -684,9 +779,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const legalCopy = {
     cgu: isRTL
       ? "شروط الاستخدام: صوتيفي منصة جزائرية لتحويل النص إلى صوت بالدارجة. الحساب شخصي. النقاط غير قابلة للتحويل نقدًا ولا تنتهي صلاحيتها. الاستعمال التجاري مسموح في حدود القانون الجزائري. يُمنع توليد محتوى غير قانوني أو مسيء. الدفع عبر SATIM (الذهبية / CIB). في حال فشل التوليد، تُعاد النقاط إلى رصيدك."
-      : "Conditions d’utilisation : Sawtify est une plateforme algérienne de conversion texte → voix en darija. Le compte est personnel. Les points ne sont pas remboursables en dinars et n’expirent pas. L’usage commercial est autorisé dans le cadre de la loi algérienne. Tout contenu illicite ou injurieux est interdit. Le paiement passe par SATIM (Edahabia / CIB). En cas d’échec de génération, les points sont recrédités.",
+      : "Conditions d'utilisation : Sawtify est une plateforme algérienne de conversion texte → voix en darija. Le compte est personnel. Les points ne sont pas remboursables en dinars et n'expirent pas. L'usage commercial est autorisé dans le cadre de la loi algérienne. Tout contenu illicite ou injurieux est interdit. Le paiement passe par SATIM (Edahabia / CIB). En cas d'échec de génération, les points sont recrédités.",
     privacy: isRTL
-      ? "الخصوصية: نحتفظ بالحد الأدنى من البيانات (البريد، الرصيد، النصوص المولَّدة) لتشغيل الحساب. لا نبيع بياناتك. يمكنك طلب حذف حسابك عبر صفحة التواصل. المدفوعات تُعالَج من طرف SATIM — صوتيفي لا يخزّن أرقام البطاقات."
+      ? "الخصوصية: نحتفظ بالحد الأدنى من البيانات (البريد، الرصيد، النصوص المولَّدة) لتشغيل الحساب. لا نبيع بياناتك. يمكنك طلب حذف حسابك عبر صفحة التواصل. المدفوعات تُعالَج من طرف SATIM — صوتيفي لا يخزّن أرقام البطاقات."
       : "Confidentialité : nous conservons le minimum (e-mail, solde, textes générés) pour faire fonctionner le compte. Nous ne vendons pas vos données. Vous pouvez demander la suppression du compte via Contact. Les paiements sont traités par SATIM — Sawtify ne stocke aucun numéro de carte.",
   };
 
@@ -772,15 +867,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* HERO SECTION WITH VIDEO BACKGROUND */}
       <section id="home" className="relative pt-28 pb-16 sm:pb-24 min-h-[90vh] flex items-center overflow-hidden">
-        {/* VIDEO BACKGROUND */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover opacity-20 scale-105"
-          >
+          <video autoPlay loop muted playsInline className="w-full h-full object-cover opacity-20 scale-105">
             <source src={HERO_VIDEO_URL} type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-gradient-to-b from-[#FAFAF7]/70 via-[#FAFAF7]/50 to-[#FAFAF7]" />
@@ -820,11 +908,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </button>
                   <button type="button" onClick={handleToggleIntroAudio} className="group h-12 px-5 rounded-full border border-[#0F0F1A]/15 bg-white/80 backdrop-blur-md hover:border-[#6E5FE8] text-[14px] font-semibold flex items-center gap-2.5 transition focus-ring">
                     <span className="w-7 h-7 rounded-full text-white flex items-center justify-center" style={{ background: ACCENT }}>
-                      {isIntroPlaying ? (
-                        <Pause className="w-2.5 h-3 fill-current" />
-                      ) : (
-                        <Play className="w-2.5 h-3 fill-current" />
-                      )}
+                      {isIntroPlaying ? <Pause className="w-2.5 h-3 fill-current" /> : <Play className="w-2.5 h-3 fill-current" />}
                     </span>
                     {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
@@ -874,10 +958,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 min-h-[64px]" dir="auto">
                     {isIntroPlaying ? (
                       isRTL 
-                        ? "“أنت تستمع حاليًا إلى الصوت التجريبي الحصري للمنصة الذي تم إطلاقه تلقائيًا عند تفاعلك الأول مع الصفحة...”"
-                        : "“Vous écoutez actuellement l'audio de démonstration exclusif de la plateforme, lancé automatiquement dès votre première interaction...”"
+                        ? "\u201Cأنت تستمع حاليًا إلى الصوت التجريبي الحصري للمنصة الذي تم إطلاقه تلقائيًا عند تفاعلك الأول مع الصفحة...\u201D"
+                        : "\u201CVous écoutez actuellement l'audio de démonstration exclusif de la plateforme, lancé automatiquement dès votre première interaction...\u201D"
                     ) : (
-                      <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
+                      <>\u201C{typed}{cutDone ? "…" : ""}\u201D{!cutDone && <span className="caret" aria-hidden />}</>
                     )}
                   </p>
                   {cutDone && !isIntroPlaying && (
@@ -991,15 +1075,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section id="process" className="py-16 sm:py-24 bg-white">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
           <div className="text-center mb-12">
-            <SlideUp>
-              <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.journeyKicker}</p>
-            </SlideUp>
-            <SlideUp delay={0.08}>
-              <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-3xl mx-auto" style={{ fontFamily: display }}>{t.journeyTitle}</h2>
-            </SlideUp>
-            <SlideUp delay={0.14}>
-              <p className="text-[14px] text-[#0F0F1A]/60 mt-4">{t.journeySub}</p>
-            </SlideUp>
+            <SlideUp><p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.journeyKicker}</p></SlideUp>
+            <SlideUp delay={0.08}><h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-3xl mx-auto" style={{ fontFamily: display }}>{t.journeyTitle}</h2></SlideUp>
+            <SlideUp delay={0.14}><p className="text-[14px] text-[#0F0F1A]/60 mt-4">{t.journeySub}</p></SlideUp>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {journeySteps.map((s, i) => (
@@ -1169,7 +1247,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4 fill-[#6E5FE8] text-[#6E5FE8]" />)}
                 </div>
                 <blockquote className="text-[clamp(1.25rem,2.8vw,1.9rem)] leading-[1.3] font-extrabold" style={{ fontFamily: display }}>
-                  “{testimonials[activeTesti].q}”
+                  \u201C{testimonials[activeTesti].q}\u201D
                 </blockquote>
                 <div className="mt-6 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-extrabold" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>
@@ -1370,7 +1448,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <Waveform color={listenVoice.color} playing bars={32} />
               </div>
               <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 mb-2" dir="auto">
-                “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
+                \u201C{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…\u201D
               </p>
               <p className="text-[13px] text-[#0F0F1A]/70 leading-relaxed mb-5">{t.listenBody}</p>
               <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>
@@ -1406,7 +1484,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH AND RETRO MIC */}
+      {/* ROBOT WIDGET */}
       <RobotWidget
         isPlaying={isIntroPlaying}
         volume={audioVolume}
