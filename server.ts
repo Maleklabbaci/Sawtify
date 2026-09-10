@@ -242,6 +242,9 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
 };
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
+// Une même preview peut être demandée plusieurs fois lors de clics rapides ou
+// de remounts frontend. Réutiliser la promesse évite de lancer plusieurs appels Gemini.
+const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
 
 function normalizeTextForTTS(text: string): string {
   let normalized = text;
@@ -714,22 +717,35 @@ async function startServer() {
       return res.json({ voice_id: voiceId, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5 });
     }
 
-    const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
-    const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
-    let wavBase64 = "";
-    const { pcmBuffer, error: synthError } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 2, speed, pitch, voiceId, []);
-
-    if (pcmBuffer) {
-      wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
-    } else {
-      console.warn(`[TTS Preview] Fallback synthétique pour ${voiceId} — erreur: ${synthError}`);
-      const basePitchFreq = ["Kore", "Zephyr", "Aoede", "Sulafat"].includes(selectedVoiceName) ? 210 : 150;
-      wavBase64 = generateSmoothVocalWavBuffer(2.6 / speed, basePitchFreq * pitch).toString("base64");
+    const inflight = PREVIEW_INFLIGHT.get(cacheKey);
+    if (inflight) {
+      const audioUrl = await inflight;
+      return res.json({ voice_id: voiceId, audio_url: audioUrl, duration_seconds: 2.5 });
     }
 
-    const dataUri = `data:audio/wav;base64,${wavBase64}`;
-    PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
-    return res.json({ voice_id: voiceId, audio_url: dataUri, duration_seconds: 2.5 });
+    const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
+    const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
+    const generation = (async () => {
+      let wavBase64 = "";
+      const { pcmBuffer, error: synthError } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 2, speed, pitch, voiceId, []);
+      if (pcmBuffer) {
+        wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
+      } else {
+        console.warn(`[TTS Preview] Fallback synthétique pour ${voiceId} — erreur: ${synthError}`);
+        const basePitchFreq = ["Kore", "Zephyr", "Aoede", "Sulafat"].includes(selectedVoiceName) ? 210 : 150;
+        wavBase64 = generateSmoothVocalWavBuffer(2.6 / speed, basePitchFreq * pitch).toString("base64");
+      }
+      const dataUri = `data:audio/wav;base64,${wavBase64}`;
+      PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
+      return dataUri;
+    })();
+    PREVIEW_INFLIGHT.set(cacheKey, generation);
+    try {
+      const dataUri = await generation;
+      return res.json({ voice_id: voiceId, audio_url: dataUri, duration_seconds: 2.5 });
+    } finally {
+      PREVIEW_INFLIGHT.delete(cacheKey);
+    }
   };
   app.get("/api/v1/tts/preview", previewLimiter, handleTTSPreview);
   app.get("/api/tts/preview", previewLimiter, handleTTSPreview);
@@ -754,6 +770,13 @@ async function startServer() {
       if (!text || typeof text !== "string" || !text.trim()) {
         return res.status(400).json({ detail: "Le texte fourni ne contient aucun caractère vocalement synthétisable." });
       }
+      // Une requête anonyme ou sans solde ne doit jamais atteindre Gemini.
+      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+      if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
+      const balanceBeforeGeneration = await getUserBalance(userId);
+      if (balanceBeforeGeneration !== null && balanceBeforeGeneration < BASE_POINTS_COST) {
+        return res.status(402).json({ error: `Solde de points insuffisant (${BASE_POINTS_COST} points minimum requis).` });
+      }
 
       const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
       const cleanText = normalizeTextForTTS(textForSpeech.replace(/\s+/g, " ").trim());
@@ -762,7 +785,7 @@ async function startServer() {
       let wavBase64 = "";
       let durationSeconds = Math.max(1.5, Math.round((cleanText.split(/\s+/).length / (2.8 * numSpeed)) * 10) / 10);
 
-      const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(cleanText, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
+      const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(cleanText, selectedVoiceName, 2, numSpeed, numPitch, requestedVoice, emotionTags);
       const usedFallback = !pcmBuffer;
 
       if (pcmBuffer && pcmBuffer.length > 50) {
@@ -779,7 +802,6 @@ async function startServer() {
       let generationId: string | null = null;
       let remainingBalance: number | null = null;
       if (userId) {
-        if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
         const { data, error: rpcError } = await supabaseClient.rpc('deduct_and_record_generation_service', {
           p_user_id: userId, p_amount: finalPointsCost, p_voice_id: requestedVoice, p_voice_name: selectedVoiceName,
           p_prompt: text, p_char_count: text.length, p_duration: durationSeconds, p_latency: Date.now() - startTime,
@@ -1110,25 +1132,8 @@ Style vocal souhaité : ${style || "excited"}`;
     console.log(`Server running on http://localhost:${PORT}`);
   });
 
-  // Préchauffage
-  (async () => {
-    console.log("[Cache] Préchauffage des extraits vocaux...");
-    const voicesToWarm = Object.keys(VOICE_PREVIEW_SCRIPTS);
-    for (const voiceId of voicesToWarm) {
-      const cacheKey = `${voiceId}_1.0_1.0`;
-      if (!PREVIEW_AUDIO_CACHE.has(cacheKey)) {
-        try {
-          const { pcmBuffer } = await synthesizeWithRetry(VOICE_PREVIEW_SCRIPTS[voiceId], GEMINI_VOICE_MAP[voiceId] || "Puck", 1, 1.0, 1.0, voiceId, []);
-          if (pcmBuffer) {
-            const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
-            PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
-            console.log(`[Cache] Aperçu prêt : ${voiceId}`);
-          }
-        } catch (e) { console.warn(`[Cache] Échec préchauffage ${voiceId}`); }
-      }
-    }
-    console.log("[Cache] Préchauffage terminé !");
-  })();
+  // Aucun préchauffage Gemini au démarrage : une instance redémarrée ne doit
+  // pas consommer 9 requêtes avant même qu'un utilisateur clique sur Preview.
 }
 
 startServer();
