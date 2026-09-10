@@ -125,36 +125,19 @@ function AppContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleDeductPoints = async (cost: number, record: GenerationRecord, storagePath?: string | null): Promise<boolean> => {
+  const handleDeductPoints = async (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null): Promise<boolean> => {
     try {
-      const { deductCreditsRPC } = await import('./services/supabaseClient');
-      const result = await deductCreditsRPC({
-        amount: cost,
-        voiceId: record.voiceId,
-        voiceName: record.voiceName,
-        prompt: record.text,
-        charCount: record.text.length,
-        durationSec: record.durationSec,
-        latencyMs: record.latencyMs,
-        storagePath: storagePath ?? null,
-      });
-
-      if (!result.success) {
-        showToast(
-          language === 'ar'
-            ? 'رصيد غير كافٍ أو خطأ في الخادم'
-            : (result.error === 'Insufficient credits balance'
-                ? 'Solde insuffisant côté serveur.'
-                : 'Erreur lors de la déduction des points.')
-        );
-        if (typeof result.balance === 'number') setBalance(result.balance);
-        return false;
+      // Le débit est maintenant fait côté serveur lors de la génération TTS.
+      // Cette fonction met à jour le chemin de stockage et l'état local.
+      if (storagePath) {
+        const { updateGenerationStoragePath } = await import('./services/supabaseClient');
+        await updateGenerationStoragePath(record.id, storagePath);
       }
 
-      const remaining = result.remaining_balance ?? balance - cost;
+      const remaining = typeof remainingBalance === 'number' ? remainingBalance : balance - cost;
       setBalance(remaining);
       setGenerations((prev) => [
-        { ...record, id: result.generation_id || record.id },
+        record,
         ...prev,
       ]);
       showToast(t.toastDeducted.replace('{balance}', remaining.toString()));

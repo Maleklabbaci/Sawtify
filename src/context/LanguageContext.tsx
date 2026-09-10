@@ -43,6 +43,7 @@ export interface Translations {
   emotionLabel: string;
   scriptTemplatesBtn: string;
   scriptPlaceholder: string;
+  textPlaceholder: string;
   copyScriptTooltip: string;
   charsCount: string;
   costLabel: string;
@@ -138,6 +139,7 @@ export const translations: Record<Language, Translations> = {
     emotionLabel: 'Émotions :',
     scriptTemplatesBtn: 'Modèles de script',
     scriptPlaceholder: 'Rédigez ou collez votre script en دارجة جزائرية ou arabe ici...',
+    textPlaceholder: 'Écrivez votre texte ici...',
     copyScriptTooltip: 'Copier le script',
     charsCount: 'caractères',
     costLabel: 'Coût',
@@ -226,6 +228,7 @@ export const translations: Record<Language, Translations> = {
     emotionLabel: 'المؤثرات الصوتية :',
     scriptTemplatesBtn: 'نماذج نصوص جاهزة',
     scriptPlaceholder: 'اكتب أو الصق نصك بالدارجة الجزائرية أو العربية هنا...',
+    textPlaceholder: 'اكتب نصك هنا...',
     copyScriptTooltip: 'نسخ النص',
     charsCount: 'حرف',
     costLabel: 'التكلفة',

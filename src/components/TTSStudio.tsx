@@ -17,7 +17,7 @@ import { WaveformPlayer } from './WaveformPlayer';
 
 interface TTSStudioProps {
   balance: number;
-  onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null) => Promise<boolean>;
+  onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
   onOpenRecharge: () => void;
   recentGenerations?: GenerationRecord[];
 }
@@ -214,19 +214,20 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         // téléchargeable dans l'historique après un rechargement de page.
         let storagePath: string | null = null;
         const { data: userData } = await supabase.auth.getUser();
+        const generationId = response.generation_id || `gen_${Date.now()}`;
         if (userData.user && audioBlob.size > 0) {
-          storagePath = await uploadGenerationAudio(userData.user.id, response.generation_id || `gen_${Date.now()}`, audioBlob);
+          storagePath = await uploadGenerationAudio(userData.user.id, generationId, audioBlob);
         }
 
         const record: GenerationRecord = { 
-          id: response.generation_id || ('gen_' + Date.now()), 
+          id: generationId, 
           text, voiceId: currentVoice.id, voiceName: currentVoice.name, 
           audioUrl: response.audio_url, pointsDeducted: realCost, 
           durationSec: response.duration_seconds || 0, 
           latencyMs: response.latency_ms, createdAt: new Date().toISOString() 
         };
 
-        await onDeductPoints(realCost, record, storagePath);
+        await onDeductPoints(realCost, record, storagePath, response.remaining_balance ?? null);
         showNotif(response.notification || `-${realCost} Points`);
         playGenerationChime();
       }

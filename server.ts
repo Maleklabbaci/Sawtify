@@ -7,15 +7,16 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const SLICKPAY_KEY = process.env.SLICKPAY_PUBLIC_KEY || "";
+const SLICKPAY_API_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
 const SLICKPAY_SANDBOX_KEY = process.env.SLICKPAY_SANDBOX_KEY || "";
 const SLICKPAY_BASE_URL = process.env.SLICKPAY_BASE_URL || "https://prodapi.slick-pay.com/api/v2";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const FRONTEND_URL = process.env.FRONTEND_URL || "";
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
-if (!SLICKPAY_KEY) console.warn("[Config] SLICKPAY_KEY manquante");
+if (!SLICKPAY_API_KEY) console.warn("[Config] SLICKPAY_API_KEY manquante");
 
 let supabaseClient: any = null;
 try { 
@@ -47,14 +48,15 @@ function mapGateway(method: string | undefined): string {
 }
 
 async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boolean; newBalance?: number; error?: string }> {
-  const entry = INVOICE_REGISTRY.get(String(invoiceId));
+  const entry = await loadInvoice(String(invoiceId));
   if (!entry) return { credited: false, error: 'invoice_unknown' };
   if (entry.credited) return { credited: true };
   if (!entry.userId) return { credited: false, error: 'no_user_linked' };
   if (!supabaseClient) return { credited: false, error: 'supabase_unavailable' };
   const { data, error } = await supabaseClient.rpc('credit_user_balance', { p_user_id: entry.userId, p_pack_id: entry.packId, p_gateway: mapGateway(entry.paymentMethod), p_gateway_reference: String(invoiceId), p_amount_dzd: entry.amountDZD, p_points: entry.points, p_payload: { source: 'sawtify_server', invoiceId } });
   if (error) return { credited: false, error: error.message };
-  entry.credited = true; entry.status = 'completed'; INVOICE_REGISTRY.set(String(invoiceId), entry);
+  entry.credited = true; entry.status = 'completed';
+  await saveInvoice(entry);
   return { credited: true, newBalance: data?.new_balance };
 }
 
@@ -85,6 +87,92 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+
+
+// ==========================================================================
+// HELPERS DÉPLOIEMENT / SÉCURITÉ
+// ==========================================================================
+
+function getPublicUrl(req?: express.Request, path = "/"): string {
+  const configured = FRONTEND_URL ? FRONTEND_URL.replace(/\/+$/, "") : "";
+  if (configured) return `${configured}${path}`;
+  if (!req) return path;
+  const trustedProto = req.get("x-forwarded-proto") || (req.protocol === "https" ? "https" : "http");
+  const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
+  return `${trustedProto}://${host}${path}`;
+}
+
+async function verifySlickPayInvoice(invoiceId: string): Promise<{ paid: boolean; data?: any }> {
+  if (!SLICKPAY_API_KEY) return { paid: false };
+  const endpoints = [
+    `${SLICKPAY_BASE_URL.replace(/\/+$/, "")}/users/invoices/${invoiceId}`,
+    `https://prodapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`,
+  ];
+  if (!SLICKPAY_BASE_URL.includes("devapi")) {
+    endpoints.push(`https://devapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`);
+  }
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const invoiceData = data.invoice || data.data || data;
+      const status = (invoiceData.status || "").toLowerCase();
+      const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
+      return { paid: isPaid, data: invoiceData };
+    } catch (e) {}
+  }
+  return { paid: false };
+}
+
+async function loadInvoice(invoiceId: string): Promise<any | null> {
+  let local = INVOICE_REGISTRY.get(invoiceId);
+  if (local) return local;
+  if (!supabaseClient) return null;
+  try {
+    const { data, error } = await supabaseClient.from("invoices").select("*").eq("id", invoiceId).single();
+    if (!error && data) {
+      INVOICE_REGISTRY.set(invoiceId, data);
+      return data;
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function saveInvoice(entry: any): Promise<void> {
+  INVOICE_REGISTRY.set(String(entry.id), entry);
+  if (!supabaseClient) return;
+  try {
+    await supabaseClient.from("invoices").upsert({
+      id: String(entry.id),
+      user_id: entry.userId,
+      pack_id: entry.packId,
+      pack_name: entry.packName,
+      amount_dzd: entry.amountDZD,
+      points_credited: entry.points,
+      payment_method: entry.paymentMethod,
+      status: entry.status,
+      payment_url: entry.paymentUrl,
+      payload: entry.payload || {},
+      created_at: entry.createdAt || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+  } catch (e) { console.warn("[Invoices] Save failed:", e); }
+}
+
+async function updateInvoiceStatus(invoiceId: string, status: string, extra: any = {}): Promise<void> {
+  const local = INVOICE_REGISTRY.get(invoiceId);
+  if (local) {
+    local.status = status as any;
+    Object.assign(local, extra);
+    INVOICE_REGISTRY.set(invoiceId, local);
+  }
+  if (!supabaseClient) return;
+  try {
+    await supabaseClient.from("invoices").update({ status, ...extra, updated_at: new Date().toISOString() }).eq("id", invoiceId);
+  } catch (e) {}
 }
 
 // ==========================================================================
@@ -562,17 +650,20 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
   app.use(express.json({ limit: "10mb" }));
 
-  const FRONTEND_URL = process.env.FRONTEND_URL || "*";
+  const allowedOrigin = FRONTEND_URL || (process.env.NODE_ENV !== "production" ? "*" : "");
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", FRONTEND_URL);
+    const origin = req.get("origin") || "";
+    if (allowedOrigin === "*" || !allowedOrigin || origin === allowedOrigin) {
+      res.setHeader("Access-Control-Allow-Origin", allowedOrigin || origin || "*");
+    }
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
     if (req.method === "OPTIONS") return res.sendStatus(200);
     next();
   });
+  // Headers permissifs pour OAuth Google ; à durcir si tu n'utilises pas d'iframe cross-origin.
   app.use((req, res, next) => {
-    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-    res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
     next();
   });
 
@@ -611,7 +702,7 @@ async function startServer() {
   app.get("/api/tts/preview", handleTTSPreview);
 
   /* ==========================================================================
-     TTS GENERATE
+     TTS GENERATE (débit côté serveur)
      ========================================================================== */
   const handleTTSGenerate = async (req: express.Request, res: express.Response) => {
     const startTime = Date.now();
@@ -623,13 +714,6 @@ async function startServer() {
 
     if (!text || typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ detail: "Le texte fourni ne contient aucun caractère vocalement synthétisable." });
-    }
-
-    if (userId) {
-      const currentBalance = await getUserBalance(userId);
-      if (currentBalance !== null && currentBalance < BASE_POINTS_COST) {
-        return res.status(402).json({ error: "Solde de points insuffisant (20 points minimum requis)." });
-      }
     }
 
     const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
@@ -658,7 +742,31 @@ async function startServer() {
     }
 
     const finalPointsCost = computePointsCost(durationSeconds);
-    const remainingBalance: number | null = userId ? await getUserBalance(userId) : null;
+
+    // Débit côté serveur + enregistrement de la génération (uniquement si authentifié).
+    let generationId: string | null = null;
+    let remainingBalance: number | null = null;
+    if (userId) {
+      if (!supabaseClient) {
+        return res.status(503).json({ error: "Base de données indisponible." });
+      }
+      const { data, error: rpcError } = await supabaseClient.rpc('deduct_and_record_generation_service', {
+        p_user_id: userId,
+        p_amount: finalPointsCost,
+        p_voice_id: requestedVoice,
+        p_voice_name: selectedVoiceName,
+        p_prompt: text,
+        p_char_count: text.length,
+        p_duration: durationSeconds,
+        p_latency: Date.now() - startTime,
+      });
+      if (rpcError || !data?.success) {
+        const msg = rpcError?.message || data?.error || "Solde insuffisant ou erreur de débit.";
+        return res.status(rpcError ? 500 : 402).json({ error: msg });
+      }
+      generationId = data.generation_id;
+      remainingBalance = data.remaining_balance;
+    }
 
     return res.json({
       status: "success",
@@ -667,12 +775,12 @@ async function startServer() {
       audio_url: `data:audio/wav;base64,${wavBase64}`,
       format: "wav",
       sample_rate: 24000,
-      generation_id: `gen_${Date.now()}`,
+      generation_id: generationId || `gen_${Date.now()}`,
       duration_seconds: durationSeconds,
       latency_ms: Date.now() - startTime,
-      points_deducted: finalPointsCost,
-      points_cost: finalPointsCost,
-      notification: `-${finalPointsCost} Points`,
+      points_deducted: userId ? finalPointsCost : 0,
+      points_cost: userId ? finalPointsCost : 0,
+      notification: userId ? `-${finalPointsCost} Points` : "Aperçu gratuit",
       remaining_balance: remainingBalance,
       voice_id: requestedVoice,
       gemini_voice: selectedVoiceName,
@@ -1001,45 +1109,32 @@ Style vocal souhaité : ${style || "excited"}`;
         if (packErr || !packRow) return res.status(400).json({ success: false, error: "Pack inconnu." });
         packName = packRow.name; numAmount = Number(packRow.price_dzd); numPoints = Number(packRow.points);
       } else return res.status(503).json({ success: false, error: "Paiement indisponible." });
-      const host = req.get("host") || "localhost:3000";
-      const protocol = req.protocol === "https" || host.includes("run.app") ? "https" : "http";
-      const returnUrl = `${protocol}://${host}/?payment_status=success&pack_id=${packId}&points=${numPoints}`;
+
+      const returnUrl = getPublicUrl(req, `/?payment_status=success&pack_id=${packId}&points=${numPoints}`);
       let cleanPhone = phone.replace(/[^0-9]/g, '');
       if (cleanPhone.startsWith('213') && cleanPhone.length > 9) cleanPhone = '0' + cleanPhone.slice(3);
       if (!cleanPhone || cleanPhone.length < 9) cleanPhone = "0550123456";
       let defaultAccountUuid: string | undefined = undefined, contactUuid: string | undefined = undefined;
-      try { const accRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/accounts", { headers: { "Authorization": `Bearer ${SLICKPAY_KEY}`, "Accept": "application/json" } }); if (accRes.ok) { const accData = await accRes.json(); const list = accData.data || accData.accounts || (Array.isArray(accData) ? accData : []); if (list.length > 0) defaultAccountUuid = list[0].uuid || list[0].id; } } catch (e) {}
-      try { const contactRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/contacts", { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger" }) }); if (contactRes.ok) { const contactData = await contactRes.json(); contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; } } catch (e) {}
+      try { const accRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/accounts", { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } }); if (accRes.ok) { const accData = await accRes.json(); const list = accData.data || accData.accounts || (Array.isArray(accData) ? accData : []); if (list.length > 0) defaultAccountUuid = list[0].uuid || list[0].id; } } catch (e) {}
+      try { const contactRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/contacts", { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger" }) }); if (contactRes.ok) { const contactData = await contactRes.json(); contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; } } catch (e) {}
       const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
-      const payloadA: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger", note: `Sawtify - ${packName}`, items: itemsList };
-      if (defaultAccountUuid) payloadA.account = defaultAccountUuid; if (contactUuid) payloadA.contact = contactUuid;
-      const payloadC: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: "Alger", note: `Test ${numPoints} pts`, items: itemsList };
+      const payload: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger", note: `Sawtify - ${packName}`, items: itemsList };
+      if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
-      const isDevConfigured = SLICKPAY_BASE_URL.includes('devapi');
-      const callConfigs = isDevConfigured
-        ? [ { url: "https://devapi.slick-pay.com/api/v2/users/invoices", key: SLICKPAY_KEY, payload: payloadC, desc: "DevAPI" }, { url: "https://devapi.slick-pay.com/api/v2/users/invoices", key: SLICKPAY_SANDBOX_KEY, payload: payloadC, desc: "Sandbox" }, { url: "https://prodapi.slick-pay.com/api/v2/users/invoices", key: SLICKPAY_KEY, payload: payloadA, desc: "Prod" } ]
-        : [ { url: primaryUrl, key: SLICKPAY_KEY, payload: payloadA, desc: "Prod" }, { url: "https://devapi.slick-pay.com/api/v2/users/invoices", key: SLICKPAY_KEY, payload: payloadC, desc: "DevAPI" }, { url: "https://devapi.slick-pay.com/api/v2/users/invoices", key: SLICKPAY_SANDBOX_KEY, payload: payloadC, desc: "Sandbox" } ];
-      let lastResult: any = null, successfulInvoice: any = null;
-      for (const config of callConfigs) {
-        try {
-          const spRes = await fetch(config.url, { method: "POST", headers: { "Authorization": `Bearer ${config.key}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(config.payload) });
-          const spText = await spRes.text();
-          let spData: any;
-          try { spData = JSON.parse(spText); } catch { spData = { message: spText }; }
-          if (spRes.ok && spData && (spData.success === 1 || spData.id || spData.url)) { successfulInvoice = spData; break; }
-          else lastResult = spData;
-        } catch (e) {}
+
+      const spRes = await fetch(primaryUrl, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(payload) });
+      const spText = await spRes.text();
+      let spData: any;
+      try { spData = JSON.parse(spText); } catch { spData = { message: spText }; }
+      if (!spRes.ok || !(spData && (spData.success === 1 || spData.id || spData.url))) {
+        return res.status(502).json({ success: false, error: "Impossible de créer la facture SlickPay.", diagnostics: spData });
       }
-      if (successfulInvoice) {
-        const invoiceId = successfulInvoice.id || `INV_${Date.now()}`;
-        const paymentUrl = successfulInvoice.url || "";
-        INVOICE_REGISTRY.set(String(invoiceId), { invoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", paymentUrl, createdAt: new Date().toISOString(), userId });
-        if (supabaseClient) { try { await supabaseClient.from("invoices").upsert({ id: String(invoiceId), pack_id: packId, pack_name: packName, amount_dzd: numAmount, points_credited: numPoints, payment_method: paymentMethod, status: "pending", payment_url: paymentUrl, created_at: new Date().toISOString() }); } catch (e) {} }
-        return res.json({ success: true, status: "created", invoiceId, paymentUrl, message: successfulInvoice.message || "Facture créée", raw: successfulInvoice });
-      }
-      const fallbackInvoiceId = `SLICK_${Date.now().toString(36).toUpperCase()}`;
-      INVOICE_REGISTRY.set(fallbackInvoiceId, { invoiceId: fallbackInvoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", createdAt: new Date().toISOString(), userId });
-      return res.json({ success: true, status: "fallback_ready", invoiceId: fallbackInvoiceId, paymentUrl: `${protocol}://${host}/?payment_status=success`, message: "Session initialisée", diagnostics: lastResult });
+
+      const invoiceId = spData.id || `INV_${Date.now()}`;
+      const paymentUrl = spData.url || "";
+      const entry = { id: String(invoiceId), invoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", paymentUrl, createdAt: new Date().toISOString(), userId, payload: spData };
+      await saveInvoice(entry);
+      return res.json({ success: true, status: "created", invoiceId, paymentUrl, message: spData.message || "Facture créée", raw: spData });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -1047,39 +1142,28 @@ Style vocal souhaité : ${style || "excited"}`;
 
   app.get("/api/slickpay/check-status/:invoiceId", async (req, res) => {
     const { invoiceId } = req.params;
-    const localRecord = INVOICE_REGISTRY.get(String(invoiceId));
-    try {
-      const endpoints = [`${SLICKPAY_BASE_URL}/users/invoices/${invoiceId}`, `https://prodapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`, `https://devapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`];
-      for (const ep of endpoints) {
-        try {
-          const spRes = await fetch(ep, { headers: { "Authorization": `Bearer ${SLICKPAY_KEY}`, "Accept": "application/json" } });
-          if (spRes.ok) {
-            const data = await spRes.json();
-            const invoiceData = data.invoice || data.data || data;
-            const status = (invoiceData.status || "").toLowerCase();
-            const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
-            let creditResult: { credited: boolean; newBalance?: number } | undefined;
-            if (isPaid && localRecord) {
-              localRecord.status = "completed";
-              INVOICE_REGISTRY.set(String(invoiceId), localRecord);
-              creditResult = await creditIfPaid(invoiceId);
-            }
-            return res.json({ success: true, invoiceId, status: isPaid ? "completed" : status || "pending", isPaid, newBalance: creditResult?.newBalance, data: invoiceData });
-          }
-        } catch (e) {}
-      }
-    } catch (err) {}
-    return res.json({ success: true, invoiceId, status: localRecord?.status || "pending", isPaid: localRecord?.status === "completed" || localRecord?.status === "paid" });
+    const localRecord = await loadInvoice(String(invoiceId));
+    const verification = await verifySlickPayInvoice(invoiceId);
+    if (verification.paid && localRecord && localRecord.status !== "completed" && localRecord.status !== "paid") {
+      await updateInvoiceStatus(invoiceId, "completed");
+      const creditResult = await creditIfPaid(invoiceId);
+      return res.json({ success: true, invoiceId, status: "completed", isPaid: true, newBalance: creditResult.newBalance, data: verification.data });
+    }
+    const currentStatus = verification.data?.status?.toLowerCase() || localRecord?.status || "pending";
+    return res.json({ success: true, invoiceId, status: currentStatus, isPaid: verification.paid, data: verification.data });
   });
 
   app.post("/api/slickpay/confirm-payment", async (req, res) => {
     try {
       const { invoiceId } = req.body;
       if (!invoiceId) return res.status(400).json({ success: false, error: "invoiceId manquant." });
-      const entry = INVOICE_REGISTRY.get(String(invoiceId));
+      const entry = await loadInvoice(String(invoiceId));
       if (!entry) return res.status(404).json({ success: false, error: "Facture inconnue." });
       const requesterId = await getUserIdFromAuthHeader(req);
       if (!requesterId || requesterId !== entry.userId) return res.status(403).json({ success: false, error: "Interdit." });
+      const verification = await verifySlickPayInvoice(invoiceId);
+      if (!verification.paid) return res.status(402).json({ success: false, error: "Paiement non confirmé par SlickPay." });
+      await updateInvoiceStatus(invoiceId, "completed");
       const result = await creditIfPaid(invoiceId);
       if (!result.credited) return res.status(500).json({ success: false, error: result.error || "Erreur crédit." });
       return res.json({ success: true, message: "Paiement validé", newBalance: result.newBalance, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
@@ -1090,14 +1174,15 @@ Style vocal souhaité : ${style || "excited"}`;
 
   app.post("/api/slickpay/webhook", async (req, res) => {
     try {
-      const { id, invoice_id, status, event } = req.body;
+      const { id, invoice_id } = req.body;
       const targetId = id || invoice_id;
-      if (targetId) {
-        const isCompleted = status === "completed" || status === "paid" || event === "invoice.paid";
-        const local = INVOICE_REGISTRY.get(String(targetId));
-        if (local) { local.status = isCompleted ? "completed" : "pending"; INVOICE_REGISTRY.set(String(targetId), local); }
-        if (supabaseClient) { try { await supabaseClient.from("invoices").update({ status: isCompleted ? "paid" : status || "updated", updated_at: new Date().toISOString() }).eq("id", String(targetId)); } catch (e) {} }
-        if (isCompleted) await creditIfPaid(targetId);
+      if (!targetId) return res.json({ received: true, warning: "No invoice id" });
+      // On ne fait pas confiance au body : on vérifie auprès de l'API SlickPay.
+      const verification = await verifySlickPayInvoice(targetId);
+      if (verification.paid) {
+        const local = await loadInvoice(String(targetId));
+        if (local) await updateInvoiceStatus(String(targetId), "completed");
+        await creditIfPaid(targetId);
       }
       return res.json({ received: true });
     } catch (webhookErr: any) {
@@ -1106,13 +1191,14 @@ Style vocal souhaité : ${style || "excited"}`;
   });
 
   app.get("/api/supabase/purchases", async (req, res) => {
-    if (supabaseClient) {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (supabaseClient && userId) {
       try {
-        const { data, error } = await supabaseClient.from("purchases").select("*").order("created_at", { ascending: false }).limit(20);
+        const { data, error } = await supabaseClient.from("transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
         if (!error && data) return res.json({ success: true, purchases: data });
       } catch (err) {}
     }
-    return res.json({ success: true, purchases: Array.from(INVOICE_REGISTRY.values()) });
+    return res.json({ success: true, purchases: [] });
   });
 
   if (process.env.NODE_ENV !== "production") {

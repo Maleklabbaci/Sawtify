@@ -27,8 +27,10 @@ import { CreditPack, PurchaseRecord } from '../types';
 interface PricingPageProps {
   balance: number;
   onRechargeSuccess: (pack: CreditPack, method: 'edahabia' | 'cib', record: PurchaseRecord) => void;
-  onNavigateToStudio: () => void;
+  onNavigateToStudio?: () => void;
   preselectedPackId?: string;
+  purchases?: PurchaseRecord[];
+  language?: string;
 }
 
 export const PricingPage: React.FC<PricingPageProps> = ({

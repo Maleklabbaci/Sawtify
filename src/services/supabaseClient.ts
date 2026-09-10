@@ -253,3 +253,17 @@ export async function deductCreditsRPC(params: DeductCreditsParams): Promise<Ded
 
   return data as DeductCreditsResult;
 }
+
+export async function updateGenerationStoragePath(generationId: string, storagePath: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('update_generation_storage_path', {
+    p_generation_id: generationId,
+    p_storage_path: storagePath,
+  });
+
+  if (error) {
+    console.warn('[Sawtify] Erreur mise à jour storage path:', error.message);
+    return false;
+  }
+
+  return data?.success || false;
+}
