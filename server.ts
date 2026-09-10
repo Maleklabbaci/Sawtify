@@ -6,9 +6,30 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
-import pLimit from "p-limit";
 
 dotenv.config();
+
+function createLimiter(concurrency: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  const next = () => {
+    active--;
+    if (queue.length > 0) queue.shift()!();
+  };
+  return function limit<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const run = () => {
+        active++;
+        fn().then(
+          (v) => { resolve(v); next(); },
+          (e) => { reject(e); next(); }
+        );
+      };
+      if (active < concurrency) run();
+      else queue.push(run);
+    });
+  };
+}
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const SLICKPAY_API_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
@@ -68,7 +89,7 @@ async function getUserIdFromAuthHeader(req: express.Request): Promise<string | n
 
 // Limite la génération TTS simultanée pour éviter de saturer le serveur.
 const TTS_CONCURRENCY_LIMIT = Number(process.env.TTS_CONCURRENCY_LIMIT) || 6;
-const TTS_CONCURRENCY = pLimit(TTS_CONCURRENCY_LIMIT);
+const TTS_CONCURRENCY = createLimiter(TTS_CONCURRENCY_LIMIT);
 const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
 const TTS_AVG_SECONDS_PER_JOB = 6;
 
@@ -132,6 +153,12 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 // ==========================================================================
 // HELPERS DÉPLOIEMENT / SÉCURITÉ
 // ==========================================================================
+
+function getClientIp(req: express.Request): string {
+  const forwarded = req.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
+  return req.ip || "unknown";
+}
 
 function getPublicUrl(req?: express.Request, path = "/"): string {
   const configured = FRONTEND_URL ? FRONTEND_URL.replace(/\/+$/, "") : "";
@@ -1309,6 +1336,42 @@ Style vocal souhaité : ${style || "excited"}`;
       } catch (err) {}
     }
     return res.json({ success: true, purchases: [] });
+  });
+
+  // Limite les 50 points de bienvenue à une seule fois par IP : si l'IP a déjà
+  // servi à créer un compte, on retire le bonus du nouveau compte (empêche la
+  // création de plusieurs comptes Gmail depuis la même IP pour cumuler les points).
+  app.post("/api/auth/claim-welcome-bonus", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      if (!supabaseClient) return res.status(503).json({ success: false, error: "Service indisponible." });
+
+      const ip = getClientIp(req);
+      const { data: inserted, error: insertErr } = await supabaseClient
+        .from("ip_claims")
+        .insert({ ip, user_id: userId })
+        .select()
+        .single();
+
+      if (!insertErr && inserted) {
+        // Première inscription depuis cette IP : le bonus de 50 points (déjà
+        // crédité par le trigger Supabase à la création du compte) est conservé.
+        return res.json({ success: true, welcomeGranted: true });
+      }
+
+      // IP déjà utilisée par un autre compte : on retire le bonus si le solde
+      // est encore intact (évite d'écraser un solde déjà entamé par erreur de rejeu).
+      await supabaseClient
+        .from("profiles")
+        .update({ credits_balance: 0 })
+        .eq("id", userId)
+        .eq("credits_balance", 50);
+
+      return res.json({ success: true, welcomeGranted: false });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   if (process.env.NODE_ENV !== "production") {

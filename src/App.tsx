@@ -80,6 +80,14 @@ function AppContent() {
           if (consumeSignupIntent()) {
             setPendingUserEmail(session.user.email ?? null);
             setNeedsPasswordSetup(true);
+            import('./services/supabaseClient').then(({ claimWelcomeBonus }) => {
+              claimWelcomeBonus().then((granted) => {
+                if (!granted) {
+                  refreshAccountData();
+                  showToast(language === 'ar' ? 'تم إنشاء الحساب. تم استخدام نقاط الترحيب من هذا العنوان مسبقاً.' : 'Compte créé. Les points de bienvenue ont déjà été utilisés depuis cette adresse.');
+                }
+              });
+            });
           } else {
             showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
           }

@@ -254,6 +254,29 @@ export async function deductCreditsRPC(params: DeductCreditsParams): Promise<Ded
   return data as DeductCreditsResult;
 }
 
+/**
+ * À appeler une seule fois, juste après une inscription (SIGNED_IN + intent
+ * signup) : demande au serveur de vérifier si l'IP a déjà servi à créer un
+ * compte et de retirer le bonus de 50 points si c'est le cas.
+ */
+export async function claimWelcomeBonus(): Promise<boolean> {
+  try {
+    const token = await getMyAccessToken();
+    if (!token) return false;
+    const { API_BASE_URL } = await import('../config/apiBase');
+    const res = await fetch(`${API_BASE_URL}/api/auth/claim-welcome-bonus`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.welcomeGranted === true;
+  } catch (e) {
+    console.warn('[Sawtify] Erreur vérification bonus de bienvenue:', e);
+    return false;
+  }
+}
+
 export async function updateGenerationStoragePath(generationId: string, storagePath: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('update_generation_storage_path', {
     p_generation_id: generationId,

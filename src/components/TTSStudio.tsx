@@ -184,6 +184,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     let errMsg = '';
     try {
       const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(tag => tag.replace(/[\[\]]/g, ''));
+      if (extractedTags.length === 0) {
+        showNotif(language === 'ar' ? '💡 أضف وسم عاطفة لصوت أكثر تعبيرًا' : '💡 Ajoutez une balise d\'émotion pour un rendu plus expressif');
+      }
       const response = await requestTTSGeneration({ 
         text, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags 
       }, balance);
