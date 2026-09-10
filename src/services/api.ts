@@ -158,10 +158,10 @@ export async function requestTTSGeneration(params: TTSApiRequest, currentBalance
       // laissait le code continuer silencieusement vers la synthèse locale
       // et facturait un son bidon comme si c'était la vraie génération.
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorData.error || 'Erreur du serveur de génération.');
+      throw new Error(`[SERVER_ERROR]${errorData.detail || errorData.error || 'Erreur du serveur de génération.'}`);
     }
   } catch (err: any) {
-    if (err.message && (err.message.includes('Solde insuffisant') || err.message.includes('serveur de génération'))) {
+    if (err.message && (err.message.startsWith('[SERVER_ERROR]') || err.message.includes('Solde insuffisant') || err.message.includes('serveur de génération'))) {
       throw err;
     }
     // Ici uniquement : vraie panne réseau (offline, DNS, timeout de connexion)

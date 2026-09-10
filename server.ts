@@ -812,6 +812,9 @@ async function startServer() {
       if (!text || typeof text !== "string" || !text.trim()) {
         return res.status(400).json({ detail: "Le texte fourni ne contient aucun caractère vocalement synthétisable." });
       }
+      if (text.length > 5000) {
+        return res.status(400).json({ error: "Texte trop long (maximum 5000 caractères)." });
+      }
       // Une requête anonyme ou sans solde ne doit jamais atteindre Gemini.
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
@@ -833,6 +836,12 @@ async function startServer() {
       const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(cleanText, selectedVoiceName, 2, numSpeed, numPitch, requestedVoice, emotionTags);
       console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, success: Boolean(pcmBuffer), maxRetries: 2 }));
       const usedFallback = !pcmBuffer;
+
+      // Un audio synthétique n'est pas la voix payante demandée : ne jamais le
+      // retourner comme une génération réussie et ne jamais débiter l'utilisateur.
+      if (usedFallback) {
+        return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15, detail: synthError });
+      }
 
       if (pcmBuffer && pcmBuffer.length > 50) {
         wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
@@ -964,7 +973,10 @@ Génère maintenant la version optimisée :`;
       if (!/^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim())) enhancedText = `[natural] ${enhancedText}`;
 
       const reduction = await deductCredits(userId, pointsCost);
-      const finalBalance = reduction.success ? reduction.remaining : currentBalance;
+      if (!reduction.success) {
+        return res.status(402).json({ error: reduction.error || "Le débit des points a échoué. Aucun résultat payant n'a été validé." });
+      }
+      const finalBalance = reduction.remaining;
 
       return res.json({
         success: true, enhanced_text: enhancedText, points_deducted: pointsCost, points_cost: pointsCost,
@@ -1019,7 +1031,10 @@ Style vocal souhaité : ${style || "excited"}`;
       scriptText = scriptText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Structure|Accroche|Problème|Solution|CTA)\s*:?/gi, "").trim();
 
       const reduction = await deductCredits(userId, pointsCost);
-      const finalBalance = reduction.success ? reduction.remaining : currentBalance;
+      if (!reduction.success) {
+        return res.status(402).json({ error: reduction.error || "Le débit des points a échoué. Aucun résultat payant n'a été validé." });
+      }
+      const finalBalance = reduction.remaining;
 
       return res.json({
         success: true, script: scriptText, points_deducted: pointsCost, points_cost: pointsCost,
@@ -1038,7 +1053,8 @@ Style vocal souhaité : ${style || "excited"}`;
     try {
       const userId = await getUserIdFromAuthHeader(req);
       const { input_text, output_text, rating, type, region, sector } = req.body;
-      if (!output_text || typeof rating !== "number") return res.status(400).json({ error: "Données feedback invalides." });
+      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+      if (!output_text || typeof rating !== "number" || rating < 1 || rating > 5) return res.status(400).json({ error: "Données feedback invalides." });
       if (supabaseClient) {
         try { await supabaseClient.from("ai_feedback").insert({ user_id: userId || null, input_text: input_text || "", output_text, rating, type: type || "enhance", region: region || "general", sector: sector || "general", created_at: new Date().toISOString() }); } catch (e: any) { console.warn("[AI Feedback] Insert failed:", e.message); }
       }
@@ -1101,6 +1117,10 @@ Style vocal souhaité : ${style || "excited"}`;
   app.get("/api/slickpay/check-status/:invoiceId", async (req, res) => {
     const { invoiceId } = req.params;
     const localRecord = await loadInvoice(String(invoiceId));
+    const requesterId = await getUserIdFromAuthHeader(req);
+    if (!requesterId || !localRecord || requesterId !== localRecord.userId) {
+      return res.status(403).json({ success: false, error: "Accès interdit." });
+    }
     const verification = await verifySlickPayInvoice(invoiceId);
     if (verification.paid && localRecord && localRecord.status !== "completed" && localRecord.status !== "paid") {
       await updateInvoiceStatus(invoiceId, "completed");
