@@ -98,6 +98,7 @@ const SLICKPAY_CONTACT_CACHE = new Map<string, string>();
 const LLM_RESPONSE_CACHE = new Map<string, { result: string; ts: number }>();
 const LLM_CACHE_MAX_SIZE = 200;
 const LLM_CACHE_TTL_MS = 1000 * 60 * 30;
+const DAILY_TTS_LIMIT = Number(process.env.DAILY_TTS_LIMIT) || 20;
 
 const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
 function mapGateway(method: string | undefined): string { 
@@ -123,6 +124,19 @@ async function getUserBalance(userId: string): Promise<number | null> {
     const { data: profile } = await supabaseClient.from("profiles").select("credits_balance").eq("id", userId).single();
     return profile ? profile.credits_balance : null;
   } catch { return null; }
+}
+
+async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
+  if (!supabaseClient || DAILY_TTS_LIMIT <= 0) return false;
+  try {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const { count, error } = await supabaseClient.from("voice_generations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId).gte("created_at", since.toISOString());
+    if (error) return false;
+    return (count || 0) >= DAILY_TTS_LIMIT;
+  } catch { return false; }
 }
 
 async function deductCredits(userId: string, amount: number): Promise<{ success: boolean; remaining?: number; error?: string }> {
@@ -245,6 +259,28 @@ const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 // Une même preview peut être demandée plusieurs fois lors de clics rapides ou
 // de remounts frontend. Réutiliser la promesse évite de lancer plusieurs appels Gemini.
 const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
+const PREVIEW_BUCKET = "voice-previews";
+
+async function loadPersistentPreview(cacheKey: string): Promise<string | null> {
+  if (!supabaseClient) return null;
+  try {
+    const filePath = `${cacheKey}.wav`;
+    const { data, error } = await supabaseClient.storage.from(PREVIEW_BUCKET).download(filePath);
+    if (error || !data) return null;
+    const bytes = Buffer.from(await data.arrayBuffer());
+    const dataUri = `data:audio/wav;base64,${bytes.toString("base64")}`;
+    PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
+    return dataUri;
+  } catch { return null; }
+}
+
+async function savePersistentPreview(cacheKey: string, dataUri: string): Promise<void> {
+  if (!supabaseClient) return;
+  try {
+    const bytes = Buffer.from(dataUri.split(",")[1] || "", "base64");
+    await supabaseClient.storage.from(PREVIEW_BUCKET).upload(`${cacheKey}.wav`, bytes, { contentType: "audio/wav", upsert: true });
+  } catch (err: any) { console.warn(`[Preview cache] sauvegarde impossible: ${err?.message || err}`); }
+}
 
 function normalizeTextForTTS(text: string): string {
   let normalized = text;
@@ -478,7 +514,8 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   const cached = LLM_RESPONSE_CACHE.get(cacheKey);
   if (cached && Date.now() - cached.ts < LLM_CACHE_TTL_MS) return cached.result;
 
-  const models = ["gemini-3.6-flash", "gemini-3.1-flash", "gemini-2.5-flash"];
+  // Un seul fallback : une panne ne doit pas transformer une action en 3 appels.
+  const models = ["gemini-3.6-flash", "gemini-2.5-flash"];
   let allErrors: string[] = [];
 
   for (const model of models) {
@@ -716,11 +753,15 @@ async function startServer() {
     if (PREVIEW_AUDIO_CACHE.has(cacheKey)) {
       return res.json({ voice_id: voiceId, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5 });
     }
-
     const inflight = PREVIEW_INFLIGHT.get(cacheKey);
     if (inflight) {
       const audioUrl = await inflight;
       return res.json({ voice_id: voiceId, audio_url: audioUrl, duration_seconds: 2.5 });
+    }
+
+    const persistentPreview = await loadPersistentPreview(cacheKey);
+    if (persistentPreview) {
+      return res.json({ voice_id: voiceId, audio_url: persistentPreview, duration_seconds: 2.5 });
     }
 
     const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
@@ -737,6 +778,7 @@ async function startServer() {
       }
       const dataUri = `data:audio/wav;base64,${wavBase64}`;
       PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
+      await savePersistentPreview(cacheKey, dataUri);
       return dataUri;
     })();
     PREVIEW_INFLIGHT.set(cacheKey, generation);
@@ -777,6 +819,9 @@ async function startServer() {
       if (balanceBeforeGeneration !== null && balanceBeforeGeneration < BASE_POINTS_COST) {
         return res.status(402).json({ error: `Solde de points insuffisant (${BASE_POINTS_COST} points minimum requis).` });
       }
+      if (await hasReachedDailyTTSLimit(userId)) {
+        return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_TTS_LIMIT} générations audio).` });
+      }
 
       const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
       const cleanText = normalizeTextForTTS(textForSpeech.replace(/\s+/g, " ").trim());
@@ -786,6 +831,7 @@ async function startServer() {
       let durationSeconds = Math.max(1.5, Math.round((cleanText.split(/\s+/).length / (2.8 * numSpeed)) * 10) / 10);
 
       const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(cleanText, selectedVoiceName, 2, numSpeed, numPitch, requestedVoice, emotionTags);
+      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, success: Boolean(pcmBuffer), maxRetries: 2 }));
       const usedFallback = !pcmBuffer;
 
       if (pcmBuffer && pcmBuffer.length > 50) {
@@ -911,13 +957,8 @@ Génère maintenant la version optimisée :`;
       const latinPreserved = validateLatinPreservation(text, enhancedText);
       const startsWithTag = /^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim());
 
-      if (isTooShort || missingTags || !latinPreserved || !startsWithTag) {
-        try {
-          let retryText = await callGeminiTextAPI(buildEnhancePrompt(true), 0.4);
-          retryText = retryText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Voici|Texte\s*amélioré|Version\s*optimisée)\s*:?/gi, "").replace(/^["«»']|["«»']$/g, "").replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/\n{3,}/g, "\n\n").trim();
-          if (retryText.length >= text.length * 0.7 && countEmotionTags(retryText) >= 2) enhancedText = retryText;
-        } catch (retryErr) {}
-      }
+      // Une seule génération Gemini par clic. Le nettoyage local ci-dessous
+      // fournit un résultat sûr sans lancer une seconde requête payante.
 
       if (enhancedText.length < text.length * 0.4) enhancedText = /^\[/.test(text.trim()) ? text.trim() : `[natural] ${text.trim()}`;
       if (!/^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim())) enhancedText = `[natural] ${enhancedText}`;

@@ -159,7 +159,7 @@ const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suf
   return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
 };
 
-const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
+const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string; key?: React.Key }) => {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
   return (

@@ -21,7 +21,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   // 🛠️ FIX 1 : Nettoyage de la mémoire RAM (revokeObjectURL) au démontage
   useEffect(() => {
     return () => {
-      Object.values(localMp3Urls).forEach((url) => {
+      (Object.values(localMp3Urls) as string[]).forEach((url) => {
         if (url.startsWith('blob:')) {
           URL.revokeObjectURL(url);
         }

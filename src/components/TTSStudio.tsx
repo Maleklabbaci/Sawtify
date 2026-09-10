@@ -108,6 +108,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousAudioUrlRef = useRef<string | null>(null);
   const previousMp3UrlRef = useRef<string | null>(null);
+  const previewRequestRef = useRef<string | null>(null);
+  const generationRequestLockRef = useRef(false);
 
   const POINTS_COST = 20;
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
@@ -156,24 +158,34 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const handlePreviewVoice = useCallback(async (e: React.MouseEvent, voice: Voice) => {
     e.stopPropagation();
-    if (previewingVoiceId === voice.id) { 
+    if (previewingVoiceId === voice.id || previewRequestRef.current === voice.id) {
       stopNaturalAudio(); 
       setPreviewingVoiceId(null); 
+      previewRequestRef.current = null;
       return; 
     }
+    if (previewRequestRef.current) return;
+    previewRequestRef.current = voice.id;
     setPreviewingVoiceId(voice.id);
     try {
       const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
+      previewRequestRef.current = null;
       playNaturalAudio(audioUrl, () => setPreviewingVoiceId(null), speed, pitch);
     } catch (err: any) { 
       setPreviewingVoiceId(null); 
+      previewRequestRef.current = null;
       showNotif(language === 'ar' ? 'فشل تشغيل المعاينة' : 'Erreur de preview'); 
     }
   }, [previewingVoiceId, speed, pitch, language, showNotif]);
 
   async function handleGenerate(retryCount = 0) {
+    if (retryCount === 0) {
+      if (generationRequestLockRef.current) return;
+      generationRequestLockRef.current = true;
+    }
     if (!text.trim() || balance < POINTS_COST) { 
       setInsufficientAlert(true); 
+      generationRequestLockRef.current = false;
       return; 
     }
     setInsufficientAlert(false); 
@@ -278,6 +290,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     } finally { 
       if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
         setIsGenerating(false);
+        generationRequestLockRef.current = false;
       }
     }
   }
