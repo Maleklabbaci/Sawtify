@@ -1,16 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
-  ArrowRight, ArrowLeft, Play, Pause, Plus, Menu, X,
-  Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift,
+  ArrowDown, ArrowRight, ArrowUpRight, CalendarDays, Check,
+  ChevronDown, Clock3, Menu, Minus, Sparkles, Star, X,
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll, useInView } from "framer-motion";
-
-interface LandingPageProps {
-  onLoginClick: () => void;
-  onSigninClick: () => void;
-  language: "fr" | "ar";
-  setLanguage: (lang: "fr" | "ar") => void;
-}
 
 const ACCENT = "#6E5FE8";
 const INK = "#0F0F1A";
@@ -18,994 +10,426 @@ const PAPER = "#FAFAF7";
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1788998622/discution.wav";
 
-const GlobalStyles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,700;900&family=Cairo:wght@400;600;700;800;900&family=Outfit:wght@700;800;900&display=swap');
-    
-    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    body { overflow-x: hidden; background: ${PAPER}; color: ${INK}; }
-
-    @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
-    .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
-
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    .float { animation: float 5s ease-in-out infinite; }
-    .float-slow { animation: float 7s ease-in-out infinite; }
-
-    .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
-    ::selection { background: ${ACCENT}; color: ${PAPER}; }
-    ::-webkit-scrollbar { width: 10px; }
-    ::-webkit-scrollbar-track { background: ${PAPER}; }
-    ::-webkit-scrollbar-thumb { background: ${ACCENT}; border-radius: 10px; }
-
-    @keyframes blink { 50% { opacity: 0; } }
-    .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
-
-    .card-lift { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s; }
-    @media (hover: hover) {
-      .card-lift:hover { transform: translateY(-6px); box-shadow: 0 20px 50px -20px rgba(110, 95, 232, 0.3); }
-    }
-  `}</style>
-);
-
-const Logo = ({ size = 40, showText = true, dark = false }: { size?: number; showText?: boolean; dark?: boolean }) => {
-  const [imgError, setImgError] = useState(false);
-  return (
-    <div className="flex items-center gap-2.5 select-none">
-      <div className="rounded-2xl overflow-hidden shrink-0 relative" style={{ width: size, height: size, background: "linear-gradient(135deg, #6E5FE8 0%, #5B4DD8 100%)", boxShadow: "0 4px 14px rgba(110, 95, 232, 0.3)" }}>
-        {!imgError ? (
-          <img src={LOGO} alt="Sawtify" width={size} height={size} decoding="async" onError={() => setImgError(true)} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-white font-extrabold" style={{ fontSize: size * 0.5 }}>S</div>
-        )}
-      </div>
-      {showText && <span className="font-extrabold text-[20px] tracking-tight" style={{ color: dark ? PAPER : INK }}>Sawtify</span>}
-    </div>
-  );
+const images = {
+  hero: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=85",
+  detail: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=85",
+  texture: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=900&q=85",
+  salon: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=1000&q=85",
+  portrait: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=85",
+  hands: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=85",
+  editorial: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=900&q=85",
 };
 
-const Num = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <span dir="ltr" style={{ unicodeBidi: "isolate", fontFamily: "'Outfit', sans-serif" }} className={`inline-block tabular-nums ${className}`}>{children}</span>
-);
+type Props = { onLoginClick: () => void; onSigninClick: () => void; language: "fr" | "ar"; setLanguage: (l:"fr"|"ar")=>void };
 
-const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suffix?: string; duration?: number }) => {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const obs = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (!entry?.isIntersecting || started.current) return;
-      started.current = true;
-      const start = performance.now();
-      const tick = (now: number) => {
-        const p = Math.min((now - start) / duration, 1);
-        setCount(Math.round((1 - Math.pow(1 - p, 4)) * target));
-        if (p < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    }, { threshold: 0.3 });
-    obs.observe(node);
-    return () => obs.disconnect();
-  }, [target, duration]);
-
-  return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
-};
-
-const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-  return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 32 }} animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 32 }} transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }} className={className}>
-      {children}
-    </motion.div>
-  );
-};
-
-function useScrolled() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const on = () => setScrolled(window.scrollY > 24);
-    on();
-    window.addEventListener("scroll", on, { passive: true });
-    return () => window.removeEventListener("scroll", on);
-  }, []);
-  return scrolled;
-}
-
-type VoiceCard = {
-  id: string; nameFr: string; nameAr: string; tagFr: string; tagAr: string; location: string;
-  gender: "male" | "female"; category: "commercial" | "narrative" | "social" | "formal";
-  rating?: number; reviews?: number; color: string; sampleFr: string; sampleAr: string;
-};
-
-const VOICES: VoiceCard[] = [
-  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#6E5FE8", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
-  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#F472B6", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
-  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#10B981", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
-  { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#F59E0B", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
-  { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#3B82F6", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
-  { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#8B5CF6", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
-  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#EC4899", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
-  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#EF4444", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
-  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#0EA5E9", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
-  { id: "nour", nameFr: "Nour", nameAr: "نور", tagFr: "Doux & fluide", tagAr: "لطيف ومرن", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.7, reviews: 119, color: "#14B8A6", sampleFr: "Une intonation douce, confortable à écouter, pour stories et tutos.", sampleAr: "نبرة ناعمة ومريحة للسماع، للستوريز والشروحات." },
-  { id: "faycal", nameFr: "Fayçal", nameAr: "فيصل", tagFr: "Commerce & vente", tagAr: "تجارة وتسويق", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.8, reviews: 163, color: "#A855F7", sampleFr: "Vous cherchez une voix-off pro pour votre marque ? Vous êtes au bon endroit.", sampleAr: "تحوس على فويس أوفر احترافي للمشروع تاعك؟ راك في المكان الصحيح." },
-  { id: "sofiane", nameFr: "Sofiane", nameAr: "سفيان", tagFr: "Officiel & IVR", tagAr: "رسمي وموزع", location: "Blida, DZ", gender: "male", category: "formal", rating: 4.9, reviews: 88, color: "#64748B", sampleFr: "Bienvenue sur notre standard. Pour le commercial, tapez 1. Pour l'assistance, tapez 2.", sampleAr: "مرحباً بكم في خدمة الزبائن. للتجارة اضغط 1. للمساعدة اضغط 2." },
-];
-
-const LANDING_VOICE_IDS = ["amine", "yasmine", "khalid"] as const;
-const LANDING_VOICES = VOICES.filter((v) => (LANDING_VOICE_IDS as readonly string[]).includes(v.id));
-
-const COST_STEPS = [
-  { sec: 60, pts: 20, labelFr: "0–60 s", labelAr: "0–60 ثا" },
-  { sec: 120, pts: 30, labelFr: "2 min", labelAr: "2 دق" },
-  { sec: 180, pts: 40, labelFr: "3 min", labelAr: "3 دق" },
-  { sec: 240, pts: 50, labelFr: "4 min", labelAr: "4 دق" },
-];
-
-const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boolean; bars?: number }) => (
-  <div className="flex items-end justify-center gap-[3px] h-28 w-full" dir="ltr" aria-hidden>
-    {Array.from({ length: bars }).map((_, i) => {
-      const h = 18 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.31)) * 82;
-      return (
-        <span key={i} className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
-          style={{ height: `${h}%`, maxWidth: 4, background: i % 6 === 0 ? color : INK, opacity: playing ? 1 : 0.55, animationDelay: `${(i % 10) * 0.1}s` }}
-        />
-      );
-    })}
-  </div>
-);
-
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSigninClick, language, setLanguage }) => {
+export default function LandingPage({ onLoginClick, onSigninClick, language, setLanguage }: Props) {
   const isRTL = language === "ar";
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeTesti, setActiveTesti] = useState(0);
-  const [featuredId, setFeaturedId] = useState("amine");
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const [listenVoice, setListenVoice] = useState<VoiceCard | null>(null);
-  const [legal, setLegal] = useState<null | "cgu" | "privacy">(null);
-  const [costIdx, setCostIdx] = useState(0);
-  const [holdVoice, setHoldVoice] = useState(false);
-  const { scrollYProgress } = useScroll();
-  const scrolled = useScrolled();
-
-  // --- AUDIO LOGIC ---
-  const introAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const [activeRitual, setActiveRitual] = useState(0);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
 
-  useEffect(() => {
-    document.documentElement.lang = language;
-    document.documentElement.dir = isRTL ? "rtl" : "ltr";
-    document.title = isRTL ? "صوتيفي — صوت طبيعي بالدارجة" : "Sawtify — Voix naturelle en darija";
-  }, [language, isRTL]);
-
-  useEffect(() => {
-    document.body.style.overflow = (menuOpen || !!listenVoice || !!legal) ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [menuOpen, listenVoice, legal]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setMenuOpen(false); setListenVoice(null); setLegal(null); setPlayingId(null);
-      if (introAudioRef.current) { introAudioRef.current.pause(); setIsIntroPlaying(false); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  // AUTO-PLAY ON FIRST INTERACTION
+  // --- AUDIO AUTO PLAY (Déclenchement première interaction) ---
   useEffect(() => {
     const audio = new Audio(INTRO_AUDIO_URL);
     audio.preload = "auto";
-    introAudioRef.current = audio;
-    audio.onended = () => setIsIntroPlaying(false);
-
-    const handleFirstInteraction = () => {
-      audio.play().then(() => setIsIntroPlaying(true)).catch(console.warn);
-      cleanupListeners();
+    const handleFirst = () => {
+      audio.play().then(() => setIsIntroPlaying(true)).catch(()=>{});
+      window.removeEventListener("click", handleFirst);
+      window.removeEventListener("scroll", handleFirst);
     };
-
-    const cleanupListeners = () => {
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("scroll", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
-    };
-
-    window.addEventListener("click", handleFirstInteraction, { passive: true, once: true });
-    window.addEventListener("scroll", handleFirstInteraction, { passive: true, once: true });
-    window.addEventListener("touchstart", handleFirstInteraction, { passive: true, once: true });
-    window.addEventListener("keydown", handleFirstInteraction, { passive: true, once: true });
-
-    return () => { cleanupListeners(); audio.pause(); };
+    window.addEventListener("click", handleFirst, { once: true });
+    window.addEventListener("scroll", handleFirst, { once: true });
+    return () => { window.removeEventListener("click", handleFirst); audio.pause(); };
   }, []);
 
-  const stopIntroAudio = () => {
-    if (introAudioRef.current && !introAudioRef.current.paused) {
-      introAudioRef.current.pause();
-      setIsIntroPlaying(false);
-    }
-  };
-
-  const handleToggleIntroAudio = () => {
-    if (!introAudioRef.current) return;
-    if (isIntroPlaying) {
-      introAudioRef.current.pause();
-      setIsIntroPlaying(false);
-    } else {
-      setPlayingId(null);
-      introAudioRef.current.play().then(() => setIsIntroPlaying(true)).catch(console.log);
-    }
-  };
-
-  const t = {
-    skip: isRTL ? "Aller au contenu" : "Aller au contenu",
-    navVoices: isRTL ? "الأصوات" : "Voix",
-    navHow: isRTL ? "كيف يعمل" : "Comment ça marche",
-    navPricing: isRTL ? "الأسعار" : "Tarifs",
-    navFaq: "FAQ",
-    navContact: isRTL ? "تواصل" : "Contact",
-    signin: isRTL ? "دخول" : "Connexion",
-    start: isRTL ? "ابدأ الآن" : "Commencer",
-    liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
-    heroKicker: isRTL ? "استوديو الدارجة" : "STUDIO DARIJA",
-    heroTitle1: isRTL ? "صوت" : "Une voix",
-    heroTitle2: isRTL ? "لا يُفرَّق." : "indiscernable.",
-    heroSub: isRTL
-      ? "نصّك بالدارجة يولي صوتًا طبيعيًا في 30 ثانية. هنا تسمع البداية فقط… والباقي في الاستوديو."
-      : "Votre texte en darija devient une voix naturelle en 30 secondes. Ici, vous n’entendez que le début… la suite est dans le studio.",
-    bookNow: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
-    listenDemo: isRTL ? "اسمع 3 أصوات فقط" : "Écouter 3 voix",
-    toggleIntro: isRTL ? "إيقاف التقديم" : "Pause de l'intro",
-    playIntro: isRTL ? "تشغيل التقديم" : "Play de l'intro",
-    welcomeChip: isRTL ? "50 نقطة. بدون بطاقة." : "50 points. Sans carte.",
-    creators: isRTL ? "مستخدم" : "créateurs",
-    popularKicker: isRTL ? "لا نكشف الكل" : "ON NE MONTRE PAS TOUT",
-    popularTitle: isRTL ? "12 صوتًا. هنا 3 فقط." : "12 voix. Ici, seulement 3.",
-    popularSub: isRTL
-      ? "أمين، ياسمين، خالد. التسعة الباقون تسمعهم في الاستوديو."
-      : "Amine, Yasmine, Khalid. Les neuf autres s’écoutent dans le studio.",
-    nRatings: isRTL ? "تقييم" : "avis",
-    tryVoice: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
-    listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
-    listenBody: isRTL
-      ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة، بدون بطاقة."
-      : "Ce n’est que la première phrase. La voix entière est dans le studio. 50 points, sans carte.",
-    journeyKicker: isRTL ? "بدون أن تتكلم" : "SANS MICRO",
-    journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
-    journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d’attente.",
-    useKicker: isRTL ? "أين تستعمله" : "USAGES",
-    useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n’est plus du texte.",
-    costKicker: isRTL ? "وبكم" : "ET COMBIEN",
-    costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne croyez.",
-    costSub: isRTL
-      ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي."
-      : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n’expirent pas.",
-    unleashTitle: isRTL ? "لن يعرفوا أنك بلا استوديو." : "Personne ne saura que vous n’avez pas de studio.",
-    unleashSub: isRTL
-      ? "لا كابينة. لا ممثل تُدفع له. صوت يبيع. 50 نقطة لتسمع الفرق بنفسك."
-      : "Pas de cabine. Pas de comédien à payer. Une voix qui vend. 50 points pour entendre la différence.",
-    unleashCTA: isRTL ? "أين الـ 9 الباقون؟" : "Et les 9 autres voix ?",
-    metricsKicker: isRTL ? "الأرقام" : "LES CHIFFRES",
-    metricsTitle: isRTL ? "الأرقام لا تكذب." : "Les chiffres ne mentent pas.",
-    testKicker: isRTL ? "من جرّب" : "ILS ONT TESTÉ",
-    testTitle: isRTL ? "من يسمع، يظنّه إنسانًا." : "Qui écoute croit entendre quelqu’un.",
-    pricingKicker: isRTL ? "الأسعار" : "TARIFS",
-    pricingTitle: isRTL ? "نقاط. بلا اشتراك." : "Des points. Sans abonnement.",
-    pricingSub: isRTL ? "بالدينار. بلا تاريخ انتهاء." : "En dinars. Sans date d’expiration.",
-    welcomeBanner: isRTL
-      ? "هدية الدخول: 50 نقطة = توليدان + 10 نقاط متبقية."
-      : "Cadeau d’inscription : 50 points = 2 générations + 10 points restants.",
-    gens: isRTL ? "تسجيل" : "générations",
-    choose: isRTL ? "اختيار" : "Choisir",
-    popular: isRTL ? "الأكثر طلبًا" : "Le plus demandé",
-    faqKicker: "FAQ",
-    faqTitle: isRTL ? "أسئلة متكررة" : "Questions fréquentes",
-    ctaTitle: isRTL ? "تريد أن تسمعه حتى النهاية؟" : "Envie d’entendre la suite ?",
-    ctaSub: isRTL ? "50 نقطة. 12 صوتًا. 3 فقط هنا. بدون بطاقة." : "50 points. 12 voix. 3 seulement ici. Sans carte.",
-    footTag: isRTL ? "صُنع في الجزائر" : "Fait en Algérie",
-    switchLang: isRTL ? "FR" : "AR",
-    close: isRTL ? "إغلاق" : "Fermer",
-    open: isRTL ? "القائمة" : "Menu",
-    cgu: isRTL ? "شروط الخدمة" : "CGU",
-    privacy: isRTL ? "الخصوصية" : "Confidentialité",
-    contact: isRTL ? "تواصل" : "Contact",
-    pts: isRTL ? "نقطة" : "pts",
-    moreVoices: isRTL ? "+9 في الاستوديو" : "+9 dans le studio",
-  };
-
-  const nav = [
-    { href: "#voices", label: t.navVoices },
-    { href: "#process", label: t.navHow },
-    { href: "#pricing", label: t.navPricing },
-    { href: "#faq", label: t.navFaq },
-    { href: "#contact", label: t.navContact },
-  ];
-
-  const featured = VOICES.find((v) => v.id === featuredId) || VOICES[0];
-  const sampleFull = isRTL ? featured.sampleAr : featured.sampleFr;
-  const [typed, setTyped] = useState("");
-  const [cutDone, setCutDone] = useState(false);
-
   useEffect(() => {
-    setTyped(""); setCutDone(false);
-    const cutAt = Math.max(32, Math.floor(sampleFull.length * 0.44));
-    let i = 0;
-    const id = window.setInterval(() => {
-      i += 1;
-      if (i >= cutAt) { setTyped(sampleFull.slice(0, cutAt).trimEnd()); setCutDone(true); window.clearInterval(id); }
-      else { setTyped(sampleFull.slice(0, i)); }
-    }, 22);
-    return () => window.clearInterval(id);
-  }, [featured.id, sampleFull]);
+    document.title = isRTL ? "صوتيفي — استوديو صوت طبيعي" : "Sawtify — Studio vocal IA";
+    const onScroll = () => setScrolled(window.scrollY > 28);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isRTL]);
 
-  useEffect(() => {
-    if (listenVoice || holdVoice || isIntroPlaying) return;
-    const id = window.setInterval(() => {
-      setFeaturedId((prev) => {
-        const i = LANDING_VOICES.findIndex((v) => v.id === prev);
-        return LANDING_VOICES[(i + 1) % LANDING_VOICES.length].id;
-      });
-    }, 5200);
-    return () => window.clearInterval(id);
-  }, [listenVoice, holdVoice, isIntroPlaying]);
+  useEffect(() => { document.body.style.overflow = (menuOpen || bookingOpen) ? "hidden" : ""; return () => { document.body.style.overflow = ""; }; }, [menuOpen, bookingOpen]);
 
-  const journeySteps = [
-    { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصك بالدارجة، بالعربية أو بالفرنسية." : "Collez votre texte en darija, en arabe ou en français." },
-    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "12 صوتًا. هنا نعرض 3 فقط." : "12 voix. Ici, on n’en montre que 3." },
-    { n: "3", t: isRTL ? "اضبط" : "Régler", d: isRTL ? "السرعة، النبرة، التأثيرات… الباقي في الاستوديو." : "Vitesse, timbre, effets… le reste est dans le studio." },
-    { n: "4", t: isRTL ? "حمّل" : "Télécharger", d: isRTL ? "MP3 أو WAV. بلا علامة مائية. استعمال تجاري." : "MP3 ou WAV. Sans filigrane. Usage commercial." },
+  const scrollTo = (href: string) => { setMenuOpen(false); document.querySelector(href)?.scrollIntoView({ behavior: "smooth" }); };
+
+  const navItems = [
+    { label: isRTL ? "الأصوات" : "Voix", href: "#rituels" },
+    { label: isRTL ? "كيف يعمل" : "Processus", href: "#univers" },
+    { label: isRTL ? "الأسعار" : "Tarifs", href: "#adresse" },
   ];
 
-  const uses = [
-    { icon: ShoppingBag, t: isRTL ? "تجارة إلكترونية" : "E-commerce", d: isRTL ? "سبوت، عرض، توصيل 58 ولاية." : "Spots, promos, livraison 58 wilayas." },
-    { icon: Clapperboard, t: isRTL ? "ريلز وتيك توك" : "Reels & TikTok", d: isRTL ? "صوت قصير وحيوي، جاهز للقصص." : "Voix courte, vive, prête pour les stories." },
-    { icon: Mic2, t: isRTL ? "بودكاست ويوتيوب" : "Podcast & YouTube", d: isRTL ? "سرد طويل، نبرة ثابتة." : "Narration longue, timbre stable." },
-    { icon: Phone, t: isRTL ? "موزّع هاتفي" : "Standard", d: isRTL ? "مرحبًا، اضغط 1، خدمة الزبائن." : "Bienvenue, tapez 1, service client." },
+  const rituals = [
+    {
+      number: "01",
+      title: isRTL ? "أمين — صوت تجاري" : "Amine — Voix commerciale",
+      description: isRTL ? "نصك يتنفس. صوت واضح ومباشر، جاهز لإعلاناتك وتواصلك التجاري." : "Votre texte respire. Une voix directe et claire, prête pour vos publicités et campagnes.",
+      time: "30 — 60 s",
+      image: images.detail,
+      tag: isRTL ? "التجاري" : "Le commercial",
+    },
+    {
+      number: "02",
+      title: isRTL ? "ياسمين — صوت إعلاني" : "Yasmine — Voix publicitaire",
+      description: isRTL ? "نبرة حيوية، مثالية للريلز والقصص القصيرة والأصوات التي تحتاج لفت الانتباه فورًا." : "Un ton vif, parfait pour les Reels et stories qui doivent capter l'attention immédiatement.",
+      time: "30 — 90 s",
+      image: images.texture,
+      tag: isRTL ? "الإعلان" : "La pub",
+    },
+    {
+      number: "03",
+      title: isRTL ? "خالد — صوت وثائقي" : "Khalid — Voix documentaire",
+      description: isRTL ? "دقة وهدوء. مثالي للوثائقيات، البودكاست، والمحتوى الرسمي الذي يحتاج مصداقية." : "Précision et calme. Idéal pour les documentaires, podcasts et contenus officiels qui demandent crédibilité.",
+      time: "60 — 180 s",
+      image: images.portrait,
+      tag: isRTL ? "الوثائقي" : "Le documentaire",
+    },
   ];
 
-  const metrics = [
-    { n: 12, s: "", l: isRTL ? "صوت" : "voix" },
-    { n: 1200, s: "+", l: isRTL ? "مستخدم" : "créateurs" },
-    { n: 50, s: "K+", l: isRTL ? "صوت مُولَّد" : "voix générées" },
-    { n: 99, s: "%", l: isRTL ? "لا يُفرَّق" : "indiscernable" },
+  const faqs = [
+    { q: isRTL ? "هل الصوت يبدو كإنسان؟" : "La voix parle comme un humain ?",
+      a: isRTL ? "نعم. دارجة حيّة، 24 kHz. 99٪ ممن يسمعون لا يفرّقون." : "Oui. Darija vivante, 24 kHz. 99% de ceux qui écoutent ne font pas la différence." },
+    { q: isRTL ? "هل يمكن استعماله في الإعلان؟" : "Puis-je l'utiliser pour la pub ?",
+      a: isRTL ? "نعم. إعلان، يوتيوب، تيك توك — استعمال تجاري كامل، بلا علامة مائية." : "Oui. Pub, YouTube, TikTok — usage commercial complet, sans filigrane." },
+    { q: isRTL ? "كيف تعمل النقاط؟" : "Comment fonctionnent les points ?",
+      a: isRTL ? "20 نقطة لـ 0–60 ثانية، ثم +10 لكل دقيقة. لا تنتهي. 50 نقطة عند التسجيل." : "20 points pour 0-60s, puis +10 par minute. Ils n'expirent pas. 50 points à l'inscription." },
   ];
-
-  const testimonials = isRTL
-    ? [
-        { q: "جرّبت 5 منصات قبل صوتيفي. هنا الصوت يبدو بشريًا فعلًا. الزبائن لا يلاحظون الفرق.", n: "أمين ب.", r: "صانع محتوى، الجزائر", img: "AB" },
-        { q: "استخدمته لإعلانات تجارية. نتيجة احترافية دون الحاجة إلى استوديو.", n: "ياسمين ق.", r: "وكالة إشهار، وهران", img: "YK" },
-        { q: "أفضل صوت جزائري سمعته. طبيعي 100٪ والدفع بالذهبية مريح.", n: "خالد م.", r: "تاجر إلكتروني، قسنطينة", img: "KM" },
-      ]
-    : [
-        { q: "J’ai testé 5 plateformes avant Sawtify. Ici, la voix sonne vraiment humaine. Mes clients ne font pas la différence.", n: "Amine B.", r: "Créateur, Alger", img: "AB" },
-        { q: "Utilisé pour mes pubs. Un rendu pro, sans studio.", n: "Yasmine K.", r: "Agence pub, Oran", img: "YK" },
-        { q: "La meilleure voix algérienne que j’ai entendue. Naturelle à 100 %, et le paiement Edahabia est simple.", n: "Khaled M.", r: "E-commerçant, Constantine", img: "KM" },
-      ];
-
-  useEffect(() => {
-    const id = setInterval(() => setActiveTesti((p) => (p + 1) % testimonials.length), 6500);
-    return () => clearInterval(id);
-  }, [testimonials.length]);
-
-  const pricing = [
-    { pts: 100, ptsLabel: "100", price: "500", gens: 5, desc: isRTL ? "للتجربة — 5 تسجيلات." : "Pour essayer — 5 générations." },
-    { pts: 220, ptsLabel: "220", price: "1 000", gens: 11, featured: true, desc: isRTL ? "الأكثر طلبًا — 11 تسجيلًا + 20 نقطة مهداة." : "Le plus demandé — 11 générations + 20 points offerts." },
-    { pts: 600, ptsLabel: "600", price: "2 500", gens: 30, desc: isRTL ? "لمن يعمل يوميًا — وكالات وصنّاع محتوى." : "Pour un usage régulier — agences et créateurs." },
-    { pts: 1350, ptsLabel: "1 350", price: "5 000", gens: 67, desc: isRTL ? "للمحترفين — حجم كبير." : "Pour les pros — gros volumes." },
-  ];
-
-  const faqs = isRTL
-    ? [
-        { q: "هل الصوت يبدو كإنسان؟", a: "نعم. دارجة حيّة، 24 kHz. 99٪ ممن يسمعون لا يفرّقون." },
-        { q: "هل يمكن استعماله في الإعلان؟", a: "نعم. إعلان، يوتيوب، تيك توك، موزّع — استعمال تجاري كامل، بلا علامة مائية." },
-        { q: "كيف تعمل النقاط؟", a: "20 نقطة لـ 0–60 ثانية، ثم +10 لكل دقيقة. لا تنتهي. 50 نقطة عند التسجيل." },
-        { q: "الذهبية و CIB؟", a: "نعم، SATIM، بالدينار. لا تحتاج بطاقة أجنبية." },
-        { q: "هل أجرّب مجانًا؟", a: "نعم. 50 نقطة، بدون بطاقة. وهنا 3 أصوات فقط — التسعة في الاستوديو." },
-      ]
-    : [
-        { q: "La voix parle comme quelqu’un ?", a: "Oui. Darija vivante, 24 kHz. 99 % de ceux qui écoutent ne font pas la différence." },
-        { q: "Puis-je l’utiliser en pub ?", a: "Oui. Pub, YouTube, TikTok, standard — usage commercial, sans filigrane." },
-        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points à l’inscription." },
-        { q: "Edahabia et CIB ?", a: "Oui, SATIM, en dinars. Pas besoin de carte étrangère." },
-        { q: "Je peux essayer sans payer ?", a: "Oui. 50 points, sans carte. Ici seulement 3 voix — les 9 autres sont dans le studio." },
-      ];
-
-  const trust = [
-    { k: "Edahabia", v: isRTL ? "بريد الجزائر" : "La Poste" },
-    { k: "CIB", v: isRTL ? "البنوك" : "Banques" },
-    { k: "SATIM", v: isRTL ? "دفع آمن" : "Paiement sécurisé" },
-    { k: "24 kHz", v: isRTL ? "جودة استوديو" : "Qualité studio" },
-    { k: "MP3 · WAV", v: isRTL ? "بلا علامة مائية" : "Sans filigrane" },
-  ];
-
-  const smoothTo = useCallback((href: string) => {
-    setMenuOpen(false);
-    const el = document.querySelector(href);
-    if (!el) return;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" });
-  }, []);
-
-  const openListen = (voice: VoiceCard) => {
-    stopIntroAudio();
-    setFeaturedId(voice.id); setPlayingId(voice.id); setListenVoice(voice);
-  };
-
-  const display = isRTL ? "'Cairo', sans-serif" : "'Fraunces', serif";
-  const sans = isRTL ? "'Cairo', sans-serif" : "'Inter', sans-serif";
-  const ArrowIcon = ({ className = "w-4 h-4" }: { className?: string }) => isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
-
-  const legalCopy = {
-    cgu: isRTL
-      ? "شروط الاستخدام: صوتيفي منصة جزائرية لتحويل النص إلى صوت بالدارجة. الحساب شخصي. النقاط غير قابلة للتحويل نقدًا ولا تنتهي صلاحيتها. الاستعمال التجاري مسموح في حدود القانون الجزائري. يُمنع توليد محتوى غير قانوني أو مسيء. الدفع عبر SATIM (الذهبية / CIB). في حال فشل التوليد، تُعاد النقاط إلى رصيدك."
-      : "Conditions d’utilisation : Sawtify est une plateforme algérienne de conversion texte → voix en darija. Le compte est personnel. Les points ne sont pas remboursables en dinars et n’expirent pas. L’usage commercial est autorisé dans le cadre de la loi algérienne. Tout contenu illicite ou injurieux est interdit. Le paiement passe par SATIM (Edahabia / CIB). En cas d’échec de génération, les points sont recrédités.",
-    privacy: isRTL
-      ? "الخصوصية: نحتفظ بالحد الأدنى من البيانات (البريد، الرصيد، النصوص المولَّدة) لتشغيل الحساب. لا نبيع بياناتك. يمكنك طلب حذف حسابك عبر صفحة التواصل. المدفوعات تُعالَج من طرف SATIM — صوتيفي لا يخزّن أرقام البطاقات."
-      : "Confidentialité : nous conservons le minimum (e-mail, solde, textes générés) pour faire fonctionner le compte. Nous ne vendons pas vos données. Vous pouvez demander la suppression du compte via Contact. Les paiements sont traités par SATIM — Sawtify ne stocke aucun numéro de carte.",
-  };
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: INK, background: PAPER }}>
-      <GlobalStyles />
+    <div dir={isRTL ? "rtl" : "ltr"} className="min-h-screen bg-[#F8F7F4]" style={{ fontFamily: isRTL ? "'Cairo', sans-serif" : "'Inter', sans-serif", color: INK }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap');
+        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+        html { scroll-behavior: smooth; }
+        body { margin: 0; background: #F8F7F4; color: #0F0F1A; overflow-x: hidden; }
+        ::selection { background: ${ACCENT}; color: #fff; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #F8F7F4; }
+        ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: ${ACCENT}; }
+        
+        .brand { font-family: 'Cormorant Garamond', serif; font-weight: 600; letter-spacing: -0.02em; color: #0F0F1A; text-decoration: none; font-size: 22px; display: inline-flex; align-items: center; gap: 10px; }
+        .brand-mark { display: inline-flex; gap: 3px; width: 24px; height: 24px; }
+        .brand-mark span { display: block; width: 8px; height: 8px; border-radius: 50%; background: ${ACCENT}; }
+        .brand-mark span:nth-child(2) { opacity: 0.6; }
+        .brand-mark span:nth-child(3) { opacity: 0.3; }
+        
+        .site-header { position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; transition: background .3s; }
+        .site-header.is-scrolled { background: rgba(248,247,244,0.92); backdrop-filter: blur(14px); box-shadow: 0 1px 0 rgba(0,0,0,.05); }
+        
+        .hero-section { position: relative; min-height: 100dvh; display: flex; align-items: center; padding: 140px 32px 100px; overflow: hidden; }
+        .hero-copy { max-width: 640px; z-index: 10; }
+        h1 { font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.05; letter-spacing: -0.035em; font-size: clamp(3.2rem, 6vw, 5.5rem); color: #0F0F1A; }
+        h1 em { font-style: italic; font-weight: 400; color: ${ACCENT}; }
+        .eyebrow { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #6E5FE8; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 10px; }
+        .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: ${ACCENT}; display: inline-block; }
+        
+        .hero-visual { position: absolute; top: 0; right: 0; width: 55%; height: 100%; z-index: 0; }
+        .hero-visual img { width: 100%; height: 100%; object-fit: cover; filter: contrast(0.95); }
+        .hero-card { position: absolute; border-radius: 24px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.15); z-index: 5; }
+        .hero-card img { width: 100%; height: 100%; object-fit: cover; }
+        .hero-card-main { width: 380px; height: 520px; top: 15%; right: 10%; }
+        .hero-card-back { width: 280px; height: 360px; top: 55%; right: 38%; opacity: 0.95; }
+        
+        .floating-pill { position: absolute; z-index: 6; background: rgba(255,255,255,0.9); backdrop-filter: blur(6px); border: 1px solid rgba(0,0,0,.06); border-radius: 100px; padding: 8px 14px; font-family: 'Inter'; font-size: 12px; font-weight: 600; color: #0F0F1A; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+        .pill-scent { top: 22%; right: 42%; }
+        .pill-place { bottom: 18%; right: 8%; }
+        
+        .glow { position: absolute; width: 500px; height: 500px; background: radial-gradient(circle, rgba(110,95,232,0.15) 0%, transparent 70%); top: 10%; left: 10%; z-index: 1; pointer-events: none; border-radius: 50%; }
+        
+        .button { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 100px; font-family: 'Inter'; font-weight: 600; font-size: 14px; text-decoration: none; transition: all .2s; border: none; cursor: pointer; }
+        .button-dark { background: #0F0F1A; color: #fff; box-shadow: 0 15px 40px rgba(15,15,26,.25); }
+        .button-dark:hover { background: ${ACCENT}; transform: translateY(-2px); }
+        .button-accent { background: ${ACCENT}; color: #fff; box-shadow: 0 15px 40px rgba(110,95,232,.3); }
+        .button-accent:hover { background: #5B4DD8; transform: translateY(-2px); }
+        
+        .section-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 64px; }
+        .section-index { font-family: 'Cormorant Garamond'; font-size: 14px; color: #aaa; letter-spacing: 0.05em; }
+        
+        .manifesto-section { padding: 120px 32px; background: #fff; position: relative; }
+        .manifesto-content { max-width: 900px; }
+        .manifesto-content h2 { font-family: 'Cormorant Garamond'; font-weight: 300; font-size: clamp(2.5rem, 4vw, 3.8rem); line-height: 1.05; letter-spacing: -0.03em; color: #0F0F1A; }
+        .manifesto-content h2 em { font-style: italic; color: ${ACCENT}; font-weight: 400; }
+        
+        .rituals-section { padding: 120px 32px; background: #F8F7F4; }
+        .rituals-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 60px; align-items: start; }
+        .feature-image { position: relative; border-radius: 24px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.08); }
+        .feature-image img { width: 100%; display: block; }
+        .feature-tag, .feature-index { position: absolute; font-family: 'Inter'; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+        .feature-tag { top: 16px; left: 16px; background: rgba(15,15,26,.8); color: #fff; padding: 6px 12px; border-radius: 8px; }
+        .feature-index { bottom: 16px; right: 16px; background: #fff; color: #0F0F1A; padding: 6px 12px; border-radius: 8px; }
+        
+        .ritual-tabs button { display: flex; align-items: center; gap: 12px; padding: 12px 0; border: none; background: none; font-family: 'Inter'; font-weight: 500; font-size: 15px; color: #0F0F1A; border-bottom: 1px solid rgba(0,0,0,.06); cursor: pointer; width: 100%; text-align: left; transition: color .2s; }
+        .ritual-tabs button.active { color: ${ACCENT}; border-bottom-color: ${ACCENT}; font-weight: 700; }
+        
+        .quote-section { padding: 140px 32px; text-align: center; position: relative; background: #fff; }
+        .quote-stamp { font-family: 'Cormorant Garamond'; font-size: 80px; line-height: 0; color: ${ACCENT}; opacity: 0.15; margin-bottom: 20px; }
+        .quote-section p { font-family: 'Cormorant Garamond'; font-size: clamp(2rem, 3.5vw, 3rem); font-weight: 300; line-height: 1.2; color: #0F0F1A; max-width: 800px; margin: 0 auto; }
+        .quote-section p em { color: ${ACCENT}; font-style: italic; }
+        
+        .faq-section { padding: 120px 32px; max-width: 900px; margin: 0 auto; }
+        .faq-item { border-bottom: 1px solid rgba(0,0,0,.08); }
+        .faq-item button { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 24px 0; background: none; border: none; font-family: 'Inter'; font-size: 17px; font-weight: 600; text-align: left; cursor: pointer; color: #0F0F1A; }
+        .faq-answer { overflow: hidden; max-height: 0; transition: max-height .3s ease; padding: 0; }
+        .faq-item.open .faq-answer { max-height: 300px; padding-bottom: 24px; }
+        .faq-answer p { font-family: 'Inter'; font-size: 15px; line-height: 1.7; color: #555; }
+        
+        .closing-section { background: #0F0F1A; color: #fff; padding: 100px 32px; }
+        .closing-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 60px; flex-wrap: wrap; gap: 20px; }
+        .closing-main { text-align: center; max-width: 720px; margin: 0 auto; }
+        .closing-main h2 { font-family: 'Cormorant Garamond'; font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 300; line-height: 1.1; letter-spacing: -0.03em; }
+        .closing-main h2 em { font-style: italic; color: ${ACCENT}; font-weight: 400; }
+        .button-light { background: #fff; color: #0F0F1A; box-shadow: 0 15px 40px rgba(255,255,255,.2); }
+        .button-light:hover { background: ${ACCENT}; color: #fff; }
+        
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(15,15,26,.6); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .booking-modal { background: #fff; border-radius: 24px; padding: 48px; max-width: 520px; width: 100%; box-shadow: 0 40px 80px rgba(0,0,0,.2); position: relative; animation: fadeUp .4s ease; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
+        .modal-close { position: absolute; top: 20px; right: 20px; background: none; border: none; cursor: pointer; }
+        .eyebrow { font-family: 'Inter'; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: ${ACCENT}; font-weight: 600; margin-bottom: 12px; }
+        .booking-form label { display: block; font-family: 'Inter'; font-weight: 600; font-size: 13px; margin-bottom: 16px; color: #333; }
+        .booking-form input, .booking-form select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 12px; font-family: 'Inter'; font-size: 14px; margin-top: 6px; background: #FAFAF7; outline: none; transition: border-color .2s; }
+        .booking-form input:focus, .booking-form select:focus { border-color: ${ACCENT}; }
+        .button-full { width: 100%; justify-content: center; margin-top: 8px; }
+        .success-state { text-align: center; padding: 20px 0; }
+        .success-icon { width: 60px; height: 60px; border-radius: 50%; background: ${ACCENT}; color: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+      `}</style>
 
-      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:bg-white focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm">
-        {t.skip}
-      </a>
-      <motion.div aria-hidden className="fixed top-0 inset-x-0 h-[3px] z-[60]" style={{ scaleX: scrollYProgress, background: "linear-gradient(90deg, #6E5FE8, #9D8FFF)", transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
-
-      {/* HEADER */}
-      <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-[#FAFAF7]/90 backdrop-blur-xl border-b border-[#0F0F1A]/5" : "bg-transparent"}`}>
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
-          <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
-            <Logo size={40} />
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              v2.1
-            </span>
-          </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#0F0F1A]/65">
-            {nav.map((l) => (
-              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-[#0F0F1A] transition-colors focus-ring">
-                {l.label}
-              </a>
-            ))}
-          </nav>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-[#0F0F1A]/70 hover:bg-[#0F0F1A]/5 transition focus-ring" aria-label={t.switchLang}>
-              {t.switchLang}
-            </button>
-            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-[#0F0F1A]/70 hover:text-[#0F0F1A] px-3 focus-ring">
-              {t.signin}
-            </button>
-            <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold text-white focus-ring transition hover:opacity-90" style={{ background: INK }}>
-              {t.start}
-            </button>
-            <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open} className="lg:hidden w-10 h-10 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center focus-ring">
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
+      <header className={`site-header ${scrolled ? "is-scrolled" : ""}`} role="banner">
+        <button className="button" style={{ background: "transparent", color: INK, border: "none", padding: 0, fontWeight: 600, fontSize: 14, letterSpacing: ".05em", textTransform: "uppercase" }} onClick={() => setMenuOpen(true)} aria-label={isRTL ? "Menu" : "Menu"}>Menu</button>
+        <a href="#top" className="brand" aria-label="Sawtify"><span className="brand-mark"><span /><span /><span /></span><span className="brand-word">Sawtify</span></a>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <a href="#adresse" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: INK, textDecoration: "none" }}>{isRTL ? "Adresse" : "Adresse"}</a>
+          <button className="button button-dark button-small" style={{ fontSize: 12 }} onClick={() => setBookingOpen(true)}>{isRTL ? "Réserver" : "Réserver"} <ArrowUpRight size={15} /></button>
         </div>
       </header>
 
-      {/* MOBILE DRAWER */}
-      <AnimatePresence>
-        {menuOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-black/50 lg:hidden" />
-            <motion.div initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }} transition={{ type: "spring", damping: 30, stiffness: 280 }} className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-[#FAFAF7] lg:hidden flex flex-col">
-              <div className="flex items-center justify-between px-5 h-16 border-b border-[#0F0F1A]/5">
-                <Logo size={36} />
-                <button type="button" onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center focus-ring"><X className="w-5 h-5" /></button>
+      {menuOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setMenuOpen(false)} role="presentation">
+          <aside style={{ position: "absolute", inset: "0 0 0 auto", width: "min(420px, 85vw)", background: PAPER, padding: "32px", display: "flex", flexDirection: "column", boxShadow: "-20px 0 60px rgba(0,0,0,.08)" }} onMouseDown={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 48 }}>
+              <a href="#top" className="brand">Sawtify</a>
+              <button onClick={() => setMenuOpen(false)} aria-label="Fermer"><X size={20} /></button>
+            </div>
+            <nav style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+              {navItems.map((item, i) => <button key={item.href} onClick={() => scrollTo(item.href)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,.06)", background: "none", border: "none", fontFamily: "'Inter'", fontSize: 22, fontWeight: 600, color: INK, textAlign: "left", cursor: "pointer" }}><span style={{ fontFamily: "'Cormorant Garamond'", fontSize: 14, color: ACCENT }}>{String(i+1).padStart(2,'0')}</span>{item.label}<ArrowUpRight size={18} /></button>)}
+            </nav>
+            <div style={{ borderTop: "1px solid rgba(0,0,0,.08)", paddingTop: 24, marginTop: 24 }}>
+              <button className="button button-dark button-full" onClick={() => { setMenuOpen(false); setBookingOpen(true); }}>{isRTL ? "Réserver" : "Réserver"} <ArrowRight size={16} /></button>
+              <p style={{ fontFamily: "'Inter'", fontSize: 13, color: "#777", marginTop: 16, lineHeight: 1.6 }}>{isRTL ? "Un studio de voix naturelles en Darija." : "Un studio de voix naturelles en Darija."}</p>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <main id="top">
+        {/* HERO */}
+        <section className="hero-section" aria-label="Hero">
+          <div className="glow" />
+          <div className="hero-copy">
+            <p className="eyebrow"><span className="eyebrow-dot" /> {isRTL ? "Studio du Darija · Disponible" : "Studio DARIJA · En ligne"}</p>
+            <h1 id="hero-title">{isRTL ? "Une voix qui " : "Une voix qui "}<br /><em>{isRTL ? "vous ressemble." : "vous ressemble."}</em></h1>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 17, lineHeight: 1.7, color: "#555", maxWidth: 480 }}>
+              {isRTL ? "Transformez vos textes en commentaires naturels. 12 voix, 30 secondes, et la suite est dans le studio." : "Transformez vos textes en commentaires naturels. 12 voix, 30 secondes, et la suite est dans le studio."}
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 32, flexWrap: "wrap" }}>
+              <button className="button button-dark" onClick={() => { setIntroPlaying ? stopIntroAudio() : null; onSigninClick(); }}>{t.bookNow || "Commencer"} <ArrowRight size={16} /></button>
+              <button className="button" style={{ background: "transparent", border: "1px solid rgba(0,0,0,.15)" }} onClick={() => setBookingOpen(true)}>{isRTL ? "Réserver" : "Réserver"} <ArrowUpRight size={15} /></button>
+            </div>
+            <div style={{ marginTop: 32, fontFamily: "'Inter'", fontSize: 13, color: "#888", display: "flex", gap: 24, alignItems: "center" }}>
+              <span><strong style={{ color: INK }}>12</strong> {isRTL ? "voix" : "voix"}</span>
+              <span>·</span>
+              <span><strong style={{ color: INK }}>4.9</strong> ★</span>
+              <span>·</span>
+              <span>{isRTL ? "+1 200 créateurs" : "+1 200 créateurs"}</span>
+            </div>
+          </div>
+
+          <div className="hero-visual">
+            <div className="hero-card hero-card-back"><img src={images.editorial} alt="Studio" /></div>
+            <div className="hero-card hero-card-main">
+              <img src={images.hero} alt="Portrait studio" />
+              <div style={{ position: "absolute", bottom: 20, left: 24, color: "#fff", zIndex: 5 }}>
+                <p style={{ fontFamily: "'Cormorant Garamond'", fontSize: 28, margin: 0, lineHeight: 1.1 }}><strong>Le studio</strong><br /><em style={{ fontWeight: 400, opacity: 0.8 }}>du Darija.</em></p>
               </div>
-              <nav className="flex-1 px-5 py-6 flex flex-col">
-                {nav.map((l) => <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold border-b border-[#0F0F1A]/5 focus-ring">{l.label}</a>)}
-                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-[#0F0F1A]/70">{t.signin}</button>
-              </nav>
-              <div className="p-5">
-                <button type="button" onClick={() => { setMenuOpen(false); stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full font-bold text-white" style={{ background: INK }}>{t.start}</button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* HERO */}
-      <section id="home" className="pt-24 pb-12 sm:pb-16">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-6">
-              <SlideUp>
-                <div className="inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-[#0F0F1A]/10 bg-white">
-                  <span className="relative flex w-1.5 h-1.5"><span className="absolute inset-0 rounded-full bg-emerald-500 animate-pulse" /><span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" /></span>
-                  <span className="text-[11px] font-bold tracking-widest" style={{ fontFamily: "'Outfit', sans-serif" }}>{t.liveBadge}</span>
-                </div>
-              </SlideUp>
-              <SlideUp delay={0.08}>
-                <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-5" style={{ color: ACCENT }}>// {t.heroKicker}</p>
-              </SlideUp>
-              <SlideUp delay={0.14}>
-                <h1 className="text-[clamp(2.6rem,6.5vw,5.2rem)] leading-[0.96] tracking-[-0.04em] font-extrabold" style={{ fontFamily: display }}>
-                  {t.heroTitle1}<br />
-                  <span style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                    {t.heroTitle2}
-                  </span>
-                </h1>
-              </SlideUp>
-              <SlideUp delay={0.24}>
-                <p className="mt-6 text-[16px] sm:text-[17px] text-[#0F0F1A]/70 max-w-lg leading-relaxed font-medium">{t.heroSub}</p>
-              </SlideUp>
-              <SlideUp delay={0.32}>
-                <div className="mt-8 flex items-center gap-3 flex-wrap">
-                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:opacity-90" style={{ background: ACCENT, boxShadow: "0 0 30px rgba(110, 95, 232, 0.35)" }}>
-                    {t.bookNow}
-                  </button>
-                  <button type="button" onClick={handleToggleIntroAudio} className="group h-12 px-5 rounded-full border border-[#0F0F1A]/15 hover:border-[#6E5FE8] text-[14px] font-semibold flex items-center gap-2.5 transition focus-ring">
-                    <span className={`w-7 h-7 rounded-full text-white flex items-center justify-center transition-all ${isIntroPlaying ? "bg-[#0F0F1A]" : "bg-[#6E5FE8]"}`}>
-                      {isIntroPlaying ? <Pause className="w-2.5 h-3 fill-current" /> : <Play className="w-2.5 h-3 fill-current" />}
-                    </span>
-                    {isIntroPlaying ? t.toggleIntro : t.playIntro}
-                  </button>
-                </div>
-                <p className="mt-4 text-[12px] font-semibold text-[#6E5FE8] flex items-center gap-1.5"><Gift className="w-3.5 h-3.5" /> {t.welcomeChip}</p>
-              </SlideUp>
-              <SlideUp delay={0.4}>
-                <div className="mt-9 flex items-center gap-5 text-[12px] text-[#0F0F1A]/50 flex-wrap">
-                  <div className="flex -space-x-1.5" dir="ltr">{["#6E5FE8", "#F472B6", "#10B981"].map((c) => <div key={c} className="w-7 h-7 rounded-full border-2 border-[#FAFAF7]" style={{ background: c }} />)}</div>
-                  <span className="font-bold text-[#0F0F1A]/70"><Num>12</Num> {isRTL ? "صوتًا" : "voix"}</span>
-                  <span>·</span>
-                  <span><Num>1 200+</Num> {t.creators}</span>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1"><Star className="w-3 h-3 fill-[#6E5FE8] text-[#6E5FE8]" /> 4.9 / 5</span>
-                </div>
-              </SlideUp>
+              <span style={{ position: "absolute", top: 12, right: 16, fontFamily: "'Inter'", fontSize: 10, fontWeight: 600, color: "#fff", opacity: 0.7 }}>01 / 03</span>
             </div>
+            <div className="floating-pill pill-scent"><Sparkles size={14} /> <span>{isRTL ? "Voix naturelles" : "Voix naturelles"}</span></div>
+            <div className="floating-pill pill-place"><span>✳</span> <span>Alger / En ligne</span></div>
+          </div>
 
-            {/* Hero Player */}
-            <div className="lg:col-span-6">
-              <SlideUp delay={0.2}>
-                <div className="relative bg-white rounded-[28px] border border-[#0F0F1A]/8 shadow-[0_24px_80px_-40px_rgba(15,15,26,0.35)] p-5 sm:p-7">
-                  <div className="flex items-center justify-between gap-3 mb-5">
-                    <div>
-                      <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">Studio</div>
-                      <div className="text-[18px] font-extrabold">{isIntroPlaying ? (isRTL ? "تقديم صوتيفي" : "Intro Sawtify") : (isRTL ? featured.nameAr : featured.nameFr)}</div>
-                      <div className="text-[12px] text-[#0F0F1A]/55">{isIntroPlaying ? (isRTL ? "مباشر" : "En direct") : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}</div>
-                    </div>
-                    <div className="text-end">
-                      <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">24 kHz</div>
-                      <div className="text-[13px] font-bold" style={{ color: ACCENT }}>20 {t.pts}</div>
-                    </div>
-                  </div>
+          <button className="button" style={{ position: "absolute", bottom: 28, left: 32, background: "transparent", color: INK, border: "none", fontSize: 12, fontWeight: 500, letterSpacing: ".05em", cursor: "pointer", textTransform: "uppercase" }} onClick={() => scrollTo("#univers")} aria-label="Découvrir">{isRTL ? "Défiler" : "Défiler"} <ArrowDown size={15} /></button>
+        </section>
 
-                  <div className="rounded-2xl px-4 py-5 mb-5" style={{ background: `${featured.color}12` }}>
-                    <Waveform color={featured.color} playing={isIntroPlaying || (playingId === featured.id)} bars={42} />
-                  </div>
-
-                  <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 min-h-[64px]" dir="auto">
-                    {isIntroPlaying 
-                      ? (isRTL ? "“أنت تستمع حاليًا إلى الصوت التقديمي للمنصة... اكتشف قوة الذكاء الاصطناعي الخاص بنا.”" : "“Vous écoutez actuellement l'audio de présentation de Sawtify... Découvrez la puissance de notre IA.”")
-                      : <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
-                    }
-                  </p>
-                  {cutDone && !isIntroPlaying && (
-                    <p className="mt-2 text-[11px] font-bold tracking-wide" style={{ color: featured.color }}>{isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}</p>
-                  )}
-
-                  <div className="mt-5 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    {LANDING_VOICES.map((v) => {
-                      const on = v.id === featured.id && !isIntroPlaying;
-                      return (
-                        <button key={v.id} type="button" onClick={() => { stopIntroAudio(); setFeaturedId(v.id); setPlayingId(null); setHoldVoice(true); }} className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold border transition focus-ring ${on ? "text-white border-transparent" : "bg-white text-[#0F0F1A]/70 border-[#0F0F1A]/10 hover:border-[#6E5FE8]"}`} style={on ? { background: v.color } : undefined}>
-                          {isRTL ? v.nameAr : v.nameFr}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button type="button" onClick={() => openListen(featured)} className="mt-5 w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:opacity-90" style={{ background: featured.color, boxShadow: `0 10px 30px -8px ${featured.color}` }}>
-                    <Play className="w-4 h-4 fill-current" /> {t.listenInStudio} <span className="text-[11px] font-semibold opacity-80">· 3s</span>
-                  </button>
-                </div>
-              </SlideUp>
+        {/* MANIFESTO */}
+        <section id="univers" className="manifesto-section">
+          <div className="section-intro">
+            <p className="eyebrow">01 / {isRTL ? "L'intention" : "L'intention"}</p>
+            <span className="section-index">L — 2026</span>
+          </div>
+          <div className="manifesto-content">
+            <h2>{isRTL ? "Le studio où " : "Le studio où "}<br /><em>{isRTL ? "la voix respire." : "la voix respire."}</em></h2>
+            <p style={{ maxWidth: 640, fontFamily: "'Inter'", fontSize: 17, lineHeight: 1.7, color: "#555", marginTop: 24 }}>
+              {isRTL ? "Sawtify est une plateforme algérienne qui transforme vos textes en commentaires vocaux naturels en Darija. Pas de robot. Juste une voix qui parle comme un humain, avec la bonne intonation, le bon rythme, et la bonne émotion." : "Sawtify est une plateforme algérienne qui transforme vos textes en voix-off naturelles en Darija. Pas un robot. Juste une voix qui parle comme un humain, avec la bonne intonation, le bon rythme, et la bonne émotion."}
+            </p>
+            <div className="manifesto-signature" style={{ marginTop: 48, borderTop: "1px solid rgba(0,0,0,.08)", paddingTop: 20, display: "flex", gap: 24, alignItems: "center" }}>
+              <span style={{ fontFamily: "'Cormorant Garamond'", fontSize: 56, color: ACCENT, fontWeight: 300, lineHeight: 1 }}>S</span>
+              <span style={{ fontFamily: "'Inter'", fontSize: 14, color: "#888", lineHeight: 1.5 }}>{isRTL ? "Le studio de voix<br /><strong>Sawtify</strong>" : "Le studio vocal<br /><strong>Sawtify</strong>"}</span>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* TRUST */}
-      <section className="py-7 border-y border-[#0F0F1A]/8 bg-white" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
-          {trust.map((p) => (
-            <div key={p.k} className="text-center">
-              <div className="text-[14px] font-extrabold tracking-tight">{p.k}</div>
-              <div className="text-[11px] text-[#0F0F1A]/50 mt-0.5">{p.v}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* VOICES */}
-      <section id="voices" className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp>
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.popularKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-2xl" style={{ fontFamily: display }}>{t.popularTitle}</h2>
-            <p className="text-[14px] text-[#0F0F1A]/60 mt-3 max-w-xl">{t.popularSub}</p>
-          </SlideUp>
-
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {LANDING_VOICES.map((v, idx) => {
-              const active = playingId === v.id || (featuredId === v.id && !isIntroPlaying);
-              const name = isRTL ? v.nameAr : v.nameFr;
-              return (
-                <SlideUp key={v.id} delay={idx * 0.08}>
-                  <article className={`group bg-white rounded-3xl overflow-hidden card-lift border ${active ? "border-[#6E5FE8]/40 ring-2 ring-[#6E5FE8]/15" : "border-[#0F0F1A]/5"}`}>
-                    <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
-                      <div className="relative p-6 h-40 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${v.color}18 0%, ${v.color}06 100%)` }}>
-                        <Waveform color={v.color} playing={playingId === v.id || (featuredId === v.id && !isIntroPlaying)} bars={28} />
-                        <div className={`absolute top-4 end-4 w-11 h-11 rounded-full flex items-center justify-center text-white transition ${playingId === v.id ? "scale-110" : "opacity-90 group-hover:scale-105"}`} style={{ background: playingId === v.id ? v.color : INK }}>
-                          <Play className="w-4 h-4 fill-current ms-0.5" />
-                        </div>
-                      </div>
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="text-[18px] font-extrabold">{name}</h3>
-                            <p className="text-[12px] text-[#0F0F1A]/55 mt-0.5">{v.location}</p>
-                          </div>
-                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-bold text-white" style={{ background: v.color }}>
-                            <Star className="w-3 h-3 fill-current" /><Num>{v.rating}</Num>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between text-[12px]">
-                          <span className="font-semibold text-[#0F0F1A]/70">{isRTL ? v.tagAr : v.tagFr}</span>
-                          <span className="text-[#0F0F1A]/45"><Num>{v.reviews}</Num> {t.nRatings}</span>
-                        </div>
-                      </div>
-                    </button>
-                  </article>
-                </SlideUp>
-              );
-            })}
+          <div className="manifesto-orbit" style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 60, flexWrap: "wrap" }}>
+            {["Voix", "Naturel", "Studio"].map(word => <span key={word} style={{ fontFamily: "'Cormorant Garamond'", fontSize: "clamp(2rem, 3.5vw, 3.2rem)", color: "#ddd", fontWeight: 300 }}>{word}</span>)}
           </div>
+        </section>
 
-          <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
-            <div className="text-[22px] font-extrabold tracking-tight" style={{ fontFamily: display }}>{t.moreVoices}</div>
-            <p className="mt-1 text-[13px] text-[#0F0F1A]/55">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
-          </button>
-        </div>
-      </section>
-
-      {/* PROCESS */}
-      <section id="process" className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-12">
-            <SlideUp><p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.journeyKicker}</p></SlideUp>
-            <SlideUp delay={0.08}><h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-3xl mx-auto" style={{ fontFamily: display }}>{t.journeyTitle}</h2></SlideUp>
-            <SlideUp delay={0.14}><p className="text-[14px] text-[#0F0F1A]/60 mt-4">{t.journeySub}</p></SlideUp>
+        {/* RITUALS (Voices) */}
+        <section id="rituels" className="rituals-section">
+          <div className="section-intro">
+            <p className="eyebrow">02 / {isRTL ? "Les voix" : "Les voix"}</p>
+            <span className="section-index">{isRTL ? "Le trio" : "Le trio"}</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {journeySteps.map((s, i) => (
-              <SlideUp key={s.n} delay={i * 0.08}>
-                <div className="relative bg-[#FAFAF7] rounded-3xl p-7 h-full min-h-[220px] flex flex-col justify-between border border-[#0F0F1A]/5">
-                  <div className="absolute top-4 end-5 text-[72px] font-black leading-none text-[#0F0F1A]/5 select-none">{s.n}</div>
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-extrabold text-[13px]" style={{ background: ACCENT }}>0{s.n}</div>
-                  <div>
-                    <h3 className="text-[22px] font-extrabold mb-2" style={{ fontFamily: display }}>{s.t}</h3>
-                    <p className="text-[13px] text-[#0F0F1A]/60 leading-relaxed">{s.d}</p>
-                  </div>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* USES */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp>
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.useKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-2xl" style={{ fontFamily: display }}>{t.useTitle}</h2>
-          </SlideUp>
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {uses.map((u, i) => (
-              <SlideUp key={u.t} delay={i * 0.07}>
-                <div className="bg-white rounded-3xl p-6 h-full border border-[#0F0F1A]/5 card-lift">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-4" style={{ background: "#6E5FE814", color: ACCENT }}><u.icon className="w-5 h-5" /></div>
-                  <h3 className="text-[17px] font-extrabold mb-1.5">{u.t}</h3>
-                  <p className="text-[13px] text-[#0F0F1A]/60 leading-relaxed">{u.d}</p>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* COST */}
-      <section className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid lg:grid-cols-12 gap-10 items-center">
-          <div className="lg:col-span-5">
-            <SlideUp>
-              <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.costKicker}</p>
-              <h2 className="text-[clamp(2rem,4vw,3.2rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.costTitle}</h2>
-              <p className="mt-4 text-[14px] text-[#0F0F1A]/65 leading-relaxed">{t.costSub}</p>
-              <ul className="mt-6 space-y-2.5 text-[13px] text-[#0F0F1A]/70">
-                {[isRTL ? "50 نقطة ترحيب = توليدان + 10 نقاط." : "50 points offerts = 2 générations + 10 points.", isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.", isRTL ? "الدفع بالدينار عبر SATIM." : "Paiement en DZD via SATIM."].map((line) => (
-                  <li key={line} className="flex items-start gap-2"><Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} /><span>{line}</span></li>
+          <div className="rituals-layout">
+            <div className="rituals-copy">
+              <h2>{isRTL ? "Moins de bruit." : "Moins de bruit."}<br /><em>{isRTL ? "Plus de vous." : "Plus de vous."}</em></h2>
+              <p style={{ fontFamily: "'Inter'", fontSize: 16, color: "#555", lineHeight: 1.7, marginTop: 16 }}>{isRTL ? "Trois voix représentatives de notre studio. Choisissez celle qui résonne avec votre marque, votre message, votre audience." : "Trois voix représentatives de notre studio. Choisissez celle qui résonne avec votre marque, votre message, votre audience."}</p>
+              <button className="button button-dark" style={{ marginTop: 24 }} onClick={() => setBookingOpen(true)}>{isRTL ? "Parler à notre équipe" : "Parler à notre équipe"} <ArrowRight size={15} /></button>
+              <div className="ritual-tabs" style={{ marginTop: 48 }}>
+                {rituals.map((r, i) => (
+                  <button key={r.number} className={activeRitual === i ? "active" : ""} onClick={() => setActiveRitual(i)}>
+                    <span style={{ color: ACCENT, fontWeight: 700 }}>{r.number}</span>
+                    <span>{r.title}</span>
+                    <ArrowRight size={15} />
+                  </button>
                 ))}
-              </ul>
-            </SlideUp>
-          </div>
-          <div className="lg:col-span-7">
-            <SlideUp delay={0.1}>
-              <div className="rounded-[28px] bg-[#0F0F1A] text-white p-6 sm:p-8">
-                <div className="text-[12px] font-bold tracking-widest uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</div>
-                <div className="grid grid-cols-4 gap-2 mb-6">
-                  {COST_STEPS.map((s, i) => (
-                    <button key={s.sec} type="button" onClick={() => setCostIdx(i)} className={`py-2.5 rounded-2xl text-[12px] font-bold transition ${costIdx === i ? "bg-white text-[#0F0F1A]" : "bg-white/10 text-white/70 hover:bg-white/15"}`}>
-                      {isRTL ? s.labelAr : s.labelFr}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <div className="text-[11px] text-white/50">{isRTL ? "التكلفة" : "Coût"}</div>
-                    <div className="text-[48px] leading-none font-extrabold" style={{ fontFamily: "'Outfit', sans-serif" }}>{COST_STEPS[costIdx].pts}<span className="text-[16px] ms-2 font-bold text-white/50">{t.pts}</span></div>
-                  </div>
-                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="h-11 px-5 rounded-full bg-[#6E5FE8] text-white text-[13px] font-bold hover:opacity-90">{t.bookNow}</button>
-                </div>
-              </div>
-            </SlideUp>
-          </div>
-        </div>
-      </section>
-
-      {/* UNLEASH */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="bg-[#0F0F1A] rounded-[40px] overflow-hidden grid lg:grid-cols-2 text-white">
-            <div className="relative h-72 lg:h-auto min-h-[320px]" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #5B4DD8 50%, #2D1B69 100%)" }}>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-56 h-56">
-                  <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
-                  <div className="absolute inset-8 rounded-full bg-white/15" />
-                  <div className="absolute inset-0 m-auto w-28 h-28 rounded-full bg-white flex items-center justify-center"><Headphones className="w-14 h-14 text-[#6E5FE8]" strokeWidth={1.5} /></div>
-                </div>
-              </div>
-              <div className="absolute bottom-6 start-6 bg-white rounded-2xl px-4 py-3 text-[#0F0F1A] shadow-xl">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/50">{isRTL ? "هدية الترحيب" : "Offre de bienvenue"}</div>
-                <div className="text-[22px] font-extrabold">50 {t.pts}</div>
               </div>
             </div>
-            <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
-              <p className="text-[12px] font-bold tracking-[0.18em] text-[#9D8FFF] uppercase mb-3">// STUDIO</p>
-              <h2 className="text-[clamp(1.75rem,3.4vw,2.8rem)] leading-[1.08] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.unleashTitle}</h2>
-              <p className="mt-5 text-[14px] text-white/70 leading-relaxed max-w-md">{t.unleashSub}</p>
-              <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-bold">
-                {["24 kHz", "MP3", "WAV", isRTL ? "تجاري" : "Commercial"].map((b) => <span key={b} className="px-3 py-1 rounded-full bg-white/10">{b}</span>)}
+            <div className="ritual-feature">
+              <div className="feature-image">
+                <img src={rituals[activeRitual].image} alt={rituals[activeRitual].title} />
+                <span className="feature-tag">{rituals[activeRitual].tag}</span>
+                <span className="feature-index">{rituals[activeRitual].number} / 03</span>
               </div>
-              <button type="button" onClick={() => smoothTo("#voices")} className="mt-8 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-white text-[#0F0F1A] text-[14px] font-bold hover:bg-[#9D8FFF] transition focus-ring w-fit">
-                {t.unleashCTA}<ArrowIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* METRICS */}
-      <section className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-12">
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.metricsKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.metricsTitle}</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {metrics.map((m, i) => (
-              <SlideUp key={m.l} delay={i * 0.07}>
-                <div className="rounded-3xl p-7 text-center border border-[#0F0F1A]/5 bg-[#FAFAF7]">
-                  <div className="text-[clamp(2.4rem,4.5vw,3.4rem)] leading-none font-extrabold mb-2" style={{ fontFamily: "'Outfit', sans-serif" }}><Counter target={m.n} suffix={m.s} /></div>
-                  <div className="text-[12px] text-[#0F0F1A]/60 font-semibold">{m.l}</div>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* TESTIMONIALS */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-12">
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.testKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.testTitle}</h2>
-          </div>
-          <div className="bg-white rounded-3xl p-8 sm:p-12 relative border border-[#0F0F1A]/5 min-h-[260px]">
-            <AnimatePresence mode="wait">
-              <motion.div key={activeTesti} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }}>
-                <div className="flex gap-1 mb-5">{Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4 fill-[#6E5FE8] text-[#6E5FE8]" />)}</div>
-                <blockquote className="text-[clamp(1.25rem,2.8vw,1.9rem)] leading-[1.3] font-extrabold" style={{ fontFamily: display }}>“{testimonials[activeTesti].q}”</blockquote>
-                <div className="mt-6 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-extrabold" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>{testimonials[activeTesti].img}</div>
-                  <div>
-                    <div className="text-[14px] font-bold">{testimonials[activeTesti].n}</div>
-                    <div className="text-[12px] text-[#0F0F1A]/60">{testimonials[activeTesti].r}</div>
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-            <div className="absolute bottom-6 end-6 flex items-center gap-2">
-              <button type="button" onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)} className="w-11 h-11 rounded-full border border-[#0F0F1A]/10 hover:border-[#6E5FE8] flex items-center justify-center focus-ring" aria-label={isRTL ? "السابق" : "Précédent"}>{isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}</button>
-              <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)} className="w-11 h-11 rounded-full bg-[#0F0F1A] text-white hover:bg-[#6E5FE8] flex items-center justify-center focus-ring" aria-label={isRTL ? "التالي" : "Suivant"}>{isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* PRICING */}
-      <section id="pricing" className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-8">
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.pricingKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.pricingTitle}</h2>
-            <p className="text-[14px] text-[#0F0F1A]/60 mt-3">{t.pricingSub}</p>
-          </div>
-          <div className="mb-10 max-w-2xl mx-auto flex items-start gap-3 rounded-2xl bg-[#6E5FE8]/8 border border-[#6E5FE8]/20 px-4 py-3.5 text-[13px] font-medium text-[#0F0F1A]/80">
-            <Gift className="w-4 h-4 mt-0.5 shrink-0 text-[#6E5FE8]" /><span>{t.welcomeBanner}</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {pricing.map((p, i) => (
-              <SlideUp key={p.pts} delay={i * 0.07}>
-                <div className={`rounded-3xl p-7 h-full flex flex-col border-2 ${p.featured ? "bg-[#0F0F1A] text-white border-[#0F0F1A] relative" : "border-[#0F0F1A]/5 bg-[#FAFAF7] hover:border-[#6E5FE8]/30"}`}>
-                  {p.featured && <div className="absolute -top-3 start-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider text-[#0F0F1A]" style={{ background: "#9D8FFF" }}>{t.popular}</div>}
-                  <div className="text-[44px] leading-none font-extrabold mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}><Num>{p.ptsLabel}</Num></div>
-                  <div className={`text-[11px] font-semibold mb-2 uppercase tracking-wider ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>{t.pts}</div>
-                  <div className={`text-[12px] font-bold mb-4 ${p.featured ? "text-[#9D8FFF]" : "text-[#6E5FE8]"}`}>~<Num>{p.gens}</Num> {t.gens}</div>
-                  <div className={`h-px mb-4 ${p.featured ? "bg-white/15" : "bg-[#0F0F1A]/10"}`} />
-                  <p className={`text-[12px] mb-5 flex-1 ${p.featured ? "text-white/70" : "text-[#0F0F1A]/65"}`}>{p.desc}</p>
-                  <div className="flex items-baseline gap-1.5 mb-5"><span className="text-[26px] font-extrabold"><Num>{p.price}</Num></span><span className={`text-[11px] ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>DZD</span></div>
-                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className={`h-11 rounded-full text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#0F0F1A] hover:bg-[#9D8FFF]" : "bg-[#0F0F1A] text-white hover:bg-[#6E5FE8]"}`}>{t.choose}</button>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="grid lg:grid-cols-12 gap-10">
-            <div className="lg:col-span-4">
-              <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.faqKicker}</p>
-              <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.faqTitle}</h2>
-            </div>
-            <div className="lg:col-span-7 lg:col-start-6">
-              <div className="bg-white rounded-3xl overflow-hidden border border-[#0F0F1A]/5">
-                {faqs.map((f, i) => {
-                  const open = openFaq === i;
-                  return (
-                    <div key={f.q} className="border-b border-[#0F0F1A]/5 last:border-b-0">
-                      <button type="button" onClick={() => setOpenFaq(open ? null : i)} className="w-full py-5 px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
-                        <span className="flex-1 text-[15px] font-bold group-hover:text-[#6E5FE8] transition-colors">{f.q}</span>
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${open ? "bg-[#6E5FE8] text-white rotate-45" : "bg-[#0F0F1A]/5"}`}><Plus className="w-4 h-4" /></span>
-                      </button>
-                      <AnimatePresence initial={false}>
-                        {open && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
-                            <p className="pb-5 px-6 pe-14 text-[13px] text-[#0F0F1A]/65 leading-relaxed">{f.a}</p>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
+              <div className="feature-details" style={{ marginTop: 24, padding: 24, background: "#fff", borderRadius: 20, border: "1px solid rgba(0,0,0,.06)" }}>
+                <p className="eyebrow" style={{ fontSize: 11 }}>{isRTL ? "Le rituel " : "Le rituel "}{rituals[activeRitual].number}</p>
+                <h3 style={{ fontFamily: "'Cormorant Garamond'", fontSize: 26, fontWeight: 300, marginBottom: 12 }}>{rituals[activeRitual].title}</h3>
+                <p style={{ fontFamily: "'Inter'", fontSize: 15, lineHeight: 1.7, color: "#555" }}>{rituals[activeRitual].description}</p>
+                <span style={{ display: "inline-block", marginTop: 16, fontFamily: "'Inter'", fontSize: 13, fontWeight: 600, color: ACCENT }}><Clock3 size={14} /> {rituals[activeRitual].time}</span>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="rounded-[40px] p-12 sm:p-16 text-center text-white relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0F0F1A 0%, #2D1B69 50%, #6E5FE8 100%)" }}>
-            <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-              <div className="absolute top-0 start-1/4 w-96 h-96 rounded-full bg-[#9D8FFF]/20 blur-3xl float" />
-              <div className="absolute bottom-0 end-1/4 w-80 h-80 rounded-full bg-[#6E5FE8]/30 blur-3xl float-slow" />
-            </div>
-            <div className="relative">
-              <h2 className="text-[clamp(2.2rem,5.5vw,4.2rem)] leading-[1.02] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.ctaTitle}</h2>
-              <p className="mt-4 text-[15px] text-white/70 max-w-md mx-auto">{t.ctaSub}</p>
-              <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full bg-white text-[#0F0F1A] text-[15px] font-bold hover:scale-[1.02] transition focus-ring">
-                {t.start}<ArrowIcon className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="rituals-strip" style={{ display: "flex", gap: 12, marginTop: 40, overflowX: "auto" }}>
+            {rituals.map((r, i) => <button key={r.number} onClick={() => setActiveRitual(i)} style={{ display: "flex", gap: 16, alignItems: "center", padding: 18, background: i === activeRitual ? "#0F0F1A" : "#fff", color: i === activeRitual ? "#fff" : "#0F0F1A", border: i === activeRitual ? "1px solid #0F0F1A" : "1px solid rgba(0,0,0,.1)", borderRadius: 16, fontFamily: "'Inter'", fontWeight: 600, fontSize: 15, whiteSpace: "nowrap", cursor: "pointer", minWidth: 220, flex: 1 }}><span style={{ color: ACCENT, fontWeight: 700 }}>{r.number}</span><span>{isRTL ? r.title.split(" — ")[1] || r.title : r.title.split(" — ")[1] || r.title}</span><ArrowUpRight size={14} /></button>)}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CONTACT + FOOTER */}
-      <footer id="contact" className="pt-12 pb-28 sm:pb-12 border-t border-[#0F0F1A]/5">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-            <div className="lg:col-span-2">
-              <Logo size={40} />
-              <p className="mt-4 text-[13px] text-[#0F0F1A]/55 max-w-sm leading-relaxed">{isRTL ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوتًا طبيعيًا، جاهزًا للإعلان." : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}</p>
-              <p className="mt-3 text-[12px] font-semibold text-[#0F0F1A]/70">Alger, Algérie · {t.footTag}</p>
+        {/* QUOTE */}
+        <section className="quote-section">
+          <div className="quote-stamp">✳</div>
+          <p>"On ne change pas pour devenir quelqu'un d'autre. <em>On change pour se retrouver.</em>"</p>
+          <div style={{ marginTop: 32, fontFamily: "'Inter'", fontSize: 14, color: "#777" }}>
+            <span style={{ display: "block", width: 48, height: 1, background: ACCENT, marginBottom: 12 }}></span>
+            Anaïs, fondatrice de <strong>Sawtify</strong>
+          </div>
+        </section>
+
+        {/* EXPERIENCE (Studio) */}
+        <section className="experience-section section-pad">
+          <div className="section-intro">
+            <p className="eyebrow">03 / L'expérience</p>
+            <span className="section-index">Le studio ouvert</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 24, alignItems: "start" }}>
+            <div style={{ borderRadius: 24, overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,.08)" }}>
+              <img src={images.salon} alt="Le studio Sawtify" style={{ width: "100%", display: "block", objectFit: "cover", height: "520px" }} />
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40 mb-3">{isRTL ? "المنصة" : "Produit"}</div>
-              <div className="flex flex-col gap-2 text-[13px] font-medium">{nav.map((l) => <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-[#6E5FE8]">{l.label}</a>)}</div>
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40 mb-3">{t.contact}</div>
-              <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold hover:text-[#6E5FE8]">contact@sawtify.dz</a>
-              <div className="mt-4 flex flex-wrap gap-2">{["Edahabia", "CIB", "SATIM"].map((p) => <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full bg-[#0F0F1A]/5">{p}</span>)}</div>
-              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-[#0F0F1A]/50"><ShieldCheck className="w-3.5 h-3.5 text-[#6E5FE8]" />{isRTL ? "دفع آمن، لا نخزّن رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}</div>
+              <div style={{ borderRadius: 24, overflow: "hidden", marginBottom: 24, boxShadow: "0 20px 40px rgba(0,0,0,.06)" }}>
+                <img src={images.hands} alt="Voix naturelle" style={{ width: "100%", display: "block", height: 280, objectFit: "cover" }} />
+                <div style={{ padding: 20, background: "#fff" }}>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond'", fontSize: 26, fontWeight: 300, marginBottom: 8 }}>Le geste <strong style={{ color: ACCENT }}>{isRTL ? "juste" : "juste"}</strong></h3>
+                  <p style={{ fontFamily: "'Inter'", fontSize: 14, color: "#555", lineHeight: 1.7 }}>Une voix qui ne force pas. Une technologie au service de l'émotion. C'est tout le sens de Sawtify.</p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-[#0F0F1A]/5 text-[12px] text-[#0F0F1A]/45">
-            <span>© <Num>2026</Num> Sawtify · {t.footTag}</span>
-            <div className="flex items-center gap-4">
-              <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#6E5FE8]">{t.cgu}</button>
-              <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#6E5FE8]">{t.privacy}</button>
+        </section>
+
+        {/* TESTIMONIAL */}
+        <section style={{ padding: "100px 32px", background: "#fff" }}>
+          <div style={{ maxWidth: 900, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "start" }}>
+            <div>
+              <span style={{ fontFamily: "'Cormorant Garamond'", fontSize: 80, color: ACCENT, opacity: 0.2, lineHeight: 0 }}>“</span>
+              <p style={{ fontFamily: "'Cormorant Garamond'", fontSize: 26, fontWeight: 300, lineHeight: 1.3, marginTop: -30 }}>
+                {isRTL ? "Je ne savais pas qu'une voix IA pouvait sonner si réaliste. Mes clients n'ont pas remarqué la différence." : "Je ne savais pas qu'une voix IA pouvait sonner si réelle. Mes clients n'ont pas remarqué la différence."}
+              </p>
+              <div style={{ marginTop: 28, fontFamily: "'Inter'", fontSize: 13, color: "#777" }}>Amine B. <strong>• Créateur, Alger</strong></div>
             </div>
+            <div style={{ background: "#FAFAF7", padding: 32, borderRadius: 24, border: "1px solid rgba(0,0,0,.05)" }}>
+              <div style={{ fontSize: 28, letterSpacing: 4, color: ACCENT, marginBottom: 16 }}>★★★★★</div>
+              <p style={{ fontFamily: "'Inter'", fontSize: 16, fontWeight: 600, lineHeight: 1.5 }}>{isRTL ? "Une communauté qui revient pour la voix, et pour le moment." : "Une communauté qui revient pour la voix, et pour le moment."}</p>
+              <span style={{ display: "inline-block", marginTop: 20, fontFamily: "'Inter'", fontSize: 13, fontWeight: 600, color: ACCENT }}>1 200+ <small style={{ fontWeight: 400, color: "#777" }}>{isRTL ? "visites" : "visites"}</small></span>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section id="faq" className="faq-section">
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <p className="eyebrow">04 / Questions</p>
+            <h2 style={{ fontFamily: "'Cormorant Garamond'", fontWeight: 300, fontSize: "clamp(2rem, 4vw, 3.5rem)", lineHeight: 1.1 }}>{isRTL ? "Avant de" : "Avant de"} <em style={{ color: ACCENT }}>{isRTL ? "venir." : "venir."}</em></h2>
+          </div>
+          <div className="faq-list">
+            {faqs.map((faq, i) => (
+              <div className={`faq-item ${activeFaq === i ? "open" : ""}`} key={i}>
+                <button onClick={() => setActiveFaq(i === activeFaq ? null : i)}>{faq.q}{activeFaq === i ? <Minus size={18} /> : <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg></span>}</button>
+                <div className="faq-answer"><p>{faq.a}</p></div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CLOSING / BOOKING */}
+        <section id="adresse" className="closing-section">
+          <div className="closing-top">
+            <a href="#top" aria-label="Top" style={{ color: "#fff", textDecoration: "none", fontFamily: "'Cormorant Garamond'", fontSize: 24, fontWeight: 600 }}>
+              <span style={{ background: "linear-gradient(135deg, #6E5FE8, #9D8FFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Sawtify</span>
+            </a>
+            <span style={{ fontFamily: "'Inter'", fontSize: 13, color: "#aaa" }}>{isRTL ? "Alger · En ligne" : "Alger · En ligne"}</span>
+            <span style={{ fontFamily: "'Inter'", fontSize: 13, color: "#aaa" }}>+213 555 000 000</span>
+          </div>
+          <div className="closing-main">
+            <p className="eyebrow light-eyebrow" style={{ color: "#aaa" }}>{isRTL ? "Il reste une place pour vous" : "Il reste une place pour vous"}</p>
+            <h2>{isRTL ? "Votre prochain " : "Votre prochain "}<br /><em>{isRTL ? "beau moment." : "beau moment."}</em></h2>
+            <button className="button button-light" style={{ marginTop: 24 }} onClick={() => setBookingOpen(true)}>{isRTL ? "Prendre rendez-vous" : "Prendre rendez-vous"} <ArrowUpRight size={16} /></button>
+          </div>
+          <div className="closing-bottom" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, fontFamily: "'Inter'", fontSize: 12, color: "#777" }}>
+            <span>© 2026 Sawtify — {t.footTag || "Fait en Algérie"}</span>
+            <span>FR / AR</span>
+          </div>
+        </section>
+      </main>
+
+      {/* BOOKING MODAL */}
+      {bookingOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setBookingOpen(false)} role="presentation">
+          <div className="booking-modal" onMouseDown={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="booking-title">
+            <button className="modal-close" onClick={() => setBookingOpen(false)} aria-label="Fermer"><X size={18} /></button>
+            <p className="eyebrow">Prendre le temps</p>
+            <h2 id="booking-title">{isRTL ? "Votre moment commence ici." : "Votre moment commence ici."}<br /><em>{isRTL ? "Réservez." : "Réservez."}</em></h2>
+            <p style={{ fontFamily: "'Inter'", fontSize: 15, color: "#555", marginBottom: 24 }}>{isRTL ? "Laissez-nous vos coordonnées. Nous répondons dans la journée pour imaginer votre rituel vocal." : "Laissez-nous vos coordonnées. Nous répondons dans la journée pour imaginer votre rituel vocal."}</p>
+            <form onSubmit={(e) => { e.preventDefault(); setBookingOpen(false); }} className="booking-form">
+              <label>{isRTL ? "Votre prénom" : "Votre prénom"}<input required name="name" placeholder={isRTL ? "Ex. Inès" : "Ex. Amine"} /></label>
+              <label>{isRTL ? "Votre email" : "Votre email"}<input required type="email" name="email" placeholder="bonjour@you.com" /></label>
+              <label>{isRTL ? "Rituel souhaité" : "Rituel souhaité"}<select name="ritual" defaultValue=""><option value="" disabled>{isRTL ? "Choisir" : "Choisir"}</option><option>Amine</option><option>Yasmine</option><option>Khalid</option><option>{isRTL ? "Je ne sais pas encore" : "Je ne sais pas encore"}</option></select></label>
+              <button className="button button-dark button-full" type="submit" style={{ marginTop: 12 }}>{isRTL ? "Demander un rendez-vous" : "Demander un rendez-vous"} <ArrowRight size={16} /></button>
+            </form>
+            <p style={{ fontFamily: "'Inter'", fontSize: 12, color: "#888", marginTop: 16, display: "flex", alignItems: "center", gap: 6 }}><Clock3 size={13} /> {isRTL ? "Réponse sous 24h" : "Réponse sous 24h"} · {isRTL ? "sans engagement" : "sans engagement"}</p>
           </div>
         </div>
-      </footer>
-
-      {/* STICKY MOBILE CTA */}
-      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#FAFAF7]/95 backdrop-blur-xl border-t border-[#0F0F1A]/8">
-        <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT }}>{t.bookNow} · 50 {t.pts}</button>
-      </div>
-
-      {/* LISTEN MODAL */}
-      <AnimatePresence>
-        {listenVoice && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setListenVoice(null); setPlayingId(null); }} />
-            <motion.div role="dialog" aria-modal="true" aria-labelledby="listen-title" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-white rounded-3xl p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40">{t.listenInStudio}</p>
-                  <h3 id="listen-title" className="text-[22px] font-extrabold">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
-                  <p className="text-[12px] text-[#0F0F1A]/55">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
-                </div>
-                <button type="button" onClick={() => { setListenVoice(null); setPlayingId(null); }} className="w-9 h-9 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center" aria-label={t.close}><X className="w-4 h-4" /></button>
-              </div>
-              <div className="rounded-2xl p-4 mb-4" style={{ background: `${listenVoice.color}14` }}><Waveform color={listenVoice.color} playing bars={32} /></div>
-              <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 mb-2" dir="auto">“{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”</p>
-              <p className="text-[13px] text-[#0F0F1A]/70 leading-relaxed mb-5">{t.listenBody}</p>
-              <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>{t.tryVoice} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}</button>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* LEGAL */}
-      <AnimatePresence>
-        {legal && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/50" onClick={() => setLegal(null)} />
-            <motion.div role="dialog" aria-modal="true" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-white rounded-3xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[18px] font-extrabold">{legal === "cgu" ? t.cgu : t.privacy}</h3>
-                <button type="button" onClick={() => setLegal(null)} className="w-9 h-9 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center" aria-label={t.close}><X className="w-4 h-4" /></button>
-              </div>
-              <p className="text-[13px] leading-relaxed text-[#0F0F1A]/70">{legalCopy[legal]}</p>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
-};
-
-export default LandingPage;
+}
