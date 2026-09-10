@@ -1,8 +1,12 @@
 import express from "express";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
+import jwt from "jsonwebtoken";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import pLimit from "p-limit";
 
 dotenv.config();
 
@@ -12,10 +16,12 @@ const SLICKPAY_SANDBOX_KEY = process.env.SLICKPAY_SANDBOX_KEY || "";
 const SLICKPAY_BASE_URL = process.env.SLICKPAY_BASE_URL || "https://prodapi.slick-pay.com/api/v2";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 const FRONTEND_URL = process.env.FRONTEND_URL || "";
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
+if (!SUPABASE_JWT_SECRET) console.warn("[Config] SUPABASE_JWT_SECRET manquante — vérification JWT en ligne utilisée (plus lent)");
 if (!SLICKPAY_API_KEY) console.warn("[Config] SLICKPAY_API_KEY manquante");
 
 let supabaseClient: any = null;
@@ -31,16 +37,48 @@ const INVOICE_REGISTRY = new Map<string | number, {
   createdAt: string; userId?: string; credited?: boolean;
 }>();
 
+function verifySupabaseToken(token: string): string | null {
+  if (!SUPABASE_JWT_SECRET) return null;
+  try {
+    const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, { algorithms: ["HS256"] }) as any;
+    if (decoded.sub) return decoded.sub as string;
+    if (decoded.user_id) return decoded.user_id as string;
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
 async function getUserIdFromAuthHeader(req: express.Request): Promise<string | null> {
   try {
     const authHeader = req.get('authorization') || req.get('Authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!token || !supabaseClient) return null;
+
+    // Vérification locale rapide si le secret JWT est configuré.
+    const localUserId = verifySupabaseToken(token);
+    if (localUserId) return localUserId;
+
+    // Fallback : vérification en ligne Supabase (plus lente mais fiable).
     const { data, error } = await supabaseClient.auth.getUser(token);
     if (error || !data?.user) return null;
     return data.user.id as string;
   } catch { return null; }
 }
+
+// Limite la génération TTS simultanée pour éviter de saturer le serveur.
+const TTS_CONCURRENCY_LIMIT = Number(process.env.TTS_CONCURRENCY_LIMIT) || 6;
+const TTS_CONCURRENCY = pLimit(TTS_CONCURRENCY_LIMIT);
+const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
+const TTS_AVG_SECONDS_PER_JOB = 6;
+
+// Cache mémoire des contacts SlickPay par utilisateur.
+const SLICKPAY_CONTACT_CACHE = new Map<string, string>();
+
+// Cache mémoire des réponses LLM (limité à 200 entrées).
+const LLM_RESPONSE_CACHE = new Map<string, { result: string; ts: number }>();
+const LLM_CACHE_MAX_SIZE = 200;
+const LLM_CACHE_TTL_MS = 1000 * 60 * 30; // 30 min
 
 const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
 function mapGateway(method: string | undefined): string { 
@@ -392,9 +430,22 @@ ${preparedText}`;
 /* ==========================================================================
    LLM CALLER HELPER (MULTI-MODÈLES + TOKENS 4096)
    ========================================================================== */
+function simpleHash(str: string): string {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
+  return (h >>> 0).toString(36);
+}
+
 async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Clé GEMINI_API_KEY manquante sur Render");
+
+  const cacheKey = `${temperature.toFixed(2)}:${simpleHash(promptText)}`;
+  const cached = LLM_RESPONSE_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.ts < LLM_CACHE_TTL_MS) {
+    console.log(`[LLM] Réponse servie depuis le cache`);
+    return cached.result;
+  }
 
   const models = ["gemini-3.6-flash", "gemini-3.1-flash", "gemini-2.5-flash"];
   let allErrors: string[] = [];
@@ -429,6 +480,11 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
 
         if (result) {
           console.log(`[LLM Succès] ${model} (${result.length} caractères)`);
+          LLM_RESPONSE_CACHE.set(cacheKey, { result, ts: Date.now() });
+          if (LLM_RESPONSE_CACHE.size > LLM_CACHE_MAX_SIZE) {
+            const oldestKey = LLM_RESPONSE_CACHE.keys().next().value;
+            if (oldestKey) LLM_RESPONSE_CACHE.delete(oldestKey);
+          }
           return result;
         }
         allErrors.push(`${model}: réponse vide`);
@@ -648,7 +704,24 @@ function countEmotionTags(text: string): number {
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+
+  app.use(compression());
   app.use(express.json({ limit: "10mb" }));
+
+  // Rate limiting global
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => res.status(429).json({ error: "Trop de requêtes, réessayez plus tard." })
+  });
+  app.use(globalLimiter);
+
+  // Rate limiting strict pour les endpoints gratuits / coûteux
+  const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, handler: (req, res) => res.status(429).json({ error: "Trop de previews." }) });
+  const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
+  const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes LLM." }) });
 
   const allowedOrigin = FRONTEND_URL || (process.env.NODE_ENV !== "production" ? "*" : "");
   app.use((req, res, next) => {
@@ -698,14 +771,24 @@ async function startServer() {
     PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
     return res.json({ voice_id: voiceId, audio_url: dataUri, duration_seconds: 2.5 });
   };
-  app.get("/api/v1/tts/preview", handleTTSPreview);
-  app.get("/api/tts/preview", handleTTSPreview);
+  app.get("/api/v1/tts/preview", previewLimiter, handleTTSPreview);
+  app.get("/api/tts/preview", previewLimiter, handleTTSPreview);
 
   /* ==========================================================================
      TTS GENERATE (débit côté serveur)
      ========================================================================== */
   const handleTTSGenerate = async (req: express.Request, res: express.Response) => {
-    const startTime = Date.now();
+    const queueFull = TTS_CONCURRENCY.activeCount >= TTS_CONCURRENCY_LIMIT && TTS_CONCURRENCY.pendingCount >= TTS_QUEUE_MAX_PENDING;
+    if (queueFull) {
+      return res.status(503).json({
+        error: "Le serveur vocal est occupé.",
+        retry_after: 4,
+        message: "Génération en cours... Le serveur travaille sur d'autres voix. Ça peut prendre quelques instants, accroche-toi 🎙️"
+      });
+    }
+
+    await TTS_CONCURRENCY(async () => {
+      const startTime = Date.now();
     const userId = await getUserIdFromAuthHeader(req);
     const { text, voice, voice_id, speed = 1.0, pitch = 1.0 } = req.body;
     const requestedVoice = voice_id || voice || "voice_amin";
@@ -787,9 +870,10 @@ async function startServer() {
       parsed_tags: emotionTags,
       notice: error ? "Audio synthétisé via canal sécurisé" : undefined
     });
+  });
   };
-  app.post("/api/v1/tts/generate", handleTTSGenerate);
-  app.post("/api/tts/generate", handleTTSGenerate);
+  app.post("/api/v1/tts/generate", ttsLimiter, handleTTSGenerate);
+  app.post("/api/tts/generate", ttsLimiter, handleTTSGenerate);
 
   /* ==========================================================================
      LLM SYSTEM PROMPT
@@ -809,9 +893,10 @@ RÈGLES STRICTES :
 - La première phrase DOIT commencer par une balise d'émotion claire.
 
 3. LONGUEUR DES SCRIPTS (STRICT) :
-- Durée cible à l'oral : 30 à 50 secondes. JAMAIS plus de 60 secondes.
-- Environ 90 à 140 mots.
+- Durée cible à l'oral : 30 à 40 secondes. JAMAIS plus de 40 secondes.
+- Environ 90 à 120 mots.
 - Texte complet et argumenté, mais concis — pas de remplissage inutile pour atteindre la limite.
+- RAPPEL TARIFAIRE SAWTIFY : la première minute coûte 20 points, puis +10 points par minute supplémentaire. Reste sous 40 secondes pour optimiser le coût.
 
 4. SORTIE :
 - UNIQUEMENT le texte final à vocaliser.
@@ -829,6 +914,9 @@ RÈGLES STRICTES :
       if (!text || typeof text !== "string" || !text.trim()) {
         return res.status(400).json({ error: "Texte manquant ou invalide" });
       }
+      if (text.length > 2000) {
+        return res.status(400).json({ error: "Texte trop long (maximum 2000 caractères)." });
+      }
 
       const pointsCost = 2;
       const currentBalance = await getUserBalance(userId);
@@ -841,7 +929,7 @@ RÈGLES STRICTES :
       const energyLevel = analyzeEnergyLevel(text);
       const originalLatinWords = extractLatinWords(text);
       const wordCount = text.split(/\s+/).length;
-      const expectedMinTags = Math.max(2, Math.floor(wordCount / 25));
+      const expectedMinTags = Math.min(8, Math.max(2, Math.floor(wordCount / 25)));
       const randomBooster = ENHANCE_BOOSTERS[Math.floor(Math.random() * ENHANCE_BOOSTERS.length)];
 
       const buildEnhancePrompt = (isRetry: boolean = false) => `Tu es un DIRECTEUR ARTISTIQUE + rédacteur TTS ÉLITE spécialisé en Darija Algérienne pour vidéos courtes (TikTok, Reels, Shorts).
@@ -976,8 +1064,8 @@ Génère maintenant la version optimisée (UNIQUEMENT le texte) :`;
       return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" });
     }
   };
-  app.post("/api/v1/llm/enhance", handleLLMEnhance);
-  app.post("/api/llm/enhance", handleLLMEnhance);
+  app.post("/api/v1/llm/enhance", llmLimiter, handleLLMEnhance);
+  app.post("/api/llm/enhance", llmLimiter, handleLLMEnhance);
 
   /* ==========================================================================
      LLM SCRIPT GENERATOR (-5 pts)
@@ -990,6 +1078,9 @@ Génère maintenant la version optimisée (UNIQUEMENT le texte) :`;
       const { product, style, region = "general" } = req.body;
       if (!product || typeof product !== "string" || !product.trim()) {
         return res.status(400).json({ error: "Nom du produit ou service manquant" });
+      }
+      if (product.length > 200) {
+        return res.status(400).json({ error: "Nom du produit trop long (maximum 200 caractères)." });
       }
 
       const pointsCost = 5;
@@ -1021,7 +1112,8 @@ SUJET / PRODUIT : "${product}"
 
 ⚠️ RAPPEL DES CONTRAINTES :
 - L'ensemble doit être ultra-fluide et s'enchaîner logiquement en Darija Algérienne.
-- Longueur totale : 90 à 140 mots (30 à 50 secondes).
+- Longueur totale : 90 à 120 mots (30 à 40 secondes). JAMAIS plus de 40 secondes.
+- RAPPEL TARIFAIRE SAWTIFY : 20 points la 1re minute, puis +10 points par minute supplémentaire. Reste sous 40 secondes pour optimiser le coût.
 - PAS DE TITRE, pas de description, renvoie JUSTE LE TEXTE DU SCRIPT.
 
 Style vocal souhaité : ${style || "excited"}`;
@@ -1054,8 +1146,8 @@ Style vocal souhaité : ${style || "excited"}`;
       return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" });
     }
   };
-  app.post("/api/v1/llm/generate-script", handleLLMGenerateScript);
-  app.post("/api/llm/generate-script", handleLLMGenerateScript);
+  app.post("/api/v1/llm/generate-script", llmLimiter, handleLLMGenerateScript);
+  app.post("/api/llm/generate-script", llmLimiter, handleLLMGenerateScript);
 
   /* ==========================================================================
      AI FEEDBACK
@@ -1115,8 +1207,26 @@ Style vocal souhaité : ${style || "excited"}`;
       if (cleanPhone.startsWith('213') && cleanPhone.length > 9) cleanPhone = '0' + cleanPhone.slice(3);
       if (!cleanPhone || cleanPhone.length < 9) cleanPhone = "0550123456";
       let defaultAccountUuid: string | undefined = undefined, contactUuid: string | undefined = undefined;
-      try { const accRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/accounts", { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } }); if (accRes.ok) { const accData = await accRes.json(); const list = accData.data || accData.accounts || (Array.isArray(accData) ? accData : []); if (list.length > 0) defaultAccountUuid = list[0].uuid || list[0].id; } } catch (e) {}
-      try { const contactRes = await fetch("https://prodapi.slick-pay.com/api/v2/users/contacts", { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger" }) }); if (contactRes.ok) { const contactData = await contactRes.json(); contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; } } catch (e) {}
+      const slickPayApiRoot = SLICKPAY_BASE_URL.replace(/\/+$/, "");
+      try { const accRes = await fetch(`${slickPayApiRoot}/users/accounts`, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } }); if (accRes.ok) { const accData = await accRes.json(); const list = accData.data || accData.accounts || (Array.isArray(accData) ? accData : []); if (list.length > 0) defaultAccountUuid = list[0].uuid || list[0].id; } } catch (e) {}
+
+      // Cache contact par email pour éviter de recréer à chaque facture.
+      const contactCacheKey = email.trim().toLowerCase();
+      contactUuid = SLICKPAY_CONTACT_CACHE.get(contactCacheKey);
+      if (!contactUuid) {
+        try {
+          const contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger" })
+          });
+          if (contactRes.ok) {
+            const contactData = await contactRes.json();
+            contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid;
+            if (contactUuid) SLICKPAY_CONTACT_CACHE.set(contactCacheKey, contactUuid);
+          }
+        } catch (e) {}
+      }
       const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
       const payload: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger", note: `Sawtify - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
@@ -1210,29 +1320,31 @@ Style vocal souhaité : ${style || "excited"}`;
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    (async () => {
-      console.log("[Cache] Préchauffage des extraits vocaux en arrière-plan...");
-      const voicesToWarm = Object.keys(VOICE_PREVIEW_SCRIPTS);
-      for (const voiceId of voicesToWarm) {
-        const cacheKey = `${voiceId}_1.0_1.0`;
-        if (!PREVIEW_AUDIO_CACHE.has(cacheKey)) {
-          try {
-            const { pcmBuffer } = await synthesizeWithRetry(VOICE_PREVIEW_SCRIPTS[voiceId], GEMINI_VOICE_MAP[voiceId] || "Puck", 1, 1.0, 1.0, voiceId, []);
-            if (pcmBuffer) {
-              const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
-              PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
-              console.log(`[Cache] Aperçu prêt : ${voiceId}`);
-            }
-          } catch (e) {
-            console.warn(`[Cache] Échec préchauffage ${voiceId}`);
+  });
+
+  // Préchauffage en arrière-plan pour ne pas bloquer le démarrage.
+  (async () => {
+    console.log("[Cache] Préchauffage des extraits vocaux en arrière-plan...");
+    const voicesToWarm = Object.keys(VOICE_PREVIEW_SCRIPTS);
+    for (const voiceId of voicesToWarm) {
+      const cacheKey = `${voiceId}_1.0_1.0`;
+      if (!PREVIEW_AUDIO_CACHE.has(cacheKey)) {
+        try {
+          const { pcmBuffer } = await synthesizeWithRetry(VOICE_PREVIEW_SCRIPTS[voiceId], GEMINI_VOICE_MAP[voiceId] || "Puck", 1, 1.0, 1.0, voiceId, []);
+          if (pcmBuffer) {
+            const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
+            PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
+            console.log(`[Cache] Aperçu prêt : ${voiceId}`);
           }
+        } catch (e) {
+          console.warn(`[Cache] Échec préchauffage ${voiceId}`);
         }
       }
-      console.log("[Cache] Préchauffage terminé ! Les aperçus seront instantanés.");
-    })();
-  });
+    }
+    console.log("[Cache] Préchauffage terminé ! Les aperçus seront instantanés.");
+  })();
 }
 
 startServer();

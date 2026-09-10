@@ -145,6 +145,10 @@ export async function requestTTSGeneration(params: TTSApiRequest, currentBalance
           audio_url: data.audio_url
         };
       }
+    } else if (response.status === 503) {
+      const errorData = await response.json().catch(() => ({}));
+      const retryAfter = Number(errorData.retry_after) || 10;
+      throw new Error(`[QUEUE_BUSY]${retryAfter}|${errorData.message || 'Le serveur vocal est occupé, réessayez dans quelques secondes.'}`);
     } else if (response.status === 402) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.detail || errorData.error || 'Solde insuffisant.');

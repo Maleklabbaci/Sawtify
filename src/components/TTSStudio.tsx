@@ -171,7 +171,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
   }, [previewingVoiceId, speed, pitch, language, showNotif]);
 
-  const handleGenerate = useCallback(async () => {
+  async function handleGenerate(retryCount = 0) {
     if (!text.trim() || balance < POINTS_COST) { 
       setInsufficientAlert(true); 
       return; 
@@ -181,6 +181,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setCurrentAudioUrl(null); 
     setMp3Url(null);
     
+    let errMsg = '';
     try {
       const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(tag => tag.replace(/[\[\]]/g, ''));
       const response = await requestTTSGeneration({ 
@@ -248,17 +249,35 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       }
     } catch (err: any) { 
       console.error('Erreur TTS:', err);
-      const errMsg = err?.message || '';
-      if (errMsg.includes('insuffisant') || errMsg.includes('402')) {
+      errMsg = err?.message || '';
+      if (errMsg.includes('[QUEUE_BUSY]')) {
+        const parts = errMsg.split('[QUEUE_BUSY]')[1]?.split('|') || ['4', 'Génération en cours...'];
+        const retryAfter = Math.max(2, parseInt(parts[0], 10) || 4);
+        if (retryCount < 8) {
+          showNotif(language === 'ar' 
+            ? `🎙️ جاري التوليد... قد يستغرق بضع ثوانٍ (${retryCount + 1}/8)` 
+            : `🎙️ Génération en cours... Ça peut prendre quelques instants (${retryCount + 1}/8)`);
+          setTimeout(() => handleGenerate(retryCount + 1), retryAfter * 1000);
+        } else {
+          showNotif(language === 'ar' 
+            ? '⏱️ الخادم بطيء جداً، جرب لاحقاً' 
+            : '⏱️ Le serveur est lent, réessaie dans un moment');
+          setIsGenerating(false);
+        }
+      } else if (errMsg.includes('insuffisant') || errMsg.includes('402')) {
         setInsufficientAlert(true);
         showNotif(language === 'ar' ? 'رصيد غير كافٍ' : 'Solde insuffisant');
+        setIsGenerating(false);
       } else {
         showNotif(language === 'ar' ? 'خطأ في التوليد' : 'Erreur de génération');
+        setIsGenerating(false);
       }
     } finally { 
-      setIsGenerating(false); 
+      if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
+        setIsGenerating(false);
+      }
     }
-  }, [text, balance, currentVoice.id, currentVoice.name, speed, pitch, onDeductPoints, t.convertingStatus, showNotif, language]);
+  }
 
   const handleEnhanceText = async () => {
     if (!text.trim() || isEnhancing) return;
@@ -649,7 +668,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
                 </span>
                 <button 
-                  onClick={handleGenerate} 
+                  onClick={() => handleGenerate()} 
                   disabled={isGenerating || !text.trim()} 
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
                   {isGenerating ? (
