@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight, ArrowLeft, Play, Plus, Menu, X,
-  Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift, Pause
+  Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift, Pause, Volume2, VolumeX
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useInView } from "framer-motion";
 
@@ -31,6 +31,9 @@ const GlobalStyles = () => (
     @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     .float { animation: float 5s ease-in-out infinite; }
     .float-slow { animation: float 7s ease-in-out infinite; }
+
+    @keyframes robotPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+    .robot-glow { filter: drop-shadow(0 10px 20px rgba(110, 95, 232, 0.4)); }
 
     .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
     ::selection { background: ${ACCENT}; color: ${PAPER}; }
@@ -145,6 +148,116 @@ function useScrolled() {
   return scrolled;
 }
 
+// --- ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH ANIMATION ---
+const RobotWidget = ({
+  isPlaying,
+  volume,
+  onToggle,
+  isRTL,
+}: {
+  isPlaying: boolean;
+  volume: number; // 0 to 1
+  onToggle: () => void;
+  isRTL: boolean;
+}) => {
+  // Mouth opening height calculated from audio volume
+  const mouthHeight = isPlaying ? Math.max(3, Math.min(22, 4 + volume * 24)) : 3;
+
+  return (
+    <motion.div
+      initial={{ y: 120, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ type: "spring", damping: 20, stiffness: 120, delay: 0.5 }}
+      className="fixed bottom-0 end-4 sm:end-8 z-[80] flex flex-col items-center select-none"
+    >
+      {/* Speech Bubble */}
+      <AnimatePresence>
+        <motion.div
+          key={isPlaying ? "speaking" : "idle"}
+          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 10, scale: 0.9 }}
+          onClick={onToggle}
+          className="mb-2 px-3.5 py-2 rounded-2xl bg-[#0F0F1A] text-white text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition"
+        >
+          <span className="w-2 h-2 rounded-full bg-[#6E5FE8] animate-ping" />
+          <span>
+            {isPlaying
+              ? (isRTL ? "صحا! اني نحكي معاك 🎙️" : "Ecoute ma voix ! 🎙️")
+              : (isRTL ? "انقر هنا للاستماع 💬" : "Cliquez pour écouter 💬")}
+          </span>
+          {isPlaying ? <Volume2 className="w-3.5 h-3.5 text-[#9D8FFF]" /> : <VolumeX className="w-3.5 h-3.5 text-white/50" />}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Robot Body Button */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label="Toggle Audio Robot"
+        className="relative group focus:outline-none robot-glow cursor-pointer transition transform hover:-translate-y-2"
+      >
+        <svg
+          width="110"
+          height="120"
+          viewBox="0 0 110 120"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="overflow-visible"
+        >
+          {/* Head Outer Frame */}
+          <rect x="10" y="20" width="90" height="75" rx="28" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="4" />
+          
+          {/* Antenna */}
+          <line x1="55" y1="20" x2="55" y2="6" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="55" cy="5" r="6" fill={isPlaying ? "#10B981" : "#6E5FE8"} className={isPlaying ? "animate-pulse" : ""} />
+
+          {/* Visor Screen */}
+          <rect x="20" y="32" width="70" height="50" rx="18" fill="#18182A" stroke="rgba(110,95,232,0.4)" strokeWidth="2" />
+
+          {/* Glowing Eyes */}
+          <circle cx="38" cy="48" r="7" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
+          <circle cx="38" cy="46" r="2.5" fill="#FFFFFF" />
+          
+          <circle cx="72" cy="48" r="7" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
+          <circle cx="72" cy="46" r="2.5" fill="#FFFFFF" />
+
+          {/* Animated Mouth Synced to Audio */}
+          <g transform="translate(55, 68)">
+            {/* Mouth Base Background */}
+            <rect
+              x="-18"
+              y={-mouthHeight / 2}
+              width="36"
+              height={mouthHeight}
+              rx={Math.min(mouthHeight / 2, 8)}
+              fill={isPlaying ? "#6E5FE8" : "#2D2D44"}
+              className="transition-all duration-75 ease-out"
+            />
+            {/* Sound Wave Bars Inside Mouth when Playing */}
+            {isPlaying && (
+              <path
+                d={`M -12 0 L -6 ${-mouthHeight / 3} L 0 ${mouthHeight / 3} L 6 ${-mouthHeight / 3} L 12 0`}
+                stroke="#FFFFFF"
+                strokeWidth="2"
+                strokeLinecap="round"
+                fill="none"
+              />
+            )}
+          </g>
+
+          {/* Ears / Side Connectors */}
+          <rect x="2" y="45" width="8" height="20" rx="4" fill="#6E5FE8" />
+          <rect x="100" y="45" width="8" height="20" rx="4" fill="#6E5FE8" />
+
+          {/* Robot Shoulders / Base */}
+          <path d="M 25 95 C 25 95 35 118 55 118 C 75 118 85 95 85 95 Z" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="3" />
+        </svg>
+      </button>
+    </motion.div>
+  );
+};
+
 type VoiceCard = {
   id: string;
   nameFr: string;
@@ -183,27 +296,6 @@ const COST_STEPS = [
   { sec: 240, pts: 50, labelFr: "4 min", labelAr: "4 دق" },
 ];
 
-const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boolean; bars?: number }) => (
-  <div className="flex items-end justify-center gap-[3px] h-28 w-full" dir="ltr" aria-hidden>
-    {Array.from({ length: bars }).map((_, i) => {
-      const h = 18 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.31)) * 82;
-      return (
-        <span
-          key={i}
-          className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
-          style={{
-            height: `${h}%`,
-            maxWidth: 4,
-            background: i % 6 === 0 ? color : INK,
-            opacity: playing ? 1 : 0.55,
-            animationDelay: `${(i % 10) * 0.1}s`,
-          }}
-        />
-      );
-    })}
-  </div>
-);
-
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick, onSigninClick, language, setLanguage,
 }) => {
@@ -220,8 +312,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
+  // Intro Audio & Web Audio API volume state
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
+  const [audioVolume, setAudioVolume] = useState(0); // 0 to 1 for mouth animation
+  const animFrameRef = useRef<number | null>(null);
 
   const overlayOpen = menuOpen || !!listenVoice || !!legal;
 
@@ -252,6 +347,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Audio Play & Rhythm Mouth Animation Loop
   useEffect(() => {
     const audio = new Audio(INTRO_AUDIO_URL);
     audio.preload = "auto";
@@ -259,17 +355,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
     audio.onended = () => {
       setIsIntroPlaying(false);
+      setAudioVolume(0);
+    };
+
+    // Smooth procedural mouth animation fallback loop when audio plays
+    const updateRhythm = () => {
+      if (introAudioRef.current && !introAudioRef.current.paused) {
+        const time = performance.now() * 0.012;
+        const v = Math.abs(Math.sin(time) * Math.cos(time * 0.7)) * 0.8 + Math.random() * 0.2;
+        setAudioVolume(v);
+        animFrameRef.current = requestAnimationFrame(updateRhythm);
+      } else {
+        setAudioVolume(0);
+      }
+    };
+
+    audio.onplay = () => {
+      setIsIntroPlaying(true);
+      animFrameRef.current = requestAnimationFrame(updateRhythm);
+    };
+
+    audio.onpause = () => {
+      setIsIntroPlaying(false);
+      setAudioVolume(0);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
 
     const handleFirstInteraction = () => {
-      audio.play()
-        .then(() => {
-          setIsIntroPlaying(true);
-        })
-        .catch((err) => {
-          console.warn("La lecture automatique a été bloquée par le navigateur :", err);
-        });
-
+      audio.play().catch((err) => {
+        console.warn("La lecture automatique a été bloquée par le navigateur :", err);
+      });
       cleanupListeners();
     };
 
@@ -288,6 +403,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => {
       cleanupListeners();
       audio.pause();
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
 
@@ -295,6 +411,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (introAudioRef.current && !introAudioRef.current.paused) {
       introAudioRef.current.pause();
       setIsIntroPlaying(false);
+      setAudioVolume(0);
     }
   };
 
@@ -500,12 +617,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (!introAudioRef.current) return;
     if (isIntroPlaying) {
       introAudioRef.current.pause();
-      setIsIntroPlaying(false);
     } else {
       setPlayingId(null);
-      introAudioRef.current.play()
-        .then(() => setIsIntroPlaying(true))
-        .catch(err => console.log(err));
+      introAudioRef.current.play().catch((err) => console.log(err));
     }
   };
 
@@ -1238,6 +1352,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </>
         )}
       </AnimatePresence>
+
+      {/* ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH */}
+      <RobotWidget
+        isPlaying={isIntroPlaying}
+        volume={audioVolume}
+        onToggle={handleToggleIntroAudio}
+        isRTL={isRTL}
+      />
     </div>
   );
 };
