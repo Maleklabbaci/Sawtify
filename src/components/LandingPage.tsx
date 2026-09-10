@@ -171,9 +171,6 @@ const VOICES: VoiceCard[] = [
   { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#EC4899", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
   { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#EF4444", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
   { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#0EA5E9", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
-  { id: "nour", nameFr: "Nour", nameAr: "نور", tagFr: "Doux & fluide", tagAr: "لطيف ومرن", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.7, reviews: 119, color: "#14B8A6", sampleFr: "Une intonation douce, confortable à écouter, pour stories et tutos.", sampleAr: "نبرة ناعمة ومريحة للسماع، للستوريز والشروحات." },
-  { id: "faycal", nameFr: "Fayçal", nameAr: "فيصل", tagFr: "Commerce & vente", tagAr: "تجارة وتسويق", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.8, reviews: 163, color: "#A855F7", sampleFr: "Vous cherchez une voix-off pro pour votre marque ? Vous êtes au bon endroit.", sampleAr: "تحوس على فويس أوفر احترافي للمشروع تاعك؟ راك في المكان الصحيح." },
-  { id: "sofiane", nameFr: "Sofiane", nameAr: "سفيان", tagFr: "Officiel & IVR", tagAr: "رسمي وموزع", location: "Blida, DZ", gender: "male", category: "formal", rating: 4.9, reviews: 88, color: "#64748B", sampleFr: "Bienvenue sur notre standard. Pour le commercial, tapez 1. Pour l'assistance, tapez 2.", sampleAr: "مرحباً بكم في خدمة الزبائن. للتجارة اضغط 1. للمساعدة اضغط 2." },
 ];
 
 const LANDING_VOICE_IDS = ["amine", "yasmine", "khalid"] as const;
@@ -223,7 +220,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
-  // Audio d'introduction lors de la première interaction
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
 
@@ -256,7 +252,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // CONFIGURATION DU DÉCLENCHEMENT AUDIO À LA PREMIÈRE INTERACTION
   useEffect(() => {
     const audio = new Audio(INTRO_AUDIO_URL);
     audio.preload = "auto";
@@ -321,19 +316,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       : "Votre texte en darija devient une voix naturelle en 30 secondes. Ici, vous n’entendez que le début… la suite est dans le studio.",
     bookNow: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
     listenDemo: isRTL ? "اسمع 3 أصوات فقط" : "Écouter 3 voix",
-    welcomeChip: isRTL ? "50 نقطة. بدون بطاقة." : "50 points. Sans carte.",
+    welcomeChip: isRTL ? "50 نقطة مجاناً. بدون بطاقة." : "50 points offerts. Sans carte.",
     creators: isRTL ? "مستخدم" : "créateurs",
     popularKicker: isRTL ? "لا نكشف الكل" : "ON NE MONTRE PAS TOUT",
-    popularTitle: isRTL ? "12 صوتًا. هنا 3 فقط." : "12 voix. Ici, seulement 3.",
+    popularTitle: isRTL ? "9 أصوات. هنا 3 فقط." : "9 voix. Ici, seulement 3.",
     popularSub: isRTL
-      ? "أمين، ياسمين، خالد. التسعة الباقون تسمعهم في الاستوديو."
-      : "Amine, Yasmine, Khalid. Les neuf autres s’écoutent dans le studio.",
+      ? "أمين، ياسمين، خالد. باقي الأصوات تسمعهم في الاستوديو."
+      : "Amine, Yasmine, Khalid. Les autres voix s’écoutent dans le studio.",
     nRatings: isRTL ? "تقييم" : "avis",
     tryVoice: isRTL ? "أكمل الاستماع" : "Continuer l’écoute",
     listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
     listenBody: isRTL
-      ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة، بدون بطاقة."
-      : "Ce n’est que la première phrase. La voix entière est dans le studio. 50 points, sans carte.",
+      ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة مجاناً، بدون بطاقة."
+      : "Ce n’est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
     journeyKicker: isRTL ? "بدون أن تتكلم" : "SANS MICRO",
     journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
     journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d’attente.",
@@ -346,9 +341,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n’expirent pas.",
     unleashTitle: isRTL ? "لن يعرفوا أنك بلا استوديو." : "Personne ne saura que vous n’avez pas de studio.",
     unleashSub: isRTL
-      ? "لا كابينة. لا ممثل تُدفع له. صوت يبيع. 50 نقطة لتسمع الفرق بنفسك."
-      : "Pas de cabine. Pas de comédien à payer. Une voix qui vend. 50 points pour entendre la différence.",
-    unleashCTA: isRTL ? "أين الـ 9 الباقون؟" : "Et les 9 autres voix ?",
+      ? "لا كابينة. لا ممثل تُدفع له. صوت يبيع. 50 نقطة مجاناً لتسمع الفرق بنفسك."
+      : "Pas de cabine. Pas de comédien à payer. Une voix qui vend. 50 points offerts pour entendre la différence.",
+    unleashCTA: isRTL ? "دخول الاستوديو" : "Accéder au studio",
     metricsKicker: isRTL ? "الأرقام" : "LES CHIFFRES",
     metricsTitle: isRTL ? "الأرقام لا تكذب." : "Les chiffres ne mentent pas.",
     testKicker: isRTL ? "من جرّب" : "ILS ONT TESTÉ",
@@ -357,15 +352,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     pricingTitle: isRTL ? "نقاط. بلا اشتراك." : "Des points. Sans abonnement.",
     pricingSub: isRTL ? "بالدينار. بلا تاريخ انتهاء." : "En dinars. Sans date d’expiration.",
     welcomeBanner: isRTL
-      ? "هدية الدخول: 50 نقطة = توليدان + 10 نقاط متبقية."
-      : "Cadeau d’inscription : 50 points = 2 générations + 10 points restants.",
-    gens: isRTL ? "تسجيل" : "générations",
+      ? "هدية الدخول: 50 نقطة مجاناً عند التسجيل."
+      : "Cadeau d’inscription : 50 points offerts.",
     choose: isRTL ? "اختيار" : "Choisir",
     popular: isRTL ? "الأكثر طلبًا" : "Le plus demandé",
     faqKicker: "FAQ",
     faqTitle: isRTL ? "أسئلة متكررة" : "Questions fréquentes",
     ctaTitle: isRTL ? "تريد أن تسمعه حتى النهاية؟" : "Envie d’entendre la suite ?",
-    ctaSub: isRTL ? "50 نقطة. 12 صوتًا. 3 فقط هنا. بدون بطاقة." : "50 points. 12 voix. 3 seulement ici. Sans carte.",
+    ctaSub: isRTL ? "50 نقطة مجاناً. 9 أصوات. 3 فقط هنا. بدون بطاقة." : "50 points offerts. 9 voix. 3 seulement ici. Sans carte.",
     footTag: isRTL ? "صُنع في الجزائر" : "Fait en Algérie",
     switchLang: isRTL ? "FR" : "AR",
     close: isRTL ? "إغلاق" : "Fermer",
@@ -374,7 +368,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     privacy: isRTL ? "الخصوصية" : "Confidentialité",
     contact: isRTL ? "تواصل" : "Contact",
     pts: isRTL ? "نقطة" : "pts",
-    moreVoices: isRTL ? "+9 في الاستوديو" : "+9 dans le studio",
+    moreVoices: isRTL ? "دخول الاستوديو" : "Accéder au studio",
   };
 
   const nav = [
@@ -421,7 +415,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const journeySteps = [
     { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصك بالدارجة، بالعربية أو بالفرنسية." : "Collez votre texte en darija, en arabe ou en français." },
-    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "12 صوتًا. هنا نعرض 3 فقط." : "12 voix. Ici, on n’en montre que 3." },
+    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "9 أصوات. هنا نعرض 3 فقط." : "9 voix. Ici, on n’en montre que 3." },
     { n: "3", t: isRTL ? "اضبط" : "Régler", d: isRTL ? "السرعة، النبرة، التأثيرات… الباقي في الاستوديو." : "Vitesse, timbre, effets… le reste est dans le studio." },
     { n: "4", t: isRTL ? "حمّل" : "Télécharger", d: isRTL ? "MP3 أو WAV. بلا علامة مائية. استعمال تجاري." : "MP3 ou WAV. Sans filigrane. Usage commercial." },
   ];
@@ -434,7 +428,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const metrics = [
-    { n: 12, s: "", l: isRTL ? "صوت" : "voix" },
+    { n: 9, s: "", l: isRTL ? "صوت" : "voix" },
     { n: 1200, s: "+", l: isRTL ? "مستخدم" : "créateurs" },
     { n: 50, s: "K+", l: isRTL ? "صوت مُولَّد" : "voix générées" },
     { n: 99, s: "%", l: isRTL ? "لا يُفرَّق" : "indiscernable" },
@@ -458,26 +452,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, [testimonials.length]);
 
   const pricing = [
-    { pts: 100, ptsLabel: "100", price: "500", gens: 5, desc: isRTL ? "للتجربة — 5 تسجيلات." : "Pour essayer — 5 générations." },
-    { pts: 220, ptsLabel: "220", price: "1 000", gens: 11, featured: true, desc: isRTL ? "الأكثر طلبًا — 11 تسجيلًا + 20 نقطة مهداة." : "Le plus demandé — 11 générations + 20 points offerts." },
-    { pts: 600, ptsLabel: "600", price: "2 500", gens: 30, desc: isRTL ? "لمن يعمل يوميًا — وكالات وصنّاع محتوى." : "Pour un usage régulier — agences et créateurs." },
-    { pts: 1350, ptsLabel: "1 350", price: "5 000", gens: 67, desc: isRTL ? "للمحترفين — حجم كبير." : "Pour les pros — gros volumes." },
+    { pts: 100, ptsLabel: "100", price: "500", desc: isRTL ? "للتجربة المرنة والحرة." : "Pour découvrir la plateforme." },
+    { pts: 220, ptsLabel: "220", price: "1 000", featured: true, desc: isRTL ? "الأكثر طلبًا — الباقة المثالية." : "Le choix le plus populaire." },
+    { pts: 600, ptsLabel: "600", price: "2 500", desc: isRTL ? "لمن يعمل يوميًا — وكالات وصنّاع محتوى." : "Pour un usage régulier — agences et créateurs." },
+    { pts: 1350, ptsLabel: "1 350", price: "5 000", desc: isRTL ? "للمحترفين — حجم كبير." : "Pour les professionnels — grands volumes." },
   ];
 
   const faqs = isRTL
     ? [
         { q: "هل الصوت يبدو كإنسان؟", a: "نعم. دارجة حيّة، 24 kHz. 99٪ ممن يسمعون لا يفرّقون." },
         { q: "هل يمكن استعماله في الإعلان؟", a: "نعم. إعلان، يوتيوب، تيك توك، موزّع — استعمال تجاري كامل، بلا علامة مائية." },
-        { q: "كيف تعمل النقاط؟", a: "20 نقطة لـ 0–60 ثانية، ثم +10 لكل دقيقة. لا تنتهي. 50 نقطة عند التسجيل." },
+        { q: "كيف تعمل النقاط؟", a: "20 نقطة لـ 0–60 ثانية، ثم +10 لكل دقيقة. لا تنتهي. 50 نقطة مجاناً عند التسجيل." },
         { q: "الذهبية و CIB؟", a: "نعم، SATIM، بالدينار. لا تحتاج بطاقة أجنبية." },
-        { q: "هل أجرّب مجانًا؟", a: "نعم. 50 نقطة، بدون بطاقة. وهنا 3 أصوات فقط — التسعة في الاستوديو." },
+        { q: "هل أجرّب مجانًا؟", a: "نعم. 50 نقطة مجاناً، بدون بطاقة. وهنا 3 أصوات فقط — الباقي في الاستوديو." },
       ]
     : [
         { q: "La voix parle comme quelqu’un ?", a: "Oui. Darija vivante, 24 kHz. 99 % de ceux qui écoutent ne font pas la différence." },
         { q: "Puis-je l’utiliser en pub ?", a: "Oui. Pub, YouTube, TikTok, standard — usage commercial, sans filigrane." },
-        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points à l’inscription." },
+        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points offerts à l’inscription." },
         { q: "Edahabia et CIB ?", a: "Oui, SATIM, en dinars. Pas besoin de carte étrangère." },
-        { q: "Je peux essayer sans payer ?", a: "Oui. 50 points, sans carte. Ici seulement 3 voix — les 9 autres sont dans le studio." },
+        { q: "Je peux essayer sans payer ?", a: "Oui. 50 points offerts, sans carte. Ici seulement 3 voix — les autres sont dans le studio." },
       ];
 
   const trust = [
@@ -622,7 +616,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           >
             <source src={HERO_VIDEO_URL} type="video/mp4" />
           </video>
-          {/* Overlays pour garder la lisibilité du texte */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#FAFAF7]/70 via-[#FAFAF7]/50 to-[#FAFAF7]" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#FAFAF7_80%)]" />
         </div>
@@ -680,7 +673,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div key={c} className="w-7 h-7 rounded-full border-2 border-[#FAFAF7]" style={{ background: c }} />
                     ))}
                   </div>
-                  <span className="font-bold text-[#0F0F1A]/70"><Num>12</Num> {isRTL ? "صوتًا" : "voix"}</span>
+                  <span className="font-bold text-[#0F0F1A]/70"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
                   <span>·</span>
                   <span><Num>1 200+</Num> {t.creators}</span>
                   <span>·</span>
@@ -891,7 +884,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <p className="mt-4 text-[14px] text-[#0F0F1A]/65 leading-relaxed">{t.costSub}</p>
               <ul className="mt-6 space-y-2.5 text-[13px] text-[#0F0F1A]/70">
                 {[
-                  isRTL ? "50 نقطة ترحيب = توليدان + 10 نقاط." : "50 points offerts = 2 générations + 10 points.",
+                  isRTL ? "50 نقطة مجاناً عند التسجيل." : "50 points offerts à l'inscription.",
                   isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
                   isRTL ? "الدفع بالدينار عبر SATIM." : "Paiement en DZD via SATIM.",
                 ].map((line) => (
@@ -1058,10 +1051,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
                   )}
                   <div className="text-[44px] leading-none font-extrabold mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}><Num>{p.ptsLabel}</Num></div>
-                  <div className={`text-[11px] font-semibold mb-2 uppercase tracking-wider ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>{t.pts}</div>
-                  <div className={`text-[12px] font-bold mb-4 ${p.featured ? "text-[#9D8FFF]" : "text-[#6E5FE8]"}`}>
-                    ~<Num>{p.gens}</Num> {t.gens}
-                  </div>
+                  <div className={`text-[11px] font-semibold mb-4 uppercase tracking-wider ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>{t.pts}</div>
                   <div className={`h-px mb-4 ${p.featured ? "bg-white/15" : "bg-[#0F0F1A]/10"}`} />
                   <p className={`text-[12px] mb-5 flex-1 ${p.featured ? "text-white/70" : "text-[#0F0F1A]/65"}`}>{p.desc}</p>
                   <div className="flex items-baseline gap-1.5 mb-5">
@@ -1094,7 +1084,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <div key={f.q} className="border-b border-[#0F0F1A]/5 last:border-b-0">
                       <button type="button" onClick={() => setOpenFaq(open ? null : i)} className="w-full py-5 px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
                         <span className="flex-1 text-[15px] font-bold group-hover:text-[#6E5FE8] transition-colors">{f.q}</span>
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${open ? "bg-[#6E5FE8] text-[#FAFAF7] rotate-45" : "bg-[#0F0F1A]/5"}`}>
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${open ? "bg-[#6E5FE8] text-white rotate-45" : "bg-[#0F0F1A]/5"}`}>
                           <Plus className="w-4 h-4" />
                         </span>
                       </button>
