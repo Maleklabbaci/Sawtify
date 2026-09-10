@@ -32,7 +32,7 @@ const GlobalStyles = () => (
     .float { animation: float 5s ease-in-out infinite; }
     .float-slow { animation: float 7s ease-in-out infinite; }
 
-    .robot-glow { filter: drop-shadow(0 10px 20px rgba(110, 95, 232, 0.4)); }
+    .robot-glow { filter: drop-shadow(0 8px 16px rgba(110, 95, 232, 0.35)); }
 
     .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
     ::selection { background: ${ACCENT}; color: ${PAPER}; }
@@ -168,7 +168,7 @@ const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boole
   </div>
 );
 
-// --- ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH ANIMATION ---
+// --- ROBOT WIDGET WITH AUDIO SYNCHRONIZED HALF-BODY ANIMATION ---
 const RobotWidget = ({
   isPlaying,
   volume,
@@ -180,81 +180,110 @@ const RobotWidget = ({
   onToggle: () => void;
   isRTL: boolean;
 }) => {
-  const mouthHeight = isPlaying ? Math.max(3, Math.min(22, 4 + volume * 24)) : 3;
+  const mouthHeight = isPlaying ? Math.max(3, Math.min(20, 3 + volume * 22)) : 3;
 
   return (
     <motion.div
-      initial={{ y: 120, opacity: 0 }}
+      initial={{ y: 140, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", damping: 20, stiffness: 120, delay: 0.5 }}
-      className="fixed bottom-0 end-4 sm:end-8 z-[80] flex flex-col items-center select-none"
+      transition={{ type: "spring", damping: 22, stiffness: 100, delay: 0.6 }}
+      className="fixed bottom-0 end-2 sm:end-8 z-[80] flex flex-col items-center select-none"
     >
       {/* Speech Bubble */}
       <AnimatePresence>
         <motion.div
           key={isPlaying ? "speaking" : "idle"}
-          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+          initial={{ opacity: 0, y: 12, scale: 0.85 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.9 }}
+          exit={{ opacity: 0, y: 12, scale: 0.85 }}
           onClick={onToggle}
-          className="mb-2 px-3.5 py-2 rounded-2xl bg-[#0F0F1A] text-white text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition"
+          className="mb-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-[#0F0F1A] text-white text-[11px] sm:text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition-all"
         >
-          <span className="w-2 h-2 rounded-full bg-[#6E5FE8] animate-ping" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#6E5FE8] animate-ping" />
           <span>
             {isPlaying
-              ? (isRTL ? "صحا! اني نحكي معاك 🎙️" : "Ecoute ma voix ! 🎙️")
+              ? (isRTL ? "صحا! اني نحكي معاك 🎙️" : "Écoute ma voix ! 🎙️")
               : (isRTL ? "انقر هنا للاستماع 💬" : "Cliquez pour écouter 💬")}
           </span>
           {isPlaying ? <Volume2 className="w-3.5 h-3.5 text-[#9D8FFF]" /> : <VolumeX className="w-3.5 h-3.5 text-white/50" />}
         </motion.div>
       </AnimatePresence>
 
-      {/* Robot Body Button */}
+      {/* Half-Body Robot Button */}
       <button
         type="button"
         onClick={onToggle}
         aria-label="Toggle Audio Robot"
-        className="relative group focus:outline-none robot-glow cursor-pointer transition transform hover:-translate-y-2"
+        className="relative group focus:outline-none robot-glow cursor-pointer transition transform hover:-translate-y-1"
       >
         <svg
-          width="110"
-          height="120"
-          viewBox="0 0 110 120"
+          viewBox="0 0 160 170"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="overflow-visible"
+          className="w-[85px] h-[95px] sm:w-[140px] sm:h-[155px] overflow-visible"
         >
+          {/* --- HALF BODY / SHOULDERS --- */}
+          <path
+            d="M 25 170 C 25 130 50 110 80 110 C 110 110 135 130 135 170 Z"
+            fill="#0F0F1A"
+            stroke="#6E5FE8"
+            strokeWidth="4"
+          />
+          {/* Metallic Shoulders Plates */}
+          <path d="M 28 152 C 35 132 50 122 68 120" stroke="rgba(110, 95, 232, 0.4)" strokeWidth="3" strokeLinecap="round" />
+          <path d="M 132 152 C 125 132 110 122 92 120" stroke="rgba(110, 95, 232, 0.4)" strokeWidth="3" strokeLinecap="round" />
+
+          {/* Chest Heart / Core (Lights up when playing) */}
+          <circle cx="80" cy="142" r="12" fill="#18182A" stroke="#6E5FE8" strokeWidth="2.5" />
+          <circle
+            cx="80"
+            cy="142"
+            r={isPlaying ? "7" : "5"}
+            fill={isPlaying ? "#00E5FF" : "#6E5FE8"}
+            className={isPlaying ? "animate-pulse" : ""}
+            style={{ transition: "all 0.2s" }}
+          />
+
+          {/* --- NECK --- */}
+          <rect x="70" y="94" width="20" height="20" rx="4" fill="#1F1F35" stroke="#6E5FE8" strokeWidth="3" />
+          <line x1="74" y1="104" x2="86" y2="104" stroke="#6E5FE8" strokeWidth="2" />
+
+          {/* --- ROBOT HEAD --- */}
+          {/* Ears */}
+          <rect x="24" y="52" width="8" height="22" rx="4" fill="#6E5FE8" />
+          <rect x="128" y="52" width="8" height="22" rx="4" fill="#6E5FE8" />
+          
           {/* Head Outer Frame */}
-          <rect x="10" y="20" width="90" height="75" rx="28" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="4" />
+          <rect x="30" y="24" width="100" height="76" rx="26" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="4.5" />
           
           {/* Antenna */}
-          <line x1="55" y1="20" x2="55" y2="6" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="55" cy="5" r="6" fill={isPlaying ? "#10B981" : "#6E5FE8"} className={isPlaying ? "animate-pulse" : ""} />
+          <line x1="80" y1="24" x2="80" y2="7" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="80" cy="6" r="6" fill={isPlaying ? "#10B981" : "#6E5FE8"} className={isPlaying ? "animate-pulse" : ""} />
 
           {/* Visor Screen */}
-          <rect x="20" y="32" width="70" height="50" rx="18" fill="#18182A" stroke="rgba(110,95,232,0.4)" strokeWidth="2" />
+          <rect x="42" y="36" width="76" height="48" rx="16" fill="#18182A" stroke="rgba(110,95,232,0.4)" strokeWidth="2" />
 
           {/* Glowing Eyes */}
-          <circle cx="38" cy="48" r="7" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
-          <circle cx="38" cy="46" r="2.5" fill="#FFFFFF" />
+          <circle cx="62" cy="54" r="7.5" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
+          <circle cx="62" cy="51.5" r="2.5" fill="#FFFFFF" />
           
-          <circle cx="72" cy="48" r="7" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
-          <circle cx="72" cy="46" r="2.5" fill="#FFFFFF" />
+          <circle cx="98" cy="54" r="7.5" fill={isPlaying ? "#00E5FF" : "#6E5FE8"} />
+          <circle cx="98" cy="51.5" r="2.5" fill="#FFFFFF" />
 
           {/* Animated Mouth Synced to Audio */}
-          <g transform="translate(55, 68)">
+          <g transform="translate(80, 74)">
             <rect
-              x="-18"
+              x="-16"
               y={-mouthHeight / 2}
-              width="36"
+              width="32"
               height={mouthHeight}
-              rx={Math.min(mouthHeight / 2, 8)}
+              rx={Math.min(mouthHeight / 2, 6)}
               fill={isPlaying ? "#6E5FE8" : "#2D2D44"}
               className="transition-all duration-75 ease-out"
             />
             {isPlaying && (
               <path
-                d={`M -12 0 L -6 ${-mouthHeight / 3} L 0 ${mouthHeight / 3} L 6 ${-mouthHeight / 3} L 12 0`}
+                d={`M -10 0 L -5 ${-mouthHeight / 4} L 0 ${mouthHeight / 4} L 5 ${-mouthHeight / 4} L 10 0`}
                 stroke="#FFFFFF"
                 strokeWidth="2"
                 strokeLinecap="round"
@@ -263,12 +292,22 @@ const RobotWidget = ({
             )}
           </g>
 
-          {/* Ears */}
-          <rect x="2" y="45" width="8" height="20" rx="4" fill="#6E5FE8" />
-          <rect x="100" y="45" width="8" height="20" rx="4" fill="#6E5FE8" />
+          {/* --- ARM / RETRO STUDIO MICROPHONE --- */}
+          {/* Left Mechanical Arm reaching bottom */}
+          <path d="M 26 156 Q 10 162 14 170" stroke="#6E5FE8" strokeWidth="5.5" strokeLinecap="round" />
 
-          {/* Base */}
-          <path d="M 25 95 C 25 95 35 118 55 118 C 75 118 85 95 85 95 Z" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="3" />
+          {/* Right Mechanical Arm holding microphone */}
+          <path d="M 134 156 Q 152 148 146 126" stroke="#6E5FE8" strokeWidth="5.5" strokeLinecap="round" fill="none" />
+          {/* Hand joint */}
+          <circle cx="145" cy="122" r="6" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="2.5" />
+          
+          {/* Retro Mic Stand */}
+          <line x1="145" y1="122" x2="145" y2="102" stroke="#6E5FE8" strokeWidth="3" strokeLinecap="round" />
+          {/* Retro Mic Body */}
+          <rect x="139" y="86" width="12" height="16" rx="5" fill="#0F0F1A" stroke={isPlaying ? "#00E5FF" : "#6E5FE8"} strokeWidth="2.5" />
+          {/* Mic grill */}
+          <line x1="142" y1="91" x2="148" y2="91" stroke={isPlaying ? "#00E5FF" : "#6E5FE8"} strokeWidth="1.5" />
+          <line x1="142" y1="95" x2="148" y2="95" stroke={isPlaying ? "#00E5FF" : "#6E5FE8"} strokeWidth="1.5" />
         </svg>
       </button>
     </motion.div>
@@ -600,7 +639,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     : [
         { q: "La voix parle comme quelqu’un ?", a: "Oui. Darija vivante, 24 kHz. 99 % de ceux qui écoutent ne font pas la différence." },
         { q: "Puis-je l’utiliser en pub ?", a: "Oui. Pub, YouTube, TikTok, standard — usage commercial, sans filigrane." },
-        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points offerts à l’inscription." },
+        { q: "Comment marchent les points ?", a: "20 points pour 0–60 s, puis +10 par minute. Ils n’expirent pas. 50 points offerts à l'inscription." },
         { q: "Edahabia et CIB ?", a: "Oui, SATIM, en dinars. Pas besoin de carte étrangère." },
         { q: "Je peux essayer sans payer ?", a: "Oui. 50 points offerts, sans carte. Ici seulement 3 voix — les autres sont dans le studio." },
       ];
@@ -1367,7 +1406,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH */}
+      {/* ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH AND RETRO MIC */}
       <RobotWidget
         isPlaying={isIntroPlaying}
         volume={audioVolume}
