@@ -3,7 +3,7 @@ import {
   ArrowRight, ArrowLeft, Play, Plus, Menu, X,
   Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift, Pause, Volume2, VolumeX
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll, useInView } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
 
 export interface LandingPageProps {
   onLoginClick: () => void;
@@ -32,7 +32,6 @@ const GlobalStyles = () => (
     .float { animation: float 5s ease-in-out infinite; }
     .float-slow { animation: float 7s ease-in-out infinite; }
 
-    @keyframes robotPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
     .robot-glow { filter: drop-shadow(0 10px 20px rgba(110, 95, 232, 0.4)); }
 
     .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
@@ -148,6 +147,27 @@ function useScrolled() {
   return scrolled;
 }
 
+const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boolean; bars?: number }) => (
+  <div className="flex items-end justify-center gap-[3px] h-28 w-full" dir="ltr" aria-hidden>
+    {Array.from({ length: bars }).map((_, i) => {
+      const h = 18 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.31)) * 82;
+      return (
+        <span
+          key={i}
+          className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
+          style={{
+            height: `${h}%`,
+            maxWidth: 4,
+            background: i % 6 === 0 ? color : INK,
+            opacity: playing ? 1 : 0.55,
+            animationDelay: `${(i % 10) * 0.1}s`,
+          }}
+        />
+      );
+    })}
+  </div>
+);
+
 // --- ROBOT WIDGET WITH AUDIO SYNCHRONIZED MOUTH ANIMATION ---
 const RobotWidget = ({
   isPlaying,
@@ -160,7 +180,6 @@ const RobotWidget = ({
   onToggle: () => void;
   isRTL: boolean;
 }) => {
-  // Mouth opening height calculated from audio volume
   const mouthHeight = isPlaying ? Math.max(3, Math.min(22, 4 + volume * 24)) : 3;
 
   return (
@@ -224,7 +243,6 @@ const RobotWidget = ({
 
           {/* Animated Mouth Synced to Audio */}
           <g transform="translate(55, 68)">
-            {/* Mouth Base Background */}
             <rect
               x="-18"
               y={-mouthHeight / 2}
@@ -234,7 +252,6 @@ const RobotWidget = ({
               fill={isPlaying ? "#6E5FE8" : "#2D2D44"}
               className="transition-all duration-75 ease-out"
             />
-            {/* Sound Wave Bars Inside Mouth when Playing */}
             {isPlaying && (
               <path
                 d={`M -12 0 L -6 ${-mouthHeight / 3} L 0 ${mouthHeight / 3} L 6 ${-mouthHeight / 3} L 12 0`}
@@ -246,11 +263,11 @@ const RobotWidget = ({
             )}
           </g>
 
-          {/* Ears / Side Connectors */}
+          {/* Ears */}
           <rect x="2" y="45" width="8" height="20" rx="4" fill="#6E5FE8" />
           <rect x="100" y="45" width="8" height="20" rx="4" fill="#6E5FE8" />
 
-          {/* Robot Shoulders / Base */}
+          {/* Base */}
           <path d="M 25 95 C 25 95 35 118 55 118 C 75 118 85 95 85 95 Z" fill="#0F0F1A" stroke="#6E5FE8" strokeWidth="3" />
         </svg>
       </button>
@@ -312,10 +329,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
-  // Intro Audio & Web Audio API volume state
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
-  const [audioVolume, setAudioVolume] = useState(0); // 0 to 1 for mouth animation
+  const [audioVolume, setAudioVolume] = useState(0);
   const animFrameRef = useRef<number | null>(null);
 
   const overlayOpen = menuOpen || !!listenVoice || !!legal;
@@ -347,7 +363,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Audio Play & Rhythm Mouth Animation Loop
   useEffect(() => {
     const audio = new Audio(INTRO_AUDIO_URL);
     audio.preload = "auto";
@@ -358,7 +373,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setAudioVolume(0);
     };
 
-    // Smooth procedural mouth animation fallback loop when audio plays
     const updateRhythm = () => {
       if (introAudioRef.current && !introAudioRef.current.paused) {
         const time = performance.now() * 0.012;
