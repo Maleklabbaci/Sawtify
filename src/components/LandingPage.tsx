@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight, ArrowLeft, Play, Plus, Menu, X,
   Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift, Pause, Volume2, VolumeX,
-  SkipBack, SkipForward, Download, Lock
+  SkipBack, SkipForward, Lock
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
 
@@ -43,8 +43,6 @@ const GlobalStyles = () => (
 
     @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
     #sawtify-landing .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
-    @keyframes blink { 50% { opacity: 0; } }
-    #sawtify-landing .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
     #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 10px; }
 
     /* ---------- MESH (assagi, garanti lisible partout) ---------- */
@@ -82,7 +80,6 @@ const GlobalStyles = () => (
 
 /* ============================================================
    MESH BACKGROUND — une seule boucle rAF, lerp + skip de frames.
-   AUCUNE dépendance externe. Si rien ne bouge → 0 repaint.
    ============================================================ */
 const MeshBackground = () => {
   const ballRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -181,7 +178,6 @@ const Mono = ({ children, className = "", style }: { children: React.ReactNode; 
   <span className={className} style={{ fontFamily: MONO_STACK, ...style }}>{children}</span>
 );
 
-/* SectionHead — SANS kicker numéroté : titre + sous-titre directs */
 const SectionHead = ({ title, sub, center = false, font }: {
   title: string; sub?: string; center?: boolean; font: string;
 }) => (
@@ -285,11 +281,11 @@ function useVoiceDemo() {
     return gender === "female" ? (fem ?? pool[0]) : (pool.find((v) => v !== fem) ?? pool[0]);
   }, []);
 
-  const speak = useCallback((voice: VoiceCard, lang: "fr" | "ar", text?: string, rateMul = 1) => {
+  const speak = useCallback((voice: VoiceCard, lang: "fr" | "ar", rateMul = 1) => {
     if (!supported) return;
     window.speechSynthesis.cancel();
     const my = ++token.current;
-    const u = new SpeechSynthesisUtterance(text || (lang === "ar" ? voice.sampleAr : voice.sampleFr));
+    const u = new SpeechSynthesisUtterance(lang === "ar" ? voice.sampleAr : voice.sampleFr);
     const v = pickVoice(lang, voice.gender);
     if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = lang === "ar" ? "ar-SA" : "fr-FR"; }
     const baseRate = voice.category === "social" ? 1.08 : voice.category === "formal" ? 0.94 : 1;
@@ -382,14 +378,6 @@ const COST_STEPS = [
   { sec: 240, pts: 50, labelFr: "4 min", labelAr: "4 دق" },
 ];
 
-/* Helpers console */
-const VOICE_PROFILE: Record<VoiceCard["category"], { e: number; w: number; a: number }> = {
-  commercial: { e: 82, w: 66, a: 62 },
-  social: { e: 92, w: 74, a: 44 },
-  narrative: { e: 58, w: 88, a: 70 },
-  formal: { e: 46, w: 52, a: 92 },
-};
-
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const fmtDur = (voice: VoiceCard, lang: "fr" | "ar") => {
   const txt = lang === "ar" ? voice.sampleAr : voice.sampleFr;
@@ -410,7 +398,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [legal, setLegal] = useState<null | "cgu" | "privacy">(null);
   const [costIdx, setCostIdx] = useState(0);
   const [pauseRotate, setPauseRotate] = useState(false);
-  const [demoText, setDemoText] = useState("");
   const [speed, setSpeed] = useState<number>(1);
   const [playProgress, setPlayProgress] = useState(0);
   const [playElapsed, setPlayElapsed] = useState(0);
@@ -431,8 +418,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
   const [audioVolume, setAudioVolume] = useState(0);
   const animFrameRef = useRef<number | null>(null);
-  const demoTextRef = useRef("");
-  useEffect(() => { demoTextRef.current = demoText; }, [demoText]);
 
   const overlayOpen = menuOpen || !!listenVoice || !!legal;
 
@@ -555,7 +540,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     tryFree: isRTL ? "تجربة مجانية" : "Essai gratuit",
     pause: isRTL ? "إيقاف" : "Pause",
     audioPreview: isRTL ? "معاينة صوتية" : "Aperçu audio",
-    hearIt: isRTL ? "اسمع" : "Écouter",
     heroKicker: isRTL ? "استوديو الدارجة" : "STUDIO DARIJA",
     heroTitle1: isRTL ? "صوت" : "Une voix",
     heroTitle2: isRTL ? "لا يُفرَّق." : "indiscernable.",
@@ -575,7 +559,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       : "Ce n'est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
     browserNote: isRTL ? "معاينة بمحرك المتصفح — الجودة استوديو 24 kHz داخل التطبيق." : "Aperçu via la voix du navigateur — le rendu studio 24 kHz est dans l'app.",
     noSpeechNote: isRTL ? "متصفحك لا يدعم المعاينة الصوتية." : "Votre navigateur ne supporte pas l'aperçu audio.",
-    demoPlaceholder: isRTL ? "اكتب جملة واسمعها…" : "Écrivez une phrase, écoutez-la…",
     journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
     journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d'attente.",
     useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n'est plus du texte.",
@@ -616,20 +599,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroSamplePlaying = playingId === featured.id;
   const heroPlaying = isIntroPlaying || heroSamplePlaying;
   const sampleEst = Math.max(2, sampleFull.length / 15) / speed;
-  const [typed, setTyped] = useState("");
-  const [cutDone, setCutDone] = useState(false);
-
-  useEffect(() => {
-    setTyped(""); setCutDone(false);
-    const cutAt = Math.max(32, Math.floor(sampleFull.length * 0.44));
-    let i = 0;
-    const id = window.setInterval(() => {
-      i += 1;
-      if (i >= cutAt) { setTyped(sampleFull.slice(0, cutAt).trimEnd()); setCutDone(true); window.clearInterval(id); }
-      else setTyped(sampleFull.slice(0, i));
-    }, 22);
-    return () => window.clearInterval(id);
-  }, [featured.id, sampleFull]);
 
   useEffect(() => {
     if (listenVoice || pauseRotate || isIntroPlaying || playingId) return;
@@ -656,8 +625,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       return () => window.clearInterval(id);
     }
     if (heroSamplePlaying) {
-      const text = demoTextRef.current.trim() || sampleFull;
-      const est = Math.max(2, text.length / 15) / speed;
+      const est = Math.max(2, sampleFull.length / 15) / speed;
       const start = performance.now();
       setPlayProgress(0); setPlayElapsed(0); setPlayTotal(est);
       const id = window.setInterval(() => {
@@ -669,7 +637,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
     setPlayProgress(0); setPlayElapsed(0); setPlayTotal(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isIntroPlaying, heroSamplePlaying, speed]);
+  }, [isIntroPlaying, heroSamplePlaying, speed, featured.id]);
 
   const stepVoice = (dir: 1 | -1) => {
     stopAllAudio();
@@ -682,7 +650,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (isIntroPlaying && introAudioRef.current) {
       introAudioRef.current.playbackRate = s;
     } else if (heroSamplePlaying) {
-      speak(featured, language, demoText.trim() || undefined, s);
+      speak(featured, language, s);
     }
   };
 
@@ -803,7 +771,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* ===== MESH ASSAGI + VOILE BLANC ===== */}
       <MeshBackground />
 
-      {/* HEADER — sans badge v2.1 */}
+      {/* HEADER */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/85 backdrop-blur-xl border-b" : "bg-transparent"}`}
         style={scrolled ? { borderColor: BORDER } : undefined}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
@@ -864,7 +832,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Contenu au-dessus du mesh */}
       <div className="relative z-[1]">
 
-        {/* HERO — sans badge "v2.1 · En ligne" */}
+        {/* HERO */}
         <section id="home" className="relative pt-32 pb-16 sm:pb-20">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="max-w-3xl mx-auto text-center">
@@ -904,7 +872,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </SlideUp>
             </div>
 
-            {/* ======== CONSOLE — DECK DE LECTURE COMPLET ======== */}
+            {/* ======== CONSOLE — ÉPURÉE ======== */}
             <SlideUp delay={0.34} className="mt-12 max-w-3xl mx-auto">
               <div
                 className="rounded-2xl border bg-white overflow-hidden shadow-[0_30px_80px_-40px_rgba(124,58,237,0.35)]"
@@ -1011,89 +979,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       ))}
                     </div>
                   </div>
-
-                  {/* Texte dactylographié */}
-                  <p className="mt-4 text-[13px] leading-relaxed text-[#16121F]/70 min-h-[60px]" dir="auto">
-                    {isIntroPlaying ? (
-                      isRTL ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»" : "« Vous écoutez la présentation audio de la plateforme… »"
-                    ) : (
-                      <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
-                    )}
-                  </p>
-                  {cutDone && !heroPlaying && (
-                    <p className="mt-1.5 text-[11px] font-semibold" style={{ color: featured.color }}>
-                      {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
-                    </p>
-                  )}
-
-                  {/* PROFIL VOCAL — 3 jauges */}
-                  <div className="mt-4 grid grid-cols-3 gap-3 rounded-xl border px-4 py-3" style={{ borderColor: BORDER, background: "#FBFAFE" }}>
-                    {([
-                      { label: isRTL ? "الطاقة" : "Énergie", v: VOICE_PROFILE[featured.category].e },
-                      { label: isRTL ? "الدفء" : "Chaleur", v: VOICE_PROFILE[featured.category].w },
-                      { label: isRTL ? "الجدية" : "Formalité", v: VOICE_PROFILE[featured.category].a },
-                    ]).map((m) => (
-                      <div key={m.label}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <Mono className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#16121F]/45">{m.label}</Mono>
-                          <span className="text-[10px] font-bold tabular-nums" style={{ color: featured.color, fontFamily: NUM_STACK }}>{m.v}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#EDE9F7" }}>
-                          <motion.div className="h-full rounded-full"
-                            animate={{ width: `${m.v}%` }}
-                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                            style={{ background: featured.color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Pastilles */}
-                  <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    {LANDING_VOICES.map((v) => {
-                      const on = v.id === featured.id;
-                      return (
-                        <button key={v.id} type="button" onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
-                          className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition focus-ring ${on ? "border-transparent text-white" : "hov-accent text-[#16121F]/60 bg-white"}`}
-                          style={on ? { background: v.color, borderColor: v.color } : { borderColor: BORDER }}>
-                          {isRTL ? v.nameAr : v.nameFr}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Mini-démo */}
-                  <div className="mt-3 flex items-center gap-2">
-                    <input dir="auto" value={demoText} maxLength={140}
-                      onChange={(e) => setDemoText(e.target.value)}
-                      placeholder={t.demoPlaceholder}
-                      className="flex-1 h-11 px-4 rounded-xl border bg-white text-[13px] outline-none transition-colors placeholder:text-[#16121F]/30"
-                      style={{ borderColor: BORDER }} />
-                    <button type="button"
-                      onClick={() => { if (heroSamplePlaying) stopSpeech(); else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined, speed); } }}
-                      disabled={!speechSupported}
-                      className="h-11 px-4 rounded-xl border-2 bg-white hov-accent text-[13px] font-semibold focus-ring disabled:opacity-40 shrink-0"
-                      style={{ borderColor: BORDER }}>
-                      {heroSamplePlaying ? t.pause : t.hearIt}
-                    </button>
-                  </div>
-                  {!speechSupported && <p className="mt-2 text-[11px] text-[#16121F]/45">{t.noSpeechNote}</p>}
-
-                  {/* FORMATS VERROUILLÉS + COMPTEUR */}
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {["MP3", "WAV"].map((f) => (
-                        <button key={f} type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold text-[#16121F]/55 hov-accent transition focus-ring"
-                          style={{ borderColor: BORDER }}>
-                          <Download className="w-3 h-3" />
-                          {f}
-                          <Lock className="w-3 h-3" style={{ color: ACCENT }} />
-                        </button>
-                      ))}
-                    </div>
-                    <Mono dir="ltr" className="text-[10px] text-[#16121F]/35 tabular-nums">{demoText.length}/140</Mono>
-                  </div>
                 </div>
               </div>
             </SlideUp>
@@ -1130,7 +1015,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* VOICES — TRACKLIST (3 écoutables + 6 verrouillées floutées) */}
+        {/* VOICES — TRACKLIST */}
         <section id="voices" className="py-16 sm:py-24">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
@@ -1140,7 +1025,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <SlideUp delay={0.1}>
               <div className="mt-10 rounded-2xl border bg-white overflow-hidden shadow-[0_18px_50px_-30px_rgba(124,58,237,0.3)]" style={{ borderColor: BORDER }}>
 
-                {/* En-tête de liste */}
                 <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}`, background: "#FBFAFE" }}>
                   <span className="w-8 shrink-0" />
                   <Mono className="flex-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#16121F]/40">
@@ -1206,7 +1090,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   );
                 })}
 
-                {/* 6 pistes verrouillées : noms floutés = teasing réel */}
+                {/* 6 pistes verrouillées */}
                 <div style={{ borderTop: `1px dashed ${BORDER}` }}>
                   {HIDDEN_VOICES.map((v) => {
                     const name = isRTL ? v.nameAr : v.nameFr;
@@ -1432,7 +1316,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <SectionHead title={t.pricingTitle} sub={t.pricingSub} center font={display} />
             </SlideUp>
 
-            {/* ===== BANNIÈRE CADEAU ANIMÉE ===== */}
+            {/* BANNIÈRE CADEAU ANIMÉE */}
             <SlideUp delay={0.08}>
               <div className="mb-10 mt-10 max-w-2xl mx-auto">
                 <motion.button
@@ -1443,13 +1327,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   whileHover={{ scale: 1.015 }}
                   whileTap={{ scale: 0.99 }}
                 >
-                  {/* Balayage lumineux */}
                   <motion.div aria-hidden className="absolute inset-0 pointer-events-none"
                     style={{ background: "linear-gradient(105deg, transparent 32%, rgba(255,255,255,0.65) 50%, transparent 68%)" }}
                     animate={{ x: ["-130%", "230%"] }}
                     transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.4 }}
                   />
-                  {/* Halos qui respirent */}
                   <motion.div aria-hidden className="absolute -top-12 end-8 w-36 h-36 rounded-full pointer-events-none"
                     style={{ background: "rgba(236,72,153,0.16)", filter: "blur(34px)" }}
                     animate={{ scale: [1, 1.35, 1], opacity: [0.5, 0.95, 0.5] }}
@@ -1462,7 +1344,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   />
 
                   <span className="relative flex items-center gap-3.5 px-4 sm:px-5 py-4">
-                    {/* Cadeau qui sautille + ping */}
                     <span className="relative shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: ACCENT, boxShadow: "0 10px 24px -8px rgba(124,58,237,0.55)" }}>
                       <motion.span aria-hidden className="absolute inset-0 rounded-2xl"
                         style={{ background: ACCENT }}
@@ -1481,7 +1362,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <span className="block text-[12px] text-[#16121F]/60 mt-0.5">{t.bannerSub}</span>
                     </span>
 
-                    {/* Flèche qui pulse */}
                     <motion.span aria-hidden className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white"
                       style={{ background: ACCENT }}
                       animate={{ x: isRTL ? [0, -4, 0] : [0, 4, 0] }}
