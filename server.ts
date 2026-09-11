@@ -38,9 +38,16 @@ function createLimiter(concurrency: number) {
 }
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const SLICKPAY_API_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
+const SLICKPAY_PROD_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
 const SLICKPAY_SANDBOX_KEY = process.env.SLICKPAY_SANDBOX_KEY || "";
-const SLICKPAY_BASE_URL = process.env.SLICKPAY_BASE_URL || "https://prodapi.slick-pay.com/api/v2";
+// FIX: SLICKPAY_MODE choisit une PAIRE cohérente (clé + URL) — avant ce fix,
+// SLICKPAY_SANDBOX_KEY était déclarée mais jamais utilisée : tout partait
+// toujours vers l'API prod avec la clé prod, sandbox ou pas.
+const SLICKPAY_MODE = (process.env.SLICKPAY_MODE || "production").toLowerCase();
+const SLICKPAY_IS_SANDBOX = SLICKPAY_MODE === "sandbox" || SLICKPAY_MODE === "dev" || SLICKPAY_MODE === "test";
+const SLICKPAY_API_KEY = SLICKPAY_IS_SANDBOX ? (SLICKPAY_SANDBOX_KEY || SLICKPAY_PROD_KEY) : SLICKPAY_PROD_KEY;
+const SLICKPAY_BASE_URL = process.env.SLICKPAY_BASE_URL || (SLICKPAY_IS_SANDBOX ? "https://devapi.slick-pay.com/api/v2" : "https://prodapi.slick-pay.com/api/v2");
+const SLICKPAY_WEBHOOK_SECRET = process.env.SLICKPAY_WEBHOOK_SECRET || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
@@ -50,6 +57,9 @@ if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
 if (!SUPABASE_JWT_SECRET) console.warn("[Config] SUPABASE_JWT_SECRET manquante — vérification JWT en ligne utilisée (plus lent)");
 if (!SLICKPAY_API_KEY) console.warn("[Config] SLICKPAY_API_KEY manquante");
+if (SLICKPAY_IS_SANDBOX && !SLICKPAY_SANDBOX_KEY) console.warn("[Config] SLICKPAY_MODE=sandbox mais SLICKPAY_SANDBOX_KEY manquante — retombe sur la clé prod (probablement invalide sur devapi).");
+console.log(`[Config] SlickPay: mode=${SLICKPAY_IS_SANDBOX ? "sandbox" : "production"} base_url=${SLICKPAY_BASE_URL}`);
+
 
 let supabaseClient: any = null;
 try { 
@@ -164,26 +174,26 @@ function getPublicUrl(req?: express.Request, path = "/"): string {
   return `${trustedProto}://${host}${path}`;
 }
 
-async function verifySlickPayInvoice(invoiceId: string): Promise<{ paid: boolean; data?: any }> {
+async function verifySlickPayInvoice(invoiceId: string): Promise<{ paid: boolean; data?: any; httpStatus?: number }> {
   if (!SLICKPAY_API_KEY) return { paid: false };
-  const endpoints = [
-    `${SLICKPAY_BASE_URL.replace(/\/+$/, "")}/users/invoices/${invoiceId}`,
-    `https://prodapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`,
-  ];
-  if (!SLICKPAY_BASE_URL.includes("devapi")) endpoints.push(`https://devapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`);
-  for (const ep of endpoints) {
-    try {
-      const res = await fetch(ep, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const invoiceData = data.invoice || data.data || data;
-      const status = (invoiceData.status || "").toLowerCase();
-      const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
-      return { paid: isPaid, data: invoiceData };
-    } catch (e) {}
+  const endpoint = `${SLICKPAY_BASE_URL.replace(/\/+$/, "")}/users/invoices/${invoiceId}`;
+  try {
+    const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } });
+    if (!res.ok) {
+      console.warn(`[SlickPay] Vérification facture ${invoiceId} échouée (HTTP ${res.status}) sur ${endpoint}`);
+      return { paid: false, httpStatus: res.status };
+    }
+    const data = await res.json();
+    const invoiceData = data.invoice || data.data || data;
+    const status = (invoiceData.status || "").toLowerCase();
+    const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
+    return { paid: isPaid, data: invoiceData, httpStatus: res.status };
+  } catch (e: any) {
+    console.warn(`[SlickPay] Erreur réseau vérification facture ${invoiceId}:`, e?.message || e);
+    return { paid: false };
   }
-  return { paid: false };
 }
+
 
 async function loadInvoice(invoiceId: string): Promise<any | null> {
   let local = INVOICE_REGISTRY.get(invoiceId);
@@ -730,12 +740,17 @@ async function startServer() {
   const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes." }) });
   app.use(globalLimiter);
 
-  // FIX: clé par userId (fallback IP réelle si non authentifié) au lieu de l'IP
-  // seule — sinon plusieurs utilisateurs derrière la même box/4G partagent le
-  // même quota, et se pénalisent entre eux.
-  const perUserKey = async (req: express.Request, res: express.Response): Promise<string> => {
-    const userId = await getUserIdFromAuthHeader(req);
-    return userId || ipKeyGenerator(req.ip || "unknown");
+  // PERF: résout userId UNE SEULE FOIS par requête (avant le rate limiter),
+  // au lieu de le refaire dans le handler juste après — sinon on vérifie le
+  // JWT (ou pire, on rappelle Supabase Auth si SUPABASE_JWT_SECRET absent)
+  // deux fois de suite sur les routes payantes (tts/generate, llm/*).
+  const resolveUserIdMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    (req as any).resolvedUserId = await getUserIdFromAuthHeader(req);
+    next();
+  };
+  const perUserKey = (req: express.Request): string => {
+    const resolved = (req as any).resolvedUserId as string | null | undefined;
+    return resolved || ipKeyGenerator(req.ip || "unknown");
   };
   const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de previews." }) });
   const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
@@ -816,7 +831,7 @@ async function startServer() {
 
     await TTS_CONCURRENCY(async () => {
       const startTime = Date.now();
-      const userId = await getUserIdFromAuthHeader(req);
+      const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
       const { text, voice, voice_id, speed = 1.0, pitch = 1.0 } = req.body;
       const requestedVoice = voice_id || voice || "voice_amin";
       const numSpeed = typeof speed === "number" ? speed : parseFloat(speed) || 1.0;
@@ -896,8 +911,8 @@ async function startServer() {
       });
     });
   };
-  app.post("/api/v1/tts/generate", ttsLimiter, handleTTSGenerate);
-  app.post("/api/tts/generate", ttsLimiter, handleTTSGenerate);
+  app.post("/api/v1/tts/generate", resolveUserIdMiddleware, ttsLimiter, handleTTSGenerate);
+  app.post("/api/tts/generate", resolveUserIdMiddleware, ttsLimiter, handleTTSGenerate);
 
   /* ==========================================================================
      LLM SYSTEM PROMPT
@@ -930,7 +945,7 @@ RÈGLES STRICTES :
      ========================================================================== */
   const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
-      const userId = await getUserIdFromAuthHeader(req);
+      const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       const { text, region = "general" } = req.body;
       if (!text || typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Texte manquant ou invalide" });
@@ -1000,15 +1015,15 @@ Génère maintenant la version optimisée :`;
       });
     } catch (err: any) { console.error("[LLM Enhance Error]", err.message || err); return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" }); }
   };
-  app.post("/api/v1/llm/enhance", llmLimiter, handleLLMEnhance);
-  app.post("/api/llm/enhance", llmLimiter, handleLLMEnhance);
+  app.post("/api/v1/llm/enhance", resolveUserIdMiddleware, llmLimiter, handleLLMEnhance);
+  app.post("/api/llm/enhance", resolveUserIdMiddleware, llmLimiter, handleLLMEnhance);
 
   /* ==========================================================================
      LLM SCRIPT GENERATOR (-5 pts)
      ========================================================================== */
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
-      const userId = await getUserIdFromAuthHeader(req);
+      const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       const { product, style, region = "general" } = req.body;
       if (!product || typeof product !== "string" || !product.trim()) return res.status(400).json({ error: "Nom du produit ou service manquant" });
@@ -1059,8 +1074,8 @@ Style vocal souhaité : ${style || "excited"}`;
       });
     } catch (err: any) { console.error("[LLM Script Generator Error]", err.message || err); return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" }); }
   };
-  app.post("/api/v1/llm/generate-script", llmLimiter, handleLLMGenerateScript);
-  app.post("/api/llm/generate-script", llmLimiter, handleLLMGenerateScript);
+  app.post("/api/v1/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
+  app.post("/api/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
 
   /* ==========================================================================
      AI FEEDBACK
@@ -1166,6 +1181,17 @@ Style vocal souhaité : ${style || "excited"}`;
 
   app.post("/api/slickpay/webhook", async (req, res) => {
     try {
+      // Durcissement optionnel : si un secret est configuré côté serveur ET que
+      // SlickPay permet de le transmettre (query ?secret=... ou header), on le
+      // vérifie. Inactif tant que SLICKPAY_WEBHOOK_SECRET n'est pas défini —
+      // n'empêche donc jamais le webhook de fonctionner si non configuré.
+      if (SLICKPAY_WEBHOOK_SECRET) {
+        const providedSecret = (req.query.secret as string) || req.get("x-slickpay-secret") || "";
+        if (providedSecret !== SLICKPAY_WEBHOOK_SECRET) {
+          console.warn("[SlickPay Webhook] Secret invalide ou absent — requête ignorée.");
+          return res.status(200).json({ received: true, warning: "invalid_secret" });
+        }
+      }
       const { id, invoice_id } = req.body;
       const targetId = id || invoice_id;
       if (!targetId) return res.json({ received: true, warning: "No invoice id" });
