@@ -21,9 +21,13 @@ const HERO_VIDEO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v178862
 
 const GlobalStyles = () => (
   <style>{`
-    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Fraunces:opsz,wght@9..144,700;9..144,900&family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap');
+
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    body { overflow-x: hidden; background: ${PAPER}; color: ${INK}; }
+    /* Styles scopés : ne fuient pas sur le reste de la SPA */
+    body:has(#sawtify-landing) { overflow-x: hidden; background: ${PAPER}; color: ${INK}; }
+    #sawtify-landing * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    #sawtify-landing ::selection { background: ${ACCENT}; color: ${PAPER}; }
 
     @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
     .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
@@ -33,10 +37,12 @@ const GlobalStyles = () => (
     .float-slow { animation: float 7s ease-in-out infinite; }
 
     .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
-    ::selection { background: ${ACCENT}; color: ${PAPER}; }
     ::-webkit-scrollbar { width: 10px; }
     ::-webkit-scrollbar-track { background: ${PAPER}; }
     ::-webkit-scrollbar-thumb { background: ${ACCENT}; border-radius: 10px; }
+
+    .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+    .scrollbar-none::-webkit-scrollbar { display: none; }
 
     @keyframes blink { 50% { opacity: 0; } }
     .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
@@ -96,6 +102,7 @@ const GlobalStyles = () => (
         scroll-behavior: auto !important;
       }
       .wave-bar, .float, .float-slow { animation: none !important; }
+      .hero-video { display: none; }
     }
   `}</style>
 );
@@ -207,155 +214,6 @@ const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boole
   </div>
 );
 
-// --- ROBOT WIDGET : simple, avec mains qui gesticulent + bouche synchro audio ---
-const RobotWidget = ({
-  isPlaying,
-  volume,
-  onToggle,
-  isRTL,
-}: {
-  isPlaying: boolean;
-  volume: number; // 0 to 1
-  onToggle: () => void;
-  isRTL: boolean;
-}) => {
-  const F = [0.6, 1, 0.6];
-  const heights = F.map((f) => (isPlaying ? Math.max(5, 5 + volume * 16 * f) : 5));
-
-  return (
-    <motion.div
-      initial={{ y: 120, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", damping: 22, stiffness: 100, delay: 0.5 }}
-      className="fixed bottom-0 end-2 sm:end-6 z-[80] flex flex-col items-center select-none"
-    >
-      {/* Bubble */}
-      <AnimatePresence>
-        <motion.div
-          key={isPlaying ? "speaking" : "idle"}
-          initial={{ opacity: 0, y: 10, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.9 }}
-          onClick={onToggle}
-          className="mb-1 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-[#0F0F1A] text-white text-[11px] sm:text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition whitespace-nowrap"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#6E5FE8] animate-ping" />
-          <span>
-            {isPlaying
-              ? (isRTL ? "صحا! اني نحكي معاك 🎙️" : "Écoute ma voix ! 🎙️")
-              : (isRTL ? "انقر هنا للاستماع 💬" : "Cliquez pour écouter 💬")}
-          </span>
-          {isPlaying ? <Volume2 className="w-3.5 h-3.5 text-[#9D8FFF]" /> : <VolumeX className="w-3.5 h-3.5 text-white/50" />}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Robot Button */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label="Toggle Audio Robot"
-        className="relative group focus:outline-none focus-ring cursor-pointer"
-        style={{ filter: "drop-shadow(0 6px 14px rgba(110, 95, 232, 0.3))" }}
-      >
-        <svg
-          className={`robot-svg ${isPlaying ? "rb-on" : ""}`}
-          viewBox="0 0 140 160"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="rbG1" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1E1E36" />
-              <stop offset="100%" stopColor="#0F0F1A" />
-            </linearGradient>
-            <filter id="rbGl" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" />
-            </filter>
-          </defs>
-
-          {/* BODY */}
-          <path d="M25 160 C25 130 45 116 70 116 C95 116 115 130 115 160Z" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3" />
-          <circle className="rb-core" cx="70" cy="142" r="5" />
-          <circle className="rb-core" cx="70" cy="142" r="8" opacity={0.3 + volume * 0.7} filter="url(#rbGl)" />
-
-          {/* LEFT ARM + HAND */}
-          <g className="rb-hand-l" style={{ transformOrigin: "30px 130px" }}>
-            <path d="M30 132 C16 136 8 144 6 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="5" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-            <line x1="1" y1="150" x2="-2" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="4" y1="149" x2="3" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="8" y1="150" x2="9" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-          </g>
-
-          {/* RIGHT ARM + HAND */}
-          <g className="rb-hand-r" style={{ transformOrigin: "110px 130px" }}>
-            <path d="M110 132 C124 136 132 144 134 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="135" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-            <line x1="131" y1="150" x2="129" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="135" y1="149" x2="134" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="139" y1="150" x2="142" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-          </g>
-
-          {/* NECK */}
-          <rect x="62" y="100" width="16" height="18" rx="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2.5" />
-
-          {/* HEAD GROUP */}
-          <g className="rb-head-g" style={{ transformOrigin: "70px 60px" }}>
-            <rect x="30" y="24" width="80" height="80" rx="26" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3.5" />
-            <line x1="70" y1="24" x2="70" y2="10" stroke="#6E5FE8" strokeWidth="3" strokeLinecap="round" />
-            <circle className="rb-ao" cx="70" cy="8" r="4.5" />
-
-            {/* EARS */}
-            <rect x="22" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-            <rect x="110" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-
-            {/* EYES */}
-            <g className="rb-eye">
-              <circle className="rb-ef" cx="54" cy="56" r="7" />
-              <circle cx="52" cy="54" r="2.2" fill="#fff" />
-            </g>
-            <g className="rb-eye rb-r2">
-              <circle className="rb-ef" cx="86" cy="56" r="7" />
-              <circle cx="84" cy="54" r="2.2" fill="#fff" />
-            </g>
-
-            {/* MOUTH: 3 bars synced to audio */}
-            <g transform="translate(70,80)">
-              <rect
-                className="rb-mb"
-                x="-12"
-                y={-heights[0] / 2}
-                width="5"
-                height={heights[0]}
-                rx={Math.min(heights[0] / 2, 2.5)}
-                style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }}
-              />
-              <rect
-                className="rb-mb"
-                x="-2.5"
-                y={-heights[1] / 2}
-                width="5"
-                height={heights[1]}
-                rx={Math.min(heights[1] / 2, 2.5)}
-                style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }}
-              />
-              <rect
-                className="rb-mb"
-                x="7"
-                y={-heights[2] / 2}
-                width="5"
-                height={heights[2]}
-                rx={Math.min(heights[2] / 2, 2.5)}
-                style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }}
-              />
-            </g>
-          </g>
-        </svg>
-      </button>
-    </motion.div>
-  );
-};
-
 type VoiceCard = {
   id: string;
   nameFr: string;
@@ -388,11 +246,196 @@ const LANDING_VOICE_IDS = ["amine", "yasmine", "khalid"] as const;
 const LANDING_VOICES = VOICES.filter((v) => (LANDING_VOICE_IDS as readonly string[]).includes(v.id));
 
 const COST_STEPS = [
-  { sec: 60, pts: 20, labelFr: "0–60 s", labelAr: "0–60 ثا" },
+  { sec: 60, pts: 20, labelFr: "0–60 s", labelAr: "0–60 ث" },
   { sec: 120, pts: 30, labelFr: "2 min", labelAr: "2 دق" },
   { sec: 180, pts: 40, labelFr: "3 min", labelAr: "3 دق" },
   { sec: 240, pts: 50, labelFr: "4 min", labelAr: "4 دق" },
 ];
+
+/* ============================================================
+   DÉMO VOCALE — API native du navigateur (speechSynthesis).
+   Aucune clé API, aucun serveur, aucun coût. Opt-in (clic).
+   ============================================================ */
+type NowPlaying = { kind: "intro" } | { kind: "sample"; id: string } | null;
+
+function useVoiceDemo() {
+  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying>(null);
+  const token = useRef(0);
+
+  // Chrome ne remplit getVoices() qu'après l'événement "voiceschanged"
+  useEffect(() => {
+    if (!supported) return;
+    const warm = () => window.speechSynthesis.getVoices();
+    warm();
+    window.speechSynthesis.addEventListener("voiceschanged", warm);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", warm);
+  }, [supported]);
+
+  const pickVoice = useCallback((lang: "fr" | "ar", gender: "male" | "female") => {
+    const pool = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith(lang));
+    if (!pool.length) return null;
+    const fem = pool.find((v) => /female|femme|woman|zira|hoda|amelie|amélie|audrey|salma/i.test(v.name));
+    return gender === "female" ? (fem ?? pool[0]) : (pool.find((v) => v !== fem) ?? pool[0]);
+  }, []);
+
+  const speak = useCallback((voice: VoiceCard, lang: "fr" | "ar", text?: string) => {
+    if (!supported) return;
+    window.speechSynthesis.cancel();
+    const my = ++token.current;
+    const u = new SpeechSynthesisUtterance(text || (lang === "ar" ? voice.sampleAr : voice.sampleFr));
+    const v = pickVoice(lang, voice.gender);
+    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = lang === "ar" ? "ar-SA" : "fr-FR"; }
+    u.rate = voice.category === "social" ? 1.08 : voice.category === "formal" ? 0.94 : 1;
+    u.pitch = voice.gender === "female" ? 1.08 : 0.88;
+    const finish = () => { if (token.current === my) setNowPlaying(null); };
+    u.onend = finish;
+    u.onerror = finish;
+    setNowPlaying({ kind: "sample", id: voice.id });
+    window.speechSynthesis.speak(u);
+  }, [supported, pickVoice]);
+
+  const stopSpeech = useCallback(() => {
+    if (!supported) return;
+    token.current++;
+    window.speechSynthesis.cancel();
+    setNowPlaying((p) => (p?.kind === "sample" ? null : p));
+  }, [supported]);
+
+  useEffect(() => () => { if (supported) window.speechSynthesis.cancel(); }, [supported]);
+
+  return { speechSupported: supported, nowPlaying, speak, stopSpeech };
+}
+
+/* ============================================================
+   ROBOT WIDGET — repositionné (ne couvre plus le CTA mobile
+   ni les modales), caché quand un overlay est ouvert.
+   ============================================================ */
+const RobotWidget = ({
+  isPlaying,
+  volume,
+  onToggle,
+  isRTL,
+  hidden = false,
+}: {
+  isPlaying: boolean;
+  volume: number;
+  onToggle: () => void;
+  isRTL: boolean;
+  hidden?: boolean;
+}) => {
+  const F = [0.6, 1, 0.6];
+  const heights = F.map((f) => (isPlaying ? Math.max(5, 5 + volume * 16 * f) : 5));
+
+  return (
+    <motion.div
+      initial={{ y: 120, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ type: "spring", damping: 22, stiffness: 100, delay: 0.5 }}
+      aria-hidden={hidden || undefined}
+      className={`fixed bottom-[88px] sm:bottom-6 end-2 sm:end-6 z-[80] flex flex-col items-center select-none transition-opacity duration-300 ${hidden ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+    >
+      {/* Bulle */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={isPlaying ? "speaking" : "idle"}
+          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 10, scale: 0.9 }}
+          onClick={onToggle}
+          className="mb-1 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-[#0F0F1A] text-white text-[11px] sm:text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition whitespace-nowrap"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[#6E5FE8] animate-ping" />
+          <span>
+            {isPlaying
+              ? (isRTL ? "صحا! اني نحكي معاك 🎙️" : "Écoute ma voix ! 🎙️")
+              : (isRTL ? "انقر هنا للاستماع 💬" : "Cliquez pour écouter 💬")}
+          </span>
+          {isPlaying ? <Volume2 className="w-3.5 h-3.5 text-[#9D8FFF]" /> : <VolumeX className="w-3.5 h-3.5 text-white/50" />}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Bouton robot */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={isPlaying}
+        aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل الصوت" : "Lire l'audio")}
+        className="relative group focus:outline-none focus-ring cursor-pointer"
+        style={{ filter: "drop-shadow(0 6px 14px rgba(110, 95, 232, 0.3))" }}
+      >
+        <svg
+          className={`robot-svg ${isPlaying ? "rb-on" : ""}`}
+          viewBox="0 0 140 160"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="rbG1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1E1E36" />
+              <stop offset="100%" stopColor="#0F0F1A" />
+            </linearGradient>
+            <filter id="rbGl" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" />
+            </filter>
+          </defs>
+
+          {/* CORPS */}
+          <path d="M25 160 C25 130 45 116 70 116 C95 116 115 130 115 160Z" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3" />
+          <circle className="rb-core" cx="70" cy="142" r="5" />
+          <circle className="rb-core" cx="70" cy="142" r="8" opacity={0.3 + volume * 0.7} filter="url(#rbGl)" />
+
+          {/* BRAS GAUCHE */}
+          <g className="rb-hand-l" style={{ transformOrigin: "30px 130px" }}>
+            <path d="M30 132 C16 136 8 144 6 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="5" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+            <line x1="1" y1="150" x2="-2" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="4" y1="149" x2="3" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="8" y1="150" x2="9" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+          </g>
+
+          {/* BRAS DROIT */}
+          <g className="rb-hand-r" style={{ transformOrigin: "110px 130px" }}>
+            <path d="M110 132 C124 136 132 144 134 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="135" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+            <line x1="131" y1="150" x2="129" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="135" y1="149" x2="134" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+            <line x1="139" y1="150" x2="142" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
+          </g>
+
+          {/* COU */}
+          <rect x="62" y="100" width="16" height="18" rx="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2.5" />
+
+          {/* TÊTE */}
+          <g className="rb-head-g" style={{ transformOrigin: "70px 60px" }}>
+            <rect x="30" y="24" width="80" height="80" rx="26" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3.5" />
+            <line x1="70" y1="24" x2="70" y2="10" stroke="#6E5FE8" strokeWidth="3" strokeLinecap="round" />
+            <circle className="rb-ao" cx="70" cy="8" r="4.5" />
+
+            <rect x="22" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+            <rect x="110" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
+
+            <g className="rb-eye">
+              <circle className="rb-ef" cx="54" cy="56" r="7" />
+              <circle cx="52" cy="54" r="2.2" fill="#fff" />
+            </g>
+            <g className="rb-eye rb-r2">
+              <circle className="rb-ef" cx="86" cy="56" r="7" />
+              <circle cx="84" cy="54" r="2.2" fill="#fff" />
+            </g>
+
+            {/* Bouche synchro audio */}
+            <g transform="translate(70,80)">
+              <rect className="rb-mb" x="-12" y={-heights[0] / 2} width="5" height={heights[0]} rx={Math.min(heights[0] / 2, 2.5)} style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }} />
+              <rect className="rb-mb" x="-2.5" y={-heights[1] / 2} width="5" height={heights[1]} rx={Math.min(heights[1] / 2, 2.5)} style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }} />
+              <rect className="rb-mb" x="7" y={-heights[2] / 2} width="5" height={heights[2]} rx={Math.min(heights[2] / 2, 2.5)} style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }} />
+            </g>
+          </g>
+        </svg>
+      </button>
+    </motion.div>
+  );
+};
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick, onSigninClick, language, setLanguage,
@@ -402,14 +445,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTesti, setActiveTesti] = useState(0);
   const [featuredId, setFeaturedId] = useState("amine");
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [listenVoice, setListenVoice] = useState<VoiceCard | null>(null);
   const [legal, setLegal] = useState<null | "cgu" | "privacy">(null);
   const [costIdx, setCostIdx] = useState(0);
-  const [holdVoice, setHoldVoice] = useState(false);
+  const [pauseRotate, setPauseRotate] = useState(false);
+  const [demoText, setDemoText] = useState("");
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
+  /* --- Démo vocale navigateur (remplace playingId autrefois factice) --- */
+  const { speechSupported, nowPlaying, speak, stopSpeech } = useVoiceDemo();
+  const playingId = nowPlaying?.kind === "sample" ? nowPlaying.id : null;
+
+  /* --- Audio d'intro (opt-in uniquement, PLUS D'AUTOPLAY au scroll/clic) --- */
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -439,7 +487,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setMenuOpen(false);
       setListenVoice(null);
       setLegal(null);
-      setPlayingId(null);
+      stopSpeech();
       if (introAudioRef.current) {
         introAudioRef.current.pause();
         setIsIntroPlaying(false);
@@ -447,7 +495,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [stopSpeech]);
 
   const initAnalyser = useCallback(() => {
     if (audioCtxRef.current || !useAnalyserRef.current || !introAudioRef.current) return;
@@ -529,31 +577,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       audio.load();
     };
 
-    const handleFirstInteraction = () => {
-      audio.play().catch((err) => {
-        console.warn("La lecture automatique a été bloquée par le navigateur :", err);
-      });
-      cleanupListeners();
-    };
-
-    const cleanupListeners = () => {
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("scroll", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
-    };
-
-    window.addEventListener("click", handleFirstInteraction, { passive: true, once: true });
-    window.addEventListener("scroll", handleFirstInteraction, { passive: true, once: true });
-    window.addEventListener("touchstart", handleFirstInteraction, { passive: true, once: true });
-    window.addEventListener("keydown", handleFirstInteraction, { passive: true, once: true });
+    // ⛔ AUTOPLAY SUPPRIMÉ : l'audio ne démarre QUE via le robot ou le bouton "Play l'intro".
 
     return () => {
-      cleanupListeners();
       audio.pause();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      analyserRef.current = null;
     };
   }, [initAnalyser, readLevel]);
+
+  // Couper la démo vocale si on change de langue en cours de lecture
+  useEffect(() => { stopSpeech(); }, [language, stopSpeech]);
 
   const stopIntroAudio = () => {
     if (introAudioRef.current && !introAudioRef.current.paused) {
@@ -563,8 +599,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
+  const stopAllAudio = () => { stopIntroAudio(); stopSpeech(); };
+
   const t = {
-    skip: isRTL ? "Aller au contenu" : "Aller au contenu",
+    skip: isRTL ? "تخطَّ إلى المحتوى" : "Aller au contenu",
     navVoices: isRTL ? "الأصوات" : "Voix",
     navHow: isRTL ? "كيف يعمل" : "Comment ça marche",
     navPricing: isRTL ? "الأسعار" : "Tarifs",
@@ -572,6 +610,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     navContact: isRTL ? "تواصل" : "Contact",
     signin: isRTL ? "دخول" : "Connexion",
     start: isRTL ? "ابدأ الآن" : "Commencer",
+    tryFree: isRTL ? "تجربة مجانية" : "Essai gratuit",
+    pause: isRTL ? "إيقاف" : "Pause",
+    playingNow: isRTL ? "قيد التشغيل" : "Lecture en cours",
+    audioPreview: isRTL ? "معاينة صوتية" : "Aperçu audio",
+    hearIt: isRTL ? "اسمع" : "Écouter",
     liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
     heroKicker: isRTL ? "استوديو الدارجة" : "STUDIO DARIJA",
     heroTitle1: isRTL ? "صوت" : "Une voix",
@@ -579,8 +622,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     heroSub: isRTL
       ? "نصّك بالدارجة يولي صوتًا طبيعيًا في 30 ثانية. هنا تسمع البداية فقط… والباقي في الاستوديو."
       : "Votre texte en darija devient une voix naturelle en 30 secondes. Ici, vous n'entendez que le début… la suite est dans le studio.",
-    bookNow: isRTL ? "أكمل الاستماع" : "Continuer l'écoute",
-    listenDemo: isRTL ? "اسمع 3 أصوات فقط" : "Écouter 3 voix",
     welcomeChip: isRTL ? "50 نقطة مجاناً. بدون بطاقة." : "50 points offerts. Sans carte.",
     creators: isRTL ? "مستخدم" : "créateurs",
     popularKicker: isRTL ? "لا نكشف الكل" : "ON NE MONTRE PAS TOUT",
@@ -589,11 +630,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       ? "أمين، ياسمين، خالد. باقي الأصوات تسمعهم في الاستوديو."
       : "Amine, Yasmine, Khalid. Les autres voix s'écoutent dans le studio.",
     nRatings: isRTL ? "تقييم" : "avis",
-    tryVoice: isRTL ? "أكمل الاستماع" : "Continuer l'écoute",
     listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
     listenBody: isRTL
       ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة مجاناً، بدون بطاقة."
       : "Ce n'est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
+    browserNote: isRTL
+      ? "معاينة بمحرك المتصفح — الجودة استوديو 24 kHz داخل التطبيق."
+      : "Aperçu via la voix du navigateur — le rendu studio 24 kHz est dans l'app.",
+    noSpeechNote: isRTL ? "متصفحك لا يدعم المعاينة الصوتية." : "Votre navigateur ne supporte pas l'aperçu audio.",
+    demoPlaceholder: isRTL ? "اكتب جملة واسمعها…" : "Écrivez une phrase, écoutez-la…",
     journeyKicker: isRTL ? "بدون أن تتكلم" : "SANS MICRO",
     journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
     journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d'attente.",
@@ -667,8 +712,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.clearInterval(id);
   }, [featured.id, sampleFull]);
 
+  // Rotation auto : en pause au survol/focus, modale ouverte, intro ou échantillon en lecture
   useEffect(() => {
-    if (listenVoice || holdVoice || isIntroPlaying) return;
+    if (listenVoice || pauseRotate || isIntroPlaying || playingId) return;
     const id = window.setInterval(() => {
       setFeaturedId((prev) => {
         const i = LANDING_VOICES.findIndex((v) => v.id === prev);
@@ -676,7 +722,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       });
     }, 5200);
     return () => window.clearInterval(id);
-  }, [listenVoice, holdVoice, isIntroPlaying]);
+  }, [listenVoice, pauseRotate, isIntroPlaying, playingId]);
 
   const journeySteps = [
     { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصك بالدارجة، بالعربية أو بالفرنسية." : "Collez votre texte en darija, en arabe ou en français." },
@@ -715,6 +761,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     const id = setInterval(() => setActiveTesti((p) => (p + 1) % testimonials.length), 6500);
     return () => clearInterval(id);
   }, [testimonials.length]);
+
+  const packMinutes = (pts: number) => 1 + Math.round((pts - 20) / 10);
 
   const pricing = [
     { pts: 100, ptsLabel: "100", price: "500", desc: isRTL ? "للتجربة المرنة والحرة." : "Pour découvrir la plateforme." },
@@ -757,8 +805,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const openListen = (voice: VoiceCard) => {
     stopIntroAudio();
     setFeaturedId(voice.id);
-    setPlayingId(voice.id);
     setListenVoice(voice);
+    speak(voice, language);
   };
 
   const handleToggleIntroAudio = () => {
@@ -766,8 +814,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (isIntroPlaying) {
       introAudioRef.current.pause();
     } else {
-      setPlayingId(null);
-      introAudioRef.current.play().catch((err) => console.log(err));
+      stopSpeech();
+      introAudioRef.current.play().catch((err) => console.warn("Lecture impossible :", err));
     }
   };
 
@@ -785,8 +833,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       : "Confidentialité : nous conservons le minimum (e-mail, solde, textes générés) pour faire fonctionner le compte. Nous ne vendons pas vos données. Vous pouvez demander la suppression du compte via Contact. Les paiements sont traités par SATIM — Sawtify ne stocke aucun numéro de carte.",
   };
 
+  const heroSamplePlaying = playingId === featured.id;
+  const heroPlaying = isIntroPlaying || heroSamplePlaying;
+
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: INK, background: PAPER }}>
+    <div id="sawtify-landing" dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: INK, background: PAPER }}>
       <GlobalStyles />
 
       <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:bg-white focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm">
@@ -813,9 +864,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-[#0F0F1A]/70 hover:bg-[#0F0F1A]/5 transition focus-ring" aria-label={t.switchLang}>
+            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-[#0F0F1A]/70 hover:bg-[#0F0F1A]/5 transition focus-ring" aria-label={isRTL ? "التبديل إلى الفرنسية" : "التبديل إلى العربية"}>
               {t.switchLang}
             </button>
+            {/* NOTE : vérifier le branchement — onLoginClick = "Connexion", onSigninClick = "Commencer" */}
             <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-[#0F0F1A]/70 hover:text-[#0F0F1A] px-3 focus-ring">
               {t.signin}
             </button>
@@ -829,7 +881,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </header>
 
-      {/* MOBILE DRAWER */}
+      {/* DRAWER MOBILE */}
       <AnimatePresence>
         {menuOpen && (
           <>
@@ -865,14 +917,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* HERO SECTION WITH VIDEO BACKGROUND */}
+      {/* HERO */}
       <section id="home" className="relative pt-28 pb-16 sm:pb-24 min-h-[90vh] flex items-center overflow-hidden">
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <video autoPlay loop muted playsInline className="w-full h-full object-cover opacity-20 scale-105">
+          <video autoPlay loop muted playsInline className="hero-video w-full h-full object-cover opacity-[0.25] scale-105">
             <source src={HERO_VIDEO_URL} type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-[#FAFAF7]/70 via-[#FAFAF7]/50 to-[#FAFAF7]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#FAFAF7_80%)]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#FAFAF7]/70 via-[#FAFAF7]/55 to-[#FAFAF7]" />
         </div>
 
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 relative z-10 w-full">
@@ -903,8 +954,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </SlideUp>
               <SlideUp delay={0.32}>
                 <div className="mt-8 flex items-center gap-3 flex-wrap">
-                  <button type="button" onClick={onSigninClick} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:opacity-90" style={{ background: ACCENT, boxShadow: "0 0 30px rgba(110, 95, 232, 0.35)" }}>
-                    {t.bookNow}
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:opacity-90" style={{ background: ACCENT, boxShadow: "0 0 30px rgba(110, 95, 232, 0.35)" }}>
+                    {t.tryFree}
                   </button>
                   <button type="button" onClick={handleToggleIntroAudio} className="group h-12 px-5 rounded-full border border-[#0F0F1A]/15 bg-white/80 backdrop-blur-md hover:border-[#6E5FE8] text-[14px] font-semibold flex items-center gap-2.5 transition focus-ring">
                     <span className="w-7 h-7 rounded-full text-white flex items-center justify-center" style={{ background: ACCENT }}>
@@ -933,16 +984,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </SlideUp>
             </div>
 
-            {/* Hero player */}
+            {/* Player hero + mini-démo interactive */}
             <div className="lg:col-span-6">
               <SlideUp delay={0.2}>
-                <div className="relative bg-white/90 backdrop-blur-md rounded-[28px] border border-[#0F0F1A]/8 shadow-[0_24px_80px_-40px_rgba(15,15,26,0.35)] p-5 sm:p-7">
+                <div
+                  className="relative bg-white/90 backdrop-blur-md rounded-[28px] border border-[#0F0F1A]/8 shadow-[0_24px_80px_-40px_rgba(15,15,26,0.35)] p-5 sm:p-7"
+                  onMouseEnter={() => setPauseRotate(true)}
+                  onMouseLeave={() => setPauseRotate(false)}
+                  onFocusCapture={() => setPauseRotate(true)}
+                  onBlurCapture={() => setPauseRotate(false)}
+                >
                   <div className="flex items-center justify-between gap-3 mb-5">
                     <div>
                       <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">Studio</div>
-                      <div className="text-[18px] font-extrabold">{isIntroPlaying ? (isRTL ? "تقديم صوتي" : "Présentation audio") : (isRTL ? featured.nameAr : featured.nameFr)}</div>
+                      <div className="text-[18px] font-extrabold">
+                        {heroPlaying ? t.playingNow : (isRTL ? featured.nameAr : featured.nameFr)}
+                      </div>
                       <div className="text-[12px] text-[#0F0F1A]/55">
-                        {isIntroPlaying ? (isRTL ? "مباشر" : "En cours de lecture") : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
+                        {heroPlaying
+                          ? t.audioPreview
+                          : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
                       </div>
                     </div>
                     <div className="text-end">
@@ -952,32 +1013,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div className="rounded-2xl px-4 py-5 mb-5" style={{ background: `${featured.color}12` }}>
-                    <Waveform color={featured.color} playing={isIntroPlaying} bars={42} />
+                    <Waveform color={featured.color} playing={heroPlaying} bars={42} />
                   </div>
 
                   <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 min-h-[64px]" dir="auto">
                     {isIntroPlaying ? (
-                      isRTL 
-                        ? "\u201Cأنت تستمع حاليًا إلى الصوت التجريبي الحصري للمنصة الذي تم إطلاقه تلقائيًا عند تفاعلك الأول مع الصفحة...\u201D"
-                        : "\u201CVous écoutez actuellement l'audio de démonstration exclusif de la plateforme, lancé automatiquement dès votre première interaction...\u201D"
+                      isRTL
+                        ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»"
+                        : "« Vous écoutez la présentation audio de la plateforme… »"
                     ) : (
-                      <>\u201C{typed}{cutDone ? "…" : ""}\u201D{!cutDone && <span className="caret" aria-hidden />}</>
+                      <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
                     )}
                   </p>
-                  {cutDone && !isIntroPlaying && (
+                  {cutDone && !heroPlaying && (
                     <p className="mt-2 text-[11px] font-bold tracking-wide" style={{ color: featured.color }}>
                       {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
                     </p>
                   )}
 
+                  {/* Pastilles de voix */}
                   <div className="mt-5 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                     {LANDING_VOICES.map((v) => {
-                      const on = v.id === featured.id && !isIntroPlaying;
+                      const on = v.id === featured.id;
                       return (
                         <button
                           key={v.id}
                           type="button"
-                          onClick={() => { setFeaturedId(v.id); setPlayingId(null); setHoldVoice(true); stopIntroAudio(); }}
+                          onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
                           className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold border transition focus-ring ${on ? "text-white border-transparent" : "bg-white text-[#0F0F1A]/70 border-[#0F0F1A]/10 hover:border-[#6E5FE8]"}`}
                           style={on ? { background: v.color } : undefined}
                         >
@@ -987,15 +1049,47 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     })}
                   </div>
 
+                  {/* MINI-DÉMO : tapez une phrase, écoutez-la */}
+                  <div className="mt-4 flex items-center gap-2">
+                    <input
+                      dir="auto"
+                      value={demoText}
+                      maxLength={140}
+                      onChange={(e) => setDemoText(e.target.value)}
+                      placeholder={t.demoPlaceholder}
+                      className="flex-1 h-11 px-4 rounded-full border border-[#0F0F1A]/12 bg-white text-[13px] outline-none focus:border-[#6E5FE8] transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (heroSamplePlaying) stopSpeech();
+                        else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined); }
+                      }}
+                      disabled={!speechSupported}
+                      className="h-11 px-4 rounded-full text-white text-[13px] font-bold shrink-0 focus-ring hover:opacity-90 disabled:opacity-40"
+                      style={{ background: INK }}
+                    >
+                      {heroSamplePlaying ? t.pause : t.hearIt}
+                    </button>
+                  </div>
+                  {!speechSupported && (
+                    <p className="mt-2 text-[11px] text-[#0F0F1A]/45">{t.noSpeechNote}</p>
+                  )}
+
+                  {/* Bouton principal : toggle play/pause réel */}
                   <button
                     type="button"
-                    onClick={() => openListen(featured)}
-                    className="mt-5 w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:opacity-90"
+                    onClick={() => {
+                      if (heroSamplePlaying) stopSpeech();
+                      else { stopIntroAudio(); speak(featured, language); }
+                    }}
+                    disabled={!speechSupported}
+                    className="mt-4 w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:opacity-90 disabled:opacity-40"
                     style={{ background: featured.color, boxShadow: `0 10px 30px -8px ${featured.color}` }}
                   >
-                    <Play className="w-4 h-4 fill-current" />
-                    {t.listenInStudio}
-                    <span className="text-[11px] font-semibold opacity-80">· 3s</span>
+                    {heroSamplePlaying
+                      ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
+                      : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
                   </button>
                 </div>
               </SlideUp>
@@ -1026,45 +1120,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </SlideUp>
 
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-5">
-              {LANDING_VOICES.map((v, idx) => {
-                const active = playingId === v.id || (featuredId === v.id && !isIntroPlaying);
-                const name = isRTL ? v.nameAr : v.nameFr;
-                return (
-                  <SlideUp key={v.id} delay={idx * 0.08}>
-                    <article className={`group bg-white rounded-3xl overflow-hidden card-lift border ${active ? "border-[#6E5FE8]/40 ring-2 ring-[#6E5FE8]/15" : "border-[#0F0F1A]/5"}`}>
-                      <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
-                        <div className="relative p-6 h-40 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${v.color}18 0%, ${v.color}06 100%)` }}>
-                          <Waveform color={v.color} playing={playingId === v.id || (featuredId === v.id && !isIntroPlaying)} bars={28} />
-                          <div
-                            className={`absolute top-4 end-4 w-11 h-11 rounded-full flex items-center justify-center text-white transition ${playingId === v.id ? "scale-110" : "opacity-90 group-hover:scale-105"}`}
-                            style={{ background: playingId === v.id ? v.color : INK }}
-                          >
-                            <Play className="w-4 h-4 fill-current ms-0.5" />
+            {LANDING_VOICES.map((v, idx) => {
+              const active = playingId === v.id; // honnête : animé SEULEMENT si ça joue vraiment
+              const name = isRTL ? v.nameAr : v.nameFr;
+              return (
+                <SlideUp key={v.id} delay={idx * 0.08}>
+                  <article className={`group bg-white rounded-3xl overflow-hidden card-lift border ${active ? "border-[#6E5FE8]/40 ring-2 ring-[#6E5FE8]/15" : "border-[#0F0F1A]/5"}`}>
+                    <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
+                      <div className="relative p-6 h-40 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${v.color}18 0%, ${v.color}06 100%)` }}>
+                        <Waveform color={v.color} playing={active} bars={28} />
+                        <div
+                          className={`absolute top-4 end-4 w-11 h-11 rounded-full flex items-center justify-center text-white transition ${active ? "scale-110" : "opacity-90 group-hover:scale-105"}`}
+                          style={{ background: active ? v.color : INK }}
+                        >
+                          {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-[18px] font-extrabold">{name}</h3>
+                            <p className="text-[12px] text-[#0F0F1A]/55 mt-0.5">{v.location}</p>
+                          </div>
+                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-bold text-white" style={{ background: v.color }}>
+                            <Star className="w-3 h-3 fill-current" /><Num>{v.rating}</Num>
                           </div>
                         </div>
-                        <div className="p-5">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <h3 className="text-[18px] font-extrabold">{name}</h3>
-                              <p className="text-[12px] text-[#0F0F1A]/55 mt-0.5">{v.location}</p>
-                            </div>
-                            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-bold text-white" style={{ background: v.color }}>
-                              <Star className="w-3 h-3 fill-current" /><Num>{v.rating}</Num>
-                            </div>
-                          </div>
-                          <div className="mt-4 flex items-center justify-between text-[12px]">
-                            <span className="font-semibold text-[#0F0F1A]/70">{isRTL ? v.tagAr : v.tagFr}</span>
-                            <span className="text-[#0F0F1A]/45"><Num>{v.reviews}</Num> {t.nRatings}</span>
-                          </div>
+                        <div className="mt-4 flex items-center justify-between text-[12px]">
+                          <span className="font-semibold text-[#0F0F1A]/70">{isRTL ? v.tagAr : v.tagFr}</span>
+                          <span className="text-[#0F0F1A]/45"><Num>{v.reviews}</Num> {t.nRatings}</span>
                         </div>
-                      </button>
-                    </article>
-                  </SlideUp>
-                );
-              })}
+                      </div>
+                    </button>
+                  </article>
+                </SlideUp>
+              );
+            })}
           </div>
 
-          <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
+          <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
             <div className="text-[22px] font-extrabold tracking-tight" style={{ fontFamily: display }}>{t.moreVoices}</div>
             <p className="mt-1 text-[13px] text-[#0F0F1A]/55">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
           </button>
@@ -1161,12 +1255,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div>
                     <div className="text-[11px] text-white/50">{isRTL ? "التكلفة" : "Coût"}</div>
                     <div className="text-[48px] leading-none font-extrabold" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                      {COST_STEPS[costIdx].pts}
+                      <Num>{COST_STEPS[costIdx].pts}</Num>
                       <span className="text-[16px] ms-2 font-bold text-white/50">{t.pts}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="h-11 px-5 rounded-full bg-[#6E5FE8] text-white text-[13px] font-bold hover:opacity-90">
-                    {t.bookNow}
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="h-11 px-5 rounded-full bg-[#6E5FE8] text-white text-[13px] font-bold hover:opacity-90">
+                    {t.tryFree}
                   </button>
                 </div>
               </div>
@@ -1203,7 +1297,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span key={b} className="px-3 py-1 rounded-full bg-white/10">{b}</span>
                 ))}
               </div>
-              <button type="button" onClick={() => smoothTo("#voices")} className="mt-8 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-white text-[#0F0F1A] text-[14px] font-bold hover:bg-[#9D8FFF] transition focus-ring w-fit">
+              <button type="button" onClick={() => { stopAllAudio(); smoothTo("#voices"); }} className="mt-8 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-white text-[#0F0F1A] text-[14px] font-bold hover:bg-[#9D8FFF] transition focus-ring w-fit">
                 {t.unleashCTA}<ArrowIcon className="w-4 h-4" />
               </button>
             </div>
@@ -1247,7 +1341,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4 fill-[#6E5FE8] text-[#6E5FE8]" />)}
                 </div>
                 <blockquote className="text-[clamp(1.25rem,2.8vw,1.9rem)] leading-[1.3] font-extrabold" style={{ fontFamily: display }}>
-                  \u201C{testimonials[activeTesti].q}\u201D
+                  “{testimonials[activeTesti].q}”
                 </blockquote>
                 <div className="mt-6 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-extrabold" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>
@@ -1291,7 +1385,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <SlideUp key={p.pts} delay={i * 0.07}>
                 <div className={`rounded-3xl p-7 h-full flex flex-col border-2 ${p.featured ? "bg-[#0F0F1A] text-white border-[#0F0F1A] relative" : "border-[#0F0F1A]/5 bg-[#FAFAF7] hover:border-[#6E5FE8]/30"}`}>
                   {p.featured && (
-                    <div className="absolute -top-3 start-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider text-[#0F0F1A]" style={{ background: "#9D8FFF" }}>
+                    /* FIX RTL : left/translate physiques, fonctionne dans les deux sens */
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider text-[#0F0F1A]" style={{ background: "#9D8FFF" }}>
                       {t.popular}
                     </div>
                   )}
@@ -1299,11 +1394,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className={`text-[11px] font-semibold mb-4 uppercase tracking-wider ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>{t.pts}</div>
                   <div className={`h-px mb-4 ${p.featured ? "bg-white/15" : "bg-[#0F0F1A]/10"}`} />
                   <p className={`text-[12px] mb-5 flex-1 ${p.featured ? "text-white/70" : "text-[#0F0F1A]/65"}`}>{p.desc}</p>
-                  <div className="flex items-baseline gap-1.5 mb-5">
+                  <div className="flex items-baseline gap-1.5 mb-1">
                     <span className="text-[26px] font-extrabold"><Num>{p.price}</Num></span>
                     <span className={`text-[11px] ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>DZD</span>
                   </div>
-                  <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className={`h-11 rounded-full text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#0F0F1A] hover:bg-[#9D8FFF]" : "bg-[#0F0F1A] text-white hover:bg-[#6E5FE8]"}`}>
+                  <div className={`text-[11px] mb-5 ${p.featured ? "text-white/55" : "text-[#0F0F1A]/55"}`}>
+                    ≈ <Num>{packMinutes(p.pts)}</Num> {isRTL ? "دقيقة صوت" : "min d'audio"}
+                  </div>
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className={`h-11 rounded-full text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#0F0F1A] hover:bg-[#9D8FFF]" : "bg-[#0F0F1A] text-white hover:bg-[#6E5FE8]"}`}>
                     {t.choose}
                   </button>
                 </div>
@@ -1360,15 +1458,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="relative">
               <h2 className="text-[clamp(2.2rem,5.5vw,4.2rem)] leading-[1.02] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.ctaTitle}</h2>
               <p className="mt-4 text-[15px] text-white/70 max-w-md mx-auto">{t.ctaSub}</p>
-              <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full bg-white text-[#0F0F1A] text-[15px] font-bold hover:scale-[1.02] transition focus-ring">
-                {t.start}<ArrowIcon className="w-4 h-4" />
+              <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full bg-white text-[#0F0F1A] text-[15px] font-bold hover:scale-[1.02] transition focus-ring">
+                {t.tryFree}<ArrowIcon className="w-4 h-4" />
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CONTACT + FOOTER */}
+      {/* FOOTER */}
       <footer id="contact" className="pt-12 pb-28 sm:pb-12 border-t border-[#0F0F1A]/5">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
@@ -1413,18 +1511,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </footer>
 
-      {/* STICKY MOBILE CTA */}
+      {/* CTA MOBILE STICKY */}
       <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#FAFAF7]/95 backdrop-blur-xl border-t border-[#0F0F1A]/8">
-        <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT }}>
-          {t.bookNow} · 50 {t.pts}
+        <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT }}>
+          {t.tryFree} · 50 {t.pts}
         </button>
       </div>
 
-      {/* LISTEN MODAL */}
+      {/* MODALE ÉCOUTE — avec VRAI contrôle play/pause */}
       <AnimatePresence>
         {listenVoice && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setListenVoice(null); setPlayingId(null); }} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setListenVoice(null); stopSpeech(); }} />
             <motion.div
               role="dialog"
               aria-modal="true"
@@ -1440,26 +1538,40 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <h3 id="listen-title" className="text-[22px] font-extrabold">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
                   <p className="text-[12px] text-[#0F0F1A]/55">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
                 </div>
-                <button type="button" onClick={() => { setListenVoice(null); setPlayingId(null); }} className="w-9 h-9 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center" aria-label={t.close}>
+                <button type="button" onClick={() => { setListenVoice(null); stopSpeech(); }} className="w-9 h-9 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center" aria-label={t.close}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="rounded-2xl p-4 mb-4" style={{ background: `${listenVoice.color}14` }}>
-                <Waveform color={listenVoice.color} playing bars={32} />
+                <Waveform color={listenVoice.color} playing={playingId === listenVoice.id} bars={32} />
+                <button
+                  type="button"
+                  onClick={() => (playingId === listenVoice.id ? stopSpeech() : speak(listenVoice, language))}
+                  disabled={!speechSupported}
+                  className="mt-3 w-full h-11 rounded-full text-white font-bold text-[13px] flex items-center justify-center gap-2 focus-ring hover:opacity-90 disabled:opacity-40"
+                  style={{ background: listenVoice.color }}
+                >
+                  {playingId === listenVoice.id
+                    ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
+                    : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
+                </button>
+                <p className="mt-2 text-[11px] text-center text-[#0F0F1A]/45">
+                  {speechSupported ? t.browserNote : t.noSpeechNote}
+                </p>
               </div>
               <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 mb-2" dir="auto">
-                \u201C{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…\u201D
+                “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
               </p>
               <p className="text-[13px] text-[#0F0F1A]/70 leading-relaxed mb-5">{t.listenBody}</p>
-              <button type="button" onClick={() => { stopIntroAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>
-                {t.tryVoice} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
+              <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>
+                {t.moreVoices} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
               </button>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* LEGAL */}
+      {/* LÉGAL */}
       <AnimatePresence>
         {legal && (
           <>
@@ -1484,12 +1596,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ROBOT WIDGET */}
+      {/* ROBOT — caché pendant les overlays, ne couvre plus le CTA mobile */}
       <RobotWidget
         isPlaying={isIntroPlaying}
         volume={audioVolume}
         onToggle={handleToggleIntroAudio}
         isRTL={isRTL}
+        hidden={overlayOpen}
       />
     </div>
   );
