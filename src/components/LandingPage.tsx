@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react";
 import {
   ArrowRight, ArrowLeft, Play, Plus, Menu, X,
   Check, Star, Headphones, ShoppingBag, Clapperboard, Mic2, Phone, ShieldCheck, Gift, Pause, Volume2, VolumeX
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
+import { motion, AnimatePresence, useScroll } from "motion/react";
 
 export interface LandingPageProps {
   onLoginClick: () => void;
@@ -13,16 +13,77 @@ export interface LandingPageProps {
 }
 
 /* ================= THÈME "STUDIO NOIR" ================= */
-const BG0 = "#07070C";      // fond page
-const SURFACE = "#0E0E16";  // cartes
-const CELL = "#0B0B12";     // cellules grilles
-const ACCENT = "#2EE8A6";   // menthe "on-air"
+const BG0 = "#07070C";
+const SURFACE = "#0E0E16";
+const ACCENT = "#2EE8A6";
 const TEXT = "#F4F5F7";
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
 
 const MONO_STACK = "'JetBrains Mono', 'Cairo', monospace";
 const NUM_STACK = "'Space Grotesk', 'Cairo', sans-serif";
+
+/* ============================================================
+   GSAP — chargement CDN (10 plugins utiles seulement, pas 21).
+   Fallback : si le CDN échoue, gsapReady reste false et la page
+   fonctionne en statique. Aucune API externe, aucune clé.
+   ============================================================ */
+const GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.15/dist/";
+const GSAP_MODULES = [
+  "ScrollTrigger", "ScrollSmoother", "SplitText", "ScrambleTextPlugin",
+  "DrawSVGPlugin", "MorphSVGPlugin", "MotionPathPlugin",
+  "Draggable", "InertiaPlugin", "CustomEase",
+] as const;
+
+const scriptCache = new Map<string, Promise<void>>();
+const loadScript = (src: string): Promise<void> => {
+  if (!scriptCache.has(src)) {
+    scriptCache.set(src, new Promise<void>((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = src; el.async = false;
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error("Chargement impossible : " + src));
+      document.head.appendChild(el);
+    }));
+  }
+  return scriptCache.get(src)!;
+};
+
+function registerGsap() {
+  const w = window as any;
+  w.gsap.registerPlugin(
+    w.ScrollTrigger, w.ScrollSmoother, w.SplitText, w.ScrambleTextPlugin,
+    w.DrawSVGPlugin, w.MorphSVGPlugin, w.MotionPathPlugin,
+    w.Draggable, w.InertiaPlugin, w.CustomEase
+  );
+  w.gsap.config({ nullTargetWarn: false });
+  w.ScrollTrigger?.config({ ignoreMobileResize: true });
+  try { w.CustomEase.create("sawt", "0.22, 1, 0.36, 1"); } catch { /* déjà créé */ }
+}
+
+function useGsapReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const w = window as any;
+    // Déjà présent (ex: scripts dans index.html) → pas de rechargement
+    if (w.gsap && w.ScrollTrigger && w.Draggable && w.SplitText && w.MorphSVGPlugin && w.ScrollSmoother) {
+      registerGsap(); setReady(true); return;
+    }
+    (async () => {
+      try {
+        await loadScript(GSAP_CDN + "gsap.min.js");
+        await Promise.all(GSAP_MODULES.map((m) => loadScript(GSAP_CDN + m + ".min.js")));
+        registerGsap();
+        if (alive) setReady(true);
+      } catch (e) {
+        console.warn("GSAP indisponible — page statique mais fonctionnelle.", e);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+  return ready;
+}
 
 const GlobalStyles = () => (
   <style>{`
@@ -40,10 +101,8 @@ const GlobalStyles = () => (
 
     @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
     #sawtify-landing .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
-
     @keyframes blink { 50% { opacity: 0; } }
     #sawtify-landing .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
-
     #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 10px; }
 
     #sawtify-landing .bg-grid {
@@ -56,13 +115,22 @@ const GlobalStyles = () => (
       mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
     }
 
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    #sawtify-landing .float { animation: float 5s ease-in-out infinite; }
-    #sawtify-landing .float-slow { animation: float 7s ease-in-out infinite; }
+    /* SplitText */
+    #sawtify-landing .sw-char, #sawtify-landing .sw-word { display: inline-block; will-change: transform; }
 
-    #sawtify-landing .card-lift { transition: transform .4s cubic-bezier(0.16,1,0.3,1), border-color .4s, box-shadow .4s; }
+    /* Règles SVG (DrawSVG) */
+    #sawtify-landing .sw-rule line { stroke: rgba(46,232,166,0.45); stroke-width: 1.5; }
+
+    /* Fader (Draggable + Inertia) */
+    #sawtify-landing .sw-fader-handle {
+      touch-action: none; cursor: grab; will-change: transform;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12);
+    }
+    #sawtify-landing .sw-fader-handle:active { cursor: grabbing; }
+
+    #sawtify-landing .card-lift { transition: transform .4s cubic-bezier(0.16,1,0.3,1), border-color .4s; }
     @media (hover: hover) {
-      #sawtify-landing .card-lift:hover { transform: translateY(-4px); border-color: rgba(46,232,166,0.35); box-shadow: 0 16px 40px -18px rgba(46,232,166,0.18); }
+      #sawtify-landing .card-lift:hover { transform: translateY(-4px); border-color: rgba(46,232,166,0.35); }
     }
     #sawtify-landing .hov-accent:hover, #sawtify-landing .hov-accent:focus-visible { border-color: rgba(46,232,166,0.55); }
 
@@ -82,10 +150,8 @@ const Logo = ({ size = 38 }: { size?: number }) => {
   const [imgError, setImgError] = useState(false);
   return (
     <div className="flex items-center gap-2.5 select-none">
-      <div
-        className="rounded-xl overflow-hidden shrink-0"
-        style={{ width: size, height: size, boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 4px 18px rgba(46,232,166,0.25)" }}
-      >
+      <div className="rounded-xl overflow-hidden shrink-0"
+        style={{ width: size, height: size, boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 4px 18px rgba(46,232,166,0.25)" }}>
         {!imgError ? (
           <img src={LOGO} alt="Sawtify" width={size} height={size} decoding="async"
             onError={() => setImgError(true)} className="w-full h-full object-cover" />
@@ -100,9 +166,7 @@ const Logo = ({ size = 38 }: { size?: number }) => {
 };
 
 const Num = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <span dir="ltr" style={{ unicodeBidi: "isolate", fontFamily: NUM_STACK }} className={`inline-block tabular-nums ${className}`}>
-    {children}
-  </span>
+  <span dir="ltr" style={{ unicodeBidi: "isolate", fontFamily: NUM_STACK }} className={`inline-block tabular-nums ${className}`}>{children}</span>
 );
 
 const Mono = ({ children, className = "", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
@@ -115,83 +179,60 @@ const Kicker = ({ no, children }: { no?: string; children: React.ReactNode }) =>
   </p>
 );
 
-const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suffix?: string; duration?: number }) => {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const obs = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (!entry?.isIntersecting || started.current) return;
-      started.current = true;
-      const start = performance.now();
-      const tick = (now: number) => {
-        const p = Math.min((now - start) / duration, 1);
-        setCount(Math.round((1 - Math.pow(1 - p, 4)) * target));
-        if (p < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    }, { threshold: 0.3 });
-    obs.observe(node);
-    return () => obs.disconnect();
-  }, [target, duration]);
-  return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
-};
-
-const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 32 }}
-      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 32 }}
-      transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-};
-
 const SectionHead = ({ no, kicker, title, sub, center = false, font }: {
   no: string; kicker: string; title: string; sub?: string; center?: boolean; font: string;
 }) => (
   <div className={center ? "text-center mx-auto max-w-2xl" : "max-w-2xl"}>
-    <SlideUp><Kicker no={no}>{kicker}</Kicker></SlideUp>
-    <SlideUp delay={0.06}>
-      <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.06] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: font }}>
-        {title}
-      </h2>
-    </SlideUp>
-    {sub && <SlideUp delay={0.12}><p className="mt-4 text-[14px] text-white/50 leading-relaxed">{sub}</p></SlideUp>}
+    <Kicker no={no}>{kicker}</Kicker>
+    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.06] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: font }}>{title}</h2>
+    {sub && <p className="mt-4 text-[14px] text-white/50 leading-relaxed">{sub}</p>}
   </div>
 );
 
-const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boolean; bars?: number }) => (
-  <div className="flex items-end justify-center gap-[3px] h-28 w-full" dir="ltr" aria-hidden>
+/* Waveform CSS (cartes + modale) */
+const Waveform = ({ color, playing, bars = 30 }: { color: string; playing: boolean; bars?: number }) => (
+  <div className="flex items-end justify-center gap-[3px] h-24 w-full" dir="ltr" aria-hidden>
     {Array.from({ length: bars }).map((_, i) => {
       const h = 18 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.31)) * 82;
       const hot = i % 6 === 0;
       return (
-        <span
-          key={i}
-          className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
+        <span key={i} className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
           style={{
-            height: `${h}%`,
-            maxWidth: 4,
+            height: `${h}%`, maxWidth: 4,
             background: hot ? color : "rgba(255,255,255,0.22)",
             opacity: playing ? 1 : 0.5,
             animationDelay: `${(i % 10) * 0.1}s`,
             boxShadow: playing && hot ? `0 0 10px ${color}66` : undefined,
-          }}
-        />
+          }} />
       );
     })}
   </div>
 );
+
+/* ============================================================
+   Générateur de waveform SVG — même structure de commandes
+   pour chaque seed → morph MorphSVG fluide entre les voix.
+   ============================================================ */
+function makeWave(seed: number, n = 56, w = 640, h = 150): string {
+  let s = (seed * 9301 + 49297) % 233280;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const pts: Array<[number, number]> = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const env = Math.pow(Math.sin(Math.PI * t), 0.8);
+    const y = h / 2 + Math.sin(t * 21 + seed * 3.7) * 0.55 * env * (h / 2) + (rnd() - 0.5) * 0.85 * env * (h / 2);
+    pts.push([t * w, Math.max(4, Math.min(h - 4, y))]);
+  }
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    const mx = (x0 + x1) / 2;
+    d += `C${mx.toFixed(1)},${y0.toFixed(1)} ${mx.toFixed(1)},${y1.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+  }
+  return d;
+}
+const waveLine = (i: number) => makeWave(i + 2);
+const waveArea = (i: number) => makeWave(i + 2) + " L640,150 L0,150 Z";
 
 function useScrolled() {
   const [scrolled, setScrolled] = useState(false);
@@ -205,8 +246,7 @@ function useScrolled() {
 }
 
 /* ============================================================
-   DÉMO VOCALE — speechSynthesis (API native navigateur).
-   Aucune clé, aucun serveur, aucun coût. Opt-in (clic).
+   DÉMO VOCALE — speechSynthesis (native, gratuite, opt-in).
    ============================================================ */
 type NowPlaying = { kind: "intro" } | { kind: "sample"; id: string } | null;
 
@@ -243,7 +283,7 @@ function useVoiceDemo() {
     u.onend = finish;
     u.onerror = finish;
     setNowPlaying({ kind: "sample", id: voice.id });
-    // iOS ignore speak() appelé juste après cancel() → léger délai
+    // iOS ignore speak() juste après cancel() → petit délai
     window.setTimeout(() => { if (token.current === my) window.speechSynthesis.speak(u); }, 60);
   }, [supported, pickVoice]);
 
@@ -260,27 +300,20 @@ function useVoiceDemo() {
 }
 
 /* ============================================================
-   DOCK AUDIO — remplace le robot. Barres réactives à l'analyser
-   de l'intro. Caché pendant les overlays, au-dessus du CTA mobile.
+   DOCK AUDIO — barres pilotées par le VRAI volume (analyser).
    ============================================================ */
-const AudioDock = ({
-  isPlaying, volume, onToggle, isRTL, hidden = false,
-}: {
+const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
   isPlaying: boolean; volume: number; onToggle: () => void; isRTL: boolean; hidden?: boolean;
 }) => {
   const F = [0.55, 1, 0.75, 0.9, 0.6];
   return (
     <motion.div
-      initial={{ y: 80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
+      initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", damping: 22, stiffness: 120, delay: 0.8 }}
       className={`fixed bottom-24 sm:bottom-6 end-3 sm:end-6 z-[80] transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none translate-y-3" : "opacity-100"}`}
     >
       <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[#0E0E16]/95 backdrop-blur-xl pl-4 pr-1.5 py-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.55)]">
-        {isPlaying
-          ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: ACCENT }} />
-          : <VolumeX className="w-4 h-4 shrink-0 text-white/30" />}
-        {/* Barres live (pilotées par le volume réel de l'audio) */}
+        {isPlaying ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: ACCENT }} /> : <VolumeX className="w-4 h-4 shrink-0 text-white/30" />}
         <div className="flex items-end gap-[2.5px] h-4 shrink-0" dir="ltr" aria-hidden>
           {F.map((f, i) => (
             <span key={i} className="w-[3px] rounded-full"
@@ -291,21 +324,15 @@ const AudioDock = ({
               }} />
           ))}
         </div>
-        <span
-          className="hidden sm:block text-[11px] font-semibold tracking-[0.14em] uppercase whitespace-nowrap"
-          style={{ fontFamily: MONO_STACK, color: isPlaying ? ACCENT : "rgba(255,255,255,0.55)" }}
-        >
+        <span className="hidden sm:block text-[11px] font-semibold tracking-[0.14em] uppercase whitespace-nowrap"
+          style={{ fontFamily: MONO_STACK, color: isPlaying ? ACCENT : "rgba(255,255,255,0.55)" }}>
           {isPlaying ? (isRTL ? "بثّ مباشر" : "On air") : (isRTL ? "اسمع التقديم" : "Écouter l'intro")}
         </span>
         {isPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ background: ACCENT }} />}
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-pressed={isPlaying}
+        <button type="button" onClick={onToggle} aria-pressed={isPlaying}
           aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل التقديم" : "Lire l'intro")}
           className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring"
-          style={{ background: ACCENT, color: BG0 }}
-        >
+          style={{ background: ACCENT, color: BG0 }}>
           {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ms-0.5" />}
         </button>
       </div>
@@ -314,17 +341,10 @@ const AudioDock = ({
 };
 
 type VoiceCard = {
-  id: string;
-  nameFr: string; nameAr: string;
-  tagFr: string; tagAr: string;
-  location: string;
-  gender: "male" | "female";
+  id: string; nameFr: string; nameAr: string; tagFr: string; tagAr: string;
+  location: string; gender: "male" | "female";
   category: "commercial" | "narrative" | "social" | "formal";
-  rating?: number;
-  reviews?: number;
-  color: string;
-  sampleFr: string;
-  sampleAr: string;
+  rating?: number; reviews?: number; color: string; sampleFr: string; sampleAr: string;
 };
 
 const VOICES: VoiceCard[] = [
@@ -353,6 +373,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick, onSigninClick, language, setLanguage,
 }) => {
   const isRTL = language === "ar";
+  const gsapReady = useGsapReady();
+
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTesti, setActiveTesti] = useState(0);
@@ -365,11 +387,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
-  /* Démo vocale navigateur */
   const { speechSupported, nowPlaying, speak, stopSpeech } = useVoiceDemo();
   const playingId = nowPlaying?.kind === "sample" ? nowPlaying.id : null;
 
-  /* Audio d'intro — opt-in uniquement, AUCUN autoplay */
+  /* --- Audio d'intro (opt-in, AUCUN autoplay, analyser réel) --- */
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -382,6 +403,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const overlayOpen = menuOpen || !!listenVoice || !!legal;
 
+  /* --- Refs GSAP --- */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const kickerScrRef = useRef<HTMLSpanElement>(null);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  const waveLineRef = useRef<SVGPathElement>(null);
+  const waveAreaRef = useRef<SVGPathElement>(null);
+  const waveSvgRef = useRef<SVGSVGElement>(null);
+  const dotRef = useRef<SVGCircleElement>(null);
+  const chLabelRef = useRef<HTMLSpanElement>(null);
+  const voiceNameRef = useRef<HTMLSpanElement>(null);
+  const faderTrackRef = useRef<HTMLDivElement>(null);
+  const faderHandleRef = useRef<HTMLDivElement>(null);
+  const processRef = useRef<HTMLElement>(null);
+  const processTrackRef = useRef<HTMLDivElement>(null);
+  const costNumRef = useRef<HTMLSpanElement>(null);
+  const ctaTitleRef = useRef<HTMLHeadingElement>(null);
+
+  const dotTweenRef = useRef<any>(null);
+  const dotActiveRef = useRef(false);
+  const pulseTweenRef = useRef<any>(null);
+  const channelYsRef = useRef<number[]>([0, 0, 0]);
+  const featuredIdRef = useRef(featuredId);
+  useEffect(() => { featuredIdRef.current = featuredId; }, [featuredId]);
+
+  const initialLineD = useCallback(() => waveLine(0), []);
+  const initialAreaD = useCallback(() => waveArea(0), []);
+
+  /* --- i18n / lock scroll / Escape --- */
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
@@ -389,21 +439,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, [language, isRTL]);
 
   useEffect(() => {
-    document.body.style.overflow = overlayOpen ? "hidden" : "";
+    const sm = (window as any).ScrollSmoother?.get();
+    if (overlayOpen) { sm?.paused(true); document.body.style.overflow = "hidden"; }
+    else { sm?.paused(false); document.body.style.overflow = ""; }
     return () => { document.body.style.overflow = ""; };
   }, [overlayOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setMenuOpen(false);
-      setListenVoice(null);
-      setLegal(null);
-      stopSpeech();
-      if (introAudioRef.current) {
-        introAudioRef.current.pause();
-        setIsIntroPlaying(false);
-      }
+      setMenuOpen(false); setListenVoice(null); setLegal(null); stopSpeech();
+      if (introAudioRef.current) { introAudioRef.current.pause(); setIsIntroPlaying(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -432,8 +478,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const readLevel = useCallback((): number => {
     if (analyserRef.current && analyserDataRef.current) {
       analyserRef.current.getByteFrequencyData(analyserDataRef.current);
-      let sum = 0;
-      const n = 30;
+      let sum = 0; const n = 30;
       for (let i = 2; i < n; i++) sum += analyserDataRef.current[i];
       return Math.min(1, (sum / (n - 2) / 255) * 2.2);
     }
@@ -448,66 +493,53 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     introAudioRef.current = audio;
 
     audio.onended = () => { setIsIntroPlaying(false); setAudioVolume(0); };
-
     const tick = () => {
       if (introAudioRef.current && !introAudioRef.current.paused) {
         const raw = readLevel();
         smoothRef.current = smoothRef.current * 0.5 + raw * 0.5;
         setAudioVolume(smoothRef.current);
         animFrameRef.current = requestAnimationFrame(tick);
-      } else {
-        setAudioVolume(0);
-      }
+      } else setAudioVolume(0);
     };
-
     audio.onplay = () => {
       initAnalyser();
-      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
-        audioCtxRef.current.resume().catch(() => {});
-      }
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") audioCtxRef.current.resume().catch(() => {});
       setIsIntroPlaying(true);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = requestAnimationFrame(tick);
     };
-
     audio.onpause = () => {
-      setIsIntroPlaying(false);
-      setAudioVolume(0);
+      setIsIntroPlaying(false); setAudioVolume(0);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-
     audio.onerror = () => {
       if (!useAnalyserRef.current) return;
       useAnalyserRef.current = false;
-      audioCtxRef.current = null;
-      analyserRef.current = null;
+      audioCtxRef.current = null; analyserRef.current = null;
       audio.removeAttribute("crossorigin");
       audio.src = INTRO_AUDIO_URL;
       audio.load();
     };
-
-    // ⛔ Pas d'autoplay : lecture uniquement via le dock ou "Play l'intro".
-
     return () => {
       audio.pause();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       audioCtxRef.current?.close().catch(() => {});
-      audioCtxRef.current = null;
-      analyserRef.current = null;
+      audioCtxRef.current = null; analyserRef.current = null;
     };
   }, [initAnalyser, readLevel]);
 
   useEffect(() => { stopSpeech(); }, [language, stopSpeech]);
 
-  const stopIntroAudio = () => {
+  const stopIntroAudio = useCallback(() => {
     if (introAudioRef.current && !introAudioRef.current.paused) {
       introAudioRef.current.pause();
       setIsIntroPlaying(false);
       setAudioVolume(0);
     }
-  };
-  const stopAllAudio = () => { stopIntroAudio(); stopSpeech(); };
+  }, []);
+  const stopAllAudio = useCallback(() => { stopIntroAudio(); stopSpeech(); }, [stopIntroAudio, stopSpeech]);
 
+  /* ================= TEXTES ================= */
   const t = {
     skip: isRTL ? "تخطَّ إلى المحتوى" : "Aller au contenu",
     navVoices: isRTL ? "الأصوات" : "Voix",
@@ -522,6 +554,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     playingNow: isRTL ? "قيد التشغيل" : "Lecture",
     audioPreview: isRTL ? "معاينة صوتية" : "Aperçu audio",
     hearIt: isRTL ? "اسمع" : "Écouter",
+    dragHint: isRTL ? "اسحب" : "DRAG",
     liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
     heroKicker: isRTL ? "استوديو الدارجة" : "STUDIO DARIJA",
     heroTitle1: isRTL ? "صوت" : "Une voix",
@@ -533,17 +566,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     creators: isRTL ? "مستخدم" : "créateurs",
     popularKicker: isRTL ? "لا نكشف الكل" : "ON NE MONTRE PAS TOUT",
     popularTitle: isRTL ? "9 أصوات. هنا 3 فقط." : "9 voix. Ici, seulement 3.",
-    popularSub: isRTL
-      ? "أمين، ياسمين، خالد. باقي الأصوات تسمعهم في الاستوديو."
-      : "Amine, Yasmine, Khalid. Les autres voix s'écoutent dans le studio.",
+    popularSub: isRTL ? "أمين، ياسمين، خالد. باقي الأصوات تسمعهم في الاستوديو." : "Amine, Yasmine, Khalid. Les autres voix s'écoutent dans le studio.",
     nRatings: isRTL ? "تقييم" : "avis",
     listenInStudio: isRTL ? "اسمع البداية" : "Écouter le début",
     listenBody: isRTL
       ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة مجاناً، بدون بطاقة."
       : "Ce n'est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
-    browserNote: isRTL
-      ? "معاينة بمحرك المتصفح — الجودة استوديو 24 kHz داخل التطبيق."
-      : "Aperçu via la voix du navigateur — le rendu studio 24 kHz est dans l'app.",
+    browserNote: isRTL ? "معاينة بمحرك المتصفح — الجودة استوديو 24 kHz داخل التطبيق." : "Aperçu via la voix du navigateur — le rendu studio 24 kHz est dans l'app.",
     noSpeechNote: isRTL ? "متصفحك لا يدعم المعاينة الصوتية." : "Votre navigateur ne supporte pas l'aperçu audio.",
     demoPlaceholder: isRTL ? "اكتب جملة واسمعها…" : "Écrivez une phrase, écoutez-la…",
     journeyKicker: isRTL ? "بدون أن تتكلم" : "SANS MICRO",
@@ -553,9 +582,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n'est plus du texte.",
     costKicker: isRTL ? "وبكم" : "ET COMBIEN",
     costTitle: isRTL ? "أقل مما تظن." : "Moins que vous ne croyez.",
-    costSub: isRTL
-      ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي."
-      : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n'expirent pas.",
+    costSub: isRTL ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي." : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n'expirent pas.",
     metricsKicker: isRTL ? "الأرقام" : "LES CHIFFRES",
     metricsTitle: isRTL ? "الأرقام لا تكذب." : "Les chiffres ne mentent pas.",
     testKicker: isRTL ? "من جرّب" : "ILS ONT TESTÉ",
@@ -563,9 +590,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     pricingKicker: isRTL ? "الأسعار" : "TARIFS",
     pricingTitle: isRTL ? "نقاط. بلا اشتراك." : "Des points. Sans abonnement.",
     pricingSub: isRTL ? "بالدينار. بلا تاريخ انتهاء." : "En dinars. Sans date d'expiration.",
-    welcomeBanner: isRTL
-      ? "هدية الدخول: 50 نقطة مجاناً عند التسجيل."
-      : "Cadeau d'inscription : 50 points offerts.",
+    welcomeBanner: isRTL ? "هدية الدخول: 50 نقطة مجاناً عند التسجيل." : "Cadeau d'inscription : 50 points offerts.",
     choose: isRTL ? "اختيار" : "Choisir",
     popular: isRTL ? "الأكثر طلبًا" : "Le plus demandé",
     faqKicker: "FAQ",
@@ -592,25 +617,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const featured = VOICES.find((v) => v.id === featuredId) || VOICES[0];
-  const chNo = LANDING_VOICES.findIndex((v) => v.id === featured.id) + 1;
+  const chIndex = Math.max(0, LANDING_VOICES.findIndex((v) => v.id === featured.id));
   const sampleFull = isRTL ? featured.sampleAr : featured.sampleFr;
   const [typed, setTyped] = useState("");
   const [cutDone, setCutDone] = useState(false);
 
   useEffect(() => {
-    setTyped("");
-    setCutDone(false);
+    setTyped(""); setCutDone(false);
     const cutAt = Math.max(32, Math.floor(sampleFull.length * 0.44));
     let i = 0;
     const id = window.setInterval(() => {
       i += 1;
-      if (i >= cutAt) {
-        setTyped(sampleFull.slice(0, cutAt).trimEnd());
-        setCutDone(true);
-        window.clearInterval(id);
-      } else {
-        setTyped(sampleFull.slice(0, i));
-      }
+      if (i >= cutAt) { setTyped(sampleFull.slice(0, cutAt).trimEnd()); setCutDone(true); window.clearInterval(id); }
+      else setTyped(sampleFull.slice(0, i));
     }, 22);
     return () => window.clearInterval(id);
   }, [featured.id, sampleFull]);
@@ -664,7 +683,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => clearInterval(id);
   }, [testimonials.length]);
 
-  // ⛔ Minutes concrètes supprimées — packs en points uniquement.
   const pricing = [
     { pts: 100, ptsLabel: "100", price: "500", desc: isRTL ? "للتجربة المرنة والحرة." : "Pour découvrir la plateforme." },
     { pts: 220, ptsLabel: "220", price: "1 000", featured: true, desc: isRTL ? "الأكثر طلبًا — الباقة المثالية." : "Le choix le plus populaire." },
@@ -700,7 +718,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setMenuOpen(false);
     const el = document.querySelector(href);
     if (!el) return;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" });
+    const sm = (window as any).ScrollSmoother?.get();
+    if (sm) sm.scrollTo(el, true, "top 80px");
+    else window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" });
   }, []);
 
   const openListen = (voice: VoiceCard) => {
@@ -712,12 +732,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const handleToggleIntroAudio = () => {
     if (!introAudioRef.current) return;
-    if (isIntroPlaying) {
-      introAudioRef.current.pause();
-    } else {
-      stopSpeech();
-      introAudioRef.current.play().catch((err) => console.warn("Lecture impossible :", err));
-    }
+    if (isIntroPlaying) introAudioRef.current.pause();
+    else { stopSpeech(); introAudioRef.current.play().catch((err) => console.warn("Lecture impossible :", err)); }
   };
 
   const display = isRTL ? "'Cairo', sans-serif" : "'Space Grotesk', 'Inter', sans-serif";
@@ -737,8 +753,250 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroSamplePlaying = playingId === featured.id;
   const heroPlaying = isIntroPlaying || heroSamplePlaying;
 
+  /* ============================================================
+     GSAP #1 — ScrollSmoother (créé une seule fois) + refresh fonts
+     ============================================================ */
+  useEffect(() => {
+    if (!gsapReady) return;
+    const w = window as any;
+    if (!w.ScrollSmoother.get()) {
+      w.ScrollSmoother.create({
+        wrapper: "#sw-wrapper",
+        content: "#sw-content",
+        smooth: 1.15,
+        effects: true,
+        normalizeScroll: true,
+      });
+    }
+    document.fonts?.ready.then(() => w.ScrollTrigger.refresh()).catch(() => {});
+  }, [gsapReady]);
+
+  useEffect(() => () => { (window as any).ScrollSmoother?.get()?.kill(); }, []);
+
+  /* ============================================================
+     GSAP #2 — Construction (reconstruit à chaque changement de
+     langue) : intro hero, SplitText, DrawSVG, reveals, pin
+     horizontal RTL-aware, compteurs, fader Draggable.
+     ============================================================ */
+  useEffect(() => {
+    if (!gsapReady) return;
+    const w = window as any;
+    const gsap = w.gsap;
+    const mm = gsap.matchMedia();
+
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      const ctx = gsap.context(() => {
+
+        /* ---- Helpers fader ---- */
+        const computeYs = () => {
+          const track = faderTrackRef.current, handle = faderHandleRef.current;
+          if (!track || !handle) return;
+          const range = track.clientHeight - handle.offsetHeight;
+          channelYsRef.current = [0, range / 2, range];
+        };
+        computeYs();
+        const nearestY = (v: number) =>
+          channelYsRef.current.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+        const indexFromY = (y: number) =>
+          channelYsRef.current.reduce((best, yy, idx) =>
+            (Math.abs(yy - y) < Math.abs(channelYsRef.current[best] - y) ? idx : best), 0);
+
+        /* ---- FADER : Draggable + Inertia + snap canaux ---- */
+        if (faderHandleRef.current && faderTrackRef.current) {
+          const handle = faderHandleRef.current;
+          const syncFromHandle = () => {
+            const y = Number(gsap.getProperty(handle, "y"));
+            const i = indexFromY(y);
+            if (LANDING_VOICES[i] && LANDING_VOICES[i].id !== featuredIdRef.current) {
+              stopAllAudio();
+              setFeaturedId(LANDING_VOICES[i].id);
+            }
+          };
+          w.Draggable.create(handle, {
+            type: "y",
+            bounds: faderTrackRef.current,
+            inertia: true,
+            edgeResistance: 0.82,
+            snap: { y: (v: number) => nearestY(v) },
+            onDragEnd: syncFromHandle,
+            onThrowComplete: syncFromHandle,
+          });
+          gsap.set(handle, { y: channelYsRef.current[Math.max(0, LANDING_VOICES.findIndex((v) => v.id === featuredIdRef.current))] });
+          const onResize = () => computeYs();
+          window.addEventListener("resize", onResize);
+        }
+
+        /* ---- HERO : SplitText + ScrambleText + timeline ---- */
+        const splitRefs: any[] = [];
+        if (titleRef.current) {
+          // AR : mots uniquement (les ligatures arabes ne supportent pas le découpage par caractère)
+          const split = new w.SplitText(titleRef.current,
+            isRTL ? { type: "words", wordsClass: "sw-word" } : { type: "chars,words", charsClass: "sw-char" });
+          splitRefs.push(split);
+          const tl = gsap.timeline({ defaults: { ease: "sawt" } });
+          tl.from(".sw-hero-badge", { y: -14, opacity: 0, duration: 0.6 })
+            .to(kickerScrRef.current, { duration: 0.9, scrambleText: { text: t.heroKicker, chars: "upperCase" } }, "-=0.25")
+            .from(isRTL ? split.words : split.chars, { yPercent: 110, opacity: 0, duration: 0.9, stagger: 0.028 }, "-=0.35")
+            .from(".sw-hero-sub", { y: 18, opacity: 0, duration: 0.7 }, "-=0.5")
+            .from(".sw-hero-cta", { y: 16, opacity: 0, stagger: 0.08, duration: 0.6 }, "-=0.4")
+            .from(consoleRef.current, { y: 46, opacity: 0, duration: 1 }, "-=0.5")
+            .from(waveLineRef.current, { drawSVG: "0% 0%", duration: 1.4, ease: "power2.inOut" }, "-=0.6")
+            .from(waveAreaRef.current, { opacity: 0, duration: 0.8 }, "<");
+        }
+
+        if (ctaTitleRef.current) {
+          const split2 = new w.SplitText(ctaTitleRef.current,
+            isRTL ? { type: "words", wordsClass: "sw-word" } : { type: "chars,words", charsClass: "sw-char" });
+          splitRefs.push(split2);
+          gsap.from(isRTL ? split2.words : split2.chars, {
+            yPercent: 60, opacity: 0, duration: 0.8, stagger: 0.02, ease: "sawt",
+            scrollTrigger: { trigger: ctaTitleRef.current, start: "top 85%", once: true },
+          });
+        }
+
+        /* ---- Règles SVG : DrawSVG au scroll ---- */
+        gsap.utils.toArray<SVGLineElement>(".sw-rule line").forEach((line) => {
+          gsap.from(line, {
+            drawSVG: "0%", duration: 1.1, ease: "power2.out",
+            scrollTrigger: { trigger: line, start: "top 92%", once: true },
+          });
+        });
+
+        /* ---- Reveals génériques ---- */
+        gsap.utils.toArray<HTMLElement>(".sw-reveal").forEach((el) => {
+          gsap.from(el, {
+            y: 34, opacity: 0, duration: 0.9, ease: "sawt",
+            scrollTrigger: { trigger: el, start: "top 88%", once: true },
+          });
+        });
+
+        /* ---- PROCESS : section épinglée, défilement horizontal (RTL-aware) ---- */
+        if (processTrackRef.current && processRef.current) {
+          const track = processTrackRef.current, sec = processRef.current;
+          const dist = () => Math.max(0, track.scrollWidth - sec.clientWidth + 48);
+          gsap.to(track, {
+            x: () => (isRTL ? dist() : -dist()),
+            ease: "none",
+            scrollTrigger: {
+              trigger: sec, start: "top top",
+              end: () => "+=" + dist(),
+              scrub: 1, pin: true, anticipatePin: 1, invalidateOnRefresh: true,
+            },
+          });
+        }
+
+        /* ---- METRICS : compteurs pilotés GSAP ---- */
+        gsap.utils.toArray<HTMLElement>(".sw-count").forEach((el) => {
+          const target = Number(el.dataset.target || 0);
+          const suffix = el.dataset.suffix || "";
+          const obj = { v: 0 };
+          gsap.to(obj, {
+            v: target, duration: 1.8, ease: "power2.out",
+            scrollTrigger: { trigger: el, start: "top 85%", once: true },
+            onUpdate: () => { el.textContent = Math.round(obj.v).toLocaleString("fr-FR") + suffix; },
+          });
+        });
+
+        /* ---- Orbes CTA : flottement ---- */
+        gsap.utils.toArray<HTMLElement>(".sw-orb").forEach((orb, i) => {
+          gsap.to(orb, { y: i % 2 ? -26 : 22, duration: 3.4 + i * 0.7, repeat: -1, yoyo: true, ease: "sine.inOut" });
+        });
+
+        w.ScrollTrigger.refresh();
+      }, rootRef);
+
+      return () => {
+        try { (w.Draggable.get(faderHandleRef.current) || []).forEach?.((d: any) => d.kill()); } catch { /* noop */ }
+        ctx.revert();
+      };
+    });
+
+    return () => mm.revert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gsapReady, language]);
+
+  /* ============================================================
+     GSAP #3 — Morph du waveform + scramble à chaque changement
+     de canal (featuredId). useLayoutEffect = zéro flash.
+     ============================================================ */
+  useLayoutEffect(() => {
+    if (!gsapReady) return;
+    const w = window as any;
+    const gsap = w.gsap;
+    const i = Math.max(0, LANDING_VOICES.findIndex((v) => v.id === featuredId));
+
+    if (waveLineRef.current && waveAreaRef.current) {
+      gsap.to(waveLineRef.current, { duration: 0.9, ease: "sawt", morphSVG: waveLine(i) });
+      gsap.to(waveAreaRef.current, {
+        duration: 0.9, ease: "sawt", morphSVG: waveArea(i),
+        // le point de signal suit un path figé au démarrage → on le relance après le morph
+        onComplete: () => { if (dotActiveRef.current) { dotTweenRef.current?.kill(); startDot(gsap); } },
+      });
+    }
+    if (chLabelRef.current) {
+      gsap.to(chLabelRef.current, { duration: 0.5, scrambleText: { text: `CH 0${i + 1}`, chars: "01" } });
+    }
+    if (voiceNameRef.current) {
+      gsap.to(voiceNameRef.current, {
+        duration: 0.55,
+        scrambleText: { text: isRTL ? LANDING_VOICES[i].nameAr : LANDING_VOICES[i].nameFr, chars: isRTL ? "أبجدهوزحطيكلمنصع" : "upperCase" },
+      });
+    }
+    if (faderHandleRef.current && channelYsRef.current) {
+      gsap.to(faderHandleRef.current, { y: channelYsRef.current[i], duration: 0.7, ease: "sawt", overwrite: "auto" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gsapReady, featuredId, language]);
+
+  /* ============================================================
+     GSAP #4 — Point de signal (MotionPath) + pulsation pendant
+     la lecture.
+     ============================================================ */
+  const startDot = useCallback((gsap: any) => {
+    if (!dotRef.current || !waveLineRef.current) return;
+    gsap.set(dotRef.current, { opacity: 1 });
+    dotTweenRef.current = gsap.to(dotRef.current, {
+      duration: 3.2, ease: "none", repeat: -1,
+      motionPath: { path: waveLineRef.current, align: waveLineRef.current, alignOrigin: [0.5, 0.5] },
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!gsapReady) return;
+    const w = window as any;
+    const gsap = w.gsap;
+    if (heroPlaying) {
+      dotActiveRef.current = true;
+      dotTweenRef.current?.kill();
+      startDot(gsap);
+      pulseTweenRef.current?.kill();
+      if (waveSvgRef.current) {
+        pulseTweenRef.current = gsap.to(waveSvgRef.current, { y: -3, duration: 0.8, repeat: -1, yoyo: true, ease: "sine.inOut" });
+      }
+    } else {
+      dotActiveRef.current = false;
+      dotTweenRef.current?.kill();
+      pulseTweenRef.current?.kill();
+      gsap.to(dotRef.current, { opacity: 0, duration: 0.3 });
+      gsap.to(waveSvgRef.current, { y: 0, duration: 0.3 });
+    }
+  }, [gsapReady, heroPlaying, startDot]);
+
+  /* ============================================================
+     GSAP #5 — Estimation coût : ScrambleText (re-roll slot machine)
+     ============================================================ */
+  useLayoutEffect(() => {
+    if (!gsapReady || !costNumRef.current) return;
+    const w = window as any;
+    w.gsap.to(costNumRef.current, {
+      duration: 0.55, ease: "none", overwrite: true,
+      scrambleText: { text: String(COST_STEPS[costIdx].pts), chars: "0123456789", speed: 1.4 },
+    });
+  }, [costIdx, gsapReady]);
+
+  /* ================= RENDU ================= */
   return (
-    <div id="sawtify-landing" dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: TEXT, background: BG0 }}>
+    <div id="sawtify-landing" ref={rootRef} dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: TEXT, background: BG0 }}>
       <GlobalStyles />
 
       <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm" style={{ background: ACCENT, color: BG0 }}>
@@ -748,31 +1006,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <motion.div aria-hidden className="fixed top-0 inset-x-0 h-[3px] z-[60]"
         style={{ scaleX: scrollYProgress, background: `linear-gradient(90deg, ${ACCENT}, #A8FCE0)`, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
 
-      {/* HEADER */}
+      {/* HEADER (hors smoother : fixe) */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-[#07070C]/85 backdrop-blur-xl border-b border-white/10" : "bg-transparent"}`}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
             <Logo size={38} />
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase px-2 py-0.5 rounded-full border" style={{ color: ACCENT, borderColor: "rgba(46,232,166,0.35)", background: "rgba(46,232,166,0.08)" }}>
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase px-2 py-0.5 rounded-full border"
+              style={{ color: ACCENT, borderColor: "rgba(46,232,166,0.35)", background: "rgba(46,232,166,0.08)" }}>
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />
               v2.1
             </span>
           </a>
           <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-white/60">
             {nav.map((l) => (
-              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-white transition-colors focus-ring">
-                {l.label}
-              </a>
+              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-white transition-colors focus-ring">{l.label}</a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-white/60 hover:bg-white/10 transition focus-ring" aria-label={isRTL ? "التبديل إلى الفرنسية" : "التبديل إلى العربية"}>
               {t.switchLang}
             </button>
-            {/* NOTE : vérifier le branchement — onLoginClick = "Connexion", onSigninClick = "Commencer" */}
-            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-white/60 hover:text-white px-3 focus-ring">
-              {t.signin}
-            </button>
+            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-white/60 hover:text-white px-3 focus-ring">{t.signin}</button>
             <button type="button" onClick={onSigninClick} className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold focus-ring transition hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
               {t.start}
             </button>
@@ -789,9 +1043,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-black/60 lg:hidden" />
             <motion.div
-              initial={{ x: isRTL ? "-100%" : "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: isRTL ? "-100%" : "100%" }}
+              initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
               className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-[#0A0A10] lg:hidden flex flex-col border-s border-white/10"
             >
@@ -803,13 +1055,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <nav className="flex-1 px-5 py-6 flex flex-col">
                 {nav.map((l) => (
-                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold text-white border-b border-white/10 focus-ring">
-                    {l.label}
-                  </a>
+                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold text-white border-b border-white/10 focus-ring">{l.label}</a>
                 ))}
-                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-white/60">
-                  {t.signin}
-                </button>
+                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-white/60">{t.signin}</button>
               </nav>
               <div className="p-5">
                 <button type="button" onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full h-12 rounded-full font-bold" style={{ background: ACCENT, color: BG0 }}>{t.start}</button>
@@ -819,578 +1067,618 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ================= HERO ================= */}
-      <section id="home" className="relative pt-32 pb-16 sm:pb-20 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" aria-hidden>
-          <div className="absolute inset-0 bg-grid hero-mask" />
-          <div className="absolute inset-x-0 top-0 h-[480px]" style={{ background: "radial-gradient(560px 280px at 50% 0%, rgba(46,232,166,0.13), transparent 70%)" }} />
-        </div>
+      {/* ================= SMOOTH WRAPPER (tout le contenu scrollable) ================= */}
+      <div id="sw-wrapper">
+        <div id="sw-content">
 
-        <div className="relative z-10 mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="max-w-3xl mx-auto text-center">
-            <SlideUp>
-              <div className="inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
-                <span className="relative flex w-1.5 h-1.5">
-                  <span className="absolute inset-0 rounded-full animate-pulse" style={{ background: ACCENT }} />
-                  <span className="relative rounded-full w-1.5 h-1.5" style={{ background: ACCENT }} />
-                </span>
-                <Mono className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/70">{t.liveBadge}</Mono>
-              </div>
-            </SlideUp>
-            <SlideUp delay={0.06}><div className="text-center"><Kicker>{t.heroKicker}</Kicker></div></SlideUp>
-            <SlideUp delay={0.12}>
-              <h1 className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[0.98] tracking-[-0.03em] font-bold text-white" style={{ fontFamily: display }}>
-                {t.heroTitle1} <span style={{ color: ACCENT }}>{t.heroTitle2}</span>
-              </h1>
-            </SlideUp>
-            <SlideUp delay={0.2}>
-              <p className="mt-6 text-[15px] sm:text-[16px] text-white/60 max-w-xl mx-auto leading-relaxed">{t.heroSub}</p>
-            </SlideUp>
-            <SlideUp delay={0.28}>
-              <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
-                <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                  className="h-12 px-7 rounded-full text-[14px] font-bold focus-ring transition hover:brightness-110"
-                  style={{ background: ACCENT, color: BG0, boxShadow: "0 0 34px rgba(46,232,166,0.35)" }}>
-                  {t.tryFree}
-                </button>
-                <button type="button" onClick={handleToggleIntroAudio}
-                  className="h-12 px-5 rounded-full border border-white/20 bg-white/5 hov-accent text-[14px] font-semibold text-white flex items-center gap-2.5 transition focus-ring">
-                  <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: ACCENT, color: BG0 }}>
-                    {isIntroPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current ms-0.5" />}
+          {/* HERO */}
+          <section id="home" className="relative pt-32 pb-16 sm:pb-20 overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none" aria-hidden>
+              <div className="absolute inset-0 bg-grid hero-mask" />
+              <div className="absolute inset-x-0 top-0 h-[480px]" style={{ background: "radial-gradient(560px 280px at 50% 0%, rgba(46,232,166,0.13), transparent 70%)" }} />
+            </div>
+
+            <div className="relative z-10 mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="max-w-3xl mx-auto text-center">
+                <div className="sw-hero-badge inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
+                  <span className="relative flex w-1.5 h-1.5">
+                    <span className="absolute inset-0 rounded-full animate-pulse" style={{ background: ACCENT }} />
+                    <span className="relative rounded-full w-1.5 h-1.5" style={{ background: ACCENT }} />
                   </span>
-                  {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
-                </button>
-              </div>
-              <p className="mt-4 text-[12px] font-semibold flex items-center justify-center gap-1.5" style={{ color: ACCENT }}>
-                <Gift className="w-3.5 h-3.5" /> {t.welcomeChip}
-              </p>
-            </SlideUp>
-          </div>
-
-          {/* CONSOLE */}
-          <SlideUp delay={0.38} className="mt-12 max-w-3xl mx-auto">
-            <div
-              className="rounded-2xl border border-white/10 bg-[#0E0E16]/90 backdrop-blur overflow-hidden shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)]"
-              onMouseEnter={() => setPauseRotate(true)}
-              onMouseLeave={() => setPauseRotate(false)}
-              onFocusCapture={() => setPauseRotate(true)}
-              onBlurCapture={() => setPauseRotate(false)}
-            >
-              {/* Barre de fenêtre */}
-              <div className="flex items-center gap-1.5 px-4 h-10 border-b border-white/10 bg-white/[0.02]">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]/80" />
-                <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]/80" />
-                <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]/80" />
-                <Mono className="ms-3 text-[10px] tracking-[0.18em] uppercase text-white/40">sawtify · studio</Mono>
-                <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? ACCENT : "rgba(255,255,255,0.35)" }}>
-                  {heroPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />}
-                  <Mono className="text-[10px] font-semibold tracking-[0.18em] uppercase">
-                    {heroPlaying ? t.playingNow : (isRTL ? "جاهز" : "ready")}
-                  </Mono>
-                </span>
-              </div>
-
-              <div className="p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Mono dir="ltr" className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border shrink-0"
-                        style={{ color: featured.color, borderColor: `${featured.color}55`, background: `${featured.color}14` }}>
-                        CH {String(chNo).padStart(2, "0")}
-                      </Mono>
-                      <span className="text-[17px] font-bold text-white truncate">
-                        {heroPlaying ? (isIntroPlaying ? "Sawtify" : (isRTL ? featured.nameAr : featured.nameFr)) : (isRTL ? featured.nameAr : featured.nameFr)}
-                      </span>
-                    </div>
-                    <div className="text-[12px] text-white/50 mt-1 truncate">
-                      {heroPlaying ? t.audioPreview : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
-                    </div>
-                  </div>
-                  <div className="text-end shrink-0">
-                    <Mono className="block text-[10px] tracking-[0.2em] uppercase text-white/40">24 kHz</Mono>
-                    <div className="text-[13px] font-bold mt-0.5" style={{ color: ACCENT }}>20 {t.pts}</div>
-                  </div>
+                  <Mono className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/70">{t.liveBadge}</Mono>
                 </div>
-
-                <div className="rounded-xl border border-white/5 bg-white/[0.03] px-4 py-4 mb-4">
-                  <Waveform color={featured.color} playing={heroPlaying} bars={40} />
-                </div>
-
-                <p className="text-[13px] leading-relaxed text-white/70 min-h-[60px]" dir="auto">
-                  {isIntroPlaying ? (
-                    isRTL
-                      ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»"
-                      : "« Vous écoutez la présentation audio de la plateforme… »"
-                  ) : (
-                    <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
-                  )}
-                </p>
-                {cutDone && !heroPlaying && (
-                  <p className="mt-1.5 text-[11px] font-semibold" style={{ color: featured.color }}>
-                    {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
+                <div className="text-center">
+                  <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-4" style={{ color: ACCENT, fontFamily: MONO_STACK }}>
+                    {"// "}<span ref={kickerScrRef}>{t.heroKicker}</span>
                   </p>
-                )}
-
-                {/* Pastilles de voix */}
-                <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                  {LANDING_VOICES.map((v) => {
-                    const on = v.id === featured.id;
-                    return (
-                      <button key={v.id} type="button" onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
-                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition focus-ring ${on ? "border-transparent" : "text-white/60 border-white/10 bg-white/5 hov-accent hover:text-white"}`}
-                        style={on ? { background: v.color, color: BG0 } : undefined}>
-                        {isRTL ? v.nameAr : v.nameFr}
-                      </button>
-                    );
-                  })}
                 </div>
-
-                {/* Mini-démo interactive */}
-                <div className="mt-3 flex items-center gap-2">
-                  <input
-                    dir="auto"
-                    value={demoText}
-                    maxLength={140}
-                    onChange={(e) => setDemoText(e.target.value)}
-                    placeholder={t.demoPlaceholder}
-                    className="flex-1 h-11 px-4 rounded-xl border border-white/10 bg-white/[0.04] text-[13px] text-white outline-none transition-colors placeholder:text-white/30"
-                    style={{ fontFamily: sans }}
-                  />
-                  <button type="button"
-                    onClick={() => {
-                      if (heroSamplePlaying) stopSpeech();
-                      else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined); }
-                    }}
-                    disabled={!speechSupported}
-                    className="h-11 px-4 rounded-xl border border-white/20 bg-white/5 hov-accent text-[13px] font-semibold text-white focus-ring disabled:opacity-40 shrink-0">
-                    {heroSamplePlaying ? t.pause : t.hearIt}
+                {/* key={language} : React remonte le nœud → aucun conflit avec SplitText */}
+                <h1 key={language} ref={titleRef} className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[0.98] tracking-[-0.03em] font-bold text-white" style={{ fontFamily: display }}>
+                  {t.heroTitle1} <span style={{ color: ACCENT }}>{t.heroTitle2}</span>
+                </h1>
+                <p className="sw-hero-sub mt-6 text-[15px] sm:text-[16px] text-white/60 max-w-xl mx-auto leading-relaxed">{t.heroSub}</p>
+                <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                    className="sw-hero-cta h-12 px-7 rounded-full text-[14px] font-bold focus-ring transition hover:brightness-110"
+                    style={{ background: ACCENT, color: BG0, boxShadow: "0 0 34px rgba(46,232,166,0.35)" }}>
+                    {t.tryFree}
+                  </button>
+                  <button type="button" onClick={handleToggleIntroAudio}
+                    className="sw-hero-cta h-12 px-5 rounded-full border border-white/20 bg-white/5 hov-accent text-[14px] font-semibold text-white flex items-center gap-2.5 transition focus-ring">
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: ACCENT, color: BG0 }}>
+                      {isIntroPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current ms-0.5" />}
+                    </span>
+                    {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
                 </div>
-                {!speechSupported && <p className="mt-2 text-[11px] text-white/40">{t.noSpeechNote}</p>}
-
-                {/* Lecture */}
-                <button type="button"
-                  onClick={() => {
-                    if (heroSamplePlaying) stopSpeech();
-                    else { stopIntroAudio(); speak(featured, language); }
-                  }}
-                  disabled={!speechSupported}
-                  className="mt-4 w-full h-12 rounded-xl font-bold text-[14px] text-white flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
-                  style={{ background: featured.color, boxShadow: `0 12px 32px -12px ${featured.color}` }}>
-                  {heroSamplePlaying
-                    ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
-                    : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
-                </button>
+                <p className="sw-hero-cta mt-4 text-[12px] font-semibold flex items-center justify-center gap-1.5" style={{ color: ACCENT }}>
+                  <Gift className="w-3.5 h-3.5" /> {t.welcomeChip}
+                </p>
               </div>
-            </div>
-          </SlideUp>
 
-          {/* Preuve sociale */}
-          <SlideUp delay={0.46} className="mt-8">
-            <div className="flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/40 flex-wrap">
-              <div className="flex -space-x-1.5" dir="ltr">
-                {[ACCENT, "#F472B6", "#60A5FA"].map((c) => (
-                  <div key={c} className="w-7 h-7 rounded-full border-2" style={{ background: c, borderColor: BG0 }} />
-                ))}
-              </div>
-              <span className="font-bold text-white/70"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
-              <span>·</span>
-              <span><Num>1 200+</Num> {t.creators}</span>
-              <span>·</span>
-              <span className="inline-flex items-center gap-1">
-                <Star className="w-3 h-3" style={{ color: ACCENT, fill: ACCENT }} /> 4.9 / 5
-              </span>
-            </div>
-          </SlideUp>
-        </div>
-      </section>
+              {/* ======== LA CONSOLE (fader + waveform morphing) ======== */}
+              <div className="mt-12 max-w-3xl mx-auto"
+                onMouseEnter={() => setPauseRotate(true)}
+                onMouseLeave={() => setPauseRotate(false)}
+                onFocusCapture={() => setPauseRotate(true)}
+                onBlurCapture={() => setPauseRotate(false)}
+              >
+                <div ref={consoleRef}
+                  className="rounded-2xl border border-white/10 bg-[#0E0E16]/90 backdrop-blur overflow-hidden shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)]"
+                  style={{ "--voice": featured.color } as React.CSSProperties}>
 
-      {/* TRUST */}
-      <section className="py-7 border-y border-white/10 bg-[#0A0A10]" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
-          {trust.map((p) => (
-            <div key={p.k} className="text-center">
-              <div className="text-[14px] font-bold tracking-tight text-white">{p.k}</div>
-              <Mono className="block text-[10px] uppercase tracking-[0.14em] text-white/40 mt-1">{p.v}</Mono>
-            </div>
-          ))}
-        </div>
-      </section>
+                  {/* Barre de fenêtre + voyant ON AIR */}
+                  <div className="flex items-center gap-1.5 px-4 h-10 border-b border-white/10 bg-white/[0.02]">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]/80" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]/80" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]/80" />
+                    <Mono className="ms-3 text-[10px] tracking-[0.18em] uppercase text-white/40">sawtify · studio</Mono>
+                    <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? ACCENT : "rgba(255,255,255,0.35)" }}>
+                      {heroPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />}
+                      <Mono className="text-[10px] font-semibold tracking-[0.18em] uppercase">
+                        {heroPlaying ? (isRTL ? "على الهواء" : "on air") : (isRTL ? "جاهز" : "ready")}
+                      </Mono>
+                    </span>
+                  </div>
 
-      {/* ================= VOICES ================= */}
-      <section id="voices" className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp><SectionHead no="01" kicker={t.popularKicker} title={t.popularTitle} sub={t.popularSub} font={display} /></SlideUp>
-
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {LANDING_VOICES.map((v, idx) => {
-              const active = playingId === v.id;
-              const name = isRTL ? v.nameAr : v.nameFr;
-              return (
-                <SlideUp key={v.id} delay={idx * 0.08}>
-                  <article className={`group rounded-2xl border bg-[#0E0E16] overflow-hidden card-lift ${active ? "border-[#2EE8A6]/50" : "border-white/10"}`}>
-                    <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
-                      <div className="px-5 pt-5">
-                        <div className="flex items-center justify-between mb-3">
-                          <Mono dir="ltr" className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border"
-                            style={{ color: v.color, borderColor: `${v.color}55`, background: `${v.color}14` }}>
-                            CH {String(idx + 1).padStart(2, "0")}
-                          </Mono>
-                          <span className="flex items-center gap-1 text-[12px] font-bold text-white/70">
-                            <Star className="w-3 h-3" style={{ color: v.color, fill: v.color }} /><Num>{v.rating}</Num>
-                          </span>
-                        </div>
-                        <div className="rounded-xl border border-white/5 h-28 flex items-center px-3" style={{ background: `${v.color}0A` }}>
-                          <Waveform color={v.color} playing={active} bars={26} />
-                        </div>
-                      </div>
-                      <div className="p-5 flex items-center justify-between gap-3">
+                  <div className="p-5 sm:p-6 grid grid-cols-[1fr_auto] gap-5">
+                    {/* Colonne principale */}
+                    <div className="min-w-0">
+                      <div className="flex items-center justify-between gap-3 mb-4">
                         <div className="min-w-0">
-                          <h3 className="text-[17px] font-bold text-white truncate">{name}</h3>
-                          <p className="text-[12px] text-white/50 mt-0.5 truncate">
-                            {isRTL ? v.tagAr : v.tagFr} · {v.location} · <Num>{v.reviews}</Num> {t.nRatings}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            {/* Texte statique JSX + mutation GSAP (scramble) = aucun conflit React */}
+                            <Mono dir="ltr" ref={chLabelRef} className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border shrink-0"
+                              style={{ color: "var(--voice)", borderColor: "rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.04)" }}>
+                              CH 01
+                            </Mono>
+                            <span ref={voiceNameRef} className="text-[17px] font-bold text-white truncate">{isRTL ? featured.nameAr : featured.nameFr}</span>
+                          </div>
+                          <div className="text-[12px] text-white/50 mt-1 truncate">
+                            {heroPlaying ? t.audioPreview : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
+                          </div>
                         </div>
-                        <span className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition ${active ? "scale-105" : "group-hover:scale-105"}`}
-                          style={{ background: active ? v.color : "rgba(255,255,255,0.08)" }}>
-                          {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
-                        </span>
+                        <div className="text-end shrink-0">
+                          <Mono className="block text-[10px] tracking-[0.2em] uppercase text-white/40">24 kHz</Mono>
+                          <div className="text-[13px] font-bold mt-0.5" style={{ color: "var(--voice)" }}>20 {t.pts}</div>
+                        </div>
                       </div>
-                    </button>
-                  </article>
-                </SlideUp>
-              );
-            })}
-          </div>
 
-          <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-            className="mt-6 w-full rounded-2xl border border-dashed border-white/20 hov-accent hover:bg-[#2EE8A6]/5 transition p-6 text-center focus-ring">
-            <div className="text-[19px] font-bold text-white" style={{ fontFamily: display }}>{t.moreVoices}</div>
-            <p className="mt-1 text-[12px] text-white/50">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
-          </button>
-        </div>
-      </section>
+                      {/* Waveform SVG : MorphSVG entre les voix + MotionPath du point */}
+                      <svg ref={waveSvgRef} viewBox="0 0 640 150" className="w-full h-auto mb-4" aria-hidden>
+                        <defs>
+                          <linearGradient id="swg" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" style={{ stopColor: "var(--voice)", stopOpacity: 0.3 }} />
+                            <stop offset="100%" style={{ stopColor: "var(--voice)", stopOpacity: 0 }} />
+                          </linearGradient>
+                          <filter id="swf" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="4" />
+                          </filter>
+                        </defs>
+                        {/* d initial figé (memo) → React ne réécrit JAMAIS d, GSAP est seul propriétaire */}
+                        <path ref={waveAreaRef} d={initialAreaD()} fill="url(#swg)" />
+                        <path ref={waveLineRef} d={initialLineD()} fill="none" strokeWidth="2.5" strokeLinecap="round" style={{ stroke: "var(--voice)" }} />
+                        <circle ref={dotRef} r="5" style={{ fill: "var(--voice)" }} opacity="0" filter="url(#swf)" />
+                      </svg>
 
-      {/* ================= PROCESS ================= */}
-      <section id="process" className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SectionHead no="02" kicker={t.journeyKicker} title={t.journeyTitle} sub={t.journeySub} center font={display} />
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
-            {journeySteps.map((s, i) => (
-              <SlideUp key={s.n} delay={i * 0.07} className="bg-[#0B0B12]">
-                <div className="p-6 sm:p-7 h-full min-h-[190px] flex flex-col justify-between">
-                  <Mono className="text-[13px] font-semibold tracking-[0.2em]" style={{ color: ACCENT }}>0{s.n}</Mono>
-                  <div>
-                    <h3 className="text-[19px] font-bold text-white mb-1.5" style={{ fontFamily: display }}>{s.t}</h3>
-                    <p className="text-[12.5px] text-white/50 leading-relaxed">{s.d}</p>
-                  </div>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
+                      <p className="text-[13px] leading-relaxed text-white/70 min-h-[60px]" dir="auto">
+                        {isIntroPlaying ? (
+                          isRTL ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»" : "« Vous écoutez la présentation audio de la plateforme… »"
+                        ) : (
+                          <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
+                        )}
+                      </p>
+                      {cutDone && !heroPlaying && (
+                        <p className="mt-1.5 text-[11px] font-semibold" style={{ color: "var(--voice)" }}>
+                          {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
+                        </p>
+                      )}
 
-      {/* ================= USES ================= */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp><SectionHead no="03" kicker={t.useKicker} title={t.useTitle} font={display} /></SlideUp>
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
-            {uses.map((u, i) => (
-              <SlideUp key={u.t} delay={i * 0.06} className="bg-[#0B0B12]">
-                <div className="p-6 h-full">
-                  <div className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center mb-4" style={{ color: ACCENT }}>
-                    <u.icon className="w-[18px] h-[18px]" />
-                  </div>
-                  <h3 className="text-[15px] font-bold text-white mb-1">{u.t}</h3>
-                  <p className="text-[12.5px] text-white/50 leading-relaxed">{u.d}</p>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
+                      {/* Pastilles (contrôle clavier accessible du fader) */}
+                      <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                        {LANDING_VOICES.map((v) => {
+                          const on = v.id === featured.id;
+                          return (
+                            <button key={v.id} type="button" onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
+                              className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition focus-ring ${on ? "border-transparent" : "text-white/60 border-white/10 bg-white/5 hov-accent hover:text-white"}`}
+                              style={on ? { background: v.color, color: BG0 } : undefined}>
+                              {isRTL ? v.nameAr : v.nameFr}
+                            </button>
+                          );
+                        })}
+                      </div>
 
-      {/* ================= COST ================= */}
-      <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid lg:grid-cols-12 gap-10 items-center">
-          <div className="lg:col-span-5">
-            <SlideUp>
-              <SectionHead no="04" kicker={t.costKicker} title={t.costTitle} sub={t.costSub} font={display} />
-              <ul className="mt-6 space-y-2.5 text-[13px] text-white/70">
-                {[
-                  isRTL ? "50 نقطة مجاناً عند التسجيل." : "50 points offerts à l'inscription.",
-                  isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
-                  isRTL ? "الدفع بالدينار عبر SATIM." : "Paiement en DZD via SATIM.",
-                ].map((line) => (
-                  <li key={line} className="flex items-start gap-2">
-                    <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
-                    <span>{line}</span>
-                  </li>
-                ))}
-              </ul>
-            </SlideUp>
-          </div>
-          <div className="lg:col-span-7">
-            <SlideUp delay={0.1}>
-              <div className="rounded-2xl border border-white/10 bg-[#0E0E16] p-6 sm:p-8">
-                <Mono className="block text-[10px] tracking-[0.22em] uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</Mono>
-                <div className="grid grid-cols-4 gap-2 mb-6">
-                  {COST_STEPS.map((s, i) => (
-                    <button key={s.sec} type="button" onClick={() => setCostIdx(i)}
-                      className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "" : "text-white/60 border border-white/10 bg-white/5 hover:text-white"}`}
-                      style={costIdx === i ? { background: ACCENT, color: BG0 } : undefined}>
-                      {isRTL ? s.labelAr : s.labelFr}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-end justify-between gap-4 flex-wrap">
-                  <div>
-                    <Mono className="block text-[10px] uppercase tracking-[0.18em] text-white/40 mb-1">{isRTL ? "التكلفة" : "Coût"}</Mono>
-                    <div className="text-[52px] leading-none font-bold text-white" style={{ fontFamily: NUM_STACK }}>
-                      <Num>{COST_STEPS[costIdx].pts}</Num>
-                      <span className="text-[15px] font-semibold text-white/40 ms-2">{t.pts}</span>
+                      {/* Mini-démo : écrire & écouter */}
+                      <div className="mt-3 flex items-center gap-2">
+                        <input dir="auto" value={demoText} maxLength={140}
+                          onChange={(e) => setDemoText(e.target.value)}
+                          placeholder={t.demoPlaceholder}
+                          className="flex-1 h-11 px-4 rounded-xl border border-white/10 bg-white/[0.04] text-[13px] text-white outline-none transition-colors placeholder:text-white/30" />
+                        <button type="button"
+                          onClick={() => { if (heroSamplePlaying) stopSpeech(); else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined); } }}
+                          disabled={!speechSupported}
+                          className="h-11 px-4 rounded-xl border border-white/20 bg-white/5 hov-accent text-[13px] font-semibold text-white focus-ring disabled:opacity-40 shrink-0">
+                          {heroSamplePlaying ? t.pause : t.hearIt}
+                        </button>
+                      </div>
+                      {!speechSupported && <p className="mt-2 text-[11px] text-white/40">{t.noSpeechNote}</p>}
+
+                      <button type="button"
+                        onClick={() => { if (heroSamplePlaying) stopSpeech(); else { stopIntroAudio(); speak(featured, language); } }}
+                        disabled={!speechSupported}
+                        className="mt-4 w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
+                        style={{ background: "var(--voice)", color: BG0 }}>
+                        {heroSamplePlaying
+                          ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
+                          : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
+                      </button>
+                    </div>
+
+                    {/* FADER — Draggable + Inertia (décoratif ; les pastilles = contrôle clavier) */}
+                    <div className="flex flex-col items-center justify-center gap-2 select-none" aria-hidden>
+                      <Mono className="text-[9px] tracking-[0.2em] uppercase text-white/30">{t.dragHint}</Mono>
+                      <div ref={faderTrackRef} className="relative w-12 h-44 rounded-full border border-white/10 bg-white/[0.03]">
+                        <div className="absolute inset-y-2 start-1/2 w-[3px] -translate-x-1/2 rounded-full bg-white/10" style={{ insetInlineStart: "50%", transform: "translateX(-50%)" }} />
+                        {[0, 1, 2].map((i) => (
+                          <span key={i} className="absolute start-1/2 -translate-x-1/2 w-4 h-px bg-white/20"
+                            style={{ insetInlineStart: "50%", top: `${8 + i * 42}%` }} />
+                        ))}
+                        <div ref={faderHandleRef} className="sw-fader-handle absolute top-0 start-1/2 -translate-x-1/2 w-12 h-7 rounded-lg"
+                          style={{ insetInlineStart: "50%", transform: "translateX(-50%)", background: "linear-gradient(180deg, #1C1C2A, #12121D)", border: `1.5px solid ${featured.color}` }}>
+                          <div className="absolute inset-x-2 top-1/2 h-[3px] -translate-y-1/2 rounded-full" style={{ background: featured.color }} />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 items-center">
+                        {LANDING_VOICES.map((_, i) => (
+                          <Mono key={i} dir="ltr" className="text-[9px] tracking-widest" style={{ color: i === chIndex ? featured.color : "rgba(255,255,255,0.3)" }}>
+                            0{i + 1}
+                          </Mono>
+                        ))}
+                      </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Preuve sociale */}
+              <div className="mt-8 flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/40 flex-wrap">
+                <div className="flex -space-x-1.5" dir="ltr">
+                  {[ACCENT, "#F472B6", "#60A5FA"].map((c) => (
+                    <div key={c} className="w-7 h-7 rounded-full border-2" style={{ background: c, borderColor: BG0 }} />
+                  ))}
+                </div>
+                <span className="font-bold text-white/70"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
+                <span>·</span>
+                <span><Num>1 200+</Num> {t.creators}</span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1"><Star className="w-3 h-3" style={{ color: ACCENT, fill: ACCENT }} /> 4.9 / 5</span>
+              </div>
+            </div>
+          </section>
+
+          {/* TRUST */}
+          <section className="py-7 border-y border-white/10 bg-[#0A0A10]" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
+              {trust.map((p) => (
+                <div key={p.k} className="text-center">
+                  <div className="text-[14px] font-bold tracking-tight text-white">{p.k}</div>
+                  <Mono className="block text-[10px] uppercase tracking-[0.14em] text-white/40 mt-1">{p.v}</Mono>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* VOICES */}
+          <section id="voices" className="py-16 sm:py-24">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <svg className="sw-rule w-full h-3 mb-2" aria-hidden><line x1="0" y1="1.5" x2="100%" y2="1.5" /></svg>
+              <div className="sw-reveal">
+                <SectionHead no="01" kicker={t.popularKicker} title={t.popularTitle} sub={t.popularSub} font={display} />
+              </div>
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {LANDING_VOICES.map((v, idx) => {
+                  const active = playingId === v.id;
+                  const name = isRTL ? v.nameAr : v.nameFr;
+                  return (
+                    <div key={v.id} className="sw-reveal">
+                      <article className={`group rounded-2xl border bg-[#0E0E16] overflow-hidden card-lift ${active ? "border-[#2EE8A6]/50" : "border-white/10"}`}>
+                        <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
+                          <div className="px-5 pt-5">
+                            <div className="flex items-center justify-between mb-3">
+                              <Mono dir="ltr" className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border"
+                                style={{ color: v.color, borderColor: `${v.color}55`, background: `${v.color}14` }}>
+                                CH {String(idx + 1).padStart(2, "0")}
+                              </Mono>
+                              <span className="flex items-center gap-1 text-[12px] font-bold text-white/70">
+                                <Star className="w-3 h-3" style={{ color: v.color, fill: v.color }} /><Num>{v.rating}</Num>
+                              </span>
+                            </div>
+                            <div className="rounded-xl border border-white/5 h-24 flex items-center px-3" style={{ background: `${v.color}0A` }}>
+                              <Waveform color={v.color} playing={active} bars={26} />
+                            </div>
+                          </div>
+                          <div className="p-5 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="text-[17px] font-bold text-white truncate">{name}</h3>
+                              <p className="text-[12px] text-white/50 mt-0.5 truncate">
+                                {isRTL ? v.tagAr : v.tagFr} · {v.location} · <Num>{v.reviews}</Num> {t.nRatings}
+                              </p>
+                            </div>
+                            <span className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition ${active ? "scale-105" : "group-hover:scale-105"}`}
+                              style={{ background: active ? v.color : "rgba(255,255,255,0.08)" }}>
+                              {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
+                            </span>
+                          </div>
+                        </button>
+                      </article>
+                    </div>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                className="sw-reveal mt-6 w-full rounded-2xl border border-dashed border-white/20 hov-accent hover:bg-[#2EE8A6]/5 transition p-6 text-center focus-ring">
+                <div className="text-[19px] font-bold text-white" style={{ fontFamily: display }}>{t.moreVoices}</div>
+                <p className="mt-1 text-[12px] text-white/50">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
+              </button>
+            </div>
+          </section>
+
+          {/* PROCESS — section épinglée, scroll horizontal (RTL-aware) */}
+          <section id="process" ref={processRef} className="relative py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10 overflow-hidden">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6 mb-10">
+              <div className="sw-reveal">
+                <SectionHead no="02" kicker={t.journeyKicker} title={t.journeyTitle} sub={t.journeySub} font={display} />
+              </div>
+            </div>
+            <div className={gsapReady ? "overflow-visible" : "overflow-x-auto scrollbar-none"}>
+              <div ref={processTrackRef}
+                className={gsapReady
+                  ? "flex gap-4 w-max px-5 sm:px-8 pb-4"
+                  : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-5 sm:px-6"}>
+                {journeySteps.map((s) => (
+                  <div key={s.n} className="bg-[#0B0B12] border border-white/10 rounded-2xl p-6 sm:p-7 h-[240px] w-[300px] sm:w-[340px] flex flex-col justify-between shrink-0">
+                    <Mono className="text-[13px] font-semibold tracking-[0.2em]" style={{ color: ACCENT }}>0{s.n}</Mono>
+                    <div>
+                      <h3 className="text-[19px] font-bold text-white mb-1.5" style={{ fontFamily: display }}>{s.t}</h3>
+                      <p className="text-[12.5px] text-white/50 leading-relaxed">{s.d}</p>
+                    </div>
+                  </div>
+                ))}
+                <div className="bg-[#0B0B12] border border-dashed border-[#2EE8A6]/40 rounded-2xl p-6 h-[240px] w-[300px] sm:w-[340px] flex flex-col items-start justify-center shrink-0">
+                  <Headphones className="w-8 h-8 mb-4" style={{ color: ACCENT }} strokeWidth={1.5} />
+                  <p className="text-[16px] font-bold text-white" style={{ fontFamily: display }}>{t.moreVoices}</p>
                   <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                    className="h-11 px-5 rounded-xl font-bold text-[13px] focus-ring hover:brightness-110 transition"
-                    style={{ background: ACCENT, color: BG0 }}>
+                    className="mt-4 h-10 px-5 rounded-xl font-bold text-[13px] focus-ring hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
                     {t.tryFree}
                   </button>
                 </div>
               </div>
-            </SlideUp>
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
 
-      {/* ================= METRICS ================= */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SectionHead no="05" kicker={t.metricsKicker} title={t.metricsTitle} center font={display} />
-          <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
-            {metrics.map((m, i) => (
-              <SlideUp key={m.l} delay={i * 0.06} className="bg-[#0B0B12]">
-                <div className="p-8 text-center">
-                  <div className="text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-bold text-white mb-2" style={{ fontFamily: NUM_STACK }}>
-                    <Counter target={m.n} suffix={m.s} />
+          {/* USES */}
+          <section className="py-16 sm:py-24">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <svg className="sw-rule w-full h-3 mb-2" aria-hidden><line x1="0" y1="1.5" x2="100%" y2="1.5" /></svg>
+              <div className="sw-reveal">
+                <SectionHead no="03" kicker={t.useKicker} title={t.useTitle} font={display} />
+              </div>
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
+                {uses.map((u) => (
+                  <div key={u.t} className="sw-reveal bg-[#0B0B12]">
+                    <div className="p-6 h-full">
+                      <div className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center mb-4" style={{ color: ACCENT }}>
+                        <u.icon className="w-[18px] h-[18px]" />
+                      </div>
+                      <h3 className="text-[15px] font-bold text-white mb-1">{u.t}</h3>
+                      <p className="text-[12.5px] text-white/50 leading-relaxed">{u.d}</p>
+                    </div>
                   </div>
-                  <Mono className="text-[10px] uppercase tracking-[0.2em] text-white/40">{m.l}</Mono>
-                </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= TESTIMONIALS ================= */}
-      <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SectionHead no="06" kicker={t.testKicker} title={t.testTitle} center font={display} />
-          <div className="mt-12 max-w-3xl mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div key={activeTesti} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }} className="text-center">
-                <div className="flex justify-center gap-1 mb-5">
-                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4" style={{ color: ACCENT, fill: ACCENT }} />)}
-                </div>
-                <blockquote className="text-[clamp(1.25rem,2.6vw,1.8rem)] leading-[1.35] font-semibold text-white" style={{ fontFamily: display }}>
-                  “{testimonials[activeTesti].q}”
-                </blockquote>
-                <div className="mt-7 flex items-center justify-center gap-3">
-                  <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold" style={{ background: `linear-gradient(135deg, ${ACCENT}, #A8FCE0)`, color: BG0 }}>
-                    {testimonials[activeTesti].img}
-                  </div>
-                  <div className="text-start">
-                    <div className="text-[13.5px] font-bold text-white">{testimonials[activeTesti].n}</div>
-                    <div className="text-[12px] text-white/50">{testimonials[activeTesti].r}</div>
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <button type="button" onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)}
-                className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring"
-                aria-label={isRTL ? "السابق" : "Précédent"}>
-                {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-              </button>
-              <div className="flex items-center gap-2">
-                {testimonials.map((_, i) => (
-                  <button key={i} type="button" onClick={() => setActiveTesti(i)} aria-label={`${i + 1}`}
-                    className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-white/20 hover:bg-white/40"}`}
-                    style={i === activeTesti ? { background: ACCENT } : undefined} />
                 ))}
               </div>
-              <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
-                className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring"
-                aria-label={isRTL ? "التالي" : "Suivant"}>
-                {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-              </button>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {/* ================= PRICING (points uniquement, PAS de minutes) ================= */}
-      <section id="pricing" className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SectionHead no="07" kicker={t.pricingKicker} title={t.pricingTitle} sub={t.pricingSub} center font={display} />
-
-          <div className="mb-10 mt-10 max-w-2xl mx-auto flex items-start gap-3 rounded-xl border px-4 py-3.5 text-[13px] text-white/70"
-            style={{ borderColor: "rgba(46,232,166,0.3)", background: "rgba(46,232,166,0.07)" }}>
-            <Gift className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
-            <span>{t.welcomeBanner}</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {pricing.map((p, i) => (
-              <SlideUp key={p.pts} delay={i * 0.06}>
-                <div className={`relative rounded-2xl border p-6 h-full flex flex-col ${p.featured ? "border-[#2EE8A6]/60" : "border-white/10 bg-[#0E0E16] card-lift"}`}
-                  style={p.featured ? { background: "linear-gradient(180deg, rgba(46,232,166,0.10) 0%, #0E0E16 55%)" } : undefined}>
-                  {p.featured && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.12em] uppercase whitespace-nowrap"
-                      style={{ background: ACCENT, color: BG0 }}>
-                      {t.popular}
-                    </div>
-                  )}
-                  <div className="text-[42px] leading-none font-bold text-white mb-1" style={{ fontFamily: NUM_STACK }}><Num>{p.ptsLabel}</Num></div>
-                  <Mono className="block text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">{t.pts}</Mono>
-                  <div className="h-px bg-white/10 mb-4" />
-                  <p className="text-[12px] text-white/60 mb-5 flex-1 leading-relaxed">{p.desc}</p>
-                  <div className="flex items-baseline gap-1.5 mb-5">
-                    <span className="text-[24px] font-bold text-white"><Num>{p.price}</Num></span>
-                    <span className="text-[11px] text-white/40 font-semibold">DZD</span>
+          {/* COST */}
+          <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid lg:grid-cols-12 gap-10 items-center">
+              <div className="lg:col-span-5">
+                <div className="sw-reveal">
+                  <SectionHead no="04" kicker={t.costKicker} title={t.costTitle} sub={t.costSub} font={display} />
+                  <ul className="mt-6 space-y-2.5 text-[13px] text-white/70">
+                    {[
+                      isRTL ? "50 نقطة مجاناً عند التسجيل." : "50 points offerts à l'inscription.",
+                      isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
+                      isRTL ? "الدفع بالدينار عبر SATIM." : "Paiement en DZD via SATIM.",
+                    ].map((line) => (
+                      <li key={line} className="flex items-start gap-2">
+                        <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="lg:col-span-7">
+                <div className="sw-reveal rounded-2xl border border-white/10 bg-[#0E0E16] p-6 sm:p-8">
+                  <Mono className="block text-[10px] tracking-[0.22em] uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</Mono>
+                  <div className="grid grid-cols-4 gap-2 mb-6">
+                    {COST_STEPS.map((s, i) => (
+                      <button key={s.sec} type="button" onClick={() => setCostIdx(i)}
+                        className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "" : "text-white/60 border border-white/10 bg-white/5 hover:text-white"}`}
+                        style={costIdx === i ? { background: ACCENT, color: BG0 } : undefined}>
+                        {isRTL ? s.labelAr : s.labelFr}
+                      </button>
+                    ))}
                   </div>
-                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                    className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring ${p.featured ? "hover:brightness-110" : "border border-white/20 bg-white/5 text-white hov-accent"}`}
-                    style={p.featured ? { background: ACCENT, color: BG0 } : undefined}>
-                    {t.choose}
+                  <div className="flex items-end justify-between gap-4 flex-wrap">
+                    <div>
+                      <Mono className="block text-[10px] uppercase tracking-[0.18em] text-white/40 mb-1">{isRTL ? "التكلفة" : "Coût"}</Mono>
+                      <div className="text-[52px] leading-none font-bold text-white" style={{ fontFamily: NUM_STACK }}>
+                        <Num><span ref={costNumRef}>{COST_STEPS[costIdx].pts}</span></Num>
+                        <span className="text-[15px] font-semibold text-white/40 ms-2">{t.pts}</span>
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                      className="h-11 px-5 rounded-xl font-bold text-[13px] focus-ring hover:brightness-110 transition" style={{ background: ACCENT, color: BG0 }}>
+                      {t.tryFree}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* METRICS — compteurs GSAP */}
+          <section className="py-16 sm:py-24">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="sw-reveal">
+                <SectionHead no="05" kicker={t.metricsKicker} title={t.metricsTitle} center font={display} />
+              </div>
+              <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
+                {metrics.map((m) => (
+                  <div key={m.l} className="bg-[#0B0B12]">
+                    <div className="p-8 text-center">
+                      <div className="sw-count text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-bold text-white mb-2"
+                        style={{ fontFamily: NUM_STACK }} data-target={m.n} data-suffix={m.s}>
+                        {m.n.toLocaleString("fr-FR")}{m.s}
+                      </div>
+                      <Mono className="text-[10px] uppercase tracking-[0.2em] text-white/40">{m.l}</Mono>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* TESTIMONIALS */}
+          <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="sw-reveal">
+                <SectionHead no="06" kicker={t.testKicker} title={t.testTitle} center font={display} />
+              </div>
+              <div className="mt-12 max-w-3xl mx-auto">
+                <AnimatePresence mode="wait">
+                  <motion.div key={activeTesti} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }} className="text-center">
+                    <div className="flex justify-center gap-1 mb-5">
+                      {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4" style={{ color: ACCENT, fill: ACCENT }} />)}
+                    </div>
+                    <blockquote className="text-[clamp(1.25rem,2.6vw,1.8rem)] leading-[1.35] font-semibold text-white" style={{ fontFamily: display }}>
+                      “{testimonials[activeTesti].q}”
+                    </blockquote>
+                    <div className="mt-7 flex items-center justify-center gap-3">
+                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold" style={{ background: `linear-gradient(135deg, ${ACCENT}, #A8FCE0)`, color: BG0 }}>
+                        {testimonials[activeTesti].img}
+                      </div>
+                      <div className="text-start">
+                        <div className="text-[13.5px] font-bold text-white">{testimonials[activeTesti].n}</div>
+                        <div className="text-[12px] text-white/50">{testimonials[activeTesti].r}</div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+                <div className="mt-8 flex items-center justify-center gap-4">
+                  <button type="button" onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)}
+                    className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring" aria-label={isRTL ? "السابق" : "Précédent"}>
+                    {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {testimonials.map((_, i) => (
+                      <button key={i} type="button" onClick={() => setActiveTesti(i)} aria-label={`${i + 1}`}
+                        className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-white/20 hover:bg-white/40"}`}
+                        style={i === activeTesti ? { background: ACCENT } : undefined} />
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
+                    className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring" aria-label={isRTL ? "التالي" : "Suivant"}>
+                    {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                   </button>
                 </div>
-              </SlideUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FAQ ================= */}
-      <section id="faq" className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="grid lg:grid-cols-12 gap-10">
-            <div className="lg:col-span-4">
-              <SlideUp><SectionHead no="08" kicker={t.faqKicker} title={t.faqTitle} font={display} /></SlideUp>
+              </div>
             </div>
-            <div className="lg:col-span-7 lg:col-start-6">
-              <SlideUp delay={0.08}>
-                <div className="bg-[#0E0E16] rounded-2xl border border-white/10 overflow-hidden">
-                  {faqs.map((f, i) => {
-                    const open = openFaq === i;
-                    return (
-                      <div key={f.q} className="border-b border-white/10 last:border-b-0">
-                        <button type="button" onClick={() => setOpenFaq(open ? null : i)}
-                          className="w-full py-5 px-5 sm:px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
-                          <span className="flex-1 text-[14.5px] font-semibold text-white group-hover:text-[#2EE8A6] transition-colors">{f.q}</span>
-                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45" : "text-white/60 bg-white/5"}`}
-                            style={open ? { background: ACCENT, color: BG0 } : undefined}>
-                            <Plus className="w-4 h-4" />
-                          </span>
-                        </button>
-                        <AnimatePresence initial={false}>
-                          {open && (
-                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
-                              <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-white/60 leading-relaxed">{f.a}</p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+          </section>
+
+          {/* PRICING — points uniquement, PAS de minutes */}
+          <section id="pricing" className="py-16 sm:py-24">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="sw-reveal">
+                <SectionHead no="07" kicker={t.pricingKicker} title={t.pricingTitle} sub={t.pricingSub} center font={display} />
+              </div>
+              <div className="sw-reveal mb-10 mt-10 max-w-2xl mx-auto flex items-start gap-3 rounded-xl border px-4 py-3.5 text-[13px] text-white/70"
+                style={{ borderColor: "rgba(46,232,166,0.3)", background: "rgba(46,232,166,0.07)" }}>
+                <Gift className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
+                <span>{t.welcomeBanner}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {pricing.map((p) => (
+                  <div key={p.pts} className="sw-reveal">
+                    <div className={`relative rounded-2xl border p-6 h-full flex flex-col ${p.featured ? "border-[#2EE8A6]/60" : "border-white/10 bg-[#0E0E16] card-lift"}`}
+                      style={p.featured ? { background: "linear-gradient(180deg, rgba(46,232,166,0.10) 0%, #0E0E16 55%)" } : undefined}>
+                      {p.featured && (
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.12em] uppercase whitespace-nowrap"
+                          style={{ background: ACCENT, color: BG0 }}>
+                          {t.popular}
+                        </div>
+                      )}
+                      <div className="text-[42px] leading-none font-bold text-white mb-1" style={{ fontFamily: NUM_STACK }}><Num>{p.ptsLabel}</Num></div>
+                      <Mono className="block text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">{t.pts}</Mono>
+                      <div className="h-px bg-white/10 mb-4" />
+                      <p className="text-[12px] text-white/60 mb-5 flex-1 leading-relaxed">{p.desc}</p>
+                      <div className="flex items-baseline gap-1.5 mb-5">
+                        <span className="text-[24px] font-bold text-white"><Num>{p.price}</Num></span>
+                        <span className="text-[11px] text-white/40 font-semibold">DZD</span>
                       </div>
-                    );
-                  })}
+                      <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                        className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring ${p.featured ? "hover:brightness-110" : "border border-white/20 bg-white/5 text-white hov-accent"}`}
+                        style={p.featured ? { background: ACCENT, color: BG0 } : undefined}>
+                        {t.choose}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ */}
+          <section id="faq" className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="grid lg:grid-cols-12 gap-10">
+                <div className="lg:col-span-4">
+                  <div className="sw-reveal">
+                    <SectionHead no="08" kicker={t.faqKicker} title={t.faqTitle} font={display} />
+                  </div>
                 </div>
-              </SlideUp>
+                <div className="lg:col-span-7 lg:col-start-6">
+                  <div className="sw-reveal bg-[#0E0E16] rounded-2xl border border-white/10 overflow-hidden">
+                    {faqs.map((f, i) => {
+                      const open = openFaq === i;
+                      return (
+                        <div key={f.q} className="border-b border-white/10 last:border-b-0">
+                          <button type="button" onClick={() => setOpenFaq(open ? null : i)}
+                            className="w-full py-5 px-5 sm:px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
+                            <span className="flex-1 text-[14.5px] font-semibold text-white group-hover:text-[#2EE8A6] transition-colors">{f.q}</span>
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45" : "text-white/60 bg-white/5"}`}
+                              style={open ? { background: ACCENT, color: BG0 } : undefined}>
+                              <Plus className="w-4 h-4" />
+                            </span>
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {open && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
+                                <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-white/60 leading-relaxed">{f.a}</p>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {/* ================= CTA FINAL ================= */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp>
-            <div className="relative rounded-[28px] border border-white/10 bg-[#0E0E16] p-12 sm:p-16 text-center overflow-hidden">
-              <div className="absolute inset-0 bg-grid" aria-hidden
-                style={{ maskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)", WebkitMaskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)" }} />
-              <div className="absolute inset-x-0 bottom-0 h-full" aria-hidden
-                style={{ background: "radial-gradient(480px 240px at 50% 100%, rgba(46,232,166,0.16), transparent 70%)" }} />
-              <div className="relative">
-                <h2 className="text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.04] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: display }}>
-                  {t.ctaTitle}
-                </h2>
-                <p className="mt-4 text-[15px] text-white/60 max-w-md mx-auto">{t.ctaSub}</p>
-                <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                  className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-bold text-[15px] transition focus-ring hover:brightness-110"
-                  style={{ background: ACCENT, color: BG0, boxShadow: "0 0 40px rgba(46,232,166,0.3)" }}>
-                  {t.tryFree}<ArrowIcon className="w-4 h-4" />
-                </button>
-                <Mono className="block mt-5 text-[10px] uppercase tracking-[0.2em] text-white/40">
-                  {isRTL ? "بدون بطاقة · 50 نقطة مجاناً" : "Sans carte · 50 points offerts"}
-                </Mono>
+          {/* CTA FINAL */}
+          <section className="py-16 sm:py-24">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="sw-reveal relative rounded-[28px] border border-white/10 bg-[#0E0E16] p-12 sm:p-16 text-center overflow-hidden">
+                <div className="absolute inset-0 bg-grid" aria-hidden
+                  style={{ maskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)", WebkitMaskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)" }} />
+                <div className="sw-orb absolute top-8 start-[15%] w-40 h-40 rounded-full blur-3xl" style={{ background: "rgba(46,232,166,0.14)" }} data-speed="0.9" aria-hidden />
+                <div className="sw-orb absolute bottom-8 end-[15%] w-48 h-48 rounded-full blur-3xl" style={{ background: "rgba(46,232,166,0.1)" }} data-speed="1.1" aria-hidden />
+                <div className="relative">
+                  <h2 key={language} ref={ctaTitleRef} className="text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.04] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: display }}>
+                    {t.ctaTitle}
+                  </h2>
+                  <p className="mt-4 text-[15px] text-white/60 max-w-md mx-auto">{t.ctaSub}</p>
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                    className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-bold text-[15px] transition focus-ring hover:brightness-110"
+                    style={{ background: ACCENT, color: BG0, boxShadow: "0 0 40px rgba(46,232,166,0.3)" }}>
+                    {t.tryFree}<ArrowIcon className="w-4 h-4" />
+                  </button>
+                  <Mono className="block mt-5 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    {isRTL ? "بدون بطاقة · 50 نقطة مجاناً" : "Sans carte · 50 points offerts"}
+                  </Mono>
+                </div>
               </div>
             </div>
-          </SlideUp>
-        </div>
-      </section>
+          </section>
 
-      {/* ================= FOOTER ================= */}
-      <footer id="contact" className="border-t border-white/10 pt-12 pb-28 sm:pb-12">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-            <div className="lg:col-span-2">
-              <Logo size={38} />
-              <p className="mt-4 text-[13px] text-white/50 max-w-sm leading-relaxed">
-                {isRTL
-                  ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوتًا طبيعيًا، جاهزًا للإعلان."
-                  : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}
-              </p>
-              <p className="mt-3 text-[12px] font-semibold text-white/70 flex items-center gap-2">
-                <Headphones className="w-3.5 h-3.5" style={{ color: ACCENT }} /> Alger, Algérie · {t.footTag}
-              </p>
-            </div>
-            <div>
-              <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{isRTL ? "المنصة" : "Produit"}</Mono>
-              <div className="flex flex-col gap-2 text-[13px] font-medium">
-                {nav.map((l) => (
-                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="text-white/60 hover:text-[#2EE8A6] transition-colors">{l.label}</a>
-                ))}
+          {/* FOOTER */}
+          <footer id="contact" className="border-t border-white/10 pt-12 pb-28 sm:pb-12">
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+                <div className="lg:col-span-2">
+                  <Logo size={38} />
+                  <p className="mt-4 text-[13px] text-white/50 max-w-sm leading-relaxed">
+                    {isRTL
+                      ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوتًا طبيعيًا، جاهزًا للإعلان."
+                      : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}
+                  </p>
+                  <p className="mt-3 text-[12px] font-semibold text-white/70 flex items-center gap-2">
+                    <Headphones className="w-3.5 h-3.5" style={{ color: ACCENT }} /> Alger, Algérie · {t.footTag}
+                  </p>
+                </div>
+                <div>
+                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{isRTL ? "المنصة" : "Produit"}</Mono>
+                  <div className="flex flex-col gap-2 text-[13px] font-medium">
+                    {nav.map((l) => (
+                      <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="text-white/60 hover:text-[#2EE8A6] transition-colors">{l.label}</a>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{t.contact}</Mono>
+                  <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold text-white/70 hover:text-[#2EE8A6] transition-colors">contact@sawtify.dz</a>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {["Edahabia", "CIB", "SATIM"].map((p) => (
+                      <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border border-white/10 text-white/60">{p}</span>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/50">
+                    <ShieldCheck className="w-3.5 h-3.5" style={{ color: ACCENT }} />
+                    {isRTL ? "دفع آمن، لا نخزّن رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-white/10 text-[12px] text-white/40">
+                <span>© <Num>2026</Num> Sawtify · {t.footTag}</span>
+                <div className="flex items-center gap-4">
+                  <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#2EE8A6] transition-colors">{t.cgu}</button>
+                  <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#2EE8A6] transition-colors">{t.privacy}</button>
+                </div>
               </div>
             </div>
-            <div>
-              <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{t.contact}</Mono>
-              <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold text-white/70 hover:text-[#2EE8A6] transition-colors">contact@sawtify.dz</a>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {["Edahabia", "CIB", "SATIM"].map((p) => (
-                  <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border border-white/10 text-white/60">{p}</span>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/50">
-                <ShieldCheck className="w-3.5 h-3.5" style={{ color: ACCENT }} />
-                {isRTL ? "دفع آمن، لا نخزّن رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-white/10 text-[12px] text-white/40">
-            <span>© <Num>2026</Num> Sawtify · {t.footTag}</span>
-            <div className="flex items-center gap-4">
-              <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#2EE8A6] transition-colors">{t.cgu}</button>
-              <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#2EE8A6] transition-colors">{t.privacy}</button>
-            </div>
-          </div>
+          </footer>
         </div>
-      </footer>
+      </div>
+      {/* ================= FIN SMOOTH WRAPPER ================= */}
 
-      {/* CTA MOBILE STICKY */}
+      {/* CTA MOBILE STICKY (hors smoother : fixe) */}
       <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#07070C]/95 backdrop-blur-xl border-t border-white/10">
         <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-          className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2"
-          style={{ background: ACCENT, color: BG0 }}>
+          className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT, color: BG0 }}>
           {t.tryFree} · 50 {t.pts}
         </button>
       </div>
@@ -1400,11 +1688,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {listenVoice && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/60" onClick={() => { setListenVoice(null); stopSpeech(); }} />
-            <motion.div
-              role="dialog" aria-modal="true" aria-labelledby="listen-title"
+            <motion.div role="dialog" aria-modal="true" aria-labelledby="listen-title"
               initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
-              className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl"
-            >
+              className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
                   <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-1">{t.listenInStudio}</Mono>
@@ -1426,17 +1712,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
                     : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
                 </button>
-                <p className="mt-2 text-[11px] text-center text-white/40">
-                  {speechSupported ? t.browserNote : t.noSpeechNote}
-                </p>
+                <p className="mt-2 text-[11px] text-center text-white/40">{speechSupported ? t.browserNote : t.noSpeechNote}</p>
               </div>
               <p className="text-[13px] leading-relaxed text-white/70 mb-2" dir="auto">
                 “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
               </p>
               <p className="text-[13px] text-white/60 leading-relaxed mb-5">{t.listenBody}</p>
               <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                className="w-full h-12 rounded-xl font-bold text-[14px] transition hover:brightness-110"
-                style={{ background: ACCENT, color: BG0 }}>
+                className="w-full h-12 rounded-xl font-bold text-[14px] transition hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
                 {t.moreVoices} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
               </button>
             </motion.div>
@@ -1449,11 +1732,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {legal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/60" onClick={() => setLegal(null)} />
-            <motion.div
-              role="dialog" aria-modal="true"
+            <motion.div role="dialog" aria-modal="true"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-              className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto scrollbar-none"
-            >
+              className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto scrollbar-none">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[18px] font-bold text-white">{legal === "cgu" ? t.cgu : t.privacy}</h3>
                 <button type="button" onClick={() => setLegal(null)} className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
@@ -1466,14 +1747,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* DOCK AUDIO (remplace le robot) */}
-      <AudioDock
-        isPlaying={isIntroPlaying}
-        volume={audioVolume}
-        onToggle={handleToggleIntroAudio}
-        isRTL={isRTL}
-        hidden={overlayOpen}
-      />
+      {/* DOCK AUDIO */}
+      <AudioDock isPlaying={isIntroPlaying} volume={audioVolume}
+        onToggle={handleToggleIntroAudio} isRTL={isRTL} hidden={overlayOpen} />
     </div>
   );
 };
