@@ -10,6 +10,23 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // ==========================================================================
+// CHANGELOG DE CE FICHIER :
+// FIX n°1 : suppression totale du fallback audio synthétique (sinusoïdes =
+//          son 100% robotique) et de sa mise en cache/persistance à vie.
+//          Échec Gemini → 503, rien n'est débité ni empoisonné.
+// FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs en anglais
+//          ([excited], [whispers], [very fast]...) compris directement par
+//          Gemini TTS, au lieu d'être converties en prose arabe lue à voix haute.
+// FIX n°3 : prompt "Director's Notes" court et positif (structure officielle
+//          Google), avec persona par voix. L'ancien mur de règles produisait
+//          un débit mécanique hyper-articulé.
+// FIX n°4 : 9 personas → 9 vraies voix Gemini distinctes (avant : tous les
+//          hommes = Puck, toutes les femmes = Zephyr).
+// FIX n°5 : la voix Gemini fait partie de la clé de cache des previews —
+//          changer la map invalide automatiquement les anciennes previews.
+// ==========================================================================
+
+// ==========================================================================
 // CONCURRENCY LIMITER (Fix: expose activeCount / pendingCount)
 // ==========================================================================
 function createLimiter(concurrency: number) {
@@ -40,9 +57,6 @@ function createLimiter(concurrency: number) {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const SLICKPAY_PROD_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
 const SLICKPAY_SANDBOX_KEY = process.env.SLICKPAY_SANDBOX_KEY || "";
-// FIX: SLICKPAY_MODE choisit une PAIRE cohérente (clé + URL) — avant ce fix,
-// SLICKPAY_SANDBOX_KEY était déclarée mais jamais utilisée : tout partait
-// toujours vers l'API prod avec la clé prod, sandbox ou pas.
 const SLICKPAY_MODE = (process.env.SLICKPAY_MODE || "production").toLowerCase();
 const SLICKPAY_IS_SANDBOX = SLICKPAY_MODE === "sandbox" || SLICKPAY_MODE === "dev" || SLICKPAY_MODE === "test";
 const SLICKPAY_API_KEY = SLICKPAY_IS_SANDBOX ? (SLICKPAY_SANDBOX_KEY || SLICKPAY_PROD_KEY) : SLICKPAY_PROD_KEY;
@@ -160,11 +174,6 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 }
 
 function getClientIp(req: express.Request): string {
-  // FIX: avec app.set("trust proxy", 1) configuré, req.ip ne fait confiance
-  // qu'à UN SEUL hop ajouté par le vrai proxy Render — un attaquant ne peut
-  // plus insérer sa propre valeur dans X-Forwarded-For pour se faire passer
-  // pour une IP différente à chaque inscription (et donc récupérer le bonus
-  // de bienvenue à l'infini avec des comptes/emails jetables).
   return req.ip || "unknown";
 }
 
@@ -243,17 +252,50 @@ function pcmToWavBuffer(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, 
   return Buffer.concat([header, pcmBuffer]);
 }
 
-function generateSmoothVocalWavBuffer(durationSec = 2.5, baseFreq = 160): Buffer {
-  const sampleRate = 24000; const totalSamples = Math.floor(sampleRate * Math.max(1.2, Math.min(durationSec, 15))); const pcmBuffer = Buffer.alloc(totalSamples * 2);
-  for (let i = 0; i < totalSamples; i++) { const t = i / sampleRate; const cadence = Math.sin(t * 3.5) * 12.0; const f0 = baseFreq + cadence; const s1 = Math.sin(2.0 * Math.PI * f0 * t) * 0.45; const s2 = Math.sin(2.0 * Math.PI * (f0 * 2.1) * t) * 0.25; const s3 = Math.sin(2.0 * Math.PI * (f0 * 3.2) * t) * 0.15; const syllable = 0.5 * (1.0 + Math.cos(2.0 * Math.PI * t * 3.2)); const envelope = Math.sin((Math.PI * i) / totalSamples) * syllable; let sampleVal = Math.floor((s1 + s2 + s3) * envelope * 24000.0); sampleVal = Math.max(-32768, Math.min(32767, sampleVal)); pcmBuffer.writeInt16LE(sampleVal, i * 2); }
-  return pcmToWavBuffer(pcmBuffer, sampleRate, 1, 16);
-}
+// FIX n°1 : generateSmoothVocalWavBuffer SUPPRIMÉ intégralement.
+// C'était lui qui produisait le son "100% robotique" (sinusoïdes pures)
+// chaque fois que Gemini échouait — et il était mis en cache + persisté
+// dans Supabase Storage, donc une voix restait robotique À VIE après
+// une seule erreur Gemini.
 
+// ==========================================================================
+// FIX n°4 : 9 personas → 9 vraies voix Gemini distinctes, alignées sur le
+// profil naturel de chaque voix (avant : 5 hommes = Puck, 4 femmes = Zephyr,
+// et on demandait à Puck "Upbeat" d'être un narrateur posé → incohérence).
+// ==========================================================================
 const GEMINI_VOICE_MAP: Record<string, string> = {
-  voice_amin: "Puck", voice_khalid: "Puck", voice_rashid: "Puck", voice_bilal: "Puck", voice_faycal: "Puck",
-  voice_yasmin: "Zephyr", voice_maryam: "Zephyr", voice_layla: "Zephyr", voice_nour: "Zephyr",
-  Puck: "Puck", Zephyr: "Zephyr", Charon: "Charon", Kore: "Kore", Fenrir: "Fenrir", Aoede: "Aoede", Orus: "Orus", Sulafat: "Sulafat", Leda: "Leda",
-  voice_dz_amine: "Puck", voice_dz_yasmine: "Zephyr", voice_ar_sofiane: "Puck", voice_fr_ines: "Zephyr", voice_dz_rachid: "Puck", voice_en_lina: "Zephyr",
+  // ── Hommes ──
+  voice_amin:   "Puck",     // Upbeat      → jeune, sympa, dynamique
+  voice_khalid: "Charon",   // Informative → narrateur documentaire, posé
+  voice_rashid: "Fenrir",   // Excitable   → hype, énergie
+  voice_bilal:  "Algenib",  // Gravelly    → voix grave, conteur
+  voice_faycal: "Orus",     // Firm        → vendeur sûr de lui
+  // ── Femmes ──
+  voice_yasmin: "Zephyr",   // Bright      → jeune femme enjouée
+  voice_maryam: "Sulafat",  // Warm        → chaleureuse
+  voice_layla:  "Leda",     // Youthful    → jeune, vive
+  voice_nour:   "Achernar", // Soft        → douce, calme
+  // ── Pass-through technique ──
+  Puck: "Puck", Zephyr: "Zephyr", Charon: "Charon", Kore: "Kore", Fenrir: "Fenrir",
+  Aoede: "Aoede", Orus: "Orus", Sulafat: "Sulafat", Leda: "Leda",
+  // ── Alias legacy (alignés sur les nouvelles voix) ──
+  voice_dz_amine: "Puck", voice_dz_yasmine: "Zephyr", voice_ar_sofiane: "Puck",
+  voice_fr_ines: "Sulafat", voice_dz_rachid: "Fenrir", voice_en_lina: "Leda",
+};
+
+const FEMALE_GEMINI_VOICES = new Set(["Zephyr", "Kore", "Aoede", "Sulafat", "Leda", "Achernar"]);
+
+// FIX n°3 : persona EN CLAIR par voix (Audio Profile du guide officiel Google).
+const VOICE_PERSONAS: Record<string, string> = {
+  voice_amin:   "Amin, a young friendly Algerian man. Casual, upbeat, talking like a friend.",
+  voice_khalid: "Khalid, a mature Algerian narrator. Calm, informative, documentary tone, measured.",
+  voice_rashid: "Rachid, an energetic Algerian hype announcer. High energy, punchy, infectious.",
+  voice_bilal:  "Bilal, a warm Algerian storyteller. Deep voice, intimate narration.",
+  voice_faycal: "Faycal, a confident Algerian salesman. Direct, persuasive, assured.",
+  voice_yasmin: "Yasmin, a bright cheerful Algerian young woman. Lively and warm.",
+  voice_maryam: "Maryam, a warm gentle Algerian woman. Soft, friendly, reassuring.",
+  voice_layla:  "Layla, a youthful playful Algerian girl. Bubbly, fast, short-form video energy.",
+  voice_nour:   "Nour, a soft calm Algerian woman. Soothing, slow, relaxing.",
 };
 
 const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
@@ -269,8 +311,6 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
 };
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
-// Une même preview peut être demandée plusieurs fois lors de clics rapides ou
-// de remounts frontend. Réutiliser la promesse évite de lancer plusieurs appels Gemini.
 const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
 const PREVIEW_BUCKET = "voice-previews";
 
@@ -312,41 +352,66 @@ function injectNaturalFiller(text: string): string {
   return `... ${clean}`;
 }
 
-const EMOTION_TAG_MAP: Record<string, { inline: string; prompt: string }> = {
-  excited: { inline: "، بحماس واضح وطاقة عالية، ", prompt: "اقرأ بحماس شديد جداً، طاقة عالية، وفرح واضح في الصوت." },
-  natural: { inline: "، بشكل عفوي وطبيعي، ", prompt: "اقرأ بأسلوب عفوي وطبيعي جداً كأنك تتحدث مع صديق." },
-  calm: { inline: "، بهدوء وطمأنينة، ", prompt: "اقرأ بهدوء تام، راحة، وطمأنينة." },
-  dramatic: { inline: "، بنبرة درامية ومؤثرة، ", prompt: "اقرأ بأسلوب درامي، مؤثر، وجدي جداً." },
-  whispers: { inline: "، بصوت خافت قريب من الهمس، ", prompt: "اقرأ بصوت خافت جداً، أقرب إلى الهمس." },
-  whisper: { inline: "، بصوت خافت قريب من الهمس، ", prompt: "اقرأ بصوت خافت جداً، أقرب إلى الهمس." },
-  fast: { inline: "، بسرعة وحيوية، ", prompt: "اقرأ بسرعة فائقة وحيوية." },
-  articulated: { inline: "، بنطق واضح ومفصل، ", prompt: "انطق كل حرف بوضوح تام وتأنٍ." },
-  laughter: { inline: "، مع لمسة ضحك خفيفة، ", prompt: "أضف لمسة مرح وضحكة خفيفة طبيعية في النبرة." },
-  breathing: { inline: "، ... نفس عميق ... ، ", prompt: "أدرج تنفسات طبيعية وقصيرة بين الجمل." },
+// ==========================================================================
+// FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs.
+// Avant : [excited] était remplacé par "، بحماس واضح وطاقة عالية، " DANS le
+// transcript → la voix lisait ces instructions à voix haute ou livrait un
+// débit mécanique. La doc Google est explicite : "If your transcript is not
+// in English, for best results we recommend that you still use English audio
+// tags." Gemini TTS comprend nativement [excited], [whispers], [very fast]...
+// ==========================================================================
+const EMOTION_TAG_MAP: Record<string, string> = {
+  excited: "[excited]",
+  natural: "[natural]",
+  calm: "[calm]",
+  dramatic: "[serious]",
+  serious: "[serious]",
+  whispers: "[whispers]",
+  whisper: "[whispers]",
+  fast: "[very fast]",
+  articulated: "",
+  laughter: "[laughs]",
+  laughs: "[laughs]",
+  breathing: "[sighs]",
+  sighs: "[sighs]",
 };
 
 function extractAndApplyEmotionTags(rawText: string): { textForSpeech: string; tags: string[] } {
   const tags: string[] = [];
-  const textForSpeech = rawText.replace(/\[([^\]]+)\]/g, (_match, rawTag: string) => {
+  // Ne touche qu'aux tags ASCII type [excited]. Le reste est laissé intact :
+  // par ex. le mot entre crochets d'un CTA comme "[مهتم]" doit être PRONONCÉ,
+  // pas traité comme une balise.
+  const textForSpeech = rawText.replace(/\[([a-zA-Z][a-zA-Z _-]*)\]/g, (match, rawTag: string) => {
     const tag = String(rawTag).toLowerCase().trim();
+    if (!(tag in EMOTION_TAG_MAP)) return match; // tag non géré → conservé tel quel (mécanisme natif)
     tags.push(tag);
-    const mapped = EMOTION_TAG_MAP[tag];
-    return mapped ? mapped.inline : "، ";
+    return EMOTION_TAG_MAP[tag];
   });
   return { textForSpeech, tags };
 }
 
+// Renfort de ton en anglais, court et positif (combinable aux audio tags
+// selon la doc : "combine them with a context prompt to set the overall tone").
+const EMOTION_TONE_EN: Record<string, string> = {
+  excited: "excited and high-energy",
+  natural: "spontaneous and natural, like talking to a friend",
+  calm: "calm and soothing",
+  dramatic: "serious and dramatic",
+  serious: "serious and dramatic",
+  whispers: "soft, close to a whisper",
+  whisper: "soft, close to a whisper",
+  fast: "fast and lively",
+  articulated: "clearly articulated",
+  laughter: "cheerful, with a light laugh in the voice",
+  laughs: "cheerful, with a light laugh in the voice",
+  breathing: "relaxed, with natural breaths between sentences",
+  sighs: "relaxed, with natural breaths between sentences",
+};
+
 function buildEmotionPromptInstruction(tags: string[]): string {
   if (!tags.length) return "";
-  const unique = [...new Set(tags.map(t => t.toLowerCase()))];
-  const lines = unique.map(t => EMOTION_TAG_MAP[t]?.prompt).filter(Boolean);
-  if (!lines.length) return "";
-  const dominant = EMOTION_TAG_MAP[unique[0]]?.prompt || "";
-  return `
-العواطف المطلوبة في هذا الأداء الصوتي (مهم جداً — يجب احترامها من أول كلمة):
-- العاطفة الرئيسية من البداية: ${dominant}
-${lines.length > 1 ? `- تغيّر العواطف أثناء النص حسب الإرشادات المدمجة في النص.\n- التزم بكل تغيير عاطفي مذكور.` : ""}
-- لا تبدأ بنبرة آلية محايدة ثم تتحول لاحقاً: ابدأ مباشرة بالعاطفة الرئيسية.`;
+  const dominant = EMOTION_TONE_EN[tags[0].toLowerCase()];
+  return dominant ? `Start ${dominant} from the very first word and keep it consistent.` : "";
 }
 
 const REGION_GUIDES: Record<string, string> = {
@@ -359,7 +424,7 @@ const REGION_GUIDES: Record<string, string> = {
 function getRegionGuide(region: string): string { return REGION_GUIDES[region] || REGION_GUIDES.general; }
 
 // ==========================================================================
-// FIX : SSE PARSER FOR STREAMING TTS
+// SSE PARSER FOR STREAMING TTS
 // ==========================================================================
 async function parseSSEAudioChunks(response: Response): Promise<Buffer | null> {
   const fullText = await response.text();
@@ -386,7 +451,12 @@ async function parseSSEAudioChunks(response: Response): Promise<Buffer | null> {
 }
 
 // ==========================================================================
-// SYNTHESIZE WITH RETRY (FIX: lowercase "audio", streaming, explicit male/female)
+// SYNTHESIZE WITH RETRY
+// FIX n°3 : prompt court type "Director's Notes" (structure officielle :
+// preamble "TTS the following..." + notes + TRANSCRIPT étiqueté). L'ancien
+// mur de règles ("ne sois pas robotique", "articule chaque lettre"...) 
+// sur-prescrivait le modèle → débit mécanique, et le mot "robotique" dans
+// le prompt était du négatif-priming.
 // ==========================================================================
 async function synthesizeWithRetry(
   rawText: string,
@@ -402,43 +472,36 @@ async function synthesizeWithRetry(
   let lastError: any = null;
 
   const cleanText = normalizeTextForTTS(rawText.replace(/\s+/g, " ").trim());
-  const femaleVoices = ["Kore", "Zephyr", "Aoede", "Sulafat", "Leda"];
-  const isFemale = femaleVoices.includes(selectedVoiceName);
+  const isFemale = FEMALE_GEMINI_VOICES.has(selectedVoiceName);
 
-  // FIX: Prompts explicites pour Amin et Faycal pour garantir voix masculine
-  let performancePrompt = "";
-  if (originalVoiceId === "voice_amin") { performancePrompt = "اقرأ النص التالي بأسلوب شبابي ودود، بصوت ذكوري طبيعي وحيوي."; }
-  else if (originalVoiceId === "voice_khalid") { performancePrompt = "اقرأ النص التالي بأسلوب وثائقي رسمي، بصوت ذكوري وقور ورزين، مع تريث وبطء."; }
-  else if (originalVoiceId === "voice_rashid") { performancePrompt = "اقرأ النص التالي بأسلوب حماسي ومشوق، بصوت ذكوري قوي ومليء بالطاقة والحيوية."; }
-  else if (originalVoiceId === "voice_bilal") { performancePrompt = "اقرأ النص التالي بأسلوب سردي قصصي، بصوت ذكوري دافئ وعميق."; }
-  else if (originalVoiceId === "voice_faycal") { performancePrompt = "اقرأ النص التالي بأسلوب تجاري مقنع، بصوت ذكوري واثق ومباشر."; }
-  else if (originalVoiceId === "voice_layla") { performancePrompt = "اقرئي النص التالي بأسلوب عصري ومشرق، بصوت أنثوي حيوي وخفيف وسريع."; }
-  else if (originalVoiceId === "voice_nour") { performancePrompt = "اقرئي النص التالي بأسلوب لطيف، بصوت أنثوي ناعم وهادئ وواضح."; }
-  else { performancePrompt = isFemale ? "أنت ممثلة صوت جزائرية محترفة. اقرئي النص التالي بدارجة جزائرية أصيلة، بصوت أنثوي دافئ وطبيعي." : "أنت ممثل صوت جزائري محترف. اقرأ النص التالي بدارجة جزائرية أصيلة، بصوت ذكوري واثق وطبيعي."; }
+  const persona = VOICE_PERSONAS[originalVoiceId] || (isFemale
+    ? "A professional Algerian female voice actor, warm, confident and natural."
+    : "A professional Algerian male voice actor, warm, confident and natural.");
 
-  if (speed >= 1.15) performancePrompt += " اقرأ بسرعة فائقة وحيوية."; else if (speed <= 0.88) performancePrompt += " اقرأ ببطء, تريث, ووضوح تام."; else performancePrompt += " اقرأ بسرعة عادية ومريحة.";
-  if (pitch >= 1.1) performancePrompt += isFemale ? " ارفعي نبرة الصوت قليلاً لتكون أكثر حيوية." : " ارفع نبرة الصوت قليلاً لتكون أكثر حيوية."; else if (pitch <= 0.9) performancePrompt += isFemale ? " اعمقي الصوت قليلا" : " اعمق الصوت قليلاً لمزيد من الجدية.";
-
-  performancePrompt += buildEmotionPromptInstruction(emotionTags);
+  const pace = speed >= 1.15
+    ? "Fast, energetic pace, short-form video energy."
+    : speed <= 0.88
+      ? "Slow, deliberate pace, taking time with every sentence."
+      : "Natural conversational pace.";
+  const pitchNote = pitch >= 1.1 ? "Slightly higher pitch, lively." : pitch <= 0.9 ? "Slightly lower pitch, grounded." : "";
+  const emotionNote = buildEmotionPromptInstruction(emotionTags);
   const preparedText = injectNaturalFiller(cleanText);
 
-  const enrichedSpeechPrompt = `${performancePrompt}
+  const enrichedSpeechPrompt = `TTS the following transcript. Do not read these notes aloud.
 
-قواعد النطق ومخارج الحروف (مهمة جداً):
-- انطق كل كلمة بوضوح تام، واحرص على إخراج مخارج الحروف كاملة وبشكل صحيح.
-- لا تأكل أواخر الكلمات أو الحروف الأخيرة، وأعطِ كل حرف حقه في النطق.
-- ابدأ مباشرة بالعاطفة المطلوبة من أول مقطع صوتي — ممنوع تبدأ بنبرة روبوتية محايدة.
-- النقاط الثلاث في البداية (...) هي صمت قصير فقط: لا تنطقها ولا تقل "نقطة".
-- إذا وُجدت إرشادات عاطفية داخل النص (مثل "بحماس" أو "بهدوء") فطبّقها فوراً عند تلك اللحظة، دون قراءتها ككلمات حرفية إن أمكن، أو ادمجها كنبرة.
-- عند نهاية الجمل، اخفض نبرة الصوت تدريجياً وبشكل مريح دون قطع مفاجئ في الصوت.
+DIRECTOR'S NOTES
+Speaker: ${persona}
+Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.
+Pace: ${pace}${pitchNote ? `\nPitch: ${pitchNote}` : ""}${emotionNote ? `\nTone: ${emotionNote}` : ""}
+The transcript may contain audio tags in brackets such as [excited], [calm], [whispers] or [very fast]: follow them for delivery, never pronounce them. A leading "..." is just a short silent beat before starting.
 
-النص:
+TRANSCRIPT:
 ${preparedText}`;
 
   const requestBody = {
     contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
     generationConfig: {
-      responseModalities: ["audio"], // FIX: minuscules obligatoires
+      responseModalities: ["audio"],
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: { voiceName: selectedVoiceName }
@@ -527,7 +590,6 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   const cached = LLM_RESPONSE_CACHE.get(cacheKey);
   if (cached && Date.now() - cached.ts < LLM_CACHE_TTL_MS) return cached.result;
 
-  // Un seul fallback : une panne ne doit pas transformer une action en 3 appels.
   const models = ["gemini-3.6-flash", "gemini-2.5-flash"];
   let allErrors: string[] = [];
 
@@ -674,7 +736,7 @@ const CTAS = [
 
 const ENHANCE_BOOSTERS = [
   "Rends le rythme plus PUNCHY : phrases courtes, impact immédiat, comme un pub TikTok qui accroche en 3 secondes.",
-  "Ajoute une DIMENSION ÉMOTIONNELLE plus深い : joue sur la curiosité, l'urgence ou la connivence avec l'auditeur.",
+  "Ajoute une DIMENSION ÉMOTIONNELLE plus forte : joue sur la curiosité, l'urgence ou la connivence avec l'auditeur.",
   "Injecte de la SPONTANÉITÉ ORALE : petites hésitations naturelles, expressions typiques Darija, comme un vrai humain qui parle.",
   "Optimise pour le SCROLL-STOPPING : la première phrase doit obliger l'auditeur à s'arrêter et écouter.",
   "Renforce la DIMENSION STORYTELLING : transforme les infos en mini-scène vivante.",
@@ -731,10 +793,6 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // FIX: Render (et la plupart des PaaS) placent l'app derrière 1 proxy inverse.
-  // Sans ça, req.ip renvoie l'IP du proxy pour TOUT LE MONDE (rate limiters
-  // partagés entre utilisateurs) et express-rate-limit refuse de faire
-  // confiance à x-forwarded-for (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
   app.set("trust proxy", 1);
 
   app.use(compression());
@@ -743,10 +801,6 @@ async function startServer() {
   const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes." }) });
   app.use(globalLimiter);
 
-  // PERF: résout userId UNE SEULE FOIS par requête (avant le rate limiter),
-  // au lieu de le refaire dans le handler juste après — sinon on vérifie le
-  // JWT (ou pire, on rappelle Supabase Auth si SUPABASE_JWT_SECRET absent)
-  // deux fois de suite sur les routes payantes (tts/generate, llm/*).
   const resolveUserIdMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     (req as any).resolvedUserId = await getUserIdFromAuthHeader(req);
     next();
@@ -774,20 +828,30 @@ async function startServer() {
 
   /* ==========================================================================
      TTS PREVIEW (gratuit)
+     FIX n°1 + FIX n°5 : plus de fallback synthétique ; la voix Gemini fait
+     partie de la cacheKey (invalidation auto si la map change) ; un échec
+     Gemini renvoie 503 SANS rien mettre en cache ni persister.
      ========================================================================== */
   const handleTTSPreview = async (req: express.Request, res: express.Response) => {
     const voiceId = (req.query.voice_id as string) || "voice_amin";
     const speed = parseFloat(req.query.speed as string) || 1.0;
     const pitch = parseFloat(req.query.pitch as string) || 1.0;
-    const cacheKey = `${voiceId}_${speed.toFixed(1)}_${pitch.toFixed(1)}`;
+
+    // FIX n°5 : la voix Gemini est dans la clé de cache.
+    const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
+    const cacheKey = `${voiceId}_${selectedVoiceName}_${speed.toFixed(1)}_${pitch.toFixed(1)}`;
 
     if (PREVIEW_AUDIO_CACHE.has(cacheKey)) {
       return res.json({ voice_id: voiceId, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5 });
     }
     const inflight = PREVIEW_INFLIGHT.get(cacheKey);
     if (inflight) {
-      const audioUrl = await inflight;
-      return res.json({ voice_id: voiceId, audio_url: audioUrl, duration_seconds: 2.5 });
+      try {
+        const audioUrl = await inflight;
+        return res.json({ voice_id: voiceId, audio_url: audioUrl, duration_seconds: 2.5 });
+      } catch (err: any) {
+        return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes.", detail: err?.message });
+      }
     }
 
     const persistentPreview = await loadPersistentPreview(cacheKey);
@@ -795,19 +859,15 @@ async function startServer() {
       return res.json({ voice_id: voiceId, audio_url: persistentPreview, duration_seconds: 2.5 });
     }
 
-    const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
     const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
     const generation = (async () => {
-      let wavBase64 = "";
-      const { pcmBuffer, error: synthError } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 2, speed, pitch, voiceId, []);
-      if (pcmBuffer) {
-        wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
-      } else {
-        console.warn(`[TTS Preview] Fallback synthétique pour ${voiceId} — erreur: ${synthError}`);
-        const basePitchFreq = ["Kore", "Zephyr", "Aoede", "Sulafat"].includes(selectedVoiceName) ? 210 : 150;
-        wavBase64 = generateSmoothVocalWavBuffer(2.6 / speed, basePitchFreq * pitch).toString("base64");
+      // FIX n°1 : SEUL du vrai audio Gemini est caché/persisté.
+      // Échec → exception → 503. Jamais de sinusoïdes robotiques en cache.
+      const { pcmBuffer, error: synthError } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 3, speed, pitch, voiceId, []);
+      if (!pcmBuffer || pcmBuffer.length <= 50) {
+        throw new Error(synthError || "Gemini TTS indisponible");
       }
-      const dataUri = `data:audio/wav;base64,${wavBase64}`;
+      const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
       PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
       await savePersistentPreview(cacheKey, dataUri);
       return dataUri;
@@ -816,6 +876,8 @@ async function startServer() {
     try {
       const dataUri = await generation;
       return res.json({ voice_id: voiceId, audio_url: dataUri, duration_seconds: 2.5 });
+    } catch (err: any) {
+      return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes.", detail: err?.message });
     } finally {
       PREVIEW_INFLIGHT.delete(cacheKey);
     }
@@ -846,7 +908,6 @@ async function startServer() {
       if (text.length > 5000) {
         return res.status(400).json({ error: "Texte trop long (maximum 5000 caractères)." });
       }
-      // Une requête anonyme ou sans solde ne doit jamais atteindre Gemini.
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
       const balanceBeforeGeneration = await getUserBalance(userId);
@@ -858,59 +919,47 @@ async function startServer() {
         return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_TTS_LIMIT} générations audio).` });
       }
 
+      // FIX n°2 : les balises deviennent des audio tags natifs dans le transcript.
       const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
-      const cleanText = normalizeTextForTTS(textForSpeech.replace(/\s+/g, " ").trim());
       const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
 
-      let wavBase64 = "";
-      let durationSeconds = Math.max(1.5, Math.round((cleanText.split(/\s+/).length / (2.8 * numSpeed)) * 10) / 10);
+      const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
+      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, success: Boolean(pcmBuffer), maxRetries: 3 }));
 
-      const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(cleanText, selectedVoiceName, 2, numSpeed, numPitch, requestedVoice, emotionTags);
-      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, success: Boolean(pcmBuffer), maxRetries: 2 }));
-      const usedFallback = !pcmBuffer;
-
-      // Un audio synthétique n'est pas la voix payante demandée : ne jamais le
-      // retourner comme une génération réussie et ne jamais débiter l'utilisateur.
-      if (usedFallback) {
+      // FIX n°1 : échec Gemini → 503 explicite. JAMAIS d'audio synthétique
+      // facturé comme une vraie génération.
+      if (!pcmBuffer || pcmBuffer.length <= 50) {
         return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15, detail: synthError });
       }
 
-      if (pcmBuffer && pcmBuffer.length > 50) {
-        wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
-        durationSeconds = Math.round((pcmBuffer.length / 48000) * 10) / 10;
-      } else {
-        console.error(`[TTS Generate] ⚠️  FALLBACK SYNTHÉTIQUE — Gemini TTS a échoué: ${synthError}`);
-        const basePitchFreq = ["Kore", "Zephyr", "Aoede", "Sulafat"].includes(selectedVoiceName) ? 210 : 150;
-        wavBase64 = generateSmoothVocalWavBuffer(durationSeconds, basePitchFreq * numPitch).toString("base64");
-      }
+      const wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
+      const durationSeconds = Math.round((pcmBuffer.length / 48000) * 10) / 10;
 
       const finalPointsCost = computePointsCost(durationSeconds);
 
       let generationId: string | null = null;
       let remainingBalance: number | null = null;
-      if (userId) {
-        const { data, error: rpcError } = await supabaseClient.rpc('deduct_and_record_generation_service', {
-          p_user_id: userId, p_amount: finalPointsCost, p_voice_id: requestedVoice, p_voice_name: selectedVoiceName,
-          p_prompt: text, p_char_count: text.length, p_duration: durationSeconds, p_latency: Date.now() - startTime,
-        });
-        if (rpcError || !data?.success) {
-          const msg = rpcError?.message || data?.error || "Solde insuffisant ou erreur de débit.";
-          return res.status(rpcError ? 500 : 402).json({ error: msg });
-        }
-        generationId = data.generation_id;
-        remainingBalance = data.remaining_balance;
+      const { data, error: rpcError } = await supabaseClient.rpc('deduct_and_record_generation_service', {
+        p_user_id: userId, p_amount: finalPointsCost, p_voice_id: requestedVoice, p_voice_name: selectedVoiceName,
+        p_prompt: text, p_char_count: text.length, p_duration: durationSeconds, p_latency: Date.now() - startTime,
+      });
+      if (rpcError || !data?.success) {
+        const msg = rpcError?.message || data?.error || "Solde insuffisant ou erreur de débit.";
+        return res.status(rpcError ? 500 : 402).json({ error: msg });
       }
+      generationId = data.generation_id;
+      remainingBalance = data.remaining_balance;
 
       return res.json({
         status: "success", success: true, audio_base64: wavBase64, audio_url: `data:audio/wav;base64,${wavBase64}`,
         format: "wav", sample_rate: 24000, generation_id: generationId || `gen_${Date.now()}`,
         duration_seconds: durationSeconds, latency_ms: Date.now() - startTime,
-        points_deducted: userId ? finalPointsCost : 0, points_cost: userId ? finalPointsCost : 0,
-        notification: userId ? `-${finalPointsCost} Points` : "Aperçu gratuit",
+        points_deducted: finalPointsCost, points_cost: finalPointsCost,
+        notification: `-${finalPointsCost} Points`,
         remaining_balance: remainingBalance, voice_id: requestedVoice, gemini_voice: selectedVoiceName,
         parsed_tags: emotionTags,
-        used_gemini_tts: !usedFallback, used_streaming: usedStreaming && !usedFallback,
-        synth_fallback: usedFallback, synth_error: usedFallback ? synthError : undefined,
+        used_gemini_tts: true, used_streaming: usedStreaming,
+        synth_fallback: false,
       });
     });
   };
@@ -998,9 +1047,6 @@ Génère maintenant la version optimisée :`;
       const missingTags = tagCount < expectedMinTags;
       const latinPreserved = validateLatinPreservation(text, enhancedText);
       const startsWithTag = /^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim());
-
-      // Une seule génération Gemini par clic. Le nettoyage local ci-dessous
-      // fournit un résultat sûr sans lancer une seconde requête payante.
 
       if (enhancedText.length < text.length * 0.4) enhancedText = /^\[/.test(text.trim()) ? text.trim() : `[natural] ${text.trim()}`;
       if (!/^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim())) enhancedText = `[natural] ${enhancedText}`;
@@ -1184,10 +1230,6 @@ Style vocal souhaité : ${style || "excited"}`;
 
   app.post("/api/slickpay/webhook", async (req, res) => {
     try {
-      // Durcissement optionnel : si un secret est configuré côté serveur ET que
-      // SlickPay permet de le transmettre (query ?secret=... ou header), on le
-      // vérifie. Inactif tant que SLICKPAY_WEBHOOK_SECRET n'est pas défini —
-      // n'empêche donc jamais le webhook de fonctionner si non configuré.
       if (SLICKPAY_WEBHOOK_SECRET) {
         const providedSecret = (req.query.secret as string) || req.get("x-slickpay-secret") || "";
         if (providedSecret !== SLICKPAY_WEBHOOK_SECRET) {
@@ -1220,10 +1262,6 @@ Style vocal souhaité : ${style || "excited"}`;
       const ip = getClientIp(req);
       const { data: inserted, error: insertErr } = await supabaseClient.from("ip_claims").insert({ ip, user_id: userId }).select().single();
       if (!insertErr && inserted) return res.json({ success: true, welcomeGranted: true });
-      // FIX: ne révoquer le bonus que si l'IP est réellement déjà enregistrée
-      // (23505 = violation de clé primaire sur ip_claims.ip). Toute autre
-      // erreur (timeout, panne réseau/DB) ne doit pas coûter ses points à un
-      // utilisateur légitime.
       if (insertErr && insertErr.code !== "23505") {
         console.warn("[Welcome Bonus] Insert ip_claims échoué (non fatal, bonus conservé):", insertErr.message);
         return res.json({ success: true, welcomeGranted: true });
@@ -1245,9 +1283,6 @@ Style vocal souhaité : ${style || "excited"}`;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
-
-  // Aucun préchauffage Gemini au démarrage : une instance redémarrée ne doit
-  // pas consommer 9 requêtes avant même qu'un utilisateur clique sur Preview.
 }
 
 startServer();
