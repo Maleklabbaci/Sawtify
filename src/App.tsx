@@ -77,9 +77,25 @@ function AppContent() {
           setActiveTab('studio');
           refreshAccountData();
 
-          if (consumeSignupIntent()) {
+          // FIX: le bonus de bienvenue (et donc le check anti-abus par IP) ne
+          // doit PAS dépendre d'un flag posé côté navigateur uniquement quand
+          // un bouton "Créer un compte" précis est cliqué — Google OAuth ne
+          // fait aucune vraie différence entre connexion et inscription, donc
+          // ce flag peut rester absent même pour un compte tout juste créé
+          // (le check IP était alors silencieusement sauté). On se base à la
+          // place sur l'horodatage réel fourni par Supabase : ce compte a-t-il
+          // été créé il y a moins de 2 minutes ? Fiable quel que soit le
+          // bouton cliqué ou la méthode d'inscription.
+          const createdAtMs = session.user.created_at ? new Date(session.user.created_at).getTime() : 0;
+          const isBrandNewAccount = createdAtMs > 0 && (Date.now() - createdAtMs) < 2 * 60 * 1000;
+          const wantsPasswordSetup = consumeSignupIntent();
+
+          if (wantsPasswordSetup) {
             setPendingUserEmail(session.user.email ?? null);
             setNeedsPasswordSetup(true);
+          }
+
+          if (isBrandNewAccount) {
             import('./services/supabaseClient').then(({ claimWelcomeBonus }) => {
               claimWelcomeBonus().then((granted) => {
                 if (!granted) {
@@ -88,8 +104,9 @@ function AppContent() {
                 }
               });
             });
-          } else {
-            showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
+            if (!wantsPasswordSetup) {
+              showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
+            }
           }
         }
         if (event === 'SIGNED_OUT') {
