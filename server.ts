@@ -1,6 +1,6 @@
 import express from "express";
 import compression from "compression";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import path from "path";
 import { createServer as createViteServer } from "vite";
@@ -718,15 +718,28 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // FIX: Render (et la plupart des PaaS) placent l'app derrière 1 proxy inverse.
+  // Sans ça, req.ip renvoie l'IP du proxy pour TOUT LE MONDE (rate limiters
+  // partagés entre utilisateurs) et express-rate-limit refuse de faire
+  // confiance à x-forwarded-for (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+  app.set("trust proxy", 1);
+
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
 
   const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes." }) });
   app.use(globalLimiter);
 
-  const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, handler: (req, res) => res.status(429).json({ error: "Trop de previews." }) });
-  const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
-  const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes LLM." }) });
+  // FIX: clé par userId (fallback IP réelle si non authentifié) au lieu de l'IP
+  // seule — sinon plusieurs utilisateurs derrière la même box/4G partagent le
+  // même quota, et se pénalisent entre eux.
+  const perUserKey = async (req: express.Request, res: express.Response): Promise<string> => {
+    const userId = await getUserIdFromAuthHeader(req);
+    return userId || ipKeyGenerator(req.ip || "unknown");
+  };
+  const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de previews." }) });
+  const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
+  const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes LLM." }) });
 
   const allowedOrigin = FRONTEND_URL || (process.env.NODE_ENV !== "production" ? "*" : "");
   app.use((req, res, next) => {
@@ -1178,6 +1191,14 @@ Style vocal souhaité : ${style || "excited"}`;
       const ip = getClientIp(req);
       const { data: inserted, error: insertErr } = await supabaseClient.from("ip_claims").insert({ ip, user_id: userId }).select().single();
       if (!insertErr && inserted) return res.json({ success: true, welcomeGranted: true });
+      // FIX: ne révoquer le bonus que si l'IP est réellement déjà enregistrée
+      // (23505 = violation de clé primaire sur ip_claims.ip). Toute autre
+      // erreur (timeout, panne réseau/DB) ne doit pas coûter ses points à un
+      // utilisateur légitime.
+      if (insertErr && insertErr.code !== "23505") {
+        console.warn("[Welcome Bonus] Insert ip_claims échoué (non fatal, bonus conservé):", insertErr.message);
+        return res.json({ success: true, welcomeGranted: true });
+      }
       await supabaseClient.from("profiles").update({ credits_balance: 0 }).eq("id", userId).eq("credits_balance", 50);
       return res.json({ success: true, welcomeGranted: false });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
