@@ -12,86 +12,59 @@ export interface LandingPageProps {
   setLanguage: (lang: "fr" | "ar") => void;
 }
 
-const ACCENT = "#6E5FE8";
-const INK = "#0F0F1A";
-const PAPER = "#FAFAF7";
+/* ================= THÈME "STUDIO NOIR" ================= */
+const BG0 = "#07070C";      // fond page
+const SURFACE = "#0E0E16";  // cartes
+const CELL = "#0B0B12";     // cellules grilles
+const ACCENT = "#2EE8A6";   // menthe "on-air"
+const TEXT = "#F4F5F7";
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
-const HERO_VIDEO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202609051613.mp4";
+
+const MONO_STACK = "'JetBrains Mono', 'Cairo', monospace";
+const NUM_STACK = "'Space Grotesk', 'Cairo', sans-serif";
 
 const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Fraunces:opsz,wght@9..144,700;9..144,900&family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    /* Styles scopés : ne fuient pas sur le reste de la SPA */
-    body:has(#sawtify-landing) { overflow-x: hidden; background: ${PAPER}; color: ${INK}; }
-    #sawtify-landing * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-    #sawtify-landing ::selection { background: ${ACCENT}; color: ${PAPER}; }
+    body:has(#sawtify-landing) { background: ${BG0}; color: ${TEXT}; overflow-x: hidden; }
+    #sawtify-landing * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    #sawtify-landing ::selection { background: ${ACCENT}; color: ${BG0}; }
+    #sawtify-landing ::-webkit-scrollbar { width: 10px; }
+    #sawtify-landing ::-webkit-scrollbar-track { background: #0A0A10; }
+    #sawtify-landing ::-webkit-scrollbar-thumb { background: rgba(46,232,166,0.4); border-radius: 10px; }
+    #sawtify-landing .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+    #sawtify-landing .scrollbar-none::-webkit-scrollbar { display: none; }
 
     @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
-    .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
-
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    .float { animation: float 5s ease-in-out infinite; }
-    .float-slow { animation: float 7s ease-in-out infinite; }
-
-    .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 12px; }
-    ::-webkit-scrollbar { width: 10px; }
-    ::-webkit-scrollbar-track { background: ${PAPER}; }
-    ::-webkit-scrollbar-thumb { background: ${ACCENT}; border-radius: 10px; }
-
-    .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
-    .scrollbar-none::-webkit-scrollbar { display: none; }
+    #sawtify-landing .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
 
     @keyframes blink { 50% { opacity: 0; } }
-    .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
+    #sawtify-landing .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
 
-    .card-lift { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s; }
+    #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 10px; }
+
+    #sawtify-landing .bg-grid {
+      background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 54px 54px;
+    }
+    #sawtify-landing .hero-mask {
+      -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
+      mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
+    }
+
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    #sawtify-landing .float { animation: float 5s ease-in-out infinite; }
+    #sawtify-landing .float-slow { animation: float 7s ease-in-out infinite; }
+
+    #sawtify-landing .card-lift { transition: transform .4s cubic-bezier(0.16,1,0.3,1), border-color .4s, box-shadow .4s; }
     @media (hover: hover) {
-      .card-lift:hover { transform: translateY(-6px); box-shadow: 0 20px 50px -20px rgba(110, 95, 232, 0.3); }
+      #sawtify-landing .card-lift:hover { transform: translateY(-4px); border-color: rgba(46,232,166,0.35); box-shadow: 0 16px 40px -18px rgba(46,232,166,0.18); }
     }
-
-    /* ---------- ROBOT WIDGET ---------- */
-    .robot-svg { width: 60px; height: auto; overflow: visible; }
-    @media (min-width: 640px) { .robot-svg { width: 100px; } }
-
-    @keyframes rb-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.06); } }
-    .rb-eye { animation: rb-blink 4.8s infinite; transform-box: fill-box; transform-origin: center; }
-    .rb-eye.rb-r2 { animation-delay: .05s; }
-
-    .rb-hand-l, .rb-hand-r { transition: transform .3s; }
-    .robot-svg.rb-on .rb-hand-l { animation: rb-gestL 1.2s ease-in-out infinite; }
-    .robot-svg.rb-on .rb-hand-r { animation: rb-gestR 1.2s ease-in-out infinite .15s; }
-    @keyframes rb-gestL {
-      0%, 100% { transform: rotate(0deg) translateY(0); }
-      25% { transform: rotate(-18deg) translateY(-6px); }
-      50% { transform: rotate(8deg) translateY(-2px); }
-      75% { transform: rotate(-10deg) translateY(-4px); }
-    }
-    @keyframes rb-gestR {
-      0%, 100% { transform: rotate(0deg) translateY(0); }
-      25% { transform: rotate(16deg) translateY(-5px); }
-      50% { transform: rotate(-10deg) translateY(-3px); }
-      75% { transform: rotate(12deg) translateY(-6px); }
-    }
-
-    .rb-head-g { transition: transform .3s; }
-    .robot-svg.rb-on .rb-head-g { animation: rb-bob 2s ease-in-out infinite; }
-    @keyframes rb-bob {
-      0%, 100% { transform: rotate(0deg) translateY(0); }
-      30% { transform: rotate(-3deg) translateY(-2px); }
-      60% { transform: rotate(2deg) translateY(-1px); }
-    }
-
-    .robot-svg .rb-ef { fill: ${ACCENT}; transition: fill .25s; }
-    .robot-svg.rb-on .rb-ef { fill: #00E5FF; }
-    .robot-svg .rb-core { fill: ${ACCENT}; transition: fill .25s; }
-    .robot-svg.rb-on .rb-core { fill: #00E5FF; }
-    .robot-svg .rb-ao { fill: ${ACCENT}; transition: fill .25s; }
-    .robot-svg.rb-on .rb-ao { fill: #10B981; }
-    .robot-svg .rb-mb { fill: #2D2D44; transition: fill .25s; }
-    .robot-svg.rb-on .rb-mb { fill: ${ACCENT}; }
+    #sawtify-landing .hov-accent:hover, #sawtify-landing .hov-accent:focus-visible { border-color: rgba(46,232,166,0.55); }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -101,49 +74,51 @@ const GlobalStyles = () => (
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
       }
-      .wave-bar, .float, .float-slow { animation: none !important; }
-      .hero-video { display: none; }
     }
   `}</style>
 );
 
-const Logo = ({ size = 40, showText = true, dark = false }: { size?: number; showText?: boolean; dark?: boolean }) => {
+const Logo = ({ size = 38 }: { size?: number }) => {
   const [imgError, setImgError] = useState(false);
   return (
     <div className="flex items-center gap-2.5 select-none">
       <div
-        className="rounded-2xl overflow-hidden shrink-0 relative"
-        style={{
-          width: size, height: size,
-          background: "linear-gradient(135deg, #6E5FE8 0%, #5B4DD8 100%)",
-          boxShadow: "0 4px 14px rgba(110, 95, 232, 0.3)",
-        }}
+        className="rounded-xl overflow-hidden shrink-0"
+        style={{ width: size, height: size, boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 4px 18px rgba(46,232,166,0.25)" }}
       >
         {!imgError ? (
           <img src={LOGO} alt="Sawtify" width={size} height={size} decoding="async"
             onError={() => setImgError(true)} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-white font-extrabold" style={{ fontSize: size * 0.5 }}>S</div>
+          <div className="w-full h-full flex items-center justify-center font-bold"
+            style={{ background: ACCENT, color: BG0, fontSize: size * 0.5, fontFamily: NUM_STACK }}>S</div>
         )}
       </div>
-      {showText && (
-        <span className="font-extrabold text-[20px] tracking-tight" style={{ color: dark ? PAPER : INK }}>Sawtify</span>
-      )}
+      <span className="font-bold text-[19px] tracking-tight text-white" style={{ fontFamily: NUM_STACK }}>Sawtify</span>
     </div>
   );
 };
 
 const Num = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <span dir="ltr" style={{ unicodeBidi: "isolate", fontFamily: "'Outfit', sans-serif" }} className={`inline-block tabular-nums ${className}`}>
+  <span dir="ltr" style={{ unicodeBidi: "isolate", fontFamily: NUM_STACK }} className={`inline-block tabular-nums ${className}`}>
     {children}
   </span>
+);
+
+const Mono = ({ children, className = "", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+  <span className={className} style={{ fontFamily: MONO_STACK, ...style }}>{children}</span>
+);
+
+const Kicker = ({ no, children }: { no?: string; children: React.ReactNode }) => (
+  <p className="text-[11px] font-semibold tracking-[0.26em] uppercase mb-3" style={{ color: ACCENT, fontFamily: MONO_STACK }}>
+    {no ? `[${no}] ` : "// "}{children}
+  </p>
 );
 
 const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suffix?: string; duration?: number }) => {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
   const started = useRef(false);
-
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
@@ -162,11 +137,10 @@ const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suf
     obs.observe(node);
     return () => obs.disconnect();
   }, [target, duration]);
-
   return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
 };
 
-const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string; key?: React.Key }) => {
+const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
   return (
@@ -182,6 +156,43 @@ const SlideUp = ({ children, delay = 0, className = "" }: { children: React.Reac
   );
 };
 
+const SectionHead = ({ no, kicker, title, sub, center = false, font }: {
+  no: string; kicker: string; title: string; sub?: string; center?: boolean; font: string;
+}) => (
+  <div className={center ? "text-center mx-auto max-w-2xl" : "max-w-2xl"}>
+    <SlideUp><Kicker no={no}>{kicker}</Kicker></SlideUp>
+    <SlideUp delay={0.06}>
+      <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.06] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: font }}>
+        {title}
+      </h2>
+    </SlideUp>
+    {sub && <SlideUp delay={0.12}><p className="mt-4 text-[14px] text-white/50 leading-relaxed">{sub}</p></SlideUp>}
+  </div>
+);
+
+const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boolean; bars?: number }) => (
+  <div className="flex items-end justify-center gap-[3px] h-28 w-full" dir="ltr" aria-hidden>
+    {Array.from({ length: bars }).map((_, i) => {
+      const h = 18 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.31)) * 82;
+      const hot = i % 6 === 0;
+      return (
+        <span
+          key={i}
+          className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
+          style={{
+            height: `${h}%`,
+            maxWidth: 4,
+            background: hot ? color : "rgba(255,255,255,0.22)",
+            opacity: playing ? 1 : 0.5,
+            animationDelay: `${(i % 10) * 0.1}s`,
+            boxShadow: playing && hot ? `0 0 10px ${color}66` : undefined,
+          }}
+        />
+      );
+    })}
+  </div>
+);
+
 function useScrolled() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -193,68 +204,9 @@ function useScrolled() {
   return scrolled;
 }
 
-const Waveform = ({ color, playing, bars = 36 }: { color: string; playing: boolean; bars?: number }) => (
-  <div className="flex items-end justify-center gap-[3px] h-28 w-full" dir="ltr" aria-hidden>
-    {Array.from({ length: bars }).map((_, i) => {
-      const h = 18 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.31)) * 82;
-      return (
-        <span
-          key={i}
-          className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
-          style={{
-            height: `${h}%`,
-            maxWidth: 4,
-            background: i % 6 === 0 ? color : INK,
-            opacity: playing ? 1 : 0.55,
-            animationDelay: `${(i % 10) * 0.1}s`,
-          }}
-        />
-      );
-    })}
-  </div>
-);
-
-type VoiceCard = {
-  id: string;
-  nameFr: string;
-  nameAr: string;
-  tagFr: string;
-  tagAr: string;
-  location: string;
-  gender: "male" | "female";
-  category: "commercial" | "narrative" | "social" | "formal";
-  rating?: number;
-  reviews?: number;
-  color: string;
-  sampleFr: string;
-  sampleAr: string;
-};
-
-const VOICES: VoiceCard[] = [
-  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#6E5FE8", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
-  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#F472B6", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
-  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#10B981", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
-  { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#F59E0B", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
-  { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#3B82F6", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
-  { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#8B5CF6", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
-  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#EC4899", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
-  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#EF4444", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
-  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#0EA5E9", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
-];
-
-const LANDING_VOICE_IDS = ["amine", "yasmine", "khalid"] as const;
-const LANDING_VOICES = VOICES.filter((v) => (LANDING_VOICE_IDS as readonly string[]).includes(v.id));
-
-const COST_STEPS = [
-  { sec: 60, pts: 20, labelFr: "0–60 s", labelAr: "0–60 ث" },
-  { sec: 120, pts: 30, labelFr: "2 min", labelAr: "2 دق" },
-  { sec: 180, pts: 40, labelFr: "3 min", labelAr: "3 دق" },
-  { sec: 240, pts: 50, labelFr: "4 min", labelAr: "4 دق" },
-];
-
 /* ============================================================
-   DÉMO VOCALE — API native du navigateur (speechSynthesis).
-   Aucune clé API, aucun serveur, aucun coût. Opt-in (clic).
+   DÉMO VOCALE — speechSynthesis (API native navigateur).
+   Aucune clé, aucun serveur, aucun coût. Opt-in (clic).
    ============================================================ */
 type NowPlaying = { kind: "intro" } | { kind: "sample"; id: string } | null;
 
@@ -263,7 +215,6 @@ function useVoiceDemo() {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying>(null);
   const token = useRef(0);
 
-  // Chrome ne remplit getVoices() qu'après l'événement "voiceschanged"
   useEffect(() => {
     if (!supported) return;
     const warm = () => window.speechSynthesis.getVoices();
@@ -292,7 +243,8 @@ function useVoiceDemo() {
     u.onend = finish;
     u.onerror = finish;
     setNowPlaying({ kind: "sample", id: voice.id });
-    window.speechSynthesis.speak(u);
+    // iOS ignore speak() appelé juste après cancel() → léger délai
+    window.setTimeout(() => { if (token.current === my) window.speechSynthesis.speak(u); }, 60);
   }, [supported, pickVoice]);
 
   const stopSpeech = useCallback(() => {
@@ -308,134 +260,94 @@ function useVoiceDemo() {
 }
 
 /* ============================================================
-   ROBOT WIDGET — repositionné (ne couvre plus le CTA mobile
-   ni les modales), caché quand un overlay est ouvert.
+   DOCK AUDIO — remplace le robot. Barres réactives à l'analyser
+   de l'intro. Caché pendant les overlays, au-dessus du CTA mobile.
    ============================================================ */
-const RobotWidget = ({
-  isPlaying,
-  volume,
-  onToggle,
-  isRTL,
-  hidden = false,
+const AudioDock = ({
+  isPlaying, volume, onToggle, isRTL, hidden = false,
 }: {
-  isPlaying: boolean;
-  volume: number;
-  onToggle: () => void;
-  isRTL: boolean;
-  hidden?: boolean;
+  isPlaying: boolean; volume: number; onToggle: () => void; isRTL: boolean; hidden?: boolean;
 }) => {
-  const F = [0.6, 1, 0.6];
-  const heights = F.map((f) => (isPlaying ? Math.max(5, 5 + volume * 16 * f) : 5));
-
+  const F = [0.55, 1, 0.75, 0.9, 0.6];
   return (
     <motion.div
-      initial={{ y: 120, opacity: 0 }}
+      initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", damping: 22, stiffness: 100, delay: 0.5 }}
-      aria-hidden={hidden || undefined}
-      className={`fixed bottom-[88px] sm:bottom-6 end-2 sm:end-6 z-[80] flex flex-col items-center select-none transition-opacity duration-300 ${hidden ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+      transition={{ type: "spring", damping: 22, stiffness: 120, delay: 0.8 }}
+      className={`fixed bottom-24 sm:bottom-6 end-3 sm:end-6 z-[80] transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none translate-y-3" : "opacity-100"}`}
     >
-      {/* Bulle */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={isPlaying ? "speaking" : "idle"}
-          initial={{ opacity: 0, y: 10, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.9 }}
+      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[#0E0E16]/95 backdrop-blur-xl pl-4 pr-1.5 py-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.55)]">
+        {isPlaying
+          ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: ACCENT }} />
+          : <VolumeX className="w-4 h-4 shrink-0 text-white/30" />}
+        {/* Barres live (pilotées par le volume réel de l'audio) */}
+        <div className="flex items-end gap-[2.5px] h-4 shrink-0" dir="ltr" aria-hidden>
+          {F.map((f, i) => (
+            <span key={i} className="w-[3px] rounded-full"
+              style={{
+                height: isPlaying ? Math.max(4, 4 + volume * 14 * f) : 4,
+                background: isPlaying ? ACCENT : "rgba(255,255,255,0.25)",
+                transition: "height 0.09s ease-out",
+              }} />
+          ))}
+        </div>
+        <span
+          className="hidden sm:block text-[11px] font-semibold tracking-[0.14em] uppercase whitespace-nowrap"
+          style={{ fontFamily: MONO_STACK, color: isPlaying ? ACCENT : "rgba(255,255,255,0.55)" }}
+        >
+          {isPlaying ? (isRTL ? "بثّ مباشر" : "On air") : (isRTL ? "اسمع التقديم" : "Écouter l'intro")}
+        </span>
+        {isPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ background: ACCENT }} />}
+        <button
+          type="button"
           onClick={onToggle}
-          className="mb-1 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-[#0F0F1A] text-white text-[11px] sm:text-[12px] font-semibold shadow-2xl flex items-center gap-2 cursor-pointer border border-white/10 hover:border-[#6E5FE8] transition whitespace-nowrap"
+          aria-pressed={isPlaying}
+          aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل التقديم" : "Lire l'intro")}
+          className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring"
+          style={{ background: ACCENT, color: BG0 }}
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#6E5FE8] animate-ping" />
-          <span>
-            {isPlaying
-              ? (isRTL ? "صحا! اني نحكي معاك 🎙️" : "Écoute ma voix ! 🎙️")
-              : (isRTL ? "انقر هنا للاستماع 💬" : "Cliquez pour écouter 💬")}
-          </span>
-          {isPlaying ? <Volume2 className="w-3.5 h-3.5 text-[#9D8FFF]" /> : <VolumeX className="w-3.5 h-3.5 text-white/50" />}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Bouton robot */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-pressed={isPlaying}
-        aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل الصوت" : "Lire l'audio")}
-        className="relative group focus:outline-none focus-ring cursor-pointer"
-        style={{ filter: "drop-shadow(0 6px 14px rgba(110, 95, 232, 0.3))" }}
-      >
-        <svg
-          className={`robot-svg ${isPlaying ? "rb-on" : ""}`}
-          viewBox="0 0 140 160"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="rbG1" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1E1E36" />
-              <stop offset="100%" stopColor="#0F0F1A" />
-            </linearGradient>
-            <filter id="rbGl" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" />
-            </filter>
-          </defs>
-
-          {/* CORPS */}
-          <path d="M25 160 C25 130 45 116 70 116 C95 116 115 130 115 160Z" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3" />
-          <circle className="rb-core" cx="70" cy="142" r="5" />
-          <circle className="rb-core" cx="70" cy="142" r="8" opacity={0.3 + volume * 0.7} filter="url(#rbGl)" />
-
-          {/* BRAS GAUCHE */}
-          <g className="rb-hand-l" style={{ transformOrigin: "30px 130px" }}>
-            <path d="M30 132 C16 136 8 144 6 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="5" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-            <line x1="1" y1="150" x2="-2" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="4" y1="149" x2="3" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="8" y1="150" x2="9" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-          </g>
-
-          {/* BRAS DROIT */}
-          <g className="rb-hand-r" style={{ transformOrigin: "110px 130px" }}>
-            <path d="M110 132 C124 136 132 144 134 152" fill="none" stroke="#6E5FE8" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="135" cy="154" r="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-            <line x1="131" y1="150" x2="129" y2="144" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="135" y1="149" x2="134" y2="143" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-            <line x1="139" y1="150" x2="142" y2="145" stroke="#6E5FE8" strokeWidth="2" strokeLinecap="round" />
-          </g>
-
-          {/* COU */}
-          <rect x="62" y="100" width="16" height="18" rx="5" fill="#161628" stroke="#6E5FE8" strokeWidth="2.5" />
-
-          {/* TÊTE */}
-          <g className="rb-head-g" style={{ transformOrigin: "70px 60px" }}>
-            <rect x="30" y="24" width="80" height="80" rx="26" fill="url(#rbG1)" stroke="#6E5FE8" strokeWidth="3.5" />
-            <line x1="70" y1="24" x2="70" y2="10" stroke="#6E5FE8" strokeWidth="3" strokeLinecap="round" />
-            <circle className="rb-ao" cx="70" cy="8" r="4.5" />
-
-            <rect x="22" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-            <rect x="110" y="50" width="8" height="20" rx="4" fill="#161628" stroke="#6E5FE8" strokeWidth="2" />
-
-            <g className="rb-eye">
-              <circle className="rb-ef" cx="54" cy="56" r="7" />
-              <circle cx="52" cy="54" r="2.2" fill="#fff" />
-            </g>
-            <g className="rb-eye rb-r2">
-              <circle className="rb-ef" cx="86" cy="56" r="7" />
-              <circle cx="84" cy="54" r="2.2" fill="#fff" />
-            </g>
-
-            {/* Bouche synchro audio */}
-            <g transform="translate(70,80)">
-              <rect className="rb-mb" x="-12" y={-heights[0] / 2} width="5" height={heights[0]} rx={Math.min(heights[0] / 2, 2.5)} style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }} />
-              <rect className="rb-mb" x="-2.5" y={-heights[1] / 2} width="5" height={heights[1]} rx={Math.min(heights[1] / 2, 2.5)} style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }} />
-              <rect className="rb-mb" x="7" y={-heights[2] / 2} width="5" height={heights[2]} rx={Math.min(heights[2] / 2, 2.5)} style={{ transition: "height 0.075s ease-out, y 0.075s ease-out" }} />
-            </g>
-          </g>
-        </svg>
-      </button>
+          {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ms-0.5" />}
+        </button>
+      </div>
     </motion.div>
   );
 };
+
+type VoiceCard = {
+  id: string;
+  nameFr: string; nameAr: string;
+  tagFr: string; tagAr: string;
+  location: string;
+  gender: "male" | "female";
+  category: "commercial" | "narrative" | "social" | "formal";
+  rating?: number;
+  reviews?: number;
+  color: string;
+  sampleFr: string;
+  sampleAr: string;
+};
+
+const VOICES: VoiceCard[] = [
+  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#2EE8A6", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
+  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#F472B6", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
+  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#60A5FA", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
+  { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#F59E0B", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
+  { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#A78BFA", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
+  { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#34D399", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
+  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#FB7185", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
+  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#FB923C", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
+  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#22D3EE", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
+];
+
+const LANDING_VOICE_IDS = ["amine", "yasmine", "khalid"] as const;
+const LANDING_VOICES = VOICES.filter((v) => (LANDING_VOICE_IDS as readonly string[]).includes(v.id));
+
+const COST_STEPS = [
+  { sec: 60, pts: 20, labelFr: "0–60 s", labelAr: "0–60 ث" },
+  { sec: 120, pts: 30, labelFr: "2 min", labelAr: "2 دق" },
+  { sec: 180, pts: 40, labelFr: "3 min", labelAr: "3 دق" },
+  { sec: 240, pts: 50, labelFr: "4 min", labelAr: "4 دق" },
+];
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onLoginClick, onSigninClick, language, setLanguage,
@@ -453,11 +365,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
-  /* --- Démo vocale navigateur (remplace playingId autrefois factice) --- */
+  /* Démo vocale navigateur */
   const { speechSupported, nowPlaying, speak, stopSpeech } = useVoiceDemo();
   const playingId = nowPlaying?.kind === "sample" ? nowPlaying.id : null;
 
-  /* --- Audio d'intro (opt-in uniquement, PLUS D'AUTOPLAY au scroll/clic) --- */
+  /* Audio d'intro — opt-in uniquement, AUCUN autoplay */
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -513,7 +425,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       analyserDataRef.current = new Uint8Array(analyser.frequencyBinCount);
     } catch (e) {
       useAnalyserRef.current = false;
-      console.warn("Analyser indisponible, mode simulé :", e);
+      console.warn("Analyser indisponible :", e);
     }
   }, []);
 
@@ -535,10 +447,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     audio.preload = "auto";
     introAudioRef.current = audio;
 
-    audio.onended = () => {
-      setIsIntroPlaying(false);
-      setAudioVolume(0);
-    };
+    audio.onended = () => { setIsIntroPlaying(false); setAudioVolume(0); };
 
     const tick = () => {
       if (introAudioRef.current && !introAudioRef.current.paused) {
@@ -577,7 +486,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       audio.load();
     };
 
-    // ⛔ AUTOPLAY SUPPRIMÉ : l'audio ne démarre QUE via le robot ou le bouton "Play l'intro".
+    // ⛔ Pas d'autoplay : lecture uniquement via le dock ou "Play l'intro".
 
     return () => {
       audio.pause();
@@ -588,7 +497,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     };
   }, [initAnalyser, readLevel]);
 
-  // Couper la démo vocale si on change de langue en cours de lecture
   useEffect(() => { stopSpeech(); }, [language, stopSpeech]);
 
   const stopIntroAudio = () => {
@@ -598,7 +506,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setAudioVolume(0);
     }
   };
-
   const stopAllAudio = () => { stopIntroAudio(); stopSpeech(); };
 
   const t = {
@@ -612,7 +519,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     start: isRTL ? "ابدأ الآن" : "Commencer",
     tryFree: isRTL ? "تجربة مجانية" : "Essai gratuit",
     pause: isRTL ? "إيقاف" : "Pause",
-    playingNow: isRTL ? "قيد التشغيل" : "Lecture en cours",
+    playingNow: isRTL ? "قيد التشغيل" : "Lecture",
     audioPreview: isRTL ? "معاينة صوتية" : "Aperçu audio",
     hearIt: isRTL ? "اسمع" : "Écouter",
     liveBadge: isRTL ? "v2.1 · متصل" : "v2.1 · En ligne",
@@ -649,11 +556,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     costSub: isRTL
       ? "20 نقطة لأول 60 ثانية، ثم +10 لكل دقيقة. النقاط لا تنتهي."
       : "20 points pour les 60 premières secondes, puis +10 par minute. Les points n'expirent pas.",
-    unleashTitle: isRTL ? "لن يعرفوا أنك بلا استوديو." : "Personne ne saura que vous n'avez pas de studio.",
-    unleashSub: isRTL
-      ? "لا كابينة. لا ممثل تُدفع له. صوت يبيع. 50 نقطة مجاناً لتسمع الفرق بنفسك."
-      : "Pas de cabine. Pas de comédien à payer. Une voix qui vend. 50 points offerts pour entendre la différence.",
-    unleashCTA: isRTL ? "دخول الاستوديو" : "Accéder au studio",
     metricsKicker: isRTL ? "الأرقام" : "LES CHIFFRES",
     metricsTitle: isRTL ? "الأرقام لا تكذب." : "Les chiffres ne mentent pas.",
     testKicker: isRTL ? "من جرّب" : "ILS ONT TESTÉ",
@@ -690,6 +592,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const featured = VOICES.find((v) => v.id === featuredId) || VOICES[0];
+  const chNo = LANDING_VOICES.findIndex((v) => v.id === featured.id) + 1;
   const sampleFull = isRTL ? featured.sampleAr : featured.sampleFr;
   const [typed, setTyped] = useState("");
   const [cutDone, setCutDone] = useState(false);
@@ -712,7 +615,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.clearInterval(id);
   }, [featured.id, sampleFull]);
 
-  // Rotation auto : en pause au survol/focus, modale ouverte, intro ou échantillon en lecture
   useEffect(() => {
     if (listenVoice || pauseRotate || isIntroPlaying || playingId) return;
     const id = window.setInterval(() => {
@@ -762,8 +664,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => clearInterval(id);
   }, [testimonials.length]);
 
-  const packMinutes = (pts: number) => 1 + Math.round((pts - 20) / 10);
-
+  // ⛔ Minutes concrètes supprimées — packs en points uniquement.
   const pricing = [
     { pts: 100, ptsLabel: "100", price: "500", desc: isRTL ? "للتجربة المرنة والحرة." : "Pour découvrir la plateforme." },
     { pts: 220, ptsLabel: "220", price: "1 000", featured: true, desc: isRTL ? "الأكثر طلبًا — الباقة المثالية." : "Le choix le plus populaire." },
@@ -819,7 +720,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  const display = isRTL ? "'Cairo', sans-serif" : "'Fraunces', serif";
+  const display = isRTL ? "'Cairo', sans-serif" : "'Space Grotesk', 'Inter', sans-serif";
   const sans = isRTL ? "'Cairo', sans-serif" : "'Inter', sans-serif";
   const ArrowIcon = ({ className = "w-4 h-4" }: { className?: string }) =>
     isRTL ? <ArrowLeft className={className} /> : <ArrowRight className={className} />;
@@ -837,45 +738,46 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroPlaying = isIntroPlaying || heroSamplePlaying;
 
   return (
-    <div id="sawtify-landing" dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: INK, background: PAPER }}>
+    <div id="sawtify-landing" dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: TEXT, background: BG0 }}>
       <GlobalStyles />
 
-      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:bg-white focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm">
+      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm" style={{ background: ACCENT, color: BG0 }}>
         {t.skip}
       </a>
 
-      <motion.div aria-hidden className="fixed top-0 inset-x-0 h-[3px] z-[60]" style={{ scaleX: scrollYProgress, background: "linear-gradient(90deg, #6E5FE8, #9D8FFF)", transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
+      <motion.div aria-hidden className="fixed top-0 inset-x-0 h-[3px] z-[60]"
+        style={{ scaleX: scrollYProgress, background: `linear-gradient(90deg, ${ACCENT}, #A8FCE0)`, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
 
       {/* HEADER */}
-      <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-[#FAFAF7]/90 backdrop-blur-xl border-b border-[#0F0F1A]/5" : "bg-transparent"}`}>
+      <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-[#07070C]/85 backdrop-blur-xl border-b border-white/10" : "bg-transparent"}`}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
-            <Logo size={40} />
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <Logo size={38} />
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase px-2 py-0.5 rounded-full border" style={{ color: ACCENT, borderColor: "rgba(46,232,166,0.35)", background: "rgba(46,232,166,0.08)" }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />
               v2.1
             </span>
           </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#0F0F1A]/65">
+          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-white/60">
             {nav.map((l) => (
-              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-[#0F0F1A] transition-colors focus-ring">
+              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-white transition-colors focus-ring">
                 {l.label}
               </a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-[#0F0F1A]/70 hover:bg-[#0F0F1A]/5 transition focus-ring" aria-label={isRTL ? "التبديل إلى الفرنسية" : "التبديل إلى العربية"}>
+            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-white/60 hover:bg-white/10 transition focus-ring" aria-label={isRTL ? "التبديل إلى الفرنسية" : "التبديل إلى العربية"}>
               {t.switchLang}
             </button>
             {/* NOTE : vérifier le branchement — onLoginClick = "Connexion", onSigninClick = "Commencer" */}
-            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-[#0F0F1A]/70 hover:text-[#0F0F1A] px-3 focus-ring">
+            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-white/60 hover:text-white px-3 focus-ring">
               {t.signin}
             </button>
-            <button type="button" onClick={onSigninClick} className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold text-white focus-ring transition hover:opacity-90" style={{ background: INK }}>
+            <button type="button" onClick={onSigninClick} className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold focus-ring transition hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
               {t.start}
             </button>
-            <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open} className="lg:hidden w-10 h-10 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center focus-ring">
-              <Menu className="w-5 h-5" />
+            <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open} className="lg:hidden w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring">
+              <Menu className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
@@ -885,271 +787,274 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatePresence>
         {menuOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-black/50 lg:hidden" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-black/60 lg:hidden" />
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }}
               animate={{ x: 0 }}
               exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-[#FAFAF7] lg:hidden flex flex-col"
+              className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-[#0A0A10] lg:hidden flex flex-col border-s border-white/10"
             >
-              <div className="flex items-center justify-between px-5 h-16 border-b border-[#0F0F1A]/5">
-                <Logo size={36} />
-                <button type="button" onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
-                  <X className="w-5 h-5" />
+              <div className="flex items-center justify-between px-5 h-16 border-b border-white/10">
+                <Logo size={34} />
+                <button type="button" onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
               <nav className="flex-1 px-5 py-6 flex flex-col">
                 {nav.map((l) => (
-                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold border-b border-[#0F0F1A]/5 focus-ring">
+                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold text-white border-b border-white/10 focus-ring">
                     {l.label}
                   </a>
                 ))}
-                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-[#0F0F1A]/70">
+                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-white/60">
                   {t.signin}
                 </button>
               </nav>
               <div className="p-5">
-                <button type="button" onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full h-12 rounded-full font-bold text-white" style={{ background: INK }}>{t.start}</button>
+                <button type="button" onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full h-12 rounded-full font-bold" style={{ background: ACCENT, color: BG0 }}>{t.start}</button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* HERO */}
-      <section id="home" className="relative pt-28 pb-16 sm:pb-24 min-h-[90vh] flex items-center overflow-hidden">
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <video autoPlay loop muted playsInline className="hero-video w-full h-full object-cover opacity-[0.25] scale-105">
-            <source src={HERO_VIDEO_URL} type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-[#FAFAF7]/70 via-[#FAFAF7]/55 to-[#FAFAF7]" />
+      {/* ================= HERO ================= */}
+      <section id="home" className="relative pt-32 pb-16 sm:pb-20 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden>
+          <div className="absolute inset-0 bg-grid hero-mask" />
+          <div className="absolute inset-x-0 top-0 h-[480px]" style={{ background: "radial-gradient(560px 280px at 50% 0%, rgba(46,232,166,0.13), transparent 70%)" }} />
         </div>
 
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 relative z-10 w-full">
-          <div className="grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-6">
-              <SlideUp>
-                <div className="inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-[#0F0F1A]/10 bg-white/80 backdrop-blur-md">
-                  <span className="relative flex w-1.5 h-1.5">
-                    <span className="absolute inset-0 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
+        <div className="relative z-10 mx-auto max-w-[1280px] px-5 sm:px-6">
+          <div className="max-w-3xl mx-auto text-center">
+            <SlideUp>
+              <div className="inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
+                <span className="relative flex w-1.5 h-1.5">
+                  <span className="absolute inset-0 rounded-full animate-pulse" style={{ background: ACCENT }} />
+                  <span className="relative rounded-full w-1.5 h-1.5" style={{ background: ACCENT }} />
+                </span>
+                <Mono className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/70">{t.liveBadge}</Mono>
+              </div>
+            </SlideUp>
+            <SlideUp delay={0.06}><div className="text-center"><Kicker>{t.heroKicker}</Kicker></div></SlideUp>
+            <SlideUp delay={0.12}>
+              <h1 className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[0.98] tracking-[-0.03em] font-bold text-white" style={{ fontFamily: display }}>
+                {t.heroTitle1} <span style={{ color: ACCENT }}>{t.heroTitle2}</span>
+              </h1>
+            </SlideUp>
+            <SlideUp delay={0.2}>
+              <p className="mt-6 text-[15px] sm:text-[16px] text-white/60 max-w-xl mx-auto leading-relaxed">{t.heroSub}</p>
+            </SlideUp>
+            <SlideUp delay={0.28}>
+              <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
+                <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                  className="h-12 px-7 rounded-full text-[14px] font-bold focus-ring transition hover:brightness-110"
+                  style={{ background: ACCENT, color: BG0, boxShadow: "0 0 34px rgba(46,232,166,0.35)" }}>
+                  {t.tryFree}
+                </button>
+                <button type="button" onClick={handleToggleIntroAudio}
+                  className="h-12 px-5 rounded-full border border-white/20 bg-white/5 hov-accent text-[14px] font-semibold text-white flex items-center gap-2.5 transition focus-ring">
+                  <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: ACCENT, color: BG0 }}>
+                    {isIntroPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current ms-0.5" />}
                   </span>
-                  <span className="text-[11px] font-bold tracking-widest" style={{ fontFamily: "'Outfit', sans-serif" }}>{t.liveBadge}</span>
+                  {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
+                </button>
+              </div>
+              <p className="mt-4 text-[12px] font-semibold flex items-center justify-center gap-1.5" style={{ color: ACCENT }}>
+                <Gift className="w-3.5 h-3.5" /> {t.welcomeChip}
+              </p>
+            </SlideUp>
+          </div>
+
+          {/* CONSOLE */}
+          <SlideUp delay={0.38} className="mt-12 max-w-3xl mx-auto">
+            <div
+              className="rounded-2xl border border-white/10 bg-[#0E0E16]/90 backdrop-blur overflow-hidden shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)]"
+              onMouseEnter={() => setPauseRotate(true)}
+              onMouseLeave={() => setPauseRotate(false)}
+              onFocusCapture={() => setPauseRotate(true)}
+              onBlurCapture={() => setPauseRotate(false)}
+            >
+              {/* Barre de fenêtre */}
+              <div className="flex items-center gap-1.5 px-4 h-10 border-b border-white/10 bg-white/[0.02]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]/80" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]/80" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]/80" />
+                <Mono className="ms-3 text-[10px] tracking-[0.18em] uppercase text-white/40">sawtify · studio</Mono>
+                <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? ACCENT : "rgba(255,255,255,0.35)" }}>
+                  {heroPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />}
+                  <Mono className="text-[10px] font-semibold tracking-[0.18em] uppercase">
+                    {heroPlaying ? t.playingNow : (isRTL ? "جاهز" : "ready")}
+                  </Mono>
+                </span>
+              </div>
+
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Mono dir="ltr" className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border shrink-0"
+                        style={{ color: featured.color, borderColor: `${featured.color}55`, background: `${featured.color}14` }}>
+                        CH {String(chNo).padStart(2, "0")}
+                      </Mono>
+                      <span className="text-[17px] font-bold text-white truncate">
+                        {heroPlaying ? (isIntroPlaying ? "Sawtify" : (isRTL ? featured.nameAr : featured.nameFr)) : (isRTL ? featured.nameAr : featured.nameFr)}
+                      </span>
+                    </div>
+                    <div className="text-[12px] text-white/50 mt-1 truncate">
+                      {heroPlaying ? t.audioPreview : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
+                    </div>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <Mono className="block text-[10px] tracking-[0.2em] uppercase text-white/40">24 kHz</Mono>
+                    <div className="text-[13px] font-bold mt-0.5" style={{ color: ACCENT }}>20 {t.pts}</div>
+                  </div>
                 </div>
-              </SlideUp>
-              <SlideUp delay={0.08}>
-                <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-5" style={{ color: ACCENT }}>// {t.heroKicker}</p>
-              </SlideUp>
-              <SlideUp delay={0.14}>
-                <h1 className="text-[clamp(2.6rem,6.5vw,5.2rem)] leading-[0.96] tracking-[-0.04em] font-extrabold" style={{ fontFamily: display }}>
-                  {t.heroTitle1}<br />
-                  <span style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                    {t.heroTitle2}
-                  </span>
-                </h1>
-              </SlideUp>
-              <SlideUp delay={0.24}>
-                <p className="mt-6 text-[16px] sm:text-[17px] text-[#0F0F1A]/80 max-w-lg leading-relaxed font-medium">{t.heroSub}</p>
-              </SlideUp>
-              <SlideUp delay={0.32}>
-                <div className="mt-8 flex items-center gap-3 flex-wrap">
-                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="h-12 px-7 rounded-full text-[14px] font-bold text-white transition focus-ring hover:opacity-90" style={{ background: ACCENT, boxShadow: "0 0 30px rgba(110, 95, 232, 0.35)" }}>
-                    {t.tryFree}
-                  </button>
-                  <button type="button" onClick={handleToggleIntroAudio} className="group h-12 px-5 rounded-full border border-[#0F0F1A]/15 bg-white/80 backdrop-blur-md hover:border-[#6E5FE8] text-[14px] font-semibold flex items-center gap-2.5 transition focus-ring">
-                    <span className="w-7 h-7 rounded-full text-white flex items-center justify-center" style={{ background: ACCENT }}>
-                      {isIntroPlaying ? <Pause className="w-2.5 h-3 fill-current" /> : <Play className="w-2.5 h-3 fill-current" />}
-                    </span>
-                    {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
-                  </button>
+
+                <div className="rounded-xl border border-white/5 bg-white/[0.03] px-4 py-4 mb-4">
+                  <Waveform color={featured.color} playing={heroPlaying} bars={40} />
                 </div>
-                <p className="mt-4 text-[12px] font-semibold text-[#6E5FE8] flex items-center gap-1.5">
-                  <Gift className="w-3.5 h-3.5" /> {t.welcomeChip}
+
+                <p className="text-[13px] leading-relaxed text-white/70 min-h-[60px]" dir="auto">
+                  {isIntroPlaying ? (
+                    isRTL
+                      ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»"
+                      : "« Vous écoutez la présentation audio de la plateforme… »"
+                  ) : (
+                    <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
+                  )}
                 </p>
-              </SlideUp>
-              <SlideUp delay={0.4}>
-                <div className="mt-9 flex items-center gap-5 text-[12px] text-[#0F0F1A]/50 flex-wrap">
-                  <div className="flex -space-x-1.5" dir="ltr">
-                    {["#6E5FE8", "#F472B6", "#10B981"].map((c) => (
-                      <div key={c} className="w-7 h-7 rounded-full border-2 border-[#FAFAF7]" style={{ background: c }} />
-                    ))}
-                  </div>
-                  <span className="font-bold text-[#0F0F1A]/70"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
-                  <span>·</span>
-                  <span><Num>1 200+</Num> {t.creators}</span>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1"><Star className="w-3 h-3 fill-[#6E5FE8] text-[#6E5FE8]" /> 4.9 / 5</span>
-                </div>
-              </SlideUp>
-            </div>
-
-            {/* Player hero + mini-démo interactive */}
-            <div className="lg:col-span-6">
-              <SlideUp delay={0.2}>
-                <div
-                  className="relative bg-white/90 backdrop-blur-md rounded-[28px] border border-[#0F0F1A]/8 shadow-[0_24px_80px_-40px_rgba(15,15,26,0.35)] p-5 sm:p-7"
-                  onMouseEnter={() => setPauseRotate(true)}
-                  onMouseLeave={() => setPauseRotate(false)}
-                  onFocusCapture={() => setPauseRotate(true)}
-                  onBlurCapture={() => setPauseRotate(false)}
-                >
-                  <div className="flex items-center justify-between gap-3 mb-5">
-                    <div>
-                      <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">Studio</div>
-                      <div className="text-[18px] font-extrabold">
-                        {heroPlaying ? t.playingNow : (isRTL ? featured.nameAr : featured.nameFr)}
-                      </div>
-                      <div className="text-[12px] text-[#0F0F1A]/55">
-                        {heroPlaying
-                          ? t.audioPreview
-                          : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
-                      </div>
-                    </div>
-                    <div className="text-end">
-                      <div className="text-[10px] font-bold tracking-widest uppercase text-[#0F0F1A]/40">24 kHz</div>
-                      <div className="text-[13px] font-bold" style={{ color: ACCENT }}>20 {t.pts}</div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl px-4 py-5 mb-5" style={{ background: `${featured.color}12` }}>
-                    <Waveform color={featured.color} playing={heroPlaying} bars={42} />
-                  </div>
-
-                  <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 min-h-[64px]" dir="auto">
-                    {isIntroPlaying ? (
-                      isRTL
-                        ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»"
-                        : "« Vous écoutez la présentation audio de la plateforme… »"
-                    ) : (
-                      <>“{typed}{cutDone ? "…" : ""}”{!cutDone && <span className="caret" aria-hidden />}</>
-                    )}
+                {cutDone && !heroPlaying && (
+                  <p className="mt-1.5 text-[11px] font-semibold" style={{ color: featured.color }}>
+                    {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
                   </p>
-                  {cutDone && !heroPlaying && (
-                    <p className="mt-2 text-[11px] font-bold tracking-wide" style={{ color: featured.color }}>
-                      {isRTL ? "— انقطع. أكمل في الاستوديو." : "— coupé. La suite est dans le studio."}
-                    </p>
-                  )}
+                )}
 
-                  {/* Pastilles de voix */}
-                  <div className="mt-5 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    {LANDING_VOICES.map((v) => {
-                      const on = v.id === featured.id;
-                      return (
-                        <button
-                          key={v.id}
-                          type="button"
-                          onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
-                          className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold border transition focus-ring ${on ? "text-white border-transparent" : "bg-white text-[#0F0F1A]/70 border-[#0F0F1A]/10 hover:border-[#6E5FE8]"}`}
-                          style={on ? { background: v.color } : undefined}
-                        >
-                          {isRTL ? v.nameAr : v.nameFr}
-                        </button>
-                      );
-                    })}
-                  </div>
+                {/* Pastilles de voix */}
+                <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {LANDING_VOICES.map((v) => {
+                    const on = v.id === featured.id;
+                    return (
+                      <button key={v.id} type="button" onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
+                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition focus-ring ${on ? "border-transparent" : "text-white/60 border-white/10 bg-white/5 hov-accent hover:text-white"}`}
+                        style={on ? { background: v.color, color: BG0 } : undefined}>
+                        {isRTL ? v.nameAr : v.nameFr}
+                      </button>
+                    );
+                  })}
+                </div>
 
-                  {/* MINI-DÉMO : tapez une phrase, écoutez-la */}
-                  <div className="mt-4 flex items-center gap-2">
-                    <input
-                      dir="auto"
-                      value={demoText}
-                      maxLength={140}
-                      onChange={(e) => setDemoText(e.target.value)}
-                      placeholder={t.demoPlaceholder}
-                      className="flex-1 h-11 px-4 rounded-full border border-[#0F0F1A]/12 bg-white text-[13px] outline-none focus:border-[#6E5FE8] transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (heroSamplePlaying) stopSpeech();
-                        else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined); }
-                      }}
-                      disabled={!speechSupported}
-                      className="h-11 px-4 rounded-full text-white text-[13px] font-bold shrink-0 focus-ring hover:opacity-90 disabled:opacity-40"
-                      style={{ background: INK }}
-                    >
-                      {heroSamplePlaying ? t.pause : t.hearIt}
-                    </button>
-                  </div>
-                  {!speechSupported && (
-                    <p className="mt-2 text-[11px] text-[#0F0F1A]/45">{t.noSpeechNote}</p>
-                  )}
-
-                  {/* Bouton principal : toggle play/pause réel */}
-                  <button
-                    type="button"
+                {/* Mini-démo interactive */}
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    dir="auto"
+                    value={demoText}
+                    maxLength={140}
+                    onChange={(e) => setDemoText(e.target.value)}
+                    placeholder={t.demoPlaceholder}
+                    className="flex-1 h-11 px-4 rounded-xl border border-white/10 bg-white/[0.04] text-[13px] text-white outline-none transition-colors placeholder:text-white/30"
+                    style={{ fontFamily: sans }}
+                  />
+                  <button type="button"
                     onClick={() => {
                       if (heroSamplePlaying) stopSpeech();
-                      else { stopIntroAudio(); speak(featured, language); }
+                      else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined); }
                     }}
                     disabled={!speechSupported}
-                    className="mt-4 w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:opacity-90 disabled:opacity-40"
-                    style={{ background: featured.color, boxShadow: `0 10px 30px -8px ${featured.color}` }}
-                  >
-                    {heroSamplePlaying
-                      ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
-                      : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
+                    className="h-11 px-4 rounded-xl border border-white/20 bg-white/5 hov-accent text-[13px] font-semibold text-white focus-ring disabled:opacity-40 shrink-0">
+                    {heroSamplePlaying ? t.pause : t.hearIt}
                   </button>
                 </div>
-              </SlideUp>
+                {!speechSupported && <p className="mt-2 text-[11px] text-white/40">{t.noSpeechNote}</p>}
+
+                {/* Lecture */}
+                <button type="button"
+                  onClick={() => {
+                    if (heroSamplePlaying) stopSpeech();
+                    else { stopIntroAudio(); speak(featured, language); }
+                  }}
+                  disabled={!speechSupported}
+                  className="mt-4 w-full h-12 rounded-xl font-bold text-[14px] text-white flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
+                  style={{ background: featured.color, boxShadow: `0 12px 32px -12px ${featured.color}` }}>
+                  {heroSamplePlaying
+                    ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
+                    : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
+                </button>
+              </div>
             </div>
-          </div>
+          </SlideUp>
+
+          {/* Preuve sociale */}
+          <SlideUp delay={0.46} className="mt-8">
+            <div className="flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/40 flex-wrap">
+              <div className="flex -space-x-1.5" dir="ltr">
+                {[ACCENT, "#F472B6", "#60A5FA"].map((c) => (
+                  <div key={c} className="w-7 h-7 rounded-full border-2" style={{ background: c, borderColor: BG0 }} />
+                ))}
+              </div>
+              <span className="font-bold text-white/70"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
+              <span>·</span>
+              <span><Num>1 200+</Num> {t.creators}</span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1">
+                <Star className="w-3 h-3" style={{ color: ACCENT, fill: ACCENT }} /> 4.9 / 5
+              </span>
+            </div>
+          </SlideUp>
         </div>
       </section>
 
       {/* TRUST */}
-      <section className="py-7 border-y border-[#0F0F1A]/8 bg-white" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
+      <section className="py-7 border-y border-white/10 bg-[#0A0A10]" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
           {trust.map((p) => (
             <div key={p.k} className="text-center">
-              <div className="text-[14px] font-extrabold tracking-tight">{p.k}</div>
-              <div className="text-[11px] text-[#0F0F1A]/50 mt-0.5">{p.v}</div>
+              <div className="text-[14px] font-bold tracking-tight text-white">{p.k}</div>
+              <Mono className="block text-[10px] uppercase tracking-[0.14em] text-white/40 mt-1">{p.v}</Mono>
             </div>
           ))}
         </div>
       </section>
 
-      {/* VOICES */}
+      {/* ================= VOICES ================= */}
       <section id="voices" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp>
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.popularKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-2xl" style={{ fontFamily: display }}>{t.popularTitle}</h2>
-            <p className="text-[14px] text-[#0F0F1A]/60 mt-3 max-w-xl">{t.popularSub}</p>
-          </SlideUp>
+          <SlideUp><SectionHead no="01" kicker={t.popularKicker} title={t.popularTitle} sub={t.popularSub} font={display} /></SlideUp>
 
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {LANDING_VOICES.map((v, idx) => {
-              const active = playingId === v.id; // honnête : animé SEULEMENT si ça joue vraiment
+              const active = playingId === v.id;
               const name = isRTL ? v.nameAr : v.nameFr;
               return (
                 <SlideUp key={v.id} delay={idx * 0.08}>
-                  <article className={`group bg-white rounded-3xl overflow-hidden card-lift border ${active ? "border-[#6E5FE8]/40 ring-2 ring-[#6E5FE8]/15" : "border-[#0F0F1A]/5"}`}>
+                  <article className={`group rounded-2xl border bg-[#0E0E16] overflow-hidden card-lift ${active ? "border-[#2EE8A6]/50" : "border-white/10"}`}>
                     <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
-                      <div className="relative p-6 h-40 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${v.color}18 0%, ${v.color}06 100%)` }}>
-                        <Waveform color={v.color} playing={active} bars={28} />
-                        <div
-                          className={`absolute top-4 end-4 w-11 h-11 rounded-full flex items-center justify-center text-white transition ${active ? "scale-110" : "opacity-90 group-hover:scale-105"}`}
-                          style={{ background: active ? v.color : INK }}
-                        >
-                          {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
+                      <div className="px-5 pt-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <Mono dir="ltr" className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border"
+                            style={{ color: v.color, borderColor: `${v.color}55`, background: `${v.color}14` }}>
+                            CH {String(idx + 1).padStart(2, "0")}
+                          </Mono>
+                          <span className="flex items-center gap-1 text-[12px] font-bold text-white/70">
+                            <Star className="w-3 h-3" style={{ color: v.color, fill: v.color }} /><Num>{v.rating}</Num>
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-white/5 h-28 flex items-center px-3" style={{ background: `${v.color}0A` }}>
+                          <Waveform color={v.color} playing={active} bars={26} />
                         </div>
                       </div>
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="text-[18px] font-extrabold">{name}</h3>
-                            <p className="text-[12px] text-[#0F0F1A]/55 mt-0.5">{v.location}</p>
-                          </div>
-                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-bold text-white" style={{ background: v.color }}>
-                            <Star className="w-3 h-3 fill-current" /><Num>{v.rating}</Num>
-                          </div>
+                      <div className="p-5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-[17px] font-bold text-white truncate">{name}</h3>
+                          <p className="text-[12px] text-white/50 mt-0.5 truncate">
+                            {isRTL ? v.tagAr : v.tagFr} · {v.location} · <Num>{v.reviews}</Num> {t.nRatings}
+                          </p>
                         </div>
-                        <div className="mt-4 flex items-center justify-between text-[12px]">
-                          <span className="font-semibold text-[#0F0F1A]/70">{isRTL ? v.tagAr : v.tagFr}</span>
-                          <span className="text-[#0F0F1A]/45"><Num>{v.reviews}</Num> {t.nRatings}</span>
-                        </div>
+                        <span className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition ${active ? "scale-105" : "group-hover:scale-105"}`}
+                          style={{ background: active ? v.color : "rgba(255,255,255,0.08)" }}>
+                          {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
+                        </span>
                       </div>
                     </button>
                   </article>
@@ -1158,30 +1063,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             })}
           </div>
 
-          <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="mt-6 w-full rounded-3xl border border-dashed border-[#0F0F1A]/20 bg-white/60 hover:border-[#6E5FE8] hover:bg-[#6E5FE8]/5 transition p-6 text-center focus-ring">
-            <div className="text-[22px] font-extrabold tracking-tight" style={{ fontFamily: display }}>{t.moreVoices}</div>
-            <p className="mt-1 text-[13px] text-[#0F0F1A]/55">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
+          <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+            className="mt-6 w-full rounded-2xl border border-dashed border-white/20 hov-accent hover:bg-[#2EE8A6]/5 transition p-6 text-center focus-ring">
+            <div className="text-[19px] font-bold text-white" style={{ fontFamily: display }}>{t.moreVoices}</div>
+            <p className="mt-1 text-[12px] text-white/50">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
           </button>
         </div>
       </section>
 
-      {/* PROCESS */}
-      <section id="process" className="py-16 sm:py-24 bg-white">
+      {/* ================= PROCESS ================= */}
+      <section id="process" className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-12">
-            <SlideUp><p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.journeyKicker}</p></SlideUp>
-            <SlideUp delay={0.08}><h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-3xl mx-auto" style={{ fontFamily: display }}>{t.journeyTitle}</h2></SlideUp>
-            <SlideUp delay={0.14}><p className="text-[14px] text-[#0F0F1A]/60 mt-4">{t.journeySub}</p></SlideUp>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SectionHead no="02" kicker={t.journeyKicker} title={t.journeyTitle} sub={t.journeySub} center font={display} />
+          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
             {journeySteps.map((s, i) => (
-              <SlideUp key={s.n} delay={i * 0.08}>
-                <div className="relative bg-[#FAFAF7] rounded-3xl p-7 h-full min-h-[220px] flex flex-col justify-between border border-[#0F0F1A]/5">
-                  <div className="absolute top-4 end-5 text-[72px] font-black leading-none text-[#0F0F1A]/5 select-none">{s.n}</div>
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-extrabold text-[13px]" style={{ background: ACCENT }}>0{s.n}</div>
+              <SlideUp key={s.n} delay={i * 0.07} className="bg-[#0B0B12]">
+                <div className="p-6 sm:p-7 h-full min-h-[190px] flex flex-col justify-between">
+                  <Mono className="text-[13px] font-semibold tracking-[0.2em]" style={{ color: ACCENT }}>0{s.n}</Mono>
                   <div>
-                    <h3 className="text-[22px] font-extrabold mb-2" style={{ fontFamily: display }}>{s.t}</h3>
-                    <p className="text-[13px] text-[#0F0F1A]/60 leading-relaxed">{s.d}</p>
+                    <h3 className="text-[19px] font-bold text-white mb-1.5" style={{ fontFamily: display }}>{s.t}</h3>
+                    <p className="text-[12.5px] text-white/50 leading-relaxed">{s.d}</p>
                   </div>
                 </div>
               </SlideUp>
@@ -1190,22 +1091,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* USES */}
+      {/* ================= USES ================= */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <SlideUp>
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.useKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold max-w-2xl" style={{ fontFamily: display }}>{t.useTitle}</h2>
-          </SlideUp>
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SlideUp><SectionHead no="03" kicker={t.useKicker} title={t.useTitle} font={display} /></SlideUp>
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
             {uses.map((u, i) => (
-              <SlideUp key={u.t} delay={i * 0.07}>
-                <div className="bg-white rounded-3xl p-6 h-full border border-[#0F0F1A]/5 card-lift">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-4" style={{ background: "#6E5FE814", color: ACCENT }}>
-                    <u.icon className="w-5 h-5" />
+              <SlideUp key={u.t} delay={i * 0.06} className="bg-[#0B0B12]">
+                <div className="p-6 h-full">
+                  <div className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center mb-4" style={{ color: ACCENT }}>
+                    <u.icon className="w-[18px] h-[18px]" />
                   </div>
-                  <h3 className="text-[17px] font-extrabold mb-1.5">{u.t}</h3>
-                  <p className="text-[13px] text-[#0F0F1A]/60 leading-relaxed">{u.d}</p>
+                  <h3 className="text-[15px] font-bold text-white mb-1">{u.t}</h3>
+                  <p className="text-[12.5px] text-white/50 leading-relaxed">{u.d}</p>
                 </div>
               </SlideUp>
             ))}
@@ -1213,15 +1111,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* COST */}
-      <section className="py-16 sm:py-24 bg-white">
+      {/* ================= COST ================= */}
+      <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid lg:grid-cols-12 gap-10 items-center">
           <div className="lg:col-span-5">
             <SlideUp>
-              <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.costKicker}</p>
-              <h2 className="text-[clamp(2rem,4vw,3.2rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.costTitle}</h2>
-              <p className="mt-4 text-[14px] text-[#0F0F1A]/65 leading-relaxed">{t.costSub}</p>
-              <ul className="mt-6 space-y-2.5 text-[13px] text-[#0F0F1A]/70">
+              <SectionHead no="04" kicker={t.costKicker} title={t.costTitle} sub={t.costSub} font={display} />
+              <ul className="mt-6 space-y-2.5 text-[13px] text-white/70">
                 {[
                   isRTL ? "50 نقطة مجاناً عند التسجيل." : "50 points offerts à l'inscription.",
                   isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
@@ -1237,29 +1133,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
           <div className="lg:col-span-7">
             <SlideUp delay={0.1}>
-              <div className="rounded-[28px] bg-[#0F0F1A] text-white p-6 sm:p-8">
-                <div className="text-[12px] font-bold tracking-widest uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</div>
+              <div className="rounded-2xl border border-white/10 bg-[#0E0E16] p-6 sm:p-8">
+                <Mono className="block text-[10px] tracking-[0.22em] uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</Mono>
                 <div className="grid grid-cols-4 gap-2 mb-6">
                   {COST_STEPS.map((s, i) => (
-                    <button
-                      key={s.sec}
-                      type="button"
-                      onClick={() => setCostIdx(i)}
-                      className={`py-2.5 rounded-2xl text-[12px] font-bold transition ${costIdx === i ? "bg-white text-[#0F0F1A]" : "bg-white/10 text-white/70 hover:bg-white/15"}`}
-                    >
+                    <button key={s.sec} type="button" onClick={() => setCostIdx(i)}
+                      className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "" : "text-white/60 border border-white/10 bg-white/5 hover:text-white"}`}
+                      style={costIdx === i ? { background: ACCENT, color: BG0 } : undefined}>
                       {isRTL ? s.labelAr : s.labelFr}
                     </button>
                   ))}
                 </div>
-                <div className="flex items-end justify-between gap-4">
+                <div className="flex items-end justify-between gap-4 flex-wrap">
                   <div>
-                    <div className="text-[11px] text-white/50">{isRTL ? "التكلفة" : "Coût"}</div>
-                    <div className="text-[48px] leading-none font-extrabold" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    <Mono className="block text-[10px] uppercase tracking-[0.18em] text-white/40 mb-1">{isRTL ? "التكلفة" : "Coût"}</Mono>
+                    <div className="text-[52px] leading-none font-bold text-white" style={{ fontFamily: NUM_STACK }}>
                       <Num>{COST_STEPS[costIdx].pts}</Num>
-                      <span className="text-[16px] ms-2 font-bold text-white/50">{t.pts}</span>
+                      <span className="text-[15px] font-semibold text-white/40 ms-2">{t.pts}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="h-11 px-5 rounded-full bg-[#6E5FE8] text-white text-[13px] font-bold hover:opacity-90">
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                    className="h-11 px-5 rounded-xl font-bold text-[13px] focus-ring hover:brightness-110 transition"
+                    style={{ background: ACCENT, color: BG0 }}>
                     {t.tryFree}
                   </button>
                 </div>
@@ -1269,57 +1164,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* UNLEASH */}
+      {/* ================= METRICS ================= */}
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="bg-[#0F0F1A] rounded-[40px] overflow-hidden grid lg:grid-cols-2 text-white">
-            <div className="relative h-72 lg:h-auto min-h-[320px]" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #5B4DD8 50%, #2D1B69 100%)" }}>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-56 h-56">
-                  <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
-                  <div className="absolute inset-8 rounded-full bg-white/15" />
-                  <div className="absolute inset-0 m-auto w-28 h-28 rounded-full bg-white flex items-center justify-center">
-                    <Headphones className="w-14 h-14 text-[#6E5FE8]" strokeWidth={1.5} />
-                  </div>
-                </div>
-              </div>
-              <div className="absolute bottom-6 start-6 bg-white rounded-2xl px-4 py-3 text-[#0F0F1A] shadow-xl">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/50">{isRTL ? "هدية الترحيب" : "Offre de bienvenue"}</div>
-                <div className="text-[22px] font-extrabold">50 {t.pts}</div>
-              </div>
-            </div>
-            <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
-              <p className="text-[12px] font-bold tracking-[0.18em] text-[#9D8FFF] uppercase mb-3">// STUDIO</p>
-              <h2 className="text-[clamp(1.75rem,3.4vw,2.8rem)] leading-[1.08] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.unleashTitle}</h2>
-              <p className="mt-5 text-[14px] text-white/70 leading-relaxed max-w-md">{t.unleashSub}</p>
-              <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-bold">
-                {["24 kHz", "MP3", "WAV", isRTL ? "تجاري" : "Commercial"].map((b) => (
-                  <span key={b} className="px-3 py-1 rounded-full bg-white/10">{b}</span>
-                ))}
-              </div>
-              <button type="button" onClick={() => { stopAllAudio(); smoothTo("#voices"); }} className="mt-8 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-white text-[#0F0F1A] text-[14px] font-bold hover:bg-[#9D8FFF] transition focus-ring w-fit">
-                {t.unleashCTA}<ArrowIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* METRICS */}
-      <section className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-12">
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.metricsKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.metricsTitle}</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <SectionHead no="05" kicker={t.metricsKicker} title={t.metricsTitle} center font={display} />
+          <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
             {metrics.map((m, i) => (
-              <SlideUp key={m.l} delay={i * 0.07}>
-                <div className="rounded-3xl p-7 text-center border border-[#0F0F1A]/5 bg-[#FAFAF7]">
-                  <div className="text-[clamp(2.4rem,4.5vw,3.4rem)] leading-none font-extrabold mb-2" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <SlideUp key={m.l} delay={i * 0.06} className="bg-[#0B0B12]">
+                <div className="p-8 text-center">
+                  <div className="text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-bold text-white mb-2" style={{ fontFamily: NUM_STACK }}>
                     <Counter target={m.n} suffix={m.s} />
                   </div>
-                  <div className="text-[12px] text-[#0F0F1A]/60 font-semibold">{m.l}</div>
+                  <Mono className="text-[10px] uppercase tracking-[0.2em] text-white/40">{m.l}</Mono>
                 </div>
               </SlideUp>
             ))}
@@ -1327,38 +1183,46 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section className="py-16 sm:py-24">
+      {/* ================= TESTIMONIALS ================= */}
+      <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-12">
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.testKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.testTitle}</h2>
-          </div>
-          <div className="bg-white rounded-3xl p-8 sm:p-12 relative border border-[#0F0F1A]/5 min-h-[260px]">
+          <SectionHead no="06" kicker={t.testKicker} title={t.testTitle} center font={display} />
+          <div className="mt-12 max-w-3xl mx-auto">
             <AnimatePresence mode="wait">
-              <motion.div key={activeTesti} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }}>
-                <div className="flex gap-1 mb-5">
-                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4 fill-[#6E5FE8] text-[#6E5FE8]" />)}
+              <motion.div key={activeTesti} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }} className="text-center">
+                <div className="flex justify-center gap-1 mb-5">
+                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4" style={{ color: ACCENT, fill: ACCENT }} />)}
                 </div>
-                <blockquote className="text-[clamp(1.25rem,2.8vw,1.9rem)] leading-[1.3] font-extrabold" style={{ fontFamily: display }}>
+                <blockquote className="text-[clamp(1.25rem,2.6vw,1.8rem)] leading-[1.35] font-semibold text-white" style={{ fontFamily: display }}>
                   “{testimonials[activeTesti].q}”
                 </blockquote>
-                <div className="mt-6 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-extrabold" style={{ background: "linear-gradient(135deg, #6E5FE8 0%, #9D8FFF 100%)" }}>
+                <div className="mt-7 flex items-center justify-center gap-3">
+                  <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold" style={{ background: `linear-gradient(135deg, ${ACCENT}, #A8FCE0)`, color: BG0 }}>
                     {testimonials[activeTesti].img}
                   </div>
-                  <div>
-                    <div className="text-[14px] font-bold">{testimonials[activeTesti].n}</div>
-                    <div className="text-[12px] text-[#0F0F1A]/60">{testimonials[activeTesti].r}</div>
+                  <div className="text-start">
+                    <div className="text-[13.5px] font-bold text-white">{testimonials[activeTesti].n}</div>
+                    <div className="text-[12px] text-white/50">{testimonials[activeTesti].r}</div>
                   </div>
                 </div>
               </motion.div>
             </AnimatePresence>
-            <div className="absolute bottom-6 end-6 flex items-center gap-2">
-              <button type="button" onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)} className="w-11 h-11 rounded-full border border-[#0F0F1A]/10 hover:border-[#6E5FE8] flex items-center justify-center focus-ring" aria-label={isRTL ? "السابق" : "Précédent"}>
+            <div className="mt-8 flex items-center justify-center gap-4">
+              <button type="button" onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)}
+                className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring"
+                aria-label={isRTL ? "السابق" : "Précédent"}>
                 {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </button>
-              <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)} className="w-11 h-11 rounded-full bg-[#0F0F1A] text-white hover:bg-[#6E5FE8] flex items-center justify-center focus-ring" aria-label={isRTL ? "التالي" : "Suivant"}>
+              <div className="flex items-center gap-2">
+                {testimonials.map((_, i) => (
+                  <button key={i} type="button" onClick={() => setActiveTesti(i)} aria-label={`${i + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-white/20 hover:bg-white/40"}`}
+                    style={i === activeTesti ? { background: ACCENT } : undefined} />
+                ))}
+              </div>
+              <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
+                className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring"
+                aria-label={isRTL ? "التالي" : "Suivant"}>
                 {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
               </button>
             </div>
@@ -1366,42 +1230,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* PRICING */}
-      <section id="pricing" className="py-16 sm:py-24 bg-white">
+      {/* ================= PRICING (points uniquement, PAS de minutes) ================= */}
+      <section id="pricing" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="text-center mb-8">
-            <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.pricingKicker}</p>
-            <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.pricingTitle}</h2>
-            <p className="text-[14px] text-[#0F0F1A]/60 mt-3">{t.pricingSub}</p>
-          </div>
+          <SectionHead no="07" kicker={t.pricingKicker} title={t.pricingTitle} sub={t.pricingSub} center font={display} />
 
-          <div className="mb-10 max-w-2xl mx-auto flex items-start gap-3 rounded-2xl bg-[#6E5FE8]/8 border border-[#6E5FE8]/20 px-4 py-3.5 text-[13px] font-medium text-[#0F0F1A]/80">
-            <Gift className="w-4 h-4 mt-0.5 shrink-0 text-[#6E5FE8]" />
+          <div className="mb-10 mt-10 max-w-2xl mx-auto flex items-start gap-3 rounded-xl border px-4 py-3.5 text-[13px] text-white/70"
+            style={{ borderColor: "rgba(46,232,166,0.3)", background: "rgba(46,232,166,0.07)" }}>
+            <Gift className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
             <span>{t.welcomeBanner}</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {pricing.map((p, i) => (
-              <SlideUp key={p.pts} delay={i * 0.07}>
-                <div className={`rounded-3xl p-7 h-full flex flex-col border-2 ${p.featured ? "bg-[#0F0F1A] text-white border-[#0F0F1A] relative" : "border-[#0F0F1A]/5 bg-[#FAFAF7] hover:border-[#6E5FE8]/30"}`}>
+              <SlideUp key={p.pts} delay={i * 0.06}>
+                <div className={`relative rounded-2xl border p-6 h-full flex flex-col ${p.featured ? "border-[#2EE8A6]/60" : "border-white/10 bg-[#0E0E16] card-lift"}`}
+                  style={p.featured ? { background: "linear-gradient(180deg, rgba(46,232,166,0.10) 0%, #0E0E16 55%)" } : undefined}>
                   {p.featured && (
-                    /* FIX RTL : left/translate physiques, fonctionne dans les deux sens */
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider text-[#0F0F1A]" style={{ background: "#9D8FFF" }}>
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.12em] uppercase whitespace-nowrap"
+                      style={{ background: ACCENT, color: BG0 }}>
                       {t.popular}
                     </div>
                   )}
-                  <div className="text-[44px] leading-none font-extrabold mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}><Num>{p.ptsLabel}</Num></div>
-                  <div className={`text-[11px] font-semibold mb-4 uppercase tracking-wider ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>{t.pts}</div>
-                  <div className={`h-px mb-4 ${p.featured ? "bg-white/15" : "bg-[#0F0F1A]/10"}`} />
-                  <p className={`text-[12px] mb-5 flex-1 ${p.featured ? "text-white/70" : "text-[#0F0F1A]/65"}`}>{p.desc}</p>
-                  <div className="flex items-baseline gap-1.5 mb-1">
-                    <span className="text-[26px] font-extrabold"><Num>{p.price}</Num></span>
-                    <span className={`text-[11px] ${p.featured ? "text-white/50" : "text-[#0F0F1A]/50"}`}>DZD</span>
+                  <div className="text-[42px] leading-none font-bold text-white mb-1" style={{ fontFamily: NUM_STACK }}><Num>{p.ptsLabel}</Num></div>
+                  <Mono className="block text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">{t.pts}</Mono>
+                  <div className="h-px bg-white/10 mb-4" />
+                  <p className="text-[12px] text-white/60 mb-5 flex-1 leading-relaxed">{p.desc}</p>
+                  <div className="flex items-baseline gap-1.5 mb-5">
+                    <span className="text-[24px] font-bold text-white"><Num>{p.price}</Num></span>
+                    <span className="text-[11px] text-white/40 font-semibold">DZD</span>
                   </div>
-                  <div className={`text-[11px] mb-5 ${p.featured ? "text-white/55" : "text-[#0F0F1A]/55"}`}>
-                    ≈ <Num>{packMinutes(p.pts)}</Num> {isRTL ? "دقيقة صوت" : "min d'audio"}
-                  </div>
-                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className={`h-11 rounded-full text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#0F0F1A] hover:bg-[#9D8FFF]" : "bg-[#0F0F1A] text-white hover:bg-[#6E5FE8]"}`}>
+                  <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                    className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring ${p.featured ? "hover:brightness-110" : "border border-white/20 bg-white/5 text-white hov-accent"}`}
+                    style={p.featured ? { background: ACCENT, color: BG0 } : undefined}>
                     {t.choose}
                   </button>
                 </div>
@@ -1411,159 +1272,171 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* FAQ */}
-      <section id="faq" className="py-16 sm:py-24">
+      {/* ================= FAQ ================= */}
+      <section id="faq" className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
           <div className="grid lg:grid-cols-12 gap-10">
             <div className="lg:col-span-4">
-              <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-3" style={{ color: ACCENT }}>// {t.faqKicker}</p>
-              <h2 className="text-[clamp(2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.faqTitle}</h2>
+              <SlideUp><SectionHead no="08" kicker={t.faqKicker} title={t.faqTitle} font={display} /></SlideUp>
             </div>
             <div className="lg:col-span-7 lg:col-start-6">
-              <div className="bg-white rounded-3xl overflow-hidden border border-[#0F0F1A]/5">
-                {faqs.map((f, i) => {
-                  const open = openFaq === i;
-                  return (
-                    <div key={f.q} className="border-b border-[#0F0F1A]/5 last:border-b-0">
-                      <button type="button" onClick={() => setOpenFaq(open ? null : i)} className="w-full py-5 px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
-                        <span className="flex-1 text-[15px] font-bold group-hover:text-[#6E5FE8] transition-colors">{f.q}</span>
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${open ? "bg-[#6E5FE8] text-white rotate-45" : "bg-[#0F0F1A]/5"}`}>
-                          <Plus className="w-4 h-4" />
-                        </span>
-                      </button>
-                      <AnimatePresence initial={false}>
-                        {open && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
-                            <p className="pb-5 px-6 pe-14 text-[13px] text-[#0F0F1A]/65 leading-relaxed">{f.a}</p>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
+              <SlideUp delay={0.08}>
+                <div className="bg-[#0E0E16] rounded-2xl border border-white/10 overflow-hidden">
+                  {faqs.map((f, i) => {
+                    const open = openFaq === i;
+                    return (
+                      <div key={f.q} className="border-b border-white/10 last:border-b-0">
+                        <button type="button" onClick={() => setOpenFaq(open ? null : i)}
+                          className="w-full py-5 px-5 sm:px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
+                          <span className="flex-1 text-[14.5px] font-semibold text-white group-hover:text-[#2EE8A6] transition-colors">{f.q}</span>
+                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45" : "text-white/60 bg-white/5"}`}
+                            style={open ? { background: ACCENT, color: BG0 } : undefined}>
+                            <Plus className="w-4 h-4" />
+                          </span>
+                        </button>
+                        <AnimatePresence initial={false}>
+                          {open && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
+                              <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-white/60 leading-relaxed">{f.a}</p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SlideUp>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= CTA FINAL ================= */}
+      <section className="py-16 sm:py-24">
+        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+          <SlideUp>
+            <div className="relative rounded-[28px] border border-white/10 bg-[#0E0E16] p-12 sm:p-16 text-center overflow-hidden">
+              <div className="absolute inset-0 bg-grid" aria-hidden
+                style={{ maskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)", WebkitMaskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)" }} />
+              <div className="absolute inset-x-0 bottom-0 h-full" aria-hidden
+                style={{ background: "radial-gradient(480px 240px at 50% 100%, rgba(46,232,166,0.16), transparent 70%)" }} />
+              <div className="relative">
+                <h2 className="text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.04] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: display }}>
+                  {t.ctaTitle}
+                </h2>
+                <p className="mt-4 text-[15px] text-white/60 max-w-md mx-auto">{t.ctaSub}</p>
+                <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                  className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-bold text-[15px] transition focus-ring hover:brightness-110"
+                  style={{ background: ACCENT, color: BG0, boxShadow: "0 0 40px rgba(46,232,166,0.3)" }}>
+                  {t.tryFree}<ArrowIcon className="w-4 h-4" />
+                </button>
+                <Mono className="block mt-5 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                  {isRTL ? "بدون بطاقة · 50 نقطة مجاناً" : "Sans carte · 50 points offerts"}
+                </Mono>
               </div>
             </div>
-          </div>
+          </SlideUp>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-16 sm:py-24 bg-white">
-        <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-          <div className="rounded-[40px] p-12 sm:p-16 text-center text-white relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0F0F1A 0%, #2D1B69 50%, #6E5FE8 100%)" }}>
-            <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-              <div className="absolute top-0 start-1/4 w-96 h-96 rounded-full bg-[#9D8FFF]/20 blur-3xl float" />
-              <div className="absolute bottom-0 end-1/4 w-80 h-80 rounded-full bg-[#6E5FE8]/30 blur-3xl float-slow" />
-            </div>
-            <div className="relative">
-              <h2 className="text-[clamp(2.2rem,5.5vw,4.2rem)] leading-[1.02] tracking-[-0.03em] font-extrabold" style={{ fontFamily: display }}>{t.ctaTitle}</h2>
-              <p className="mt-4 text-[15px] text-white/70 max-w-md mx-auto">{t.ctaSub}</p>
-              <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full bg-white text-[#0F0F1A] text-[15px] font-bold hover:scale-[1.02] transition focus-ring">
-                {t.tryFree}<ArrowIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer id="contact" className="pt-12 pb-28 sm:pb-12 border-t border-[#0F0F1A]/5">
+      {/* ================= FOOTER ================= */}
+      <footer id="contact" className="border-t border-white/10 pt-12 pb-28 sm:pb-12">
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
             <div className="lg:col-span-2">
-              <Logo size={40} />
-              <p className="mt-4 text-[13px] text-[#0F0F1A]/55 max-w-sm leading-relaxed">
+              <Logo size={38} />
+              <p className="mt-4 text-[13px] text-white/50 max-w-sm leading-relaxed">
                 {isRTL
                   ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوتًا طبيعيًا، جاهزًا للإعلان."
                   : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}
               </p>
-              <p className="mt-3 text-[12px] font-semibold text-[#0F0F1A]/70">Alger, Algérie · {t.footTag}</p>
+              <p className="mt-3 text-[12px] font-semibold text-white/70 flex items-center gap-2">
+                <Headphones className="w-3.5 h-3.5" style={{ color: ACCENT }} /> Alger, Algérie · {t.footTag}
+              </p>
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40 mb-3">{isRTL ? "المنصة" : "Produit"}</div>
+              <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{isRTL ? "المنصة" : "Produit"}</Mono>
               <div className="flex flex-col gap-2 text-[13px] font-medium">
                 {nav.map((l) => (
-                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-[#6E5FE8]">{l.label}</a>
+                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="text-white/60 hover:text-[#2EE8A6] transition-colors">{l.label}</a>
                 ))}
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40 mb-3">{t.contact}</div>
-              <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold hover:text-[#6E5FE8]">contact@sawtify.dz</a>
+              <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{t.contact}</Mono>
+              <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold text-white/70 hover:text-[#2EE8A6] transition-colors">contact@sawtify.dz</a>
               <div className="mt-4 flex flex-wrap gap-2">
                 {["Edahabia", "CIB", "SATIM"].map((p) => (
-                  <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full bg-[#0F0F1A]/5">{p}</span>
+                  <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border border-white/10 text-white/60">{p}</span>
                 ))}
               </div>
-              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-[#0F0F1A]/50">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#6E5FE8]" />
+              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/50">
+                <ShieldCheck className="w-3.5 h-3.5" style={{ color: ACCENT }} />
                 {isRTL ? "دفع آمن، لا نخزّن رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}
               </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-[#0F0F1A]/5 text-[12px] text-[#0F0F1A]/45">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-white/10 text-[12px] text-white/40">
             <span>© <Num>2026</Num> Sawtify · {t.footTag}</span>
             <div className="flex items-center gap-4">
-              <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#6E5FE8]">{t.cgu}</button>
-              <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#6E5FE8]">{t.privacy}</button>
+              <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#2EE8A6] transition-colors">{t.cgu}</button>
+              <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#2EE8A6] transition-colors">{t.privacy}</button>
             </div>
           </div>
         </div>
       </footer>
 
       {/* CTA MOBILE STICKY */}
-      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#FAFAF7]/95 backdrop-blur-xl border-t border-[#0F0F1A]/8">
-        <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT }}>
+      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#07070C]/95 backdrop-blur-xl border-t border-white/10">
+        <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+          className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2"
+          style={{ background: ACCENT, color: BG0 }}>
           {t.tryFree} · 50 {t.pts}
         </button>
       </div>
 
-      {/* MODALE ÉCOUTE — avec VRAI contrôle play/pause */}
+      {/* MODALE ÉCOUTE */}
       <AnimatePresence>
         {listenVoice && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setListenVoice(null); stopSpeech(); }} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/60" onClick={() => { setListenVoice(null); stopSpeech(); }} />
             <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="listen-title"
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
-              className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-white rounded-3xl p-6 shadow-2xl"
+              role="dialog" aria-modal="true" aria-labelledby="listen-title"
+              initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
+              className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl"
             >
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F0F1A]/40">{t.listenInStudio}</p>
-                  <h3 id="listen-title" className="text-[22px] font-extrabold">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
-                  <p className="text-[12px] text-[#0F0F1A]/55">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
+                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-1">{t.listenInStudio}</Mono>
+                  <h3 id="listen-title" className="text-[22px] font-bold text-white">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
+                  <p className="text-[12px] text-white/50">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
                 </div>
-                <button type="button" onClick={() => { setListenVoice(null); stopSpeech(); }} className="w-9 h-9 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center" aria-label={t.close}>
-                  <X className="w-4 h-4" />
+                <button type="button" onClick={() => { setListenVoice(null); stopSpeech(); }} className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  <X className="w-4 h-4 text-white" />
                 </button>
               </div>
-              <div className="rounded-2xl p-4 mb-4" style={{ background: `${listenVoice.color}14` }}>
-                <Waveform color={listenVoice.color} playing={playingId === listenVoice.id} bars={32} />
-                <button
-                  type="button"
+              <div className="rounded-xl border border-white/5 p-4 mb-4" style={{ background: `${listenVoice.color}0F` }}>
+                <Waveform color={listenVoice.color} playing={playingId === listenVoice.id} bars={30} />
+                <button type="button"
                   onClick={() => (playingId === listenVoice.id ? stopSpeech() : speak(listenVoice, language))}
                   disabled={!speechSupported}
-                  className="mt-3 w-full h-11 rounded-full text-white font-bold text-[13px] flex items-center justify-center gap-2 focus-ring hover:opacity-90 disabled:opacity-40"
-                  style={{ background: listenVoice.color }}
-                >
+                  className="mt-3 w-full h-11 rounded-xl font-bold text-[13px] text-white flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
+                  style={{ background: listenVoice.color }}>
                   {playingId === listenVoice.id
                     ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
                     : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
                 </button>
-                <p className="mt-2 text-[11px] text-center text-[#0F0F1A]/45">
+                <p className="mt-2 text-[11px] text-center text-white/40">
                   {speechSupported ? t.browserNote : t.noSpeechNote}
                 </p>
               </div>
-              <p className="text-[13px] leading-relaxed text-[#0F0F1A]/75 mb-2" dir="auto">
+              <p className="text-[13px] leading-relaxed text-white/70 mb-2" dir="auto">
                 “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
               </p>
-              <p className="text-[13px] text-[#0F0F1A]/70 leading-relaxed mb-5">{t.listenBody}</p>
-              <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }} className="w-full h-12 rounded-full text-white font-bold text-[14px]" style={{ background: listenVoice.color }}>
+              <p className="text-[13px] text-white/60 leading-relaxed mb-5">{t.listenBody}</p>
+              <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
+                className="w-full h-12 rounded-xl font-bold text-[14px] transition hover:brightness-110"
+                style={{ background: ACCENT, color: BG0 }}>
                 {t.moreVoices} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
               </button>
             </motion.div>
@@ -1575,29 +1448,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatePresence>
         {legal && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/50" onClick={() => setLegal(null)} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/60" onClick={() => setLegal(null)} />
             <motion.div
-              role="dialog"
-              aria-modal="true"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-white rounded-3xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto"
+              role="dialog" aria-modal="true"
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+              className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto scrollbar-none"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[18px] font-extrabold">{legal === "cgu" ? t.cgu : t.privacy}</h3>
-                <button type="button" onClick={() => setLegal(null)} className="w-9 h-9 rounded-full hover:bg-[#0F0F1A]/5 flex items-center justify-center" aria-label={t.close}>
-                  <X className="w-4 h-4" />
+                <h3 className="text-[18px] font-bold text-white">{legal === "cgu" ? t.cgu : t.privacy}</h3>
+                <button type="button" onClick={() => setLegal(null)} className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  <X className="w-4 h-4 text-white" />
                 </button>
               </div>
-              <p className="text-[13px] leading-relaxed text-[#0F0F1A]/70">{legalCopy[legal]}</p>
+              <p className="text-[13px] leading-relaxed text-white/60">{legalCopy[legal]}</p>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* ROBOT — caché pendant les overlays, ne couvre plus le CTA mobile */}
-      <RobotWidget
+      {/* DOCK AUDIO (remplace le robot) */}
+      <AudioDock
         isPlaying={isIntroPlaying}
         volume={audioVolume}
         onToggle={handleToggleIntroAudio}
