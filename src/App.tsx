@@ -84,7 +84,7 @@ function AppContent() {
               claimWelcomeBonus().then((granted) => {
                 if (!granted) {
                   refreshAccountData();
-                  showToast(language === 'ar' ? 'تم إنشاء الحساب. تم استخدام نقاط الترحيب من هذا العنوان مسبقاً.' : 'Compte créé. Les points de bienvenue ont déjà été utilisés depuis cette adresse.');
+                  showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP. لم يتم منح نقاط الترحيب.' : "⚠️ Tu as déjà un compte avec cette IP. Aucun point de bienvenue offert cette fois-ci.");
                 }
               });
             });

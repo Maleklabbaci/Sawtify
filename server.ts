@@ -160,8 +160,11 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 }
 
 function getClientIp(req: express.Request): string {
-  const forwarded = req.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
+  // FIX: avec app.set("trust proxy", 1) configuré, req.ip ne fait confiance
+  // qu'à UN SEUL hop ajouté par le vrai proxy Render — un attaquant ne peut
+  // plus insérer sa propre valeur dans X-Forwarded-For pour se faire passer
+  // pour une IP différente à chaque inscription (et donc récupérer le bonus
+  // de bienvenue à l'infini avec des comptes/emails jetables).
   return req.ip || "unknown";
 }
 
