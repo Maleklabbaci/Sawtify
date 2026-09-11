@@ -24,6 +24,27 @@ dotenv.config();
 //          hommes = Puck, toutes les femmes = Zephyr).
 // FIX n°5 : la voix Gemini fait partie de la clé de cache des previews —
 //          changer la map invalide automatiquement les anciennes previews.
+//
+// ─── FIX TTS (blocage + son coupé avant la fin) ───
+// FIX TTS-A (BLOCAGE) : timeout sur TOUTE l'opération Gemini TTS (headers +
+//          lecture du corps). Avant, un fetch stallé pendait à vie et gardait
+//          un slot du TTS_CONCURRENCY occupé pour toujours → au bout de 6
+//          requêtes mortes, "Le serveur vocal est occupé" pour tout le monde.
+// FIX TTS-B (SON COUPÉ) : validation de finishReason. Un audio tronqué
+//          (MAX_TOKENS / OTHER / SAFETY...) est REJETÉ et retenté, jamais
+//          renvoyé comme succès ni facturé au client.
+// FIX TTS-C (SON COUPÉ) : découpage du texte en morceaux par fin de phrase
+//          (~800 chars max) + silence de 200ms entre morceaux + concaténation
+//          PCM. Fini les requêtes de 5000 chars d'un coup que Gemini coupe
+//          en route. Chaque morceau est validé individuellement.
+// FIX TTS-BIS : suppression de la fausse stratégie "streaming" SSE (elle
+//          bufferisait TOUT via response.text() avant de parser = zéro
+//          bénéfice de latence, toute la fragilité). Non-streaming uniquement.
+// FIX TTS-D : le "... " d'intro n'est appliqué qu'au PREMIER morceau, et la
+//          pause finale " ..." qu'au DERNIER (sinon : trous de silence
+//          artificiels entre chaque morceau).
+// FIX TTS-E : garde-fou durée — si l'audio généré est absurdement plus court
+//          que ce que le texte devrait donner à l'oral → rejet, aucun débit.
 // ==========================================================================
 
 // ==========================================================================
@@ -116,6 +137,16 @@ async function getUserIdFromAuthHeader(req: express.Request): Promise<string | n
 const TTS_CONCURRENCY_LIMIT = Number(process.env.TTS_CONCURRENCY_LIMIT) || 6;
 const TTS_CONCURRENCY = createLimiter(TTS_CONCURRENCY_LIMIT);
 const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
+
+// ==========================================================================
+// NOUVEAUX PARAMÈTRES TTS (tous surchargables via .env, valeurs par défaut saines)
+// ==========================================================================
+const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
+const TTS_FETCH_TIMEOUT_MS = Number(process.env.TTS_FETCH_TIMEOUT_MS) || 45000;   // FIX TTS-A
+const TTS_CHUNK_MAX_CHARS = Number(process.env.TTS_CHUNK_MAX_CHARS) || 800;       // FIX TTS-C
+const TTS_CHUNK_GAP_MS = Number(process.env.TTS_CHUNK_GAP_MS) || 200;             // FIX TTS-C
+const TTS_BYTES_PER_SECOND = 48000;        // 24kHz × 16-bit × mono = 48000 bytes/s
+const TTS_CHARS_PER_SECOND_ESTIMATE = 14;  // darija parlée ≈ 14 chars/seconde (FIX TTS-E)
 
 const SLICKPAY_CONTACT_CACHE = new Map<string, string>();
 
@@ -335,14 +366,17 @@ async function savePersistentPreview(cacheKey: string, dataUri: string): Promise
   } catch (err: any) { console.warn(`[Preview cache] sauvegarde impossible: ${err?.message || err}`); }
 }
 
-function normalizeTextForTTS(text: string): string {
+function normalizeTextForTTS(text: string, addTrailingPause = true): string {
   let normalized = text;
   normalized = normalized.replace(/([0-9])([ا-يa-zA-Z])/g, '$1 $2');
   normalized = normalized.replace(/([ا-يa-zA-Z])([0-9])/g, '$1 $2');
   normalized = normalized.replace(/([a-zA-Z])([ا-ي])/g, '$1 $2');
   normalized = normalized.replace(/([ا-ي])([a-zA-Z])/g, '$1 $2');
   normalized = normalized.replace(/\s+/g, ' ').trim();
-  if (!/[.!؟?…]$/.test(normalized)) normalized = normalized + " ...";
+  // FIX TTS-D : la pause finale "..." ne s'ajoute qu'au DERNIER morceau.
+  // Sinon chaque morceau du texte se terminerait par un trou de silence
+  // artificiel au moment du collage.
+  if (addTrailingPause && !/[.!؟?…]$/.test(normalized)) normalized = normalized + " ...";
   return normalized;
 }
 
@@ -424,40 +458,142 @@ const REGION_GUIDES: Record<string, string> = {
 function getRegionGuide(region: string): string { return REGION_GUIDES[region] || REGION_GUIDES.general; }
 
 // ==========================================================================
-// SSE PARSER FOR STREAMING TTS
+// FIX TTS-C : DÉCOUPAGE DU TEXTE EN MORCEAUX
+// On coupe UNIQUEMENT sur des fins de phrase (jamais au milieu d'un mot ou
+// d'une idée) pour que les coutures entre morceaux soient inaudibles.
 // ==========================================================================
-async function parseSSEAudioChunks(response: Response): Promise<Buffer | null> {
-  const fullText = await response.text();
-  const pcmChunks: Buffer[] = [];
+function hardSplitByWords(text: string, maxChars: number): string[] {
+  // Filet de sécurité : un bloc sans AUCUNE ponctuation (rare) → coupe par mots.
+  const words = text.split(" ");
+  const out: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (cur && (cur + " " + w).length > maxChars) { out.push(cur); cur = w; }
+    else cur = cur ? cur + " " + w : w;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
 
-  for (const line of fullText.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data: ")) continue;
-    const jsonStr = trimmed.slice(6);
-    if (!jsonStr || jsonStr === "[DONE]") continue;
-    try {
-      const chunk = JSON.parse(jsonStr);
-      const parts = chunk.candidates?.[0]?.content?.parts || [];
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          pcmChunks.push(Buffer.from(part.inlineData.data, "base64"));
-        }
-      }
-    } catch (_e) { /* skip malformed */ }
+function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxChars) return [trimmed];
+
+  // 1) Découpe sur les fins de phrase : . ! ؟ ? …
+  const sentences = trimmed.split(/(?<=[.!?؟…])\s+/).filter(Boolean);
+
+  // 2) Les phrases trop longues → coupe sur la ponctuation secondaire : ، ؛ , ; :
+  const pieces: string[] = [];
+  for (const s of sentences) {
+    if (s.length <= maxChars) { pieces.push(s); continue; }
+    const sub = s.split(/(?<=[،؛:,])\s+/).filter(Boolean);
+    for (const p of sub) {
+      if (p.length <= maxChars) pieces.push(p);
+      else pieces.push(...hardSplitByWords(p, maxChars));
+    }
   }
 
-  if (pcmChunks.length === 0) return null;
-  return Buffer.concat(pcmChunks);
+  // 3) Regroupe les pièces en morceaux ≤ maxChars
+  const chunks: string[] = [];
+  let current = "";
+  for (const p of pieces) {
+    if (current && (current + " " + p).length > maxChars) {
+      chunks.push(current.trim());
+      current = p;
+    } else {
+      current = current ? current + " " + p : p;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter((c) => c.length > 0);
 }
 
 // ==========================================================================
-// SYNTHESIZE WITH RETRY
-// FIX n°3 : prompt court type "Director's Notes" (structure officielle :
-// preamble "TTS the following..." + notes + TRANSCRIPT étiqueté). L'ancien
-// mur de règles ("ne sois pas robotique", "articule chaque lettre"...) 
-// sur-prescrivait le modèle → débit mécanique, et le mot "robotique" dans
-// le prompt était du négatif-priming.
+// FIX TTS-A + FIX TTS-B : APPEL GEMINI TTS NON-STREAMING AVEC CHRONOMÈTRE
+// ET VALIDATION finishReason.
+// - Timeout sur TOUTE l'opération (envoi + headers + lecture du corps).
+//   Un appel qui traîne → abort → retry. Fini les fetch qui pendent à vie
+//   en gardant un slot du TTS_CONCURRENCY otage.
+// - Si finishReason != STOP (MAX_TOKENS, OTHER, SAFETY...) → l'audio est
+//   probablement TRONQUÉ → on le REJETTE. Avant, un son coupé en plein
+//   milieu était renvoyé comme un succès et FACTURÉ au client.
 // ==========================================================================
+async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${apiKey}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TTS_FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini API ${res.status}: ${errText.substring(0, 200)}`);
+    }
+
+    const json = await res.json();
+    const candidate = json.candidates?.[0];
+    const finishReason: string | undefined = candidate?.finishReason;
+
+    // On collecte TOUTES les parties audio de la réponse (pas seulement la 1re).
+    const pcmParts: Buffer[] = [];
+    for (const part of candidate?.content?.parts || []) {
+      if (part.inlineData?.data) pcmParts.push(Buffer.from(part.inlineData.data, "base64"));
+    }
+
+    if (pcmParts.length === 0) {
+      const textPart = candidate?.content?.parts?.[0]?.text;
+      if (textPart) {
+        throw new Error(`Gemini a renvoyé du TEXTE au lieu d'AUDIO : "${String(textPart).substring(0, 150)}"`);
+      }
+      throw new Error(`Réponse sans audio (finishReason=${finishReason || "absent"})`);
+    }
+
+    // FIX TTS-B : audio tronqué → REJET (le niveau supérieur retentera).
+    if (finishReason && finishReason !== "STOP") {
+      throw new Error(`Audio incomplet (finishReason=${finishReason})`);
+    }
+
+    return Buffer.concat(pcmParts);
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(`Timeout Gemini TTS après ${TTS_FETCH_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ==========================================================================
+// SYNTHESIZE WITH RETRY (réécrit : chunking + timeout + finishReason)
+// FIX n°3 conservé : prompt court type "Director's Notes".
+// L'ancienne stratégie "streaming" SSE est SUPPRIMÉE (FIX TTS-BIS) : elle
+// bufferisait toute la réponse avant de parser (aucun gain de latence) et
+// était la source principale des blocages et coupures aléatoires.
+// ==========================================================================
+function buildTTSPrompt(preparedText: string, persona: string, pace: string, pitchNote: string, emotionNote: string): string {
+  return `TTS the following transcript. Do not read these notes aloud.
+
+DIRECTOR'S NOTES
+Speaker: ${persona}
+Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.
+Pace: ${pace}${pitchNote ? `\nPitch: ${pitchNote}` : ""}${emotionNote ? `\nTone: ${emotionNote}` : ""}
+The transcript may contain audio tags in brackets such as [excited], [calm], [whispers] or [very fast]: follow them for delivery, never pronounce them. A leading "..." is just a short silent beat before starting.
+
+TRANSCRIPT:
+${preparedText}`;
+}
+
 async function synthesizeWithRetry(
   rawText: string,
   selectedVoiceName: string,
@@ -466,14 +602,11 @@ async function synthesizeWithRetry(
   pitch = 1.0,
   originalVoiceId: string = "",
   emotionTags: string[] = []
-): Promise<{ pcmBuffer: Buffer | null; error: string | null; usedStreaming: boolean }> {
+): Promise<{ pcmBuffer: Buffer | null; error: string | null; usedStreaming: boolean; chunkCount: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée", usedStreaming: false };
-  let lastError: any = null;
+  if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée", usedStreaming: false, chunkCount: 0 };
 
-  const cleanText = normalizeTextForTTS(rawText.replace(/\s+/g, " ").trim());
   const isFemale = FEMALE_GEMINI_VOICES.has(selectedVoiceName);
-
   const persona = VOICE_PERSONAS[originalVoiceId] || (isFemale
     ? "A professional Algerian female voice actor, warm, confident and natural."
     : "A professional Algerian male voice actor, warm, confident and natural.");
@@ -485,91 +618,96 @@ async function synthesizeWithRetry(
       : "Natural conversational pace.";
   const pitchNote = pitch >= 1.1 ? "Slightly higher pitch, lively." : pitch <= 0.9 ? "Slightly lower pitch, grounded." : "";
   const emotionNote = buildEmotionPromptInstruction(emotionTags);
-  const preparedText = injectNaturalFiller(cleanText);
 
-  const enrichedSpeechPrompt = `TTS the following transcript. Do not read these notes aloud.
+  // FIX TTS-C : on découpe le texte complet AVANT toute génération.
+  const cleanFullText = rawText.replace(/\s+/g, " ").trim();
+  if (!cleanFullText) return { pcmBuffer: null, error: "Texte vide", usedStreaming: false, chunkCount: 0 };
 
-DIRECTOR'S NOTES
-Speaker: ${persona}
-Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.
-Pace: ${pace}${pitchNote ? `\nPitch: ${pitchNote}` : ""}${emotionNote ? `\nTone: ${emotionNote}` : ""}
-The transcript may contain audio tags in brackets such as [excited], [calm], [whispers] or [very fast]: follow them for delivery, never pronounce them. A leading "..." is just a short silent beat before starting.
+  const chunks = splitIntoChunksForTTS(cleanFullText, TTS_CHUNK_MAX_CHARS);
+  console.log(`[TTS] ${cleanFullText.length} chars → ${chunks.length} morceau(x) (voice=${selectedVoiceName}, model=${TTS_MODEL})`);
 
-TRANSCRIPT:
-${preparedText}`;
+  const gapBytes = Math.round(TTS_BYTES_PER_SECOND * (TTS_CHUNK_GAP_MS / 1000));
+  const pcmChunks: Buffer[] = [];
 
-  const requestBody = {
-    contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
-    generationConfig: {
-      responseModalities: ["audio"],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: selectedVoiceName }
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const isLastChunk = ci === chunks.length - 1;
+
+    // FIX TTS-D : intro "..." uniquement sur le 1er morceau,
+    // pause finale "..." uniquement sur le dernier.
+    let chunkText = normalizeTextForTTS(chunks[ci], isLastChunk);
+    if (ci === 0) chunkText = injectNaturalFiller(chunkText);
+
+    const enrichedSpeechPrompt = buildTTSPrompt(chunkText, persona, pace, pitchNote, emotionNote);
+    const requestBody = {
+      contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
+      generationConfig: {
+        responseModalities: ["audio"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: selectedVoiceName }
+          }
+        }
+      }
+    };
+
+    let chunkBuffer: Buffer | null = null;
+    let lastChunkError: any = null;
+
+    // Chaque morceau a droit à ses propres retries. Si UN SEUL morceau
+    // échoue définitivement → génération ANNULÉE (jamais d'audio partiel
+    // renvoyé, jamais de points débités pour un son incomplet).
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const pcmBuffer = await callGeminiTTSNonStreaming(requestBody);
+        if (!pcmBuffer || pcmBuffer.length <= 100) throw new Error("Audio vide ou trop court");
+        chunkBuffer = pcmBuffer;
+        break;
+      } catch (err: any) {
+        lastChunkError = err;
+        console.error(`[TTS ✗] Morceau ${ci + 1}/${chunks.length} — tentative ${attempt}/${maxRetries} échouée : ${err?.message || err}`);
+        if (attempt < maxRetries) {
+          const delay = 400 * Math.pow(2, attempt - 1) + Math.random() * 150;
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
-  };
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // STRATÉGIE 1 : Streaming (Officiel pour TTS Preview)
-      const streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
-      console.log(`[TTS] Attempt ${attempt}/${maxRetries} — Streaming...`);
-      
-      const streamRes = await fetch(streamUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
+    if (!chunkBuffer) {
+      console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${maxRetries} tentatives — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
+      return {
+        pcmBuffer: null,
+        error: `Morceau ${ci + 1}/${chunks.length} : ${lastChunkError?.message || "Erreur de génération audio"}`,
+        usedStreaming: false,
+        chunkCount: chunks.length
+      };
+    }
 
-      if (streamRes.ok) {
-        const pcmBuffer = await parseSSEAudioChunks(streamRes);
-        if (pcmBuffer && pcmBuffer.length > 100) {
-          console.log(`[TTS ✓] Streaming OK — ${pcmBuffer.length} bytes PCM, voice=${selectedVoiceName}`);
-          return { pcmBuffer, error: null, usedStreaming: true };
-        }
-        console.warn(`[TTS] Streaming HTTP 200 mais aucun audio — fallback non-streaming`);
-      } else {
-        const errText = await streamRes.text();
-        console.error(`[TTS] Streaming HTTP ${streamRes.status}: ${errText.substring(0, 500)}`);
-      }
+    console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${chunkBuffer.length} bytes PCM`);
+    if (pcmChunks.length > 0) pcmChunks.push(Buffer.alloc(gapBytes)); // silence naturel entre morceaux
+    pcmChunks.push(chunkBuffer);
+  }
 
-      // STRATÉGIE 2 : Non-streaming (Fallback)
-      const nonStreamUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${apiKey}`;
-      console.log(`[TTS] Attempt ${attempt}/${maxRetries} — Non-streaming...`);
+  const totalBuffer = Buffer.concat(pcmChunks);
+  const totalSeconds = totalBuffer.length / TTS_BYTES_PER_SECOND;
 
-      const nsRes = await fetch(nonStreamUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
-
-      if (!nsRes.ok) {
-        const errText = await nsRes.text();
-        console.error(`[TTS] Non-streaming HTTP ${nsRes.status}: ${errText.substring(0, 500)}`);
-        throw new Error(`Gemini API ${nsRes.status}: ${errText.substring(0, 200)}`);
-      }
-
-      const nsJson = await nsRes.json();
-      const pcmBase64 = nsJson.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (pcmBase64 && pcmBase64.length > 50) {
-        const pcmBuffer = Buffer.from(pcmBase64, "base64");
-        console.log(`[TTS ✓] Non-streaming OK — ${pcmBuffer.length} bytes PCM, voice=${selectedVoiceName}`);
-        return { pcmBuffer, error: null, usedStreaming: false };
-      }
-
-      // Diagnostics
-      const textPart = nsJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (textPart) {
-        console.error(`[TTS] ⚠️  Gemini a renvoyé du TEXTE au lieu d'AUDIO : "${textPart.substring(0, 150)}"`);
-      }
-      console.error(`[TTS] Réponse sans audio. Keys:`, JSON.stringify(Object.keys(nsJson)));
-      throw new Error("No audio data in Gemini response");
-
-    } catch (err: any) {
-      console.error(`[TTS ✗] Attempt ${attempt}/${maxRetries} FAILED:`, err.message || err);
-      lastError = err;
-      if (attempt < maxRetries) {
-        const delay = 400 * Math.pow(2, attempt - 1) + Math.random() * 150;
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
+  // FIX TTS-E : garde-fou anti-troncature silencieuse. Si l'audio total est
+  // absurdement plus court que ce que le texte devrait donner à l'oral
+  // (~14 chars/s en darija), on rejette → 503 → aucun point débité.
+  if (cleanFullText.length > 150) {
+    const expectedSeconds = cleanFullText.length / TTS_CHARS_PER_SECOND_ESTIMATE;
+    if (totalSeconds < expectedSeconds * 0.4) {
+      console.error(`[TTS] ⚠️ Durée suspecte : ${totalSeconds.toFixed(1)}s générées pour ~${expectedSeconds.toFixed(0)}s attendues — REJET`);
+      return {
+        pcmBuffer: null,
+        error: `Audio suspect : ${totalSeconds.toFixed(1)}s générées pour ~${expectedSeconds.toFixed(0)}s attendues`,
+        usedStreaming: false,
+        chunkCount: chunks.length
+      };
     }
   }
 
-  console.error(`[TTS] ═══ ALL ${maxRetries} ATTEMPTS FAILED ═══ Last error:`, lastError?.message);
-  return { pcmBuffer: null, error: lastError?.message || "Erreur de génération audio", usedStreaming: false };
+  console.log(`[TTS ✓] Génération complète — ${chunks.length} morceau(x), ${totalBuffer.length} bytes PCM (~${totalSeconds.toFixed(1)}s), voice=${selectedVoiceName}`);
+  return { pcmBuffer: totalBuffer, error: null, usedStreaming: false, chunkCount: chunks.length };
 }
 
 
@@ -646,7 +784,7 @@ const HOOKS = [
   "PREUVE SOCIALE : دليل الجماهير (علاش آلاف الجزائريين شراو هاد...)",
   "LAZY-FIX : حل للناس العجازين (أسهل طريقة للناس اللي ماعندهُمش الوقت...)",
   "COMPARAISON : مقارنة شرسة (علاش هاد الحل خير بـ 10 مرات من القديم...)",
-  "NICHE TARGETING : استهداف فئة (إلى كنت طالب/خدام/أم، هاد الفيديو ليك...)",
+  "NICHE TARGETING : استهداف فئة (إذا كنت طالب/خدام/أم، هاد الفيديو ليك...)",
   "REGRET : ندم مستقبلي (الندم الوحيد اللي راح تحس بيه هو علاش ما شريتوش بكري...)",
   "STATISTIQUE : رقم صادم (80% من الناس يضيعوا دراهمهم في باطل بسبب...)",
   "CURIOSITÉ : تشويق واكتشاف (شوف واش كاين داخل هاد الباكي اللي داير حالة...)"
@@ -831,6 +969,8 @@ async function startServer() {
      FIX n°1 + FIX n°5 : plus de fallback synthétique ; la voix Gemini fait
      partie de la cacheKey (invalidation auto si la map change) ; un échec
      Gemini renvoie 503 SANS rien mettre en cache ni persister.
+     (Bénéficie automatiquement des FIX TTS-A à TTS-E : les scripts de preview
+     sont courts → 1 seul morceau, comportement identique à avant.)
      ========================================================================== */
   const handleTTSPreview = async (req: express.Request, res: express.Response) => {
     const voiceId = (req.query.voice_id as string) || "voice_amin";
@@ -887,6 +1027,11 @@ async function startServer() {
 
   /* ==========================================================================
      TTS GENERATE (débit côté serveur)
+     Bénéficie des FIX TTS-A → TTS-E :
+     - plus de blocage infini (timeout 45s par appel Gemini)
+     - un son coupé en plein milieu (finishReason != STOP) est rejeté/retenté
+     - les textes longs sont générés morceau par morceau puis collés
+     - si un morceau échoue → 503 et AUCUN point n'est débité
      ========================================================================== */
   const handleTTSGenerate = async (req: express.Request, res: express.Response) => {
     const queueFull = (TTS_CONCURRENCY as any).activeCount >= TTS_CONCURRENCY_LIMIT && (TTS_CONCURRENCY as any).pendingCount >= TTS_QUEUE_MAX_PENDING;
@@ -923,11 +1068,11 @@ async function startServer() {
       const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
       const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
 
-      const { pcmBuffer, error: synthError, usedStreaming } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
-      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, success: Boolean(pcmBuffer), maxRetries: 3 }));
+      const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
+      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, chunks: chunkCount, success: Boolean(pcmBuffer), maxRetries: 3 }));
 
-      // FIX n°1 : échec Gemini → 503 explicite. JAMAIS d'audio synthétique
-      // facturé comme une vraie génération.
+      // FIX n°1 + FIX TTS-B : échec Gemini (ou audio tronqué) → 503 explicite.
+      // JAMAIS d'audio partiel ni synthétique facturé comme une vraie génération.
       if (!pcmBuffer || pcmBuffer.length <= 50) {
         return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15, detail: synthError });
       }
@@ -959,6 +1104,7 @@ async function startServer() {
         remaining_balance: remainingBalance, voice_id: requestedVoice, gemini_voice: selectedVoiceName,
         parsed_tags: emotionTags,
         used_gemini_tts: true, used_streaming: usedStreaming,
+        chunks: chunkCount,
         synth_fallback: false,
       });
     });
