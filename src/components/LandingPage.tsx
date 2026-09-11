@@ -257,57 +257,64 @@ function useScrolled() {
 }
 
 /* ============================================================
-   DÉMO VOCALE — speechSynthesis (native, gratuite, opt-in).
+   DÉMO VOCALE — VRAIS échantillons studio (Cloudinary).
+   speechSynthesis supprimé : le visiteur entend le vrai rendu,
+   pas le moteur TTS robotique du navigateur.
    ============================================================ */
-type NowPlaying = { kind: "intro" } | { kind: "sample"; id: string } | null;
+function useSampleAudio() {
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [sampleProgress, setSampleProgress] = useState(0);
+  const [sampleElapsed, setSampleElapsed] = useState(0);
+  const [sampleTotal, setSampleTotal] = useState(0);
+  const [durations, setDurations] = useState<Record<string, number>>({});
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rateRef = useRef(1);
 
-function useVoiceDemo() {
-  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
-  const [nowPlaying, setNowPlaying] = useState<NowPlaying>(null);
-  const token = useRef(0);
-
-  useEffect(() => {
-    if (!supported) return;
-    const warm = () => window.speechSynthesis.getVoices();
-    warm();
-    window.speechSynthesis.addEventListener("voiceschanged", warm);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", warm);
-  }, [supported]);
-
-  const pickVoice = useCallback((lang: "fr" | "ar", gender: "male" | "female") => {
-    const pool = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith(lang));
-    if (!pool.length) return null;
-    const fem = pool.find((v) => /female|femme|woman|zira|hoda|amelie|amélie|audrey|salma/i.test(v.name));
-    return gender === "female" ? (fem ?? pool[0]) : (pool.find((v) => v !== fem) ?? pool[0]);
+  const ensureAudio = useCallback(() => {
+    if (audioRef.current) return audioRef.current;
+    const a = new Audio();
+    a.preload = "none"; // chargé uniquement au clic → landing rapide
+    a.addEventListener("ended", () => { setPlayingId(null); setSampleProgress(0); setSampleElapsed(0); });
+    a.addEventListener("timeupdate", () => {
+      if (a.duration > 0) {
+        setSampleProgress(a.currentTime / a.duration);
+        setSampleElapsed(a.currentTime);
+        setSampleTotal(a.duration);
+      }
+    });
+    a.addEventListener("loadedmetadata", () => {
+      const vid = a.dataset.vid;
+      if (vid && a.duration > 0 && Number.isFinite(a.duration)) {
+        setDurations((d) => (d[vid] ? d : { ...d, [vid]: a.duration }));
+      }
+    });
+    audioRef.current = a;
+    return a;
   }, []);
 
-  const speak = useCallback((voice: VoiceCard, lang: "fr" | "ar", rateMul = 1) => {
-    if (!supported) return;
-    window.speechSynthesis.cancel();
-    const my = ++token.current;
-    const u = new SpeechSynthesisUtterance(lang === "ar" ? voice.sampleAr : voice.sampleFr);
-    const v = pickVoice(lang, voice.gender);
-    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = lang === "ar" ? "ar-SA" : "fr-FR"; }
-    const baseRate = voice.category === "social" ? 1.08 : voice.category === "formal" ? 0.94 : 1;
-    u.rate = baseRate * rateMul;
-    u.pitch = voice.gender === "female" ? 1.08 : 0.88;
-    const finish = () => { if (token.current === my) setNowPlaying(null); };
-    u.onend = finish;
-    u.onerror = finish;
-    setNowPlaying({ kind: "sample", id: voice.id });
-    window.setTimeout(() => { if (token.current === my) window.speechSynthesis.speak(u); }, 60);
-  }, [supported, pickVoice]);
+  const stopSample = useCallback(() => {
+    audioRef.current?.pause();
+    setPlayingId(null); setSampleProgress(0); setSampleElapsed(0);
+  }, []);
 
-  const stopSpeech = useCallback(() => {
-    if (!supported) return;
-    token.current++;
-    window.speechSynthesis.cancel();
-    setNowPlaying((p) => (p?.kind === "sample" ? null : p));
-  }, [supported]);
+  const playSample = useCallback((voiceId: string, audioUrl?: string) => {
+    if (!audioUrl) return;
+    const a = ensureAudio();
+    a.pause();
+    a.dataset.vid = voiceId;
+    a.src = audioUrl;
+    a.playbackRate = rateRef.current;
+    a.play().then(() => setPlayingId(voiceId)).catch(() => setPlayingId(null));
+  }, [ensureAudio]);
 
-  useEffect(() => () => { if (supported) window.speechSynthesis.cancel(); }, [supported]);
+  const setSampleRate = useCallback((rate: number) => {
+    rateRef.current = rate;
+    if (audioRef.current && !audioRef.current.paused) audioRef.current.playbackRate = rate;
+  }, []);
 
-  return { speechSupported: supported, nowPlaying, speak, stopSpeech };
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  return { playingId, sampleProgress, sampleElapsed, sampleTotal, durations, playSample, stopSample, setSampleRate };
 }
 
 /* DOCK AUDIO — barres = VRAI volume de l'analyser */
@@ -353,12 +360,13 @@ type VoiceCard = {
   location: string; gender: "male" | "female";
   category: "commercial" | "narrative" | "social" | "formal";
   rating?: number; reviews?: number; color: string; sampleFr: string; sampleAr: string;
+  audioUrl?: string; // vrai échantillon studio (Cloudinary) — 3 voix seulement
 };
 
 const VOICES: VoiceCard[] = [
-  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#7C3AED", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
-  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#DB2777", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
-  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#2563EB", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
+  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#7C3AED", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات.", audioUrl: "https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3" },
+  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#DB2777", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك.", audioUrl: "https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3" },
+  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#2563EB", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي.", audioUrl: "https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav" },
   { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#D97706", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
   { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#0891B2", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
   { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#059669", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
@@ -405,8 +413,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
 
-  const { speechSupported, nowPlaying, speak, stopSpeech } = useVoiceDemo();
-  const playingId = nowPlaying?.kind === "sample" ? nowPlaying.id : null;
+  /* Vrais échantillons studio (Cloudinary) */
+  const { playingId, sampleProgress, sampleElapsed, sampleTotal, durations, playSample, stopSample, setSampleRate } = useSampleAudio();
 
   /* Audio d'intro (opt-in, AUCUN autoplay, analyser réel) */
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -436,12 +444,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setMenuOpen(false); setListenVoice(null); setLegal(null); stopSpeech();
+      setMenuOpen(false); setListenVoice(null); setLegal(null);
+      stopSample();
       if (introAudioRef.current) { introAudioRef.current.pause(); setIsIntroPlaying(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [stopSpeech]);
+  }, [stopSample]);
 
   const initAnalyser = useCallback(() => {
     if (audioCtxRef.current || !useAnalyserRef.current || !introAudioRef.current) return;
@@ -516,8 +525,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     };
   }, [initAnalyser, readLevel]);
 
-  useEffect(() => { stopSpeech(); }, [language, stopSpeech]);
-
   const stopIntroAudio = useCallback(() => {
     if (introAudioRef.current && !introAudioRef.current.paused) {
       introAudioRef.current.pause();
@@ -525,7 +532,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setAudioVolume(0);
     }
   }, []);
-  const stopAllAudio = useCallback(() => { stopIntroAudio(); stopSpeech(); }, [stopIntroAudio, stopSpeech]);
+  const stopAllAudio = useCallback(() => { stopIntroAudio(); stopSample(); }, [stopIntroAudio, stopSample]);
 
   /* ================= TEXTES ================= */
   const t = {
@@ -557,8 +564,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     listenBody: isRTL
       ? "هذه أول جملة فقط. الصوت كامل في الاستوديو. 50 نقطة مجاناً، بدون بطاقة."
       : "Ce n'est que la première phrase. La voix entière est dans le studio. 50 points offerts, sans carte.",
-    browserNote: isRTL ? "معاينة بمحرك المتصفح — الجودة استوديو 24 kHz داخل التطبيق." : "Aperçu via la voix du navigateur — le rendu studio 24 kHz est dans l'app.",
-    noSpeechNote: isRTL ? "متصفحك لا يدعم المعاينة الصوتية." : "Votre navigateur ne supporte pas l'aperçu audio.",
+    studioNote: isRTL
+      ? "عيّنة حقيقية من الاستوديو · 24 kHz — نفس الجودة داخل التطبيق."
+      : "Vrai échantillon studio · 24 kHz — même rendu dans l'app.",
     journeyTitle: isRTL ? "أربع خطوات. يخرج الصوت." : "Quatre gestes. La voix sort.",
     journeySub: isRTL ? "بدون كابينة. بدون ميكروفون. بدون انتظار." : "Pas de cabine. Pas de micro. Pas d'attente.",
     useTitle: isRTL ? "حين يتكلم، لم يعد نصًا." : "Quand ça parle, ce n'est plus du texte.",
@@ -595,10 +603,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
 
   const featured = VOICES.find((v) => v.id === featuredId) || VOICES[0];
-  const sampleFull = isRTL ? featured.sampleAr : featured.sampleFr;
   const heroSamplePlaying = playingId === featured.id;
   const heroPlaying = isIntroPlaying || heroSamplePlaying;
-  const sampleEst = Math.max(2, sampleFull.length / 15) / speed;
+
+  /* Valeurs d'affichage : réelles pour l'intro ET pour les samples */
+  const dispElapsed = isIntroPlaying ? playElapsed : heroSamplePlaying ? sampleElapsed : 0;
+  const dispTotal = isIntroPlaying ? playTotal : heroSamplePlaying ? sampleTotal : (durations[featured.id] || 0);
+  const dispProgress = isIntroPlaying ? playProgress : heroSamplePlaying ? sampleProgress : 0;
 
   useEffect(() => {
     if (listenVoice || pauseRotate || isIntroPlaying || playingId) return;
@@ -611,33 +622,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => window.clearInterval(id);
   }, [listenVoice, pauseRotate, isIntroPlaying, playingId]);
 
-  /* Progression : réelle pour l'intro (audio), estimée pour la démo vocale */
+  /* Progression de l'intro uniquement (les samples ont la leur via le hook) */
   useEffect(() => {
-    if (isIntroPlaying) {
-      const id = window.setInterval(() => {
-        const a = introAudioRef.current;
-        if (a && a.duration > 0) {
-          setPlayProgress(Math.min(1, a.currentTime / a.duration));
-          setPlayElapsed(a.currentTime);
-          setPlayTotal(a.duration);
-        }
-      }, 200);
-      return () => window.clearInterval(id);
-    }
-    if (heroSamplePlaying) {
-      const est = Math.max(2, sampleFull.length / 15) / speed;
-      const start = performance.now();
-      setPlayProgress(0); setPlayElapsed(0); setPlayTotal(est);
-      const id = window.setInterval(() => {
-        const el = (performance.now() - start) / 1000;
-        setPlayElapsed(el);
-        setPlayProgress(Math.min(1, el / est));
-      }, 100);
-      return () => window.clearInterval(id);
-    }
-    setPlayProgress(0); setPlayElapsed(0); setPlayTotal(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isIntroPlaying, heroSamplePlaying, speed, featured.id]);
+    if (!isIntroPlaying) { setPlayProgress(0); setPlayElapsed(0); setPlayTotal(0); return; }
+    const id = window.setInterval(() => {
+      const a = introAudioRef.current;
+      if (a && a.duration > 0) {
+        setPlayProgress(Math.min(1, a.currentTime / a.duration));
+        setPlayElapsed(a.currentTime);
+        setPlayTotal(a.duration);
+      }
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [isIntroPlaying]);
 
   const stepVoice = (dir: 1 | -1) => {
     stopAllAudio();
@@ -649,8 +646,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setSpeed(s);
     if (isIntroPlaying && introAudioRef.current) {
       introAudioRef.current.playbackRate = s;
-    } else if (heroSamplePlaying) {
-      speak(featured, language, s);
+    } else {
+      setSampleRate(s);
     }
   };
 
@@ -734,13 +731,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     stopIntroAudio();
     setFeaturedId(voice.id);
     setListenVoice(voice);
-    speak(voice, language);
+    playSample(voice.id, voice.audioUrl);
   };
 
   const handleToggleIntroAudio = () => {
     if (!introAudioRef.current) return;
     if (isIntroPlaying) introAudioRef.current.pause();
-    else { stopSpeech(); introAudioRef.current.play().catch((err) => console.warn("Lecture impossible :", err)); }
+    else { stopSample(); introAudioRef.current.play().catch((err) => console.warn("Lecture impossible :", err)); }
   };
 
   const display = isRTL ? "'Cairo', sans-serif" : "'Space Grotesk', 'Inter', sans-serif";
@@ -929,15 +926,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <Waveform color={featured.color} playing={heroPlaying} bars={40} />
                   </div>
 
-                  {/* PROGRESSION + TEMPS */}
+                  {/* PROGRESSION + TEMPS (réels : intro et samples) */}
                   <div dir="ltr" className="mt-4 flex items-center gap-3">
-                    <Mono className="text-[11px] text-[#16121F]/50 w-10 shrink-0 tabular-nums">{fmtTime(playElapsed)}</Mono>
+                    <Mono className="text-[11px] text-[#16121F]/50 w-10 shrink-0 tabular-nums">{fmtTime(dispElapsed)}</Mono>
                     <div className="relative flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "#EDE9F7" }}>
                       <div className="absolute inset-y-0 start-0 rounded-full"
-                        style={{ width: `${playProgress * 100}%`, background: featured.color, transition: "width 0.2s linear" }} />
+                        style={{ width: `${dispProgress * 100}%`, background: featured.color, transition: "width 0.2s linear" }} />
                     </div>
                     <Mono className="text-[11px] text-[#16121F]/50 w-10 shrink-0 text-end tabular-nums">
-                      {fmtTime(playTotal || sampleEst)}
+                      {fmtTime(dispTotal)}
                     </Mono>
                   </div>
 
@@ -951,11 +948,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         <SkipBack className="w-4 h-4" />
                       </button>
                       <button type="button"
-                        onClick={() => { if (heroSamplePlaying) stopSpeech(); else { stopIntroAudio(); speak(featured, language); } }}
-                        disabled={!speechSupported}
+                        onClick={() => { if (heroSamplePlaying) stopSample(); else { stopIntroAudio(); playSample(featured.id, featured.audioUrl); } }}
                         aria-label={heroSamplePlaying ? t.pause : t.listenInStudio}
                         aria-pressed={heroSamplePlaying}
-                        className="w-14 h-14 rounded-full flex items-center justify-center text-white transition hover:scale-105 focus-ring disabled:opacity-40"
+                        className="w-14 h-14 rounded-full flex items-center justify-center text-white transition hover:scale-105 focus-ring"
                         style={{ background: featured.color, boxShadow: `0 12px 30px -8px ${featured.color}` }}>
                         {heroSamplePlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ms-0.5" />}
                       </button>
@@ -967,7 +963,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </button>
                     </div>
 
-                    {/* Vitesse — branchée sur le VRAI son */}
+                    {/* Vitesse — playbackRate natif, sans coupure */}
                     <div dir="ltr" className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: BORDER }}>
                       {SPEEDS.map((s) => (
                         <button key={s} type="button" onClick={() => applySpeed(s)}
@@ -1036,7 +1032,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span className="w-10 shrink-0" />
                 </div>
 
-                {/* 3 pistes écoutables */}
+                {/* 3 pistes écoutables — vrais samples studio */}
                 {LANDING_VOICES.map((v) => {
                   const active = playingId === v.id;
                   const name = isRTL ? v.nameAr : v.nameFr;
@@ -1045,7 +1041,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <button
                       key={v.id}
                       type="button"
-                      onClick={() => (active ? stopSpeech() : openListen(v))}
+                      onClick={() => (active ? stopSample() : openListen(v))}
                       aria-pressed={active}
                       className={`group w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 text-start transition focus-ring ${active ? "" : "hover:bg-[#7C3AED]/[0.04]"}`}
                       style={{ borderBottom: `1px solid ${BORDER}`, background: active ? `${v.color}0F` : undefined }}
@@ -1079,7 +1075,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </span>
 
                       <Mono dir="ltr" className="hidden sm:block w-16 text-end text-[12px] text-[#16121F]/45 shrink-0">
-                        {fmtDur(v, language)}
+                        {durations[v.id] ? fmtTime(durations[v.id]) : fmtDur(v, language)}
                       </Mono>
 
                       <span className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition"
@@ -1527,11 +1523,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </button>
       </div>
 
-      {/* MODALE ÉCOUTE */}
+      {/* MODALE ÉCOUTE — vrai sample studio */}
       <AnimatePresence>
         {listenVoice && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-[#16121F]/40" onClick={() => { setListenVoice(null); stopSpeech(); }} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-[#16121F]/40" onClick={() => { setListenVoice(null); stopSample(); }} />
             <motion.div role="dialog" aria-modal="true" aria-labelledby="listen-title"
               initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
               className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-white border rounded-2xl p-6 shadow-2xl"
@@ -1542,22 +1538,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <h3 id="listen-title" className="text-[22px] font-bold">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
                   <p className="text-[12px] text-[#16121F]/50">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
                 </div>
-                <button type="button" onClick={() => { setListenVoice(null); stopSpeech(); }} className="w-9 h-9 rounded-full hover:bg-[#16121F]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                <button type="button" onClick={() => { setListenVoice(null); stopSample(); }} className="w-9 h-9 rounded-full hover:bg-[#16121F]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="rounded-xl border p-4 mb-4" style={{ borderColor: BORDER, background: `${listenVoice.color}0D` }}>
                 <Waveform color={listenVoice.color} playing={playingId === listenVoice.id} bars={30} />
                 <button type="button"
-                  onClick={() => (playingId === listenVoice.id ? stopSpeech() : speak(listenVoice, language))}
-                  disabled={!speechSupported}
-                  className="mt-3 w-full h-11 rounded-xl font-bold text-[13px] text-white flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
+                  onClick={() => (playingId === listenVoice.id ? stopSample() : playSample(listenVoice.id, listenVoice.audioUrl))}
+                  className="mt-3 w-full h-11 rounded-xl font-bold text-[13px] text-white flex items-center justify-center gap-2 focus-ring hover:brightness-110 transition"
                   style={{ background: listenVoice.color }}>
                   {playingId === listenVoice.id
                     ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
                     : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
                 </button>
-                <p className="mt-2 text-[11px] text-center text-[#16121F]/45">{speechSupported ? t.browserNote : t.noSpeechNote}</p>
+                <p className="mt-2 text-[11px] text-center text-[#16121F]/45">{t.studioNote}</p>
               </div>
               <p className="text-[13px] leading-relaxed text-[#16121F]/70 mb-2" dir="auto">
                 “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
