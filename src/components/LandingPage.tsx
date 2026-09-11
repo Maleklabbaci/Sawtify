@@ -12,11 +12,11 @@ export interface LandingPageProps {
   setLanguage: (lang: "fr" | "ar") => void;
 }
 
-/* ================= THÈME "STUDIO NOIR" ================= */
-const BG0 = "#07070C";
-const SURFACE = "#0E0E16";
-const ACCENT = "#2EE8A6";
-const TEXT = "#F4F5F7";
+/* ================= THÈME "VIOLET & BLANC" ================= */
+const PAPER = "#FFFFFF";
+const INK = "#17131F";
+const ACCENT = "#7C3AED";      // violet-600
+const MESH = { purple: "#8b5cf6", pink: "#ec4899", blue: "#3b82f6" };
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
 
@@ -24,9 +24,8 @@ const MONO_STACK = "'JetBrains Mono', 'Cairo', monospace";
 const NUM_STACK = "'Space Grotesk', 'Cairo', sans-serif";
 
 /* ============================================================
-   GSAP — chargement CDN (10 plugins utiles seulement, pas 21).
-   Fallback : si le CDN échoue, gsapReady reste false et la page
-   fonctionne en statique. Aucune API externe, aucune clé.
+   GSAP — chargement CDN (10 plugins utiles). Fallback statique
+   si le CDN échoue. Aucune API externe, aucune clé.
    ============================================================ */
 const GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.15/dist/";
 const GSAP_MODULES = [
@@ -66,7 +65,6 @@ function useGsapReady(): boolean {
   useEffect(() => {
     let alive = true;
     const w = window as any;
-    // Déjà présent (ex: scripts dans index.html) → pas de rechargement
     if (w.gsap && w.ScrollTrigger && w.Draggable && w.SplitText && w.MorphSVGPlugin && w.ScrollSmoother) {
       registerGsap(); setReady(true); return;
     }
@@ -90,12 +88,12 @@ const GlobalStyles = () => (
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    body:has(#sawtify-landing) { background: ${BG0}; color: ${TEXT}; overflow-x: hidden; }
+    body:has(#sawtify-landing) { background: ${PAPER}; color: ${INK}; overflow-x: hidden; }
     #sawtify-landing * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    #sawtify-landing ::selection { background: ${ACCENT}; color: ${BG0}; }
+    #sawtify-landing ::selection { background: ${ACCENT}; color: #fff; }
     #sawtify-landing ::-webkit-scrollbar { width: 10px; }
-    #sawtify-landing ::-webkit-scrollbar-track { background: #0A0A10; }
-    #sawtify-landing ::-webkit-scrollbar-thumb { background: rgba(46,232,166,0.4); border-radius: 10px; }
+    #sawtify-landing ::-webkit-scrollbar-track { background: #F3F0FA; }
+    #sawtify-landing ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.45); border-radius: 10px; }
     #sawtify-landing .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
     #sawtify-landing .scrollbar-none::-webkit-scrollbar { display: none; }
 
@@ -105,34 +103,30 @@ const GlobalStyles = () => (
     #sawtify-landing .caret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 2px; background: ${ACCENT}; animation: blink 1s step-end infinite; vertical-align: -2px; }
     #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; border-radius: 10px; }
 
-    #sawtify-landing .bg-grid {
-      background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-      background-size: 54px 54px;
+    /* ---------- MESH GRADIENT (fond fixe, piloté en rAF) ---------- */
+    #sawtify-landing .mesh-container {
+      position: fixed; inset: 0; z-index: 0;
+      filter: blur(80px);
+      pointer-events: none;
+      transform: translateZ(0); /* layer GPU dédiée */
     }
-    #sawtify-landing .hero-mask {
-      -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
-      mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
-    }
+    @media (max-width: 640px) { #sawtify-landing .mesh-container { filter: blur(56px); } }
+    #sawtify-landing .mesh-ball { position: absolute; border-radius: 50%; will-change: transform; }
 
-    /* SplitText */
     #sawtify-landing .sw-char, #sawtify-landing .sw-word { display: inline-block; will-change: transform; }
+    #sawtify-landing .sw-rule line { stroke: rgba(124,58,237,0.45); stroke-width: 1.5; }
 
-    /* Règles SVG (DrawSVG) */
-    #sawtify-landing .sw-rule line { stroke: rgba(46,232,166,0.45); stroke-width: 1.5; }
-
-    /* Fader (Draggable + Inertia) */
     #sawtify-landing .sw-fader-handle {
       touch-action: none; cursor: grab; will-change: transform;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12);
+      box-shadow: 0 6px 18px rgba(23,19,31,0.18), 0 0 0 1px rgba(23,19,31,0.06);
     }
     #sawtify-landing .sw-fader-handle:active { cursor: grabbing; }
 
-    #sawtify-landing .card-lift { transition: transform .4s cubic-bezier(0.16,1,0.3,1), border-color .4s; }
+    #sawtify-landing .card-lift { transition: transform .4s cubic-bezier(0.16,1,0.3,1), border-color .4s, box-shadow .4s; }
     @media (hover: hover) {
-      #sawtify-landing .card-lift:hover { transform: translateY(-4px); border-color: rgba(46,232,166,0.35); }
+      #sawtify-landing .card-lift:hover { transform: translateY(-4px); border-color: rgba(124,58,237,0.4); box-shadow: 0 18px 44px -18px rgba(124,58,237,0.25); }
     }
-    #sawtify-landing .hov-accent:hover, #sawtify-landing .hov-accent:focus-visible { border-color: rgba(46,232,166,0.55); }
+    #sawtify-landing .hov-accent:hover, #sawtify-landing .hov-accent:focus-visible { border-color: rgba(124,58,237,0.55); }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -146,21 +140,104 @@ const GlobalStyles = () => (
   `}</style>
 );
 
+/* ============================================================
+   MESH BACKGROUND — rAF autonome (SANS GSAP, fonctionne même
+   si le CDN est bloqué). Une seule boucle, lerp + skip de
+   frames : rien ne bouge → aucun repaint.
+   ============================================================ */
+const MeshBackground = () => {
+  const ballRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const balls = ballRefs.current;
+    if (!balls[0] || !balls[1] || !balls[2]) return;
+
+    let raf = 0;
+    let tx = 0, ty = 0;        // cible souris (-0.5..0.5)
+    let cx = 0, cy = 0;        // valeur lissée
+    let maxScroll = 1;
+    const applied = [1e9, 1e9, 1e9, 1e9, 1e9, 1e9]; // dernier état écrit
+
+    const measure = () => {
+      maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    };
+    measure();
+
+    const onMove = (e: MouseEvent) => {
+      tx = (e.clientX / window.innerWidth) - 0.5;
+      ty = (e.clientY / window.innerHeight) - 0.5;
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("resize", measure);
+    (window as any).ScrollTrigger?.addEventListener?.("refresh", measure);
+
+    const loop = () => {
+      // Lissage souris (buttery) — au lieu d'une transition CSS qui combat le JS
+      cx += (tx - cx) * 0.07;
+      cy += (ty - cy) * 0.07;
+
+      const sm = (window as any).ScrollSmoother?.get?.();
+      const scroll = sm ? sm.scrollTop() : window.scrollY;
+      const p = Math.min(1, Math.max(0, scroll / maxScroll)); // progression 0→1 sur TOUTE la page
+
+      // Facteurs : souris (px) + parallaxe scroll bornée (jamais hors écran)
+      const out = [
+        cx * 60,          cy * 60 + p * 300,    // violet
+        cx * -100,        cy * -100 - p * 240,  // rose
+        cx * 160 + p * 60, cy * 160 + p * 420,  // bleu
+      ];
+
+      // Skip de frames : si rien n'a bougé (epsilon), on n'écrit rien → zéro repaint
+      let changed = false;
+      for (let i = 0; i < 6; i++) {
+        if (Math.abs(out[i] - applied[i]) > 0.25) { changed = true; break; }
+      }
+      if (changed) {
+        for (let i = 0; i < 6; i++) applied[i] = out[i];
+        balls[0]!.style.transform = `translate3d(${out[0].toFixed(1)}px, ${out[1].toFixed(1)}px, 0)`;
+        balls[1]!.style.transform = `translate3d(${out[2].toFixed(1)}px, ${out[3].toFixed(1)}px, 0)`;
+        balls[2]!.style.transform = `translate3d(${out[4].toFixed(1)}px, ${out[5].toFixed(1)}px, 0)`;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("resize", measure);
+      (window as any).ScrollTrigger?.removeEventListener?.("refresh", measure);
+    };
+  }, []);
+
+  return (
+    <div className="mesh-container" aria-hidden>
+      <div ref={(el) => { ballRefs.current[0] = el; }} className="mesh-ball"
+        style={{ width: "75vw", height: "75vw", background: MESH.purple, top: "-15%", left: "-15%", opacity: 0.85 }} />
+      <div ref={(el) => { ballRefs.current[1] = el; }} className="mesh-ball"
+        style={{ width: "45vw", height: "45vw", background: MESH.pink, top: "15%", right: "-5%", opacity: 0.85 }} />
+      <div ref={(el) => { ballRefs.current[2] = el; }} className="mesh-ball"
+        style={{ width: "25vw", height: "25vw", background: MESH.blue, bottom: "10%", left: "30%", opacity: 0.9 }} />
+    </div>
+  );
+};
+
 const Logo = ({ size = 38 }: { size?: number }) => {
   const [imgError, setImgError] = useState(false);
   return (
     <div className="flex items-center gap-2.5 select-none">
       <div className="rounded-xl overflow-hidden shrink-0"
-        style={{ width: size, height: size, boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 4px 18px rgba(46,232,166,0.25)" }}>
+        style={{ width: size, height: size, boxShadow: "0 0 0 1px rgba(23,19,31,0.08), 0 4px 16px rgba(124,58,237,0.3)" }}>
         {!imgError ? (
           <img src={LOGO} alt="Sawtify" width={size} height={size} decoding="async"
             onError={() => setImgError(true)} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center font-bold"
-            style={{ background: ACCENT, color: BG0, fontSize: size * 0.5, fontFamily: NUM_STACK }}>S</div>
+            style={{ background: ACCENT, color: "#fff", fontSize: size * 0.5, fontFamily: NUM_STACK }}>S</div>
         )}
       </div>
-      <span className="font-bold text-[19px] tracking-tight text-white" style={{ fontFamily: NUM_STACK }}>Sawtify</span>
+      <span className="font-bold text-[19px] tracking-tight text-[#17131F]" style={{ fontFamily: NUM_STACK }}>Sawtify</span>
     </div>
   );
 };
@@ -184,12 +261,11 @@ const SectionHead = ({ no, kicker, title, sub, center = false, font }: {
 }) => (
   <div className={center ? "text-center mx-auto max-w-2xl" : "max-w-2xl"}>
     <Kicker no={no}>{kicker}</Kicker>
-    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.06] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: font }}>{title}</h2>
-    {sub && <p className="mt-4 text-[14px] text-white/50 leading-relaxed">{sub}</p>}
+    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.06] tracking-[-0.02em] font-bold text-[#17131F]" style={{ fontFamily: font }}>{title}</h2>
+    {sub && <p className="mt-4 text-[14px] text-[#17131F]/60 leading-relaxed">{sub}</p>}
   </div>
 );
 
-/* Waveform CSS (cartes + modale) */
 const Waveform = ({ color, playing, bars = 30 }: { color: string; playing: boolean; bars?: number }) => (
   <div className="flex items-end justify-center gap-[3px] h-24 w-full" dir="ltr" aria-hidden>
     {Array.from({ length: bars }).map((_, i) => {
@@ -199,20 +275,16 @@ const Waveform = ({ color, playing, bars = 30 }: { color: string; playing: boole
         <span key={i} className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
           style={{
             height: `${h}%`, maxWidth: 4,
-            background: hot ? color : "rgba(255,255,255,0.22)",
-            opacity: playing ? 1 : 0.5,
+            background: hot ? color : "rgba(23,19,31,0.16)",
+            opacity: playing ? 1 : 0.55,
             animationDelay: `${(i % 10) * 0.1}s`,
-            boxShadow: playing && hot ? `0 0 10px ${color}66` : undefined,
           }} />
       );
     })}
   </div>
 );
 
-/* ============================================================
-   Générateur de waveform SVG — même structure de commandes
-   pour chaque seed → morph MorphSVG fluide entre les voix.
-   ============================================================ */
+/* Générateur de waveform SVG — structure identique par seed → morph fluide */
 function makeWave(seed: number, n = 56, w = 640, h = 150): string {
   let s = (seed * 9301 + 49297) % 233280;
   const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
@@ -283,7 +355,6 @@ function useVoiceDemo() {
     u.onend = finish;
     u.onerror = finish;
     setNowPlaying({ kind: "sample", id: voice.id });
-    // iOS ignore speak() juste après cancel() → petit délai
     window.setTimeout(() => { if (token.current === my) window.speechSynthesis.speak(u); }, 60);
   }, [supported, pickVoice]);
 
@@ -299,9 +370,7 @@ function useVoiceDemo() {
   return { speechSupported: supported, nowPlaying, speak, stopSpeech };
 }
 
-/* ============================================================
-   DOCK AUDIO — barres pilotées par le VRAI volume (analyser).
-   ============================================================ */
+/* DOCK AUDIO — verre blanc, bouton violet, barres = VRAI volume */
 const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
   isPlaying: boolean; volume: number; onToggle: () => void; isRTL: boolean; hidden?: boolean;
 }) => {
@@ -312,27 +381,27 @@ const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
       transition={{ type: "spring", damping: 22, stiffness: 120, delay: 0.8 }}
       className={`fixed bottom-24 sm:bottom-6 end-3 sm:end-6 z-[80] transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none translate-y-3" : "opacity-100"}`}
     >
-      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[#0E0E16]/95 backdrop-blur-xl pl-4 pr-1.5 py-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.55)]">
-        {isPlaying ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: ACCENT }} /> : <VolumeX className="w-4 h-4 shrink-0 text-white/30" />}
+      <div className="flex items-center gap-3 rounded-full border border-[#17131F]/10 bg-white/85 backdrop-blur-xl pl-4 pr-1.5 py-1.5 shadow-[0_10px_36px_rgba(23,19,31,0.14)]">
+        {isPlaying ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: ACCENT }} /> : <VolumeX className="w-4 h-4 shrink-0 text-[#17131F]/30" />}
         <div className="flex items-end gap-[2.5px] h-4 shrink-0" dir="ltr" aria-hidden>
           {F.map((f, i) => (
             <span key={i} className="w-[3px] rounded-full"
               style={{
                 height: isPlaying ? Math.max(4, 4 + volume * 14 * f) : 4,
-                background: isPlaying ? ACCENT : "rgba(255,255,255,0.25)",
+                background: isPlaying ? ACCENT : "rgba(23,19,31,0.2)",
                 transition: "height 0.09s ease-out",
               }} />
           ))}
         </div>
         <span className="hidden sm:block text-[11px] font-semibold tracking-[0.14em] uppercase whitespace-nowrap"
-          style={{ fontFamily: MONO_STACK, color: isPlaying ? ACCENT : "rgba(255,255,255,0.55)" }}>
+          style={{ fontFamily: MONO_STACK, color: isPlaying ? ACCENT : "rgba(23,19,31,0.55)" }}>
           {isPlaying ? (isRTL ? "بثّ مباشر" : "On air") : (isRTL ? "اسمع التقديم" : "Écouter l'intro")}
         </span>
         {isPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ background: ACCENT }} />}
         <button type="button" onClick={onToggle} aria-pressed={isPlaying}
           aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل التقديم" : "Lire l'intro")}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring"
-          style={{ background: ACCENT, color: BG0 }}>
+          className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring text-white"
+          style={{ background: ACCENT }}>
           {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ms-0.5" />}
         </button>
       </div>
@@ -347,16 +416,17 @@ type VoiceCard = {
   rating?: number; reviews?: number; color: string; sampleFr: string; sampleAr: string;
 };
 
+/* Les 3 voix de la landing reprennent les 3 couleurs du mesh : cohérence totale */
 const VOICES: VoiceCard[] = [
-  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#2EE8A6", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
-  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#F472B6", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
-  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#60A5FA", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
-  { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#F59E0B", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
-  { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#A78BFA", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
-  { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#34D399", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
-  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#FB7185", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
-  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#FB923C", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
-  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#22D3EE", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
+  { id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري", location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#7C3AED", sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.", sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات." },
+  { id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني", location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#DB2777", sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.", sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك." },
+  { id: "khalid", nameFr: "Khalid", nameAr: "خالد", tagFr: "Voix documentaire", tagAr: "صوت وثائقي", location: "Constantine, DZ", gender: "male", category: "formal", rating: 5.0, reviews: 312, color: "#2563EB", sampleFr: "Nqeddmlkom lyom notq mawzoun w dqi9, l watha2iqiyat w contenu rassmi.", sampleAr: "نقدّم ليكم اليوم نطق موزون ودقيق، للوثائقيات والمحتوى الرسمي." },
+  { id: "layla", nameFr: "Layla", nameAr: "ليلى", tagFr: "Voix social media", tagAr: "صوت سوشيال", location: "Annaba, DZ", gender: "female", category: "social", rating: 4.9, reviews: 156, color: "#D97706", sampleFr: "Salut l'équipe ! Une voix vive, parfaite pour Reels, TikTok et stories.", sampleAr: "واش راكم ليكيب؟ صوت حيوي، هايل للريلز وتيك توك والستوريز." },
+  { id: "yacine", nameFr: "Yacine", nameAr: "ياسين", tagFr: "Voix éducative", tagAr: "صوت تعليمي", location: "Sétif, DZ", gender: "male", category: "narrative", rating: 4.7, reviews: 98, color: "#0891B2", sampleFr: "Dans cette leçon, on avance pas à pas. Une voix claire, pour e-learning et tutos.", sampleAr: "في هاد الدرس، نمشيو خطوة بخطوة. صوت واضح للشروحات والدروس." },
+  { id: "nadia", nameFr: "Nadia", nameAr: "نادية", tagFr: "Voix podcast", tagAr: "صوت بودكاست", location: "Tlemcen, DZ", gender: "female", category: "narrative", rating: 4.9, reviews: 267, color: "#059669", sampleFr: "Bienvenue dans cet épisode. Une voix chaleureuse, pour podcasts et YouTube.", sampleAr: "مرحبا بيكم في هاد الحلقة. صوت دافئ للبودكاست ويوتيوب." },
+  { id: "maryam", nameFr: "Maryam", nameAr: "مريم", tagFr: "Narration & podcast", tagAr: "سرد وبودكاست", location: "Alger, DZ", gender: "female", category: "narrative", rating: 4.8, reviews: 201, color: "#BE185D", sampleFr: "Écoutez une diction fluide et élégante, pour vos récits et documentaires.", sampleAr: "استمعوا لنطق سلس وأنيق، للروايات والوثائقيات." },
+  { id: "rachid", nameFr: "Rachid", nameAr: "رشيد", tagFr: "Énergique & pub", tagAr: "حماسي وإشهاري", location: "Oran, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 176, color: "#EA580C", sampleFr: "Une voix percutante, idéale pour vos spots et lancements produits.", sampleAr: "صوت قوي، هايل للسبوتات وإطلاق المنتجات." },
+  { id: "bilal", nameFr: "Bilal", nameAr: "بلال", tagFr: "Narration & récit", tagAr: "سردي وقصصي", location: "Constantine, DZ", gender: "male", category: "narrative", rating: 4.8, reviews: 142, color: "#0284C7", sampleFr: "Le rendu est si naturel qu'on croirait un présentateur en studio.", sampleAr: "الصوت يخرج طبيعي كأنو متحدث حقيقي في الستوديو." },
 ];
 
 const LANDING_VOICE_IDS = ["amine", "yasmine", "khalid"] as const;
@@ -390,7 +460,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const { speechSupported, nowPlaying, speak, stopSpeech } = useVoiceDemo();
   const playingId = nowPlaying?.kind === "sample" ? nowPlaying.id : null;
 
-  /* --- Audio d'intro (opt-in, AUCUN autoplay, analyser réel) --- */
+  /* Audio d'intro (opt-in, AUCUN autoplay, analyser réel) */
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -403,7 +473,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const overlayOpen = menuOpen || !!listenVoice || !!legal;
 
-  /* --- Refs GSAP --- */
+  /* Refs GSAP */
   const rootRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const kickerScrRef = useRef<HTMLSpanElement>(null);
@@ -431,7 +501,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const initialLineD = useCallback(() => waveLine(0), []);
   const initialAreaD = useCallback(() => waveArea(0), []);
 
-  /* --- i18n / lock scroll / Escape --- */
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
@@ -753,9 +822,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroSamplePlaying = playingId === featured.id;
   const heroPlaying = isIntroPlaying || heroSamplePlaying;
 
-  /* ============================================================
-     GSAP #1 — ScrollSmoother (créé une seule fois) + refresh fonts
-     ============================================================ */
+  /* GSAP #1 — ScrollSmoother (config légère : pas de normalizeScroll → gros gain perf) */
   useEffect(() => {
     if (!gsapReady) return;
     const w = window as any;
@@ -763,9 +830,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       w.ScrollSmoother.create({
         wrapper: "#sw-wrapper",
         content: "#sw-content",
-        smooth: 1.15,
+        smooth: 1,
         effects: true,
-        normalizeScroll: true,
+        normalizeScroll: false,
       });
     }
     document.fonts?.ready.then(() => w.ScrollTrigger.refresh()).catch(() => {});
@@ -773,11 +840,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   useEffect(() => () => { (window as any).ScrollSmoother?.get()?.kill(); }, []);
 
-  /* ============================================================
-     GSAP #2 — Construction (reconstruit à chaque changement de
-     langue) : intro hero, SplitText, DrawSVG, reveals, pin
-     horizontal RTL-aware, compteurs, fader Draggable.
-     ============================================================ */
+  /* GSAP #2 — Construction (reconstruite à chaque changement de langue) */
   useEffect(() => {
     if (!gsapReady) return;
     const w = window as any;
@@ -787,7 +850,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     mm.add("(prefers-reduced-motion: no-preference)", () => {
       const ctx = gsap.context(() => {
 
-        /* ---- Helpers fader ---- */
         const computeYs = () => {
           const track = faderTrackRef.current, handle = faderHandleRef.current;
           if (!track || !handle) return;
@@ -801,7 +863,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           channelYsRef.current.reduce((best, yy, idx) =>
             (Math.abs(yy - y) < Math.abs(channelYsRef.current[best] - y) ? idx : best), 0);
 
-        /* ---- FADER : Draggable + Inertia + snap canaux ---- */
         if (faderHandleRef.current && faderTrackRef.current) {
           const handle = faderHandleRef.current;
           const syncFromHandle = () => {
@@ -822,14 +883,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             onThrowComplete: syncFromHandle,
           });
           gsap.set(handle, { y: channelYsRef.current[Math.max(0, LANDING_VOICES.findIndex((v) => v.id === featuredIdRef.current))] });
-          const onResize = () => computeYs();
-          window.addEventListener("resize", onResize);
+          window.addEventListener("resize", computeYs);
         }
 
-        /* ---- HERO : SplitText + ScrambleText + timeline ---- */
         const splitRefs: any[] = [];
         if (titleRef.current) {
-          // AR : mots uniquement (les ligatures arabes ne supportent pas le découpage par caractère)
           const split = new w.SplitText(titleRef.current,
             isRTL ? { type: "words", wordsClass: "sw-word" } : { type: "chars,words", charsClass: "sw-char" });
           splitRefs.push(split);
@@ -854,7 +912,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           });
         }
 
-        /* ---- Règles SVG : DrawSVG au scroll ---- */
         gsap.utils.toArray<SVGLineElement>(".sw-rule line").forEach((line) => {
           gsap.from(line, {
             drawSVG: "0%", duration: 1.1, ease: "power2.out",
@@ -862,7 +919,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           });
         });
 
-        /* ---- Reveals génériques ---- */
         gsap.utils.toArray<HTMLElement>(".sw-reveal").forEach((el) => {
           gsap.from(el, {
             y: 34, opacity: 0, duration: 0.9, ease: "sawt",
@@ -870,7 +926,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           });
         });
 
-        /* ---- PROCESS : section épinglée, défilement horizontal (RTL-aware) ---- */
         if (processTrackRef.current && processRef.current) {
           const track = processTrackRef.current, sec = processRef.current;
           const dist = () => Math.max(0, track.scrollWidth - sec.clientWidth + 48);
@@ -885,7 +940,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           });
         }
 
-        /* ---- METRICS : compteurs pilotés GSAP ---- */
         gsap.utils.toArray<HTMLElement>(".sw-count").forEach((el) => {
           const target = Number(el.dataset.target || 0);
           const suffix = el.dataset.suffix || "";
@@ -897,7 +951,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           });
         });
 
-        /* ---- Orbes CTA : flottement ---- */
         gsap.utils.toArray<HTMLElement>(".sw-orb").forEach((orb, i) => {
           gsap.to(orb, { y: i % 2 ? -26 : 22, duration: 3.4 + i * 0.7, repeat: -1, yoyo: true, ease: "sine.inOut" });
         });
@@ -915,10 +968,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gsapReady, language]);
 
-  /* ============================================================
-     GSAP #3 — Morph du waveform + scramble à chaque changement
-     de canal (featuredId). useLayoutEffect = zéro flash.
-     ============================================================ */
+  /* GSAP #3 — Morph waveform + scramble au changement de canal */
   useLayoutEffect(() => {
     if (!gsapReady) return;
     const w = window as any;
@@ -929,7 +979,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       gsap.to(waveLineRef.current, { duration: 0.9, ease: "sawt", morphSVG: waveLine(i) });
       gsap.to(waveAreaRef.current, {
         duration: 0.9, ease: "sawt", morphSVG: waveArea(i),
-        // le point de signal suit un path figé au démarrage → on le relance après le morph
         onComplete: () => { if (dotActiveRef.current) { dotTweenRef.current?.kill(); startDot(gsap); } },
       });
     }
@@ -948,10 +997,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gsapReady, featuredId, language]);
 
-  /* ============================================================
-     GSAP #4 — Point de signal (MotionPath) + pulsation pendant
-     la lecture.
-     ============================================================ */
+  /* GSAP #4 — Point de signal (MotionPath) + pulsation lecture */
   const startDot = useCallback((gsap: any) => {
     if (!dotRef.current || !waveLineRef.current) return;
     gsap.set(dotRef.current, { opacity: 1 });
@@ -982,9 +1028,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   }, [gsapReady, heroPlaying, startDot]);
 
-  /* ============================================================
-     GSAP #5 — Estimation coût : ScrambleText (re-roll slot machine)
-     ============================================================ */
+  /* GSAP #5 — Estimateur : re-roll ScrambleText */
   useLayoutEffect(() => {
     if (!gsapReady || !costNumRef.current) return;
     const w = window as any;
@@ -996,42 +1040,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   /* ================= RENDU ================= */
   return (
-    <div id="sawtify-landing" ref={rootRef} dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: TEXT, background: BG0 }}>
+    <div id="sawtify-landing" ref={rootRef} dir={isRTL ? "rtl" : "ltr"} className="min-h-screen relative" style={{ fontFamily: sans, color: INK }}>
       <GlobalStyles />
 
-      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm" style={{ background: ACCENT, color: BG0 }}>
+      <a href="#home" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[80] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm text-white" style={{ background: ACCENT }}>
         {t.skip}
       </a>
 
       <motion.div aria-hidden className="fixed top-0 inset-x-0 h-[3px] z-[60]"
-        style={{ scaleX: scrollYProgress, background: `linear-gradient(90deg, ${ACCENT}, #A8FCE0)`, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
+        style={{ scaleX: scrollYProgress, background: `linear-gradient(90deg, ${ACCENT}, ${MESH.pink})`, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
 
-      {/* HEADER (hors smoother : fixe) */}
-      <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-[#07070C]/85 backdrop-blur-xl border-b border-white/10" : "bg-transparent"}`}>
+      {/* ===== MESH GRADIENT — fond fixe de TOUTE la page ===== */}
+      <MeshBackground />
+
+      {/* HEADER */}
+      <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/80 backdrop-blur-xl border-b border-[#17131F]/8" : "bg-transparent"}`}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }} className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
             <Logo size={38} />
             <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase px-2 py-0.5 rounded-full border"
-              style={{ color: ACCENT, borderColor: "rgba(46,232,166,0.35)", background: "rgba(46,232,166,0.08)" }}>
+              style={{ color: ACCENT, borderColor: "rgba(124,58,237,0.35)", background: "rgba(124,58,237,0.08)" }}>
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />
               v2.1
             </span>
           </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-white/60">
+          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#17131F]/60">
             {nav.map((l) => (
-              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-white transition-colors focus-ring">{l.label}</a>
+              <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="hover:text-[#17131F] transition-colors focus-ring">{l.label}</a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-white/60 hover:bg-white/10 transition focus-ring" aria-label={isRTL ? "التبديل إلى الفرنسية" : "التبديل إلى العربية"}>
+            <button type="button" onClick={() => setLanguage(language === "fr" ? "ar" : "fr")} className="w-10 h-10 rounded-full text-[12px] font-bold text-[#17131F]/60 hover:bg-[#17131F]/5 transition focus-ring" aria-label={isRTL ? "التبديل إلى الفرنسية" : "التبديل إلى العربية"}>
               {t.switchLang}
             </button>
-            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-white/60 hover:text-white px-3 focus-ring">{t.signin}</button>
-            <button type="button" onClick={onSigninClick} className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold focus-ring transition hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
+            <button type="button" onClick={onLoginClick} className="hidden md:block text-[13px] font-semibold text-[#17131F]/60 hover:text-[#17131F] px-3 focus-ring">{t.signin}</button>
+            <button type="button" onClick={onSigninClick} className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold text-white focus-ring transition hover:brightness-110" style={{ background: ACCENT }}>
               {t.start}
             </button>
-            <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open} className="lg:hidden w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring">
-              <Menu className="w-5 h-5 text-white" />
+            <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open} className="lg:hidden w-10 h-10 rounded-full hover:bg-[#17131F]/5 flex items-center justify-center focus-ring">
+              <Menu className="w-5 h-5 text-[#17131F]" />
             </button>
           </div>
         </div>
@@ -1041,71 +1088,65 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatePresence>
         {menuOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-black/60 lg:hidden" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[55] bg-[#17131F]/40 lg:hidden" />
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-[#0A0A10] lg:hidden flex flex-col border-s border-white/10"
+              className="fixed inset-y-0 end-0 z-[60] w-[85%] max-w-sm bg-white lg:hidden flex flex-col border-s border-[#17131F]/10 shadow-2xl"
             >
-              <div className="flex items-center justify-between px-5 h-16 border-b border-white/10">
+              <div className="flex items-center justify-between px-5 h-16 border-b border-[#17131F]/8">
                 <Logo size={34} />
-                <button type="button" onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
-                  <X className="w-5 h-5 text-white" />
+                <button type="button" onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-full hover:bg-[#17131F]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  <X className="w-5 h-5 text-[#17131F]" />
                 </button>
               </div>
               <nav className="flex-1 px-5 py-6 flex flex-col">
                 {nav.map((l) => (
-                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold text-white border-b border-white/10 focus-ring">{l.label}</a>
+                  <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="py-4 text-[18px] font-bold text-[#17131F] border-b border-[#17131F]/8 focus-ring">{l.label}</a>
                 ))}
-                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-white/60">{t.signin}</button>
+                <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }} className="mt-4 py-3 text-start text-[16px] font-semibold text-[#17131F]/60">{t.signin}</button>
               </nav>
               <div className="p-5">
-                <button type="button" onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full h-12 rounded-full font-bold" style={{ background: ACCENT, color: BG0 }}>{t.start}</button>
+                <button type="button" onClick={() => { setMenuOpen(false); onSigninClick(); }} className="w-full h-12 rounded-full font-bold text-white" style={{ background: ACCENT }}>{t.start}</button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* ================= SMOOTH WRAPPER (tout le contenu scrollable) ================= */}
+      {/* ================= SMOOTH WRAPPER ================= */}
       <div id="sw-wrapper">
-        <div id="sw-content">
+        <div id="sw-content" className="relative z-[1]">
 
           {/* HERO */}
           <section id="home" className="relative pt-32 pb-16 sm:pb-20 overflow-hidden">
-            <div className="absolute inset-0 pointer-events-none" aria-hidden>
-              <div className="absolute inset-0 bg-grid hero-mask" />
-              <div className="absolute inset-x-0 top-0 h-[480px]" style={{ background: "radial-gradient(560px 280px at 50% 0%, rgba(46,232,166,0.13), transparent 70%)" }} />
-            </div>
-
             <div className="relative z-10 mx-auto max-w-[1280px] px-5 sm:px-6">
               <div className="max-w-3xl mx-auto text-center">
-                <div className="sw-hero-badge inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
+                <div className="sw-hero-badge inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full border border-[#17131F]/10 bg-white/70 backdrop-blur-md">
                   <span className="relative flex w-1.5 h-1.5">
                     <span className="absolute inset-0 rounded-full animate-pulse" style={{ background: ACCENT }} />
                     <span className="relative rounded-full w-1.5 h-1.5" style={{ background: ACCENT }} />
                   </span>
-                  <Mono className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/70">{t.liveBadge}</Mono>
+                  <Mono className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#17131F]/70">{t.liveBadge}</Mono>
                 </div>
                 <div className="text-center">
                   <p className="text-[12px] font-bold tracking-[0.18em] uppercase mb-4" style={{ color: ACCENT, fontFamily: MONO_STACK }}>
                     {"// "}<span ref={kickerScrRef}>{t.heroKicker}</span>
                   </p>
                 </div>
-                {/* key={language} : React remonte le nœud → aucun conflit avec SplitText */}
-                <h1 key={language} ref={titleRef} className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[0.98] tracking-[-0.03em] font-bold text-white" style={{ fontFamily: display }}>
+                <h1 key={language} ref={titleRef} className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[0.98] tracking-[-0.03em] font-bold text-[#17131F]" style={{ fontFamily: display }}>
                   {t.heroTitle1} <span style={{ color: ACCENT }}>{t.heroTitle2}</span>
                 </h1>
-                <p className="sw-hero-sub mt-6 text-[15px] sm:text-[16px] text-white/60 max-w-xl mx-auto leading-relaxed">{t.heroSub}</p>
+                <p className="sw-hero-sub mt-6 text-[15px] sm:text-[16px] text-[#17131F]/65 max-w-xl mx-auto leading-relaxed">{t.heroSub}</p>
                 <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
                   <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                    className="sw-hero-cta h-12 px-7 rounded-full text-[14px] font-bold focus-ring transition hover:brightness-110"
-                    style={{ background: ACCENT, color: BG0, boxShadow: "0 0 34px rgba(46,232,166,0.35)" }}>
+                    className="sw-hero-cta h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
+                    style={{ background: ACCENT, boxShadow: "0 0 34px rgba(124,58,237,0.35)" }}>
                     {t.tryFree}
                   </button>
                   <button type="button" onClick={handleToggleIntroAudio}
-                    className="sw-hero-cta h-12 px-5 rounded-full border border-white/20 bg-white/5 hov-accent text-[14px] font-semibold text-white flex items-center gap-2.5 transition focus-ring">
-                    <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: ACCENT, color: BG0 }}>
+                    className="sw-hero-cta h-12 px-5 rounded-full border border-[#17131F]/15 bg-white/70 backdrop-blur-md hov-accent text-[14px] font-semibold text-[#17131F] flex items-center gap-2.5 transition focus-ring">
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: ACCENT }}>
                       {isIntroPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current ms-0.5" />}
                     </span>
                     {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
@@ -1116,7 +1157,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
               </div>
 
-              {/* ======== LA CONSOLE (fader + waveform morphing) ======== */}
+              {/* ======== CONSOLE (verre blanc sur le mesh) ======== */}
               <div className="mt-12 max-w-3xl mx-auto"
                 onMouseEnter={() => setPauseRotate(true)}
                 onMouseLeave={() => setPauseRotate(false)}
@@ -1124,16 +1165,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onBlurCapture={() => setPauseRotate(false)}
               >
                 <div ref={consoleRef}
-                  className="rounded-2xl border border-white/10 bg-[#0E0E16]/90 backdrop-blur overflow-hidden shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)]"
+                  className="rounded-2xl border border-[#17131F]/8 bg-white/75 backdrop-blur-md overflow-hidden shadow-[0_30px_90px_-40px rgba(23,19,31,0.35)]"
                   style={{ "--voice": featured.color } as React.CSSProperties}>
 
-                  {/* Barre de fenêtre + voyant ON AIR */}
-                  <div className="flex items-center gap-1.5 px-4 h-10 border-b border-white/10 bg-white/[0.02]">
+                  <div className="flex items-center gap-1.5 px-4 h-10 border-b border-[#17131F]/8 bg-[#17131F]/[0.02]">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]/80" />
                     <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]/80" />
                     <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]/80" />
-                    <Mono className="ms-3 text-[10px] tracking-[0.18em] uppercase text-white/40">sawtify · studio</Mono>
-                    <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? ACCENT : "rgba(255,255,255,0.35)" }}>
+                    <Mono className="ms-3 text-[10px] tracking-[0.18em] uppercase text-[#17131F]/40">sawtify · studio</Mono>
+                    <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? ACCENT : "rgba(23,19,31,0.35)" }}>
                       {heroPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: ACCENT }} />}
                       <Mono className="text-[10px] font-semibold tracking-[0.18em] uppercase">
                         {heroPlaying ? (isRTL ? "على الهواء" : "on air") : (isRTL ? "جاهز" : "ready")}
@@ -1142,46 +1182,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div className="p-5 sm:p-6 grid grid-cols-[1fr_auto] gap-5">
-                    {/* Colonne principale */}
                     <div className="min-w-0">
                       <div className="flex items-center justify-between gap-3 mb-4">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            {/* Texte statique JSX + mutation GSAP (scramble) = aucun conflit React */}
                             <Mono dir="ltr" ref={chLabelRef} className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border shrink-0"
-                              style={{ color: "var(--voice)", borderColor: "rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.04)" }}>
+                              style={{ color: "var(--voice)", borderColor: "rgba(23,19,31,0.12)", background: "rgba(255,255,255,0.6)" }}>
                               CH 01
                             </Mono>
-                            <span ref={voiceNameRef} className="text-[17px] font-bold text-white truncate">{isRTL ? featured.nameAr : featured.nameFr}</span>
+                            <span ref={voiceNameRef} className="text-[17px] font-bold text-[#17131F] truncate">{isRTL ? featured.nameAr : featured.nameFr}</span>
                           </div>
-                          <div className="text-[12px] text-white/50 mt-1 truncate">
+                          <div className="text-[12px] text-[#17131F]/50 mt-1 truncate">
                             {heroPlaying ? t.audioPreview : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
                           </div>
                         </div>
                         <div className="text-end shrink-0">
-                          <Mono className="block text-[10px] tracking-[0.2em] uppercase text-white/40">24 kHz</Mono>
+                          <Mono className="block text-[10px] tracking-[0.2em] uppercase text-[#17131F]/40">24 kHz</Mono>
                           <div className="text-[13px] font-bold mt-0.5" style={{ color: "var(--voice)" }}>20 {t.pts}</div>
                         </div>
                       </div>
 
-                      {/* Waveform SVG : MorphSVG entre les voix + MotionPath du point */}
                       <svg ref={waveSvgRef} viewBox="0 0 640 150" className="w-full h-auto mb-4" aria-hidden>
                         <defs>
                           <linearGradient id="swg" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" style={{ stopColor: "var(--voice)", stopOpacity: 0.3 }} />
+                            <stop offset="0%" style={{ stopColor: "var(--voice)", stopOpacity: 0.25 }} />
                             <stop offset="100%" style={{ stopColor: "var(--voice)", stopOpacity: 0 }} />
                           </linearGradient>
                           <filter id="swf" x="-50%" y="-50%" width="200%" height="200%">
                             <feGaussianBlur stdDeviation="4" />
                           </filter>
                         </defs>
-                        {/* d initial figé (memo) → React ne réécrit JAMAIS d, GSAP est seul propriétaire */}
                         <path ref={waveAreaRef} d={initialAreaD()} fill="url(#swg)" />
                         <path ref={waveLineRef} d={initialLineD()} fill="none" strokeWidth="2.5" strokeLinecap="round" style={{ stroke: "var(--voice)" }} />
                         <circle ref={dotRef} r="5" style={{ fill: "var(--voice)" }} opacity="0" filter="url(#swf)" />
                       </svg>
 
-                      <p className="text-[13px] leading-relaxed text-white/70 min-h-[60px]" dir="auto">
+                      <p className="text-[13px] leading-relaxed text-[#17131F]/70 min-h-[60px]" dir="auto">
                         {isIntroPlaying ? (
                           isRTL ? "«أنت تستمع حاليًا إلى التقديم الصوتي للمنصة…»" : "« Vous écoutez la présentation audio de la plateforme… »"
                         ) : (
@@ -1194,63 +1230,61 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         </p>
                       )}
 
-                      {/* Pastilles (contrôle clavier accessible du fader) */}
                       <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                         {LANDING_VOICES.map((v) => {
                           const on = v.id === featured.id;
                           return (
                             <button key={v.id} type="button" onClick={() => { setFeaturedId(v.id); stopAllAudio(); }}
-                              className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition focus-ring ${on ? "border-transparent" : "text-white/60 border-white/10 bg-white/5 hov-accent hover:text-white"}`}
-                              style={on ? { background: v.color, color: BG0 } : undefined}>
+                              className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition focus-ring ${on ? "border-transparent text-white" : "text-[#17131F]/60 border-[#17131F]/10 bg-white/70 hov-accent hover:text-[#17131F]"}`}
+                              style={on ? { background: v.color } : undefined}>
                               {isRTL ? v.nameAr : v.nameFr}
                             </button>
                           );
                         })}
                       </div>
 
-                      {/* Mini-démo : écrire & écouter */}
                       <div className="mt-3 flex items-center gap-2">
                         <input dir="auto" value={demoText} maxLength={140}
                           onChange={(e) => setDemoText(e.target.value)}
                           placeholder={t.demoPlaceholder}
-                          className="flex-1 h-11 px-4 rounded-xl border border-white/10 bg-white/[0.04] text-[13px] text-white outline-none transition-colors placeholder:text-white/30" />
+                          className="flex-1 h-11 px-4 rounded-xl border border-[#17131F]/12 bg-white/80 text-[13px] text-[#17131F] outline-none transition-colors placeholder:text-[#17131F]/30" />
                         <button type="button"
                           onClick={() => { if (heroSamplePlaying) stopSpeech(); else { stopIntroAudio(); speak(featured, language, demoText.trim() || undefined); } }}
                           disabled={!speechSupported}
-                          className="h-11 px-4 rounded-xl border border-white/20 bg-white/5 hov-accent text-[13px] font-semibold text-white focus-ring disabled:opacity-40 shrink-0">
+                          className="h-11 px-4 rounded-xl border border-[#17131F]/15 bg-white/80 hov-accent text-[13px] font-semibold text-[#17131F] focus-ring disabled:opacity-40 shrink-0">
                           {heroSamplePlaying ? t.pause : t.hearIt}
                         </button>
                       </div>
-                      {!speechSupported && <p className="mt-2 text-[11px] text-white/40">{t.noSpeechNote}</p>}
+                      {!speechSupported && <p className="mt-2 text-[11px] text-[#17131F]/45">{t.noSpeechNote}</p>}
 
                       <button type="button"
                         onClick={() => { if (heroSamplePlaying) stopSpeech(); else { stopIntroAudio(); speak(featured, language); } }}
                         disabled={!speechSupported}
-                        className="mt-4 w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
-                        style={{ background: "var(--voice)", color: BG0 }}>
+                        className="mt-4 w-full h-12 rounded-xl font-bold text-[14px] text-white flex items-center justify-center gap-2 focus-ring hover:brightness-110 disabled:opacity-40 transition"
+                        style={{ background: "var(--voice)" }}>
                         {heroSamplePlaying
                           ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
                           : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
                       </button>
                     </div>
 
-                    {/* FADER — Draggable + Inertia (décoratif ; les pastilles = contrôle clavier) */}
+                    {/* FADER */}
                     <div className="flex flex-col items-center justify-center gap-2 select-none" aria-hidden>
-                      <Mono className="text-[9px] tracking-[0.2em] uppercase text-white/30">{t.dragHint}</Mono>
-                      <div ref={faderTrackRef} className="relative w-12 h-44 rounded-full border border-white/10 bg-white/[0.03]">
-                        <div className="absolute inset-y-2 start-1/2 w-[3px] -translate-x-1/2 rounded-full bg-white/10" style={{ insetInlineStart: "50%", transform: "translateX(-50%)" }} />
+                      <Mono className="text-[9px] tracking-[0.2em] uppercase text-[#17131F]/35">{t.dragHint}</Mono>
+                      <div ref={faderTrackRef} className="relative w-12 h-44 rounded-full border border-[#17131F]/10 bg-white/60">
+                        <div className="absolute inset-y-2 start-1/2 w-[3px] -translate-x-1/2 rounded-full bg-[#17131F]/10" style={{ insetInlineStart: "50%", transform: "translateX(-50%)" }} />
                         {[0, 1, 2].map((i) => (
-                          <span key={i} className="absolute start-1/2 -translate-x-1/2 w-4 h-px bg-white/20"
+                          <span key={i} className="absolute start-1/2 -translate-x-1/2 w-4 h-px bg-[#17131F]/20"
                             style={{ insetInlineStart: "50%", top: `${8 + i * 42}%` }} />
                         ))}
                         <div ref={faderHandleRef} className="sw-fader-handle absolute top-0 start-1/2 -translate-x-1/2 w-12 h-7 rounded-lg"
-                          style={{ insetInlineStart: "50%", transform: "translateX(-50%)", background: "linear-gradient(180deg, #1C1C2A, #12121D)", border: `1.5px solid ${featured.color}` }}>
-                          <div className="absolute inset-x-2 top-1/2 h-[3px] -translate-y-1/2 rounded-full" style={{ background: featured.color }} />
+                          style={{ insetInlineStart: "50%", transform: "translateX(-50%)", background: "linear-gradient(180deg, #FFFFFF, #F1EDFB)", border: "1.5px solid var(--voice)" }}>
+                          <div className="absolute inset-x-2 top-1/2 h-[3px] -translate-y-1/2 rounded-full" style={{ background: "var(--voice)" }} />
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 items-center">
                         {LANDING_VOICES.map((_, i) => (
-                          <Mono key={i} dir="ltr" className="text-[9px] tracking-widest" style={{ color: i === chIndex ? featured.color : "rgba(255,255,255,0.3)" }}>
+                          <Mono key={i} dir="ltr" className="text-[9px] tracking-widest" style={{ color: i === chIndex ? "var(--voice)" : "rgba(23,19,31,0.3)" }}>
                             0{i + 1}
                           </Mono>
                         ))}
@@ -1261,13 +1295,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               {/* Preuve sociale */}
-              <div className="mt-8 flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/40 flex-wrap">
+              <div className="mt-8 flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-[#17131F]/50 flex-wrap">
                 <div className="flex -space-x-1.5" dir="ltr">
-                  {[ACCENT, "#F472B6", "#60A5FA"].map((c) => (
-                    <div key={c} className="w-7 h-7 rounded-full border-2" style={{ background: c, borderColor: BG0 }} />
+                  {[MESH.purple, MESH.pink, MESH.blue].map((c) => (
+                    <div key={c} className="w-7 h-7 rounded-full border-2 border-white" style={{ background: c }} />
                   ))}
                 </div>
-                <span className="font-bold text-white/70"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
+                <span className="font-bold text-[#17131F]/75"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
                 <span>·</span>
                 <span><Num>1 200+</Num> {t.creators}</span>
                 <span>·</span>
@@ -1277,14 +1311,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </section>
 
           {/* TRUST */}
-          <section className="py-7 border-y border-white/10 bg-[#0A0A10]" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
-            <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
-              {trust.map((p) => (
-                <div key={p.k} className="text-center">
-                  <div className="text-[14px] font-bold tracking-tight text-white">{p.k}</div>
-                  <Mono className="block text-[10px] uppercase tracking-[0.14em] text-white/40 mt-1">{p.v}</Mono>
-                </div>
-              ))}
+          <section className="py-7" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
+            <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 rounded-2xl border border-[#17131F]/8 bg-white/70 px-6 py-6">
+                {trust.map((p) => (
+                  <div key={p.k} className="text-center">
+                    <div className="text-[14px] font-bold tracking-tight text-[#17131F]">{p.k}</div>
+                    <Mono className="block text-[10px] uppercase tracking-[0.14em] text-[#17131F]/45 mt-1">{p.v}</Mono>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -1301,31 +1337,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   const name = isRTL ? v.nameAr : v.nameFr;
                   return (
                     <div key={v.id} className="sw-reveal">
-                      <article className={`group rounded-2xl border bg-[#0E0E16] overflow-hidden card-lift ${active ? "border-[#2EE8A6]/50" : "border-white/10"}`}>
+                      <article className={`group rounded-2xl border bg-white/80 overflow-hidden card-lift ${active ? "border-[#7C3AED]/50" : "border-[#17131F]/8"}`}>
                         <button type="button" onClick={() => openListen(v)} className="w-full text-start focus-ring cursor-pointer">
                           <div className="px-5 pt-5">
                             <div className="flex items-center justify-between mb-3">
                               <Mono dir="ltr" className="text-[10px] font-semibold tracking-[0.14em] px-1.5 py-0.5 rounded border"
-                                style={{ color: v.color, borderColor: `${v.color}55`, background: `${v.color}14` }}>
+                                style={{ color: v.color, borderColor: `${v.color}55`, background: `${v.color}12` }}>
                                 CH {String(idx + 1).padStart(2, "0")}
                               </Mono>
-                              <span className="flex items-center gap-1 text-[12px] font-bold text-white/70">
+                              <span className="flex items-center gap-1 text-[12px] font-bold text-[#17131F]/70">
                                 <Star className="w-3 h-3" style={{ color: v.color, fill: v.color }} /><Num>{v.rating}</Num>
                               </span>
                             </div>
-                            <div className="rounded-xl border border-white/5 h-24 flex items-center px-3" style={{ background: `${v.color}0A` }}>
+                            <div className="rounded-xl border border-[#17131F]/5 h-24 flex items-center px-3" style={{ background: `${v.color}0A` }}>
                               <Waveform color={v.color} playing={active} bars={26} />
                             </div>
                           </div>
                           <div className="p-5 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <h3 className="text-[17px] font-bold text-white truncate">{name}</h3>
-                              <p className="text-[12px] text-white/50 mt-0.5 truncate">
+                              <h3 className="text-[17px] font-bold text-[#17131F] truncate">{name}</h3>
+                              <p className="text-[12px] text-[#17131F]/50 mt-0.5 truncate">
                                 {isRTL ? v.tagAr : v.tagFr} · {v.location} · <Num>{v.reviews}</Num> {t.nRatings}
                               </p>
                             </div>
                             <span className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition ${active ? "scale-105" : "group-hover:scale-105"}`}
-                              style={{ background: active ? v.color : "rgba(255,255,255,0.08)" }}>
+                              style={{ background: active ? v.color : "rgba(23,19,31,0.08)" }}>
                               {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
                             </span>
                           </div>
@@ -1336,15 +1372,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 })}
               </div>
               <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                className="sw-reveal mt-6 w-full rounded-2xl border border-dashed border-white/20 hov-accent hover:bg-[#2EE8A6]/5 transition p-6 text-center focus-ring">
-                <div className="text-[19px] font-bold text-white" style={{ fontFamily: display }}>{t.moreVoices}</div>
-                <p className="mt-1 text-[12px] text-white/50">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
+                className="sw-reveal mt-6 w-full rounded-2xl border border-dashed border-[#17131F]/20 bg-white/50 hov-accent hover:bg-[#7C3AED]/5 transition p-6 text-center focus-ring">
+                <div className="text-[19px] font-bold text-[#17131F]" style={{ fontFamily: display }}>{t.moreVoices}</div>
+                <p className="mt-1 text-[12px] text-[#17131F]/50">{isRTL ? "لا نعرضهم هنا. ادخل لتسمع." : "On ne les révèle pas ici. Entrez pour écouter."}</p>
               </button>
             </div>
           </section>
 
-          {/* PROCESS — section épinglée, scroll horizontal (RTL-aware) */}
-          <section id="process" ref={processRef} className="relative py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10 overflow-hidden">
+          {/* PROCESS — épinglée, scroll horizontal */}
+          <section id="process" ref={processRef} className="relative py-16 sm:py-24 overflow-hidden">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6 mb-10">
               <div className="sw-reveal">
                 <SectionHead no="02" kicker={t.journeyKicker} title={t.journeyTitle} sub={t.journeySub} font={display} />
@@ -1356,19 +1392,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   ? "flex gap-4 w-max px-5 sm:px-8 pb-4"
                   : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-5 sm:px-6"}>
                 {journeySteps.map((s) => (
-                  <div key={s.n} className="bg-[#0B0B12] border border-white/10 rounded-2xl p-6 sm:p-7 h-[240px] w-[300px] sm:w-[340px] flex flex-col justify-between shrink-0">
+                  <div key={s.n} className="bg-white/85 border border-[#17131F]/8 rounded-2xl p-6 sm:p-7 h-[240px] w-[300px] sm:w-[340px] flex flex-col justify-between shrink-0">
                     <Mono className="text-[13px] font-semibold tracking-[0.2em]" style={{ color: ACCENT }}>0{s.n}</Mono>
                     <div>
-                      <h3 className="text-[19px] font-bold text-white mb-1.5" style={{ fontFamily: display }}>{s.t}</h3>
-                      <p className="text-[12.5px] text-white/50 leading-relaxed">{s.d}</p>
+                      <h3 className="text-[19px] font-bold text-[#17131F] mb-1.5" style={{ fontFamily: display }}>{s.t}</h3>
+                      <p className="text-[12.5px] text-[#17131F]/55 leading-relaxed">{s.d}</p>
                     </div>
                   </div>
                 ))}
-                <div className="bg-[#0B0B12] border border-dashed border-[#2EE8A6]/40 rounded-2xl p-6 h-[240px] w-[300px] sm:w-[340px] flex flex-col items-start justify-center shrink-0">
+                <div className="bg-white/85 border border-dashed rounded-2xl p-6 h-[240px] w-[300px] sm:w-[340px] flex flex-col items-start justify-center shrink-0" style={{ borderColor: "rgba(124,58,237,0.45)" }}>
                   <Headphones className="w-8 h-8 mb-4" style={{ color: ACCENT }} strokeWidth={1.5} />
-                  <p className="text-[16px] font-bold text-white" style={{ fontFamily: display }}>{t.moreVoices}</p>
+                  <p className="text-[16px] font-bold text-[#17131F]" style={{ fontFamily: display }}>{t.moreVoices}</p>
                   <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                    className="mt-4 h-10 px-5 rounded-xl font-bold text-[13px] focus-ring hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
+                    className="mt-4 h-10 px-5 rounded-xl font-bold text-[13px] text-white focus-ring hover:brightness-110" style={{ background: ACCENT }}>
                     {t.tryFree}
                   </button>
                 </div>
@@ -1383,15 +1419,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="sw-reveal">
                 <SectionHead no="03" kicker={t.useKicker} title={t.useTitle} font={display} />
               </div>
-              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[#17131F]/10 rounded-2xl overflow-hidden border border-[#17131F]/10">
                 {uses.map((u) => (
-                  <div key={u.t} className="sw-reveal bg-[#0B0B12]">
+                  <div key={u.t} className="sw-reveal bg-white/85">
                     <div className="p-6 h-full">
-                      <div className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center mb-4" style={{ color: ACCENT }}>
+                      <div className="w-10 h-10 rounded-xl border border-[#17131F]/8 bg-[#7C3AED]/10 flex items-center justify-center mb-4" style={{ color: ACCENT }}>
                         <u.icon className="w-[18px] h-[18px]" />
                       </div>
-                      <h3 className="text-[15px] font-bold text-white mb-1">{u.t}</h3>
-                      <p className="text-[12.5px] text-white/50 leading-relaxed">{u.d}</p>
+                      <h3 className="text-[15px] font-bold text-[#17131F] mb-1">{u.t}</h3>
+                      <p className="text-[12.5px] text-[#17131F]/55 leading-relaxed">{u.d}</p>
                     </div>
                   </div>
                 ))}
@@ -1400,12 +1436,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </section>
 
           {/* COST */}
-          <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
+          <section className="py-16 sm:py-24">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6 grid lg:grid-cols-12 gap-10 items-center">
               <div className="lg:col-span-5">
                 <div className="sw-reveal">
                   <SectionHead no="04" kicker={t.costKicker} title={t.costTitle} sub={t.costSub} font={display} />
-                  <ul className="mt-6 space-y-2.5 text-[13px] text-white/70">
+                  <ul className="mt-6 space-y-2.5 text-[13px] text-[#17131F]/70">
                     {[
                       isRTL ? "50 نقطة مجاناً عند التسجيل." : "50 points offerts à l'inscription.",
                       isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
@@ -1420,27 +1456,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
               </div>
               <div className="lg:col-span-7">
-                <div className="sw-reveal rounded-2xl border border-white/10 bg-[#0E0E16] p-6 sm:p-8">
-                  <Mono className="block text-[10px] tracking-[0.22em] uppercase text-white/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</Mono>
+                <div className="sw-reveal rounded-2xl border border-[#17131F]/8 bg-white/85 p-6 sm:p-8">
+                  <Mono className="block text-[10px] tracking-[0.22em] uppercase text-[#17131F]/40 mb-4">{isRTL ? "احسب" : "Estimateur"}</Mono>
                   <div className="grid grid-cols-4 gap-2 mb-6">
                     {COST_STEPS.map((s, i) => (
                       <button key={s.sec} type="button" onClick={() => setCostIdx(i)}
-                        className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "" : "text-white/60 border border-white/10 bg-white/5 hover:text-white"}`}
-                        style={costIdx === i ? { background: ACCENT, color: BG0 } : undefined}>
+                        className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "text-white" : "text-[#17131F]/60 border border-[#17131F]/10 bg-white/70 hover:text-[#17131F]"}`}
+                        style={costIdx === i ? { background: ACCENT } : undefined}>
                         {isRTL ? s.labelAr : s.labelFr}
                       </button>
                     ))}
                   </div>
                   <div className="flex items-end justify-between gap-4 flex-wrap">
                     <div>
-                      <Mono className="block text-[10px] uppercase tracking-[0.18em] text-white/40 mb-1">{isRTL ? "التكلفة" : "Coût"}</Mono>
-                      <div className="text-[52px] leading-none font-bold text-white" style={{ fontFamily: NUM_STACK }}>
+                      <Mono className="block text-[10px] uppercase tracking-[0.18em] text-[#17131F]/40 mb-1">{isRTL ? "التكلفة" : "Coût"}</Mono>
+                      <div className="text-[52px] leading-none font-bold text-[#17131F]" style={{ fontFamily: NUM_STACK }}>
                         <Num><span ref={costNumRef}>{COST_STEPS[costIdx].pts}</span></Num>
-                        <span className="text-[15px] font-semibold text-white/40 ms-2">{t.pts}</span>
+                        <span className="text-[15px] font-semibold text-[#17131F]/40 ms-2">{t.pts}</span>
                       </div>
                     </div>
                     <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                      className="h-11 px-5 rounded-xl font-bold text-[13px] focus-ring hover:brightness-110 transition" style={{ background: ACCENT, color: BG0 }}>
+                      className="h-11 px-5 rounded-xl font-bold text-[13px] text-white focus-ring hover:brightness-110 transition" style={{ background: ACCENT }}>
                       {t.tryFree}
                     </button>
                   </div>
@@ -1449,21 +1485,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </section>
 
-          {/* METRICS — compteurs GSAP */}
+          {/* METRICS */}
           <section className="py-16 sm:py-24">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
               <div className="sw-reveal">
                 <SectionHead no="05" kicker={t.metricsKicker} title={t.metricsTitle} center font={display} />
               </div>
-              <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
+              <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-px bg-[#17131F]/10 rounded-2xl overflow-hidden border border-[#17131F]/10">
                 {metrics.map((m) => (
-                  <div key={m.l} className="bg-[#0B0B12]">
+                  <div key={m.l} className="bg-white/85">
                     <div className="p-8 text-center">
-                      <div className="sw-count text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-bold text-white mb-2"
+                      <div className="sw-count text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-bold text-[#17131F] mb-2"
                         style={{ fontFamily: NUM_STACK }} data-target={m.n} data-suffix={m.s}>
                         {m.n.toLocaleString("fr-FR")}{m.s}
                       </div>
-                      <Mono className="text-[10px] uppercase tracking-[0.2em] text-white/40">{m.l}</Mono>
+                      <Mono className="text-[10px] uppercase tracking-[0.2em] text-[#17131F]/45">{m.l}</Mono>
                     </div>
                   </div>
                 ))}
@@ -1472,7 +1508,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </section>
 
           {/* TESTIMONIALS */}
-          <section className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
+          <section className="py-16 sm:py-24">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
               <div className="sw-reveal">
                 <SectionHead no="06" kicker={t.testKicker} title={t.testTitle} center font={display} />
@@ -1483,34 +1519,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <div className="flex justify-center gap-1 mb-5">
                       {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4" style={{ color: ACCENT, fill: ACCENT }} />)}
                     </div>
-                    <blockquote className="text-[clamp(1.25rem,2.6vw,1.8rem)] leading-[1.35] font-semibold text-white" style={{ fontFamily: display }}>
+                    <blockquote className="text-[clamp(1.25rem,2.6vw,1.8rem)] leading-[1.35] font-semibold text-[#17131F]" style={{ fontFamily: display }}>
                       “{testimonials[activeTesti].q}”
                     </blockquote>
                     <div className="mt-7 flex items-center justify-center gap-3">
-                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold" style={{ background: `linear-gradient(135deg, ${ACCENT}, #A8FCE0)`, color: BG0 }}>
+                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${MESH.pink})` }}>
                         {testimonials[activeTesti].img}
                       </div>
                       <div className="text-start">
-                        <div className="text-[13.5px] font-bold text-white">{testimonials[activeTesti].n}</div>
-                        <div className="text-[12px] text-white/50">{testimonials[activeTesti].r}</div>
+                        <div className="text-[13.5px] font-bold text-[#17131F]">{testimonials[activeTesti].n}</div>
+                        <div className="text-[12px] text-[#17131F]/50">{testimonials[activeTesti].r}</div>
                       </div>
                     </div>
                   </motion.div>
                 </AnimatePresence>
                 <div className="mt-8 flex items-center justify-center gap-4">
                   <button type="button" onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)}
-                    className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring" aria-label={isRTL ? "السابق" : "Précédent"}>
+                    className="w-10 h-10 rounded-full border border-[#17131F]/15 bg-white/70 hov-accent text-[#17131F]/60 flex items-center justify-center focus-ring" aria-label={isRTL ? "السابق" : "Précédent"}>
                     {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
                   </button>
                   <div className="flex items-center gap-2">
                     {testimonials.map((_, i) => (
                       <button key={i} type="button" onClick={() => setActiveTesti(i)} aria-label={`${i + 1}`}
-                        className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-white/20 hover:bg-white/40"}`}
+                        className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-[#17131F]/20 hover:bg-[#17131F]/40"}`}
                         style={i === activeTesti ? { background: ACCENT } : undefined} />
                     ))}
                   </div>
                   <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
-                    className="w-10 h-10 rounded-full border border-white/20 hov-accent text-white/70 flex items-center justify-center focus-ring" aria-label={isRTL ? "التالي" : "Suivant"}>
+                    className="w-10 h-10 rounded-full border border-[#17131F]/15 bg-white/70 hov-accent text-[#17131F]/60 flex items-center justify-center focus-ring" aria-label={isRTL ? "التالي" : "Suivant"}>
                     {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                   </button>
                 </div>
@@ -1518,39 +1554,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </section>
 
-          {/* PRICING — points uniquement, PAS de minutes */}
+          {/* PRICING */}
           <section id="pricing" className="py-16 sm:py-24">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
               <div className="sw-reveal">
                 <SectionHead no="07" kicker={t.pricingKicker} title={t.pricingTitle} sub={t.pricingSub} center font={display} />
               </div>
-              <div className="sw-reveal mb-10 mt-10 max-w-2xl mx-auto flex items-start gap-3 rounded-xl border px-4 py-3.5 text-[13px] text-white/70"
-                style={{ borderColor: "rgba(46,232,166,0.3)", background: "rgba(46,232,166,0.07)" }}>
+              <div className="sw-reveal mb-10 mt-10 max-w-2xl mx-auto flex items-start gap-3 rounded-xl border px-4 py-3.5 text-[13px] text-[#17131F]/75"
+                style={{ borderColor: "rgba(124,58,237,0.3)", background: "rgba(124,58,237,0.06)" }}>
                 <Gift className="w-4 h-4 mt-0.5 shrink-0" style={{ color: ACCENT }} />
                 <span>{t.welcomeBanner}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {pricing.map((p) => (
                   <div key={p.pts} className="sw-reveal">
-                    <div className={`relative rounded-2xl border p-6 h-full flex flex-col ${p.featured ? "border-[#2EE8A6]/60" : "border-white/10 bg-[#0E0E16] card-lift"}`}
-                      style={p.featured ? { background: "linear-gradient(180deg, rgba(46,232,166,0.10) 0%, #0E0E16 55%)" } : undefined}>
+                    <div className={`relative rounded-2xl border p-6 h-full flex flex-col ${p.featured ? "border-transparent text-white" : "border-[#17131F]/8 bg-white/85 card-lift"}`}
+                      style={p.featured ? { background: `linear-gradient(160deg, ${ACCENT} 0%, ${MESH.pink} 130%)`, boxShadow: "0 22px 50px -20px rgba(124,58,237,0.5)" } : undefined}>
                       {p.featured && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.12em] uppercase whitespace-nowrap"
-                          style={{ background: ACCENT, color: BG0 }}>
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.12em] uppercase whitespace-nowrap text-[#17131F]" style={{ background: "#fff" }}>
                           {t.popular}
                         </div>
                       )}
-                      <div className="text-[42px] leading-none font-bold text-white mb-1" style={{ fontFamily: NUM_STACK }}><Num>{p.ptsLabel}</Num></div>
-                      <Mono className="block text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">{t.pts}</Mono>
-                      <div className="h-px bg-white/10 mb-4" />
-                      <p className="text-[12px] text-white/60 mb-5 flex-1 leading-relaxed">{p.desc}</p>
+                      <div className="text-[42px] leading-none font-bold mb-1" style={{ fontFamily: NUM_STACK }}><Num>{p.ptsLabel}</Num></div>
+                      <Mono className="block text-[10px] uppercase tracking-[0.2em] mb-4" style={{ color: p.featured ? "rgba(255,255,255,0.7)" : "rgba(23,19,31,0.4)" }}>{t.pts}</Mono>
+                      <div className="h-px mb-4" style={{ background: p.featured ? "rgba(255,255,255,0.25)" : "rgba(23,19,31,0.1)" }} />
+                      <p className={`text-[12px] mb-5 flex-1 leading-relaxed ${p.featured ? "text-white/85" : "text-[#17131F]/60"}`}>{p.desc}</p>
                       <div className="flex items-baseline gap-1.5 mb-5">
-                        <span className="text-[24px] font-bold text-white"><Num>{p.price}</Num></span>
-                        <span className="text-[11px] text-white/40 font-semibold">DZD</span>
+                        <span className="text-[24px] font-bold"><Num>{p.price}</Num></span>
+                        <span className={`text-[11px] font-semibold ${p.featured ? "text-white/70" : "text-[#17131F]/40"}`}>DZD</span>
                       </div>
                       <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                        className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring ${p.featured ? "hover:brightness-110" : "border border-white/20 bg-white/5 text-white hov-accent"}`}
-                        style={p.featured ? { background: ACCENT, color: BG0 } : undefined}>
+                        className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring ${p.featured ? "bg-white text-[#17131F] hover:brightness-95" : "bg-[#17131F] text-white hover:bg-[#7C3AED]"}`}>
                         {t.choose}
                       </button>
                     </div>
@@ -1561,7 +1595,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </section>
 
           {/* FAQ */}
-          <section id="faq" className="py-16 sm:py-24 bg-[#0A0A10] border-y border-white/10">
+          <section id="faq" className="py-16 sm:py-24">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
               <div className="grid lg:grid-cols-12 gap-10">
                 <div className="lg:col-span-4">
@@ -1570,23 +1604,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
                 <div className="lg:col-span-7 lg:col-start-6">
-                  <div className="sw-reveal bg-[#0E0E16] rounded-2xl border border-white/10 overflow-hidden">
+                  <div className="sw-reveal bg-white/85 rounded-2xl border border-[#17131F]/8 overflow-hidden">
                     {faqs.map((f, i) => {
                       const open = openFaq === i;
                       return (
-                        <div key={f.q} className="border-b border-white/10 last:border-b-0">
+                        <div key={f.q} className="border-b border-[#17131F]/8 last:border-b-0">
                           <button type="button" onClick={() => setOpenFaq(open ? null : i)}
                             className="w-full py-5 px-5 sm:px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
-                            <span className="flex-1 text-[14.5px] font-semibold text-white group-hover:text-[#2EE8A6] transition-colors">{f.q}</span>
-                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45" : "text-white/60 bg-white/5"}`}
-                              style={open ? { background: ACCENT, color: BG0 } : undefined}>
+                            <span className="flex-1 text-[14.5px] font-semibold text-[#17131F] group-hover:text-[#7C3AED] transition-colors">{f.q}</span>
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45 text-white" : "text-[#17131F]/60 bg-[#17131F]/5"}`}
+                              style={open ? { background: ACCENT } : undefined}>
                               <Plus className="w-4 h-4" />
                             </span>
                           </button>
                           <AnimatePresence initial={false}>
                             {open && (
                               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
-                                <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-white/60 leading-relaxed">{f.a}</p>
+                                <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-[#17131F]/60 leading-relaxed">{f.a}</p>
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -1599,25 +1633,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </section>
 
-          {/* CTA FINAL */}
+          {/* CTA FINAL — panneau violet/rose qui rappelle le mesh */}
           <section className="py-16 sm:py-24">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
-              <div className="sw-reveal relative rounded-[28px] border border-white/10 bg-[#0E0E16] p-12 sm:p-16 text-center overflow-hidden">
-                <div className="absolute inset-0 bg-grid" aria-hidden
-                  style={{ maskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)", WebkitMaskImage: "radial-gradient(70% 80% at 50% 50%, black, transparent)" }} />
-                <div className="sw-orb absolute top-8 start-[15%] w-40 h-40 rounded-full blur-3xl" style={{ background: "rgba(46,232,166,0.14)" }} data-speed="0.9" aria-hidden />
-                <div className="sw-orb absolute bottom-8 end-[15%] w-48 h-48 rounded-full blur-3xl" style={{ background: "rgba(46,232,166,0.1)" }} data-speed="1.1" aria-hidden />
+              <div className="sw-reveal relative rounded-[28px] p-12 sm:p-16 text-center text-white overflow-hidden"
+                style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #8b5cf6 45%, ${MESH.pink} 120%)` }}>
+                <div className="sw-orb absolute top-8 start-[15%] w-40 h-40 rounded-full blur-3xl" style={{ background: "rgba(255,255,255,0.25)" }} data-speed="0.9" aria-hidden />
+                <div className="sw-orb absolute bottom-8 end-[15%] w-48 h-48 rounded-full blur-3xl" style={{ background: "rgba(255,255,255,0.18)" }} data-speed="1.1" aria-hidden />
                 <div className="relative">
-                  <h2 key={language} ref={ctaTitleRef} className="text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.04] tracking-[-0.02em] font-bold text-white" style={{ fontFamily: display }}>
+                  <h2 key={language} ref={ctaTitleRef} className="text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.04] tracking-[-0.02em] font-bold" style={{ fontFamily: display }}>
                     {t.ctaTitle}
                   </h2>
-                  <p className="mt-4 text-[15px] text-white/60 max-w-md mx-auto">{t.ctaSub}</p>
+                  <p className="mt-4 text-[15px] text-white/75 max-w-md mx-auto">{t.ctaSub}</p>
                   <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                    className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-bold text-[15px] transition focus-ring hover:brightness-110"
-                    style={{ background: ACCENT, color: BG0, boxShadow: "0 0 40px rgba(46,232,166,0.3)" }}>
+                    className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-bold text-[15px] text-[#17131F] transition focus-ring hover:scale-[1.02]"
+                    style={{ background: "#fff", boxShadow: "0 16px 40px -12px rgba(0,0,0,0.35)" }}>
                     {t.tryFree}<ArrowIcon className="w-4 h-4" />
                   </button>
-                  <Mono className="block mt-5 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                  <Mono className="block mt-5 text-[10px] uppercase tracking-[0.2em] text-white/70">
                     {isRTL ? "بدون بطاقة · 50 نقطة مجاناً" : "Sans carte · 50 points offerts"}
                   </Mono>
                 </div>
@@ -1626,47 +1659,47 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </section>
 
           {/* FOOTER */}
-          <footer id="contact" className="border-t border-white/10 pt-12 pb-28 sm:pb-12">
+          <footer id="contact" className="pt-12 pb-28 sm:pb-12">
             <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
                 <div className="lg:col-span-2">
                   <Logo size={38} />
-                  <p className="mt-4 text-[13px] text-white/50 max-w-sm leading-relaxed">
+                  <p className="mt-4 text-[13px] text-[#17131F]/55 max-w-sm leading-relaxed">
                     {isRTL
                       ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوتًا طبيعيًا، جاهزًا للإعلان."
                       : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}
                   </p>
-                  <p className="mt-3 text-[12px] font-semibold text-white/70 flex items-center gap-2">
+                  <p className="mt-3 text-[12px] font-semibold text-[#17131F]/70 flex items-center gap-2">
                     <Headphones className="w-3.5 h-3.5" style={{ color: ACCENT }} /> Alger, Algérie · {t.footTag}
                   </p>
                 </div>
                 <div>
-                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{isRTL ? "المنصة" : "Produit"}</Mono>
+                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#17131F]/40 mb-3">{isRTL ? "المنصة" : "Produit"}</Mono>
                   <div className="flex flex-col gap-2 text-[13px] font-medium">
                     {nav.map((l) => (
-                      <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="text-white/60 hover:text-[#2EE8A6] transition-colors">{l.label}</a>
+                      <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); smoothTo(l.href); }} className="text-[#17131F]/60 hover:text-[#7C3AED] transition-colors">{l.label}</a>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-3">{t.contact}</Mono>
-                  <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold text-white/70 hover:text-[#2EE8A6] transition-colors">contact@sawtify.dz</a>
+                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#17131F]/40 mb-3">{t.contact}</Mono>
+                  <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold text-[#17131F]/70 hover:text-[#7C3AED] transition-colors">contact@sawtify.dz</a>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {["Edahabia", "CIB", "SATIM"].map((p) => (
-                      <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border border-white/10 text-white/60">{p}</span>
+                      <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border border-[#17131F]/10 bg-white/60 text-[#17131F]/60">{p}</span>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/50">
+                  <div className="mt-4 flex items-center gap-1.5 text-[11px] text-[#17131F]/50">
                     <ShieldCheck className="w-3.5 h-3.5" style={{ color: ACCENT }} />
                     {isRTL ? "دفع آمن، لا نخزّن رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-white/10 text-[12px] text-white/40">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-[#17131F]/10 text-[12px] text-[#17131F]/45">
                 <span>© <Num>2026</Num> Sawtify · {t.footTag}</span>
                 <div className="flex items-center gap-4">
-                  <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#2EE8A6] transition-colors">{t.cgu}</button>
-                  <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#2EE8A6] transition-colors">{t.privacy}</button>
+                  <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#7C3AED] transition-colors">{t.cgu}</button>
+                  <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#7C3AED] transition-colors">{t.privacy}</button>
                 </div>
               </div>
             </div>
@@ -1675,10 +1708,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
       {/* ================= FIN SMOOTH WRAPPER ================= */}
 
-      {/* CTA MOBILE STICKY (hors smoother : fixe) */}
-      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-[#07070C]/95 backdrop-blur-xl border-t border-white/10">
+      {/* CTA MOBILE STICKY */}
+      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-white/90 backdrop-blur-xl border-t border-[#17131F]/8">
         <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-          className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2" style={{ background: ACCENT, color: BG0 }}>
+          className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 text-white" style={{ background: ACCENT }}>
           {t.tryFree} · 50 {t.pts}
         </button>
       </div>
@@ -1687,21 +1720,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatePresence>
         {listenVoice && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/60" onClick={() => { setListenVoice(null); stopSpeech(); }} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-[#17131F]/40" onClick={() => { setListenVoice(null); stopSpeech(); }} />
             <motion.div role="dialog" aria-modal="true" aria-labelledby="listen-title"
               initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
-              className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl">
+              className="fixed z-[71] inset-x-4 bottom-6 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-white border border-[#17131F]/10 rounded-2xl p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40 mb-1">{t.listenInStudio}</Mono>
-                  <h3 id="listen-title" className="text-[22px] font-bold text-white">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
-                  <p className="text-[12px] text-white/50">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
+                  <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#17131F]/40 mb-1">{t.listenInStudio}</Mono>
+                  <h3 id="listen-title" className="text-[22px] font-bold text-[#17131F]">{isRTL ? listenVoice.nameAr : listenVoice.nameFr}</h3>
+                  <p className="text-[12px] text-[#17131F]/50">{isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}</p>
                 </div>
-                <button type="button" onClick={() => { setListenVoice(null); stopSpeech(); }} className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
-                  <X className="w-4 h-4 text-white" />
+                <button type="button" onClick={() => { setListenVoice(null); stopSpeech(); }} className="w-9 h-9 rounded-full hover:bg-[#17131F]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  <X className="w-4 h-4 text-[#17131F]" />
                 </button>
               </div>
-              <div className="rounded-xl border border-white/5 p-4 mb-4" style={{ background: `${listenVoice.color}0F` }}>
+              <div className="rounded-xl border border-[#17131F]/5 p-4 mb-4" style={{ background: `${listenVoice.color}0D` }}>
                 <Waveform color={listenVoice.color} playing={playingId === listenVoice.id} bars={30} />
                 <button type="button"
                   onClick={() => (playingId === listenVoice.id ? stopSpeech() : speak(listenVoice, language))}
@@ -1712,14 +1745,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     ? <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
                     : <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>}
                 </button>
-                <p className="mt-2 text-[11px] text-center text-white/40">{speechSupported ? t.browserNote : t.noSpeechNote}</p>
+                <p className="mt-2 text-[11px] text-center text-[#17131F]/45">{speechSupported ? t.browserNote : t.noSpeechNote}</p>
               </div>
-              <p className="text-[13px] leading-relaxed text-white/70 mb-2" dir="auto">
+              <p className="text-[13px] leading-relaxed text-[#17131F]/70 mb-2" dir="auto">
                 “{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…”
               </p>
-              <p className="text-[13px] text-white/60 leading-relaxed mb-5">{t.listenBody}</p>
+              <p className="text-[13px] text-[#17131F]/60 leading-relaxed mb-5">{t.listenBody}</p>
               <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
-                className="w-full h-12 rounded-xl font-bold text-[14px] transition hover:brightness-110" style={{ background: ACCENT, color: BG0 }}>
+                className="w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110" style={{ background: ACCENT }}>
                 {t.moreVoices} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
               </button>
             </motion.div>
@@ -1731,17 +1764,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatePresence>
         {legal && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/60" onClick={() => setLegal(null)} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-[#17131F]/40" onClick={() => setLegal(null)} />
             <motion.div role="dialog" aria-modal="true"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-              className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-[#0E0E16] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto scrollbar-none">
+              className="fixed z-[71] inset-x-4 top-[12%] sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg bg-white border border-[#17131F]/10 rounded-2xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto scrollbar-none">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[18px] font-bold text-white">{legal === "cgu" ? t.cgu : t.privacy}</h3>
-                <button type="button" onClick={() => setLegal(null)} className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring" aria-label={t.close}>
-                  <X className="w-4 h-4 text-white" />
+                <h3 className="text-[18px] font-bold text-[#17131F]">{legal === "cgu" ? t.cgu : t.privacy}</h3>
+                <button type="button" onClick={() => setLegal(null)} className="w-9 h-9 rounded-full hover:bg-[#17131F]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  <X className="w-4 h-4 text-[#17131F]" />
                 </button>
               </div>
-              <p className="text-[13px] leading-relaxed text-white/60">{legalCopy[legal]}</p>
+              <p className="text-[13px] leading-relaxed text-[#17131F]/60">{legalCopy[legal]}</p>
             </motion.div>
           </>
         )}
