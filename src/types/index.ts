@@ -11,8 +11,6 @@ export interface Voice {
   sampleAudioUrl?: string;
   badge?: string;
   styles: string[];
-  /** Extrait audio fixe (déjà enregistré) — évite un appel API à chaque écoute d'aperçu. */
-  sampleAudioUrl?: string;
 }
 
 export interface CreditPack {

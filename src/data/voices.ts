@@ -15,8 +15,7 @@ export const VOICES_FR: Voice[] = [
     sampleText: 'Salam alaykoum khawti ! Avec Sawtify, vos textes deviennent une voix humaine 100% naturelle et de haute qualité.',
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3',
     badge: 'Le plus populaire',
-    styles: ['Naturel', 'Dynamique', 'Publicitaire'],
-    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3'
+    styles: ['Naturel', 'Dynamique', 'Publicitaire']
   },
   {
     id: 'voice_yasmin',
@@ -30,8 +29,7 @@ export const VOICES_FR: Voice[] = [
     sampleText: 'Bienvenue à tous ! Découvrez la synthèse vocale IA algérienne au son chaleureux et d\'une clarté parfaite.',
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3',
     badge: 'Publicité & Commerce',
-    styles: ['Fluide', 'Souriante', 'Marketing'],
-    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3'
+    styles: ['Fluide', 'Souriante', 'Marketing']
   },
   {
     id: 'voice_khalid',
@@ -45,8 +43,7 @@ export const VOICES_FR: Voice[] = [
     sampleText: 'Nous vous présentons aujourd\'hui une technologie vocale d\'élite, avec une articulation précise et équilibrée.',
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav',
     badge: 'Documentaire & Formel',
-    styles: ['Solennel', 'Documentaire', 'Journalistique'],
-    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav'
+    styles: ['Solennel', 'Documentaire', 'Journalistique']
   },
   {
     id: 'voice_maryam',
@@ -58,6 +55,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'podcast',
     category: 'narrative',
     sampleText: 'Écoutez une diction fluide et harmonieuse, apportant une touche d\'élégance à tous vos podcasts et vidéos.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248186/Maryam.wav',
     badge: 'Podcast & Documentaire',
     styles: ['Professionnel', 'Apaisant', 'Pédagogique']
   },
@@ -71,6 +69,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'flame',
     category: 'commercial',
     sampleText: 'Bienvenue à tous ! Une expérience sonore algérienne dynamique et percutante, idéale pour vos spots publicitaires.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248190/rachide.wav',
     badge: 'Énergique & Publicité',
     styles: ['Puissant', 'Expressif', 'Récit']
   },
@@ -84,6 +83,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'zap',
     category: 'social',
     sampleText: 'Bonjour à tous ! Une voix dynamique, fraîche et rapide, parfaite pour vos stories Instagram et vidéos TikTok.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248175/layla.mp3',
     badge: 'TikTok & Réseaux',
     styles: ['Dynamique', 'Interactif', 'Lumineux']
   },
@@ -97,6 +97,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'audio-lines',
     category: 'narrative',
     sampleText: 'Avec Sawtify, le rendu vocal est si naturel qu\'on croirait un présentateur en studio d\'enregistrement.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248188/bilel.mp3',
     badge: 'Narration & Récit',
     styles: ['Chaleureux', 'Authentique', 'Narratif']
   },
@@ -110,6 +111,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'volume-2',
     category: 'social',
     sampleText: 'Profitez d\'une élocution limpide et agréable pour tous les auditeurs, avec une intonation douce et fluide.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248191/nour.mp3',
     badge: 'Doux & Fluide',
     styles: ['Doux', 'Harmonieux', 'Interactif']
   },
@@ -123,6 +125,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'megaphone',
     category: 'commercial',
     sampleText: 'Vous recherchez une voix-off professionnelle pour votre entreprise ou vos produits ? Vous êtes au bon endroit.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248187/faycel.mp3',
     badge: 'Commerce & Vente',
     styles: ['Assuré', 'Commercial', 'Direct']
   }
@@ -141,8 +144,7 @@ export const VOICES_AR: Voice[] = [
     sampleText: 'سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي مئة بالمئة بلا أي نبرة آلية وبأعلى جودة.',
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3',
     badge: 'الأكثر طلباً',
-    styles: ['طبيعي', 'حيوي', 'إعلاني'],
-    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3'
+    styles: ['طبيعي', 'حيوي', 'إعلاني']
   },
   {
     id: 'voice_yasmin',
@@ -156,8 +158,7 @@ export const VOICES_AR: Voice[] = [
     sampleText: 'مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق، صوت دافئ وبلا أي روبوتيك.',
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3',
     badge: 'إعلانات وتجارة',
-    styles: ['انسيابي', 'مبتسم', 'تسويقي'],
-    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3'
+    styles: ['انسيابي', 'مبتسم', 'تسويقي']
   },
   {
     id: 'voice_khalid',
@@ -171,8 +172,7 @@ export const VOICES_AR: Voice[] = [
     sampleText: 'السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي ومخارج حروف واضحة ومتقنة.',
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav',
     badge: 'وثائقي ورسمي',
-    styles: ['وقور', 'وثائقي', 'إخباري'],
-    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav'
+    styles: ['وقور', 'وثائقي', 'إخباري']
   },
   {
     id: 'voice_maryam',
@@ -184,6 +184,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'podcast',
     category: 'narrative',
     sampleText: 'سلام، استمعوا لنطق دارجة جزائرية نقية وسلسة، تزيد لمسة احترافية وهادئة لكل الفيديوهات والبودكاست ديالكم.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248186/Maryam.wav',
     badge: 'بودكاست ورواية',
     styles: ['احترافي', 'هادئ', 'تعليمي']
   },
@@ -197,6 +198,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'flame',
     category: 'commercial',
     sampleText: 'يا هلا بيكم خاوتنا العزاز! هاذي تجربة صوتية جزائرية قوية وصافية، هايلة للسبوتات الإشهارية والحكايات المشوقة.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248190/rachide.wav',
     badge: 'حماسي وإشهاري',
     styles: ['قوي', 'معبر', 'قصصي']
   },
@@ -210,6 +212,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'zap',
     category: 'social',
     sampleText: 'أهلاً وسهلاً بيكم! صوت حيوي، خفيف على الودن وسريع، يوالم ستوريات إنستغرام، تيك توك وخدمة الزبائن.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248175/layla.mp3',
     badge: 'تيك توك وريلز',
     styles: ['حيوي', 'تفاعلي', 'مشرق']
   },
@@ -223,6 +226,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'audio-lines',
     category: 'narrative',
     sampleText: 'صحا خاوتي، مع صوتيفي ما تزيدش تشقى تسجل، الصوت يخرج طبيعي وسلس كأنو متحدث جزائري حقيقي معاك في الستوديو.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248188/bilel.mp3',
     badge: 'سردي وقصصي',
     styles: ['دافئ', 'طبيعي', 'سردي']
   },
@@ -236,6 +240,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'volume-2',
     category: 'social',
     sampleText: 'مرحباً بيكم، تمتعوا بنطق دارجة واضحة ومفهومة عند كامل الجزائريين، بنبرة خفيفة ومريحة تسمعها بلا ما تعيا.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248191/nour.mp3',
     badge: 'لطيف ومرن',
     styles: ['لطيف', 'ناعم', 'تفاعلي']
   },
@@ -249,6 +254,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'megaphone',
     category: 'commercial',
     sampleText: 'واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر دارجة جزائرية احترافية للمشروع ولا السلعة ديالك، راك في المكان الصحيح.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248187/faycel.mp3',
     badge: 'تجارة وتسويق',
     styles: ['واثق', 'تجاري', 'مباشر']
   }
