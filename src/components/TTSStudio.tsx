@@ -50,7 +50,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     ? '[excited] أسمع مليح خاوتي! مع la plateforme Sawtify جديدة ديالنا... [natural] نصوصكم تتحول لـ voix humaine طبيعية 100%.'
     : '[excited] Écoute bien ya khawti ! Avec notre nouvelle plateforme Sawtify... [natural] tes textes se transforment en voix humaine 100% naturelle.';
 
-  const [text, setText] = useState<string>(defaultStarterText);
+  const [text, setText] = useState<string>(() => {
+    try { return localStorage.getItem('sawtify_draft_text') || defaultStarterText; } catch { return defaultStarterText; }
+  });
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_amin');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
@@ -147,6 +149,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
     previousMp3UrlRef.current = mp3Url;
   }, [mp3Url]);
+
+  useEffect(() => {
+    try { localStorage.setItem('sawtify_draft_text', text); } catch {}
+  }, [text]);
 
   const handleInsertTag = useCallback((tag: string) => {
     if (!textareaRef.current) return;

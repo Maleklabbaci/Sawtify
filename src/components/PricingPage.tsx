@@ -67,7 +67,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     if (invoiceId && !isSuccess) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`);
+          const { getMyAccessToken } = await import('../services/supabaseClient');
+          const token = await getMyAccessToken();
+          const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
           if (res.ok) {
             const data = await res.json();
             if (data.isPaid || data.status === 'completed' || data.status === 'paid') {
@@ -143,7 +145,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           } catch (e) {}
         }
       } else {
-        setStatusMessage(data.message || (language === 'ar' ? 'حدث خطأ أثناء إنشاء الفاتورة' : 'Erreur lors de la création de la facture'));
+        setStatusMessage(data.error || data.message || data.diagnostics || (language === 'ar' ? 'حدث خطأ أثناء إنشاء الفاتورة' : 'Erreur lors de la création de la facture'));
       }
     } catch (err) {
       console.warn('[Pricing Checkout Error]:', err);
@@ -157,7 +159,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     if (!invoiceId) return;
     setIsProcessing(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`);
+          const { getMyAccessToken } = await import('../services/supabaseClient');
+          const token = await getMyAccessToken();
+          const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const statusData = await res.json();
       if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
         handlePaymentSuccess();
@@ -191,8 +195,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         </p>
       </div>
 
-      {/* Free Plan Status Banner */}
-      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+      {/* Free bonus status disappears once the account is above the free balance. */}
+      {balance <= 50 && <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center gap-4 text-left">
           <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
             <Sparkles className="w-6 h-6" />
@@ -203,16 +207,18 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 {language === 'ar' ? 'الخطة المجانية الترحيبية' : 'Plan Gratuit Inclus'}
               </span>
               <span className="text-xs font-num font-bold text-slate-900">
-                {balance} / 50 {t.pointsLabel}
+                {balance} {t.pointsLabel}
               </span>
             </div>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 mt-1">
-              {language === 'ar' ? '50 نقطة ترحيبية مجانية (20 نقطة / توليد)' : '50 points gratuits (20 points / génération vocale)'}
+                {balance <= 50
+                  ? (language === 'ar' ? 'رصيد الترحيب المجاني : 50 نقطة (20 نقطة / توليد)' : 'Bonus gratuit initial : 50 points (20 points / génération vocale)')
+                  : (language === 'ar' ? 'الدفع حسب الاستهلاك — رصيدك الحالي' : 'Pay-as-you-go — votre solde actuel')}
             </h3>
             <p className="text-xs text-slate-600 mt-0.5">
               {language === 'ar' 
-                ? 'تتيح لك توليد تسجيلين كاملين بجودة 24 kHz (40 نقطة) مع بقاء 10 نقاط في رصيدك.' 
-                : 'Permet 2 générations haute définition 24 kHz complètes (40 points) avec 10 points de réserve.'}
+                ? (balance <= 50 ? 'يمكنك استعمال نقاط الترحيب المجانية ثم تعبئة رصيدك عند الحاجة.' : 'اشحن النقاط عند الحاجة، ولا يوجد اشتراك شهري.')
+                : (balance <= 50 ? 'Les points gratuits sont utilisés en premier. Recharge uniquement quand tu en as besoin.' : 'Aucun abonnement mensuel : tu paies uniquement les points que tu recharges.')}
             </p>
           </div>
         </div>
@@ -225,7 +231,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           <span>{language === 'ar' ? 'جرب في الاستوديو' : 'Essayer au Studio'}</span>
           <ArrowRight className={`w-3.5 h-3.5 ${isRTL ? 'rotate-180' : ''}`} />
         </button>
-      </div>
+      </div>}
 
       {/* Pricing Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -120,7 +120,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
           } catch (e) {}
         }
       } else {
-        setStatusMessage(data.message || 'Erreur lors de la création de la facture');
+        setStatusMessage(data.error || data.message || data.diagnostics || 'Erreur lors de la création de la facture');
       }
     } catch (err) {
       console.warn('[SlickPay Init Warning]:', err);
@@ -136,7 +136,9 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
 
     pollIntervalRef.current = window.setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invId}`);
+        const { getMyAccessToken } = await import('../services/supabaseClient');
+        const token = await getMyAccessToken();
+        const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
         const statusData = await res.json();
         
         if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
@@ -201,7 +203,9 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
     if (!invoiceId) return;
     setIsProcessing(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`);
+      const { getMyAccessToken } = await import('../services/supabaseClient');
+      const token = await getMyAccessToken();
+      const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const statusData = await res.json();
       if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
         handlePaymentSuccess();

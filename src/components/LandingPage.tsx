@@ -1492,7 +1492,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <Mono className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#16121F]/40 mb-3">{t.contact}</Mono>
-                <a href="mailto:contact@sawtify.dz" className="text-[13px] font-semibold text-[#16121F]/70 hover:text-[#7C3AED] transition-colors">contact@sawtify.dz</a>
+                <div className="flex flex-col gap-2 text-[13px] font-semibold">
+                  <a href="mailto:SAWTIFYSPACE@GMAIL.COM" className="text-[#16121F]/70 hover:text-[#7C3AED] transition-colors">SAWTIFYSPACE@GMAIL.COM</a>
+                  <a href="tel:+213697660969" className="text-[#16121F]/70 hover:text-[#7C3AED] transition-colors">+213 697 660 969</a>
+                  <a href="https://www.instagram.com/sawtify.ai" target="_blank" rel="noreferrer" className="text-[#16121F]/70 hover:text-[#7C3AED] transition-colors">Instagram · @sawtify.ai</a>
+                </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {["Edahabia", "CIB", "SATIM"].map((p) => (
                     <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border bg-white text-[#16121F]/60" style={{ borderColor: BORDER }}>{p}</span>
@@ -1515,7 +1519,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </footer>
       </div>
 
-      {/* CTA MOBILE STICKY */}
+      {/* STICKY MOBILE CTA */}
       <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-white/95 backdrop-blur-xl" style={{ borderTop: `1px solid ${BORDER}` }}>
         <button type="button" onClick={() => { stopAllAudio(); onSigninClick(); }}
           className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 text-white" style={{ background: ACCENT }}>

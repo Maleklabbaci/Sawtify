@@ -219,24 +219,25 @@ function getPublicUrl(req?: express.Request, path = "/"): string {
 
 async function verifySlickPayInvoice(invoiceId: string): Promise<{ paid: boolean; data?: any; httpStatus?: number }> {
   if (!SLICKPAY_API_KEY) return { paid: false };
-  const endpoint = `${SLICKPAY_BASE_URL.replace(/\/+$/, "")}/users/invoices/${invoiceId}`;
-  try {
-    const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } });
-    if (!res.ok) {
-      console.warn(`[SlickPay] Vérification facture ${invoiceId} échouée (HTTP ${res.status}) sur ${endpoint}`);
-      return { paid: false, httpStatus: res.status };
-    }
-    const data = await res.json();
-    const invoiceData = data.invoice || data.data || data;
-    const status = (invoiceData.status || "").toLowerCase();
-    const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true;
-    return { paid: isPaid, data: invoiceData, httpStatus: res.status };
-  } catch (e: any) {
-    console.warn(`[SlickPay] Erreur réseau vérification facture ${invoiceId}:`, e?.message || e);
-    return { paid: false };
+  const endpoints = [
+    `${SLICKPAY_BASE_URL.replace(/\/+$/, "")}/users/invoices/${invoiceId}`,
+    `https://prodapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`,
+    `https://api.slick-pay.com/api/v2/users/invoices/${invoiceId}`,
+  ];
+  if (!SLICKPAY_BASE_URL.includes("devapi")) endpoints.push(`https://devapi.slick-pay.com/api/v2/users/invoices/${invoiceId}`);
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const invoiceData = data.invoice || data.data || data;
+      const status = String(invoiceData.payment_status || invoiceData.status || "").toLowerCase();
+      const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true || invoiceData.paid === true;
+      return { paid: isPaid, data: invoiceData, httpStatus: res.status };
+    } catch (e) {}
   }
+  return { paid: false };
 }
-
 
 async function loadInvoice(invoiceId: string): Promise<any | null> {
   let local = INVOICE_REGISTRY.get(invoiceId);
@@ -1326,14 +1327,20 @@ Style vocal souhaité : ${style || "excited"}`;
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
 
+      if (!SLICKPAY_API_KEY) return res.status(503).json({ success: false, error: "SlickPay n'est pas configuré sur le serveur." });
+      if (!contactUuid) return res.status(502).json({ success: false, error: "Impossible de créer le contact SlickPay. Vérifie l'e-mail et le numéro de téléphone." });
       const spRes = await fetch(primaryUrl, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(payload) });
       const spText = await spRes.text();
       let spData: any;
       try { spData = JSON.parse(spText); } catch { spData = { message: spText }; }
-      if (!spRes.ok || !(spData && (spData.success === 1 || spData.id || spData.url))) return res.status(502).json({ success: false, error: "Impossible de créer la facture SlickPay.", diagnostics: spData });
+      const invoiceData = spData?.data || spData?.invoice || spData;
+      if (!spRes.ok || !(invoiceData && (invoiceData.id || invoiceData.uuid || invoiceData.url))) {
+        console.error("[SlickPay create invoice]", spRes.status, spData);
+        return res.status(502).json({ success: false, error: "Impossible de créer la facture SlickPay.", diagnostics: spData?.message || spData?.error || `HTTP ${spRes.status}` });
+      }
 
-      const invoiceId = spData.id || `INV_${Date.now()}`;
-      const paymentUrl = spData.url || "";
+      const invoiceId = invoiceData.id || invoiceData.uuid || `INV_${Date.now()}`;
+      const paymentUrl = invoiceData.url || invoiceData.payment_url || "";
       const entry = { id: String(invoiceId), invoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", paymentUrl, createdAt: new Date().toISOString(), userId, payload: spData };
       await saveInvoice(entry);
       return res.json({ success: true, status: "created", invoiceId, paymentUrl, message: spData.message || "Facture créée", raw: spData });
@@ -1348,9 +1355,10 @@ Style vocal souhaité : ${style || "excited"}`;
       return res.status(403).json({ success: false, error: "Accès interdit." });
     }
     const verification = await verifySlickPayInvoice(invoiceId);
-    if (verification.paid && localRecord && localRecord.status !== "completed" && localRecord.status !== "paid") {
-      await updateInvoiceStatus(invoiceId, "completed");
+    if (verification.paid && localRecord) {
       const creditResult = await creditIfPaid(invoiceId);
+      if (!creditResult.credited) return res.status(500).json({ success: false, error: creditResult.error || "Crédit du compte impossible." });
+      await updateInvoiceStatus(invoiceId, "completed");
       return res.json({ success: true, invoiceId, status: "completed", isPaid: true, newBalance: creditResult.newBalance, data: verification.data });
     }
     const currentStatus = verification.data?.status?.toLowerCase() || localRecord?.status || "pending";
@@ -1367,9 +1375,9 @@ Style vocal souhaité : ${style || "excited"}`;
       if (!requesterId || requesterId !== entry.userId) return res.status(403).json({ success: false, error: "Interdit." });
       const verification = await verifySlickPayInvoice(invoiceId);
       if (!verification.paid) return res.status(402).json({ success: false, error: "Paiement non confirmé par SlickPay." });
-      await updateInvoiceStatus(invoiceId, "completed");
       const result = await creditIfPaid(invoiceId);
       if (!result.credited) return res.status(500).json({ success: false, error: result.error || "Erreur crédit." });
+      await updateInvoiceStatus(invoiceId, "completed");
       return res.json({ success: true, message: "Paiement validé", newBalance: result.newBalance, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
   });

@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
 import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { ReportWidget } from './components/ReportWidget';
 
 // Chargées à la demande seulement : évite d'embarquer ffmpeg.wasm, Supabase, etc.
 // dans le bundle initial affiché avant même la connexion (page trop longue à charger).
@@ -21,17 +22,34 @@ const ViewFallback = () => (
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
+  const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'pricing' => {
+    if (path === '/historique' || path === '/history') return 'history';
+    if (path === '/pricing' || path === '/recharge') return 'pricing';
+    return 'studio';
+  }, []);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'none' | 'login' | 'signin'>('none');
   const [needsPasswordSetup, setNeedsPasswordSetup] = useState<boolean>(false);
   const [pendingUserEmail, setPendingUserEmail] = useState<string | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>('studio');
+  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>(() => routeToTab(window.location.pathname));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
+
+  const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'pricing', replace = false) => {
+    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : '/studio';
+    if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
+    setActiveTab(tab);
+  }, []);
+
+  React.useEffect(() => {
+    const onPopState = () => setActiveTab(routeToTab(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [routeToTab]);
 
   // Recharge le solde, l'historique ET les achats réels depuis Supabase
   // (avant : "purchases" démarrait avec un faux achat mocké "pur_free_welcome"
@@ -63,7 +81,7 @@ function AppContent() {
       supabase.auth.getSession().then(({ data }) => {
         if (data.session) {
           setIsLoggedIn(true);
-          setActiveTab('studio');
+          navigateTo(routeToTab(window.location.pathname), true);
           refreshAccountData();
         } else {
           setIsBalanceLoading(false);
@@ -74,7 +92,7 @@ function AppContent() {
         if (event === 'SIGNED_IN' && session) {
           setIsLoggedIn(true);
           setAuthModalMode('none');
-          setActiveTab('studio');
+          navigateTo('studio');
           refreshAccountData();
 
           // FIX: le bonus de bienvenue (et donc le check anti-abus par IP) ne
@@ -126,7 +144,7 @@ function AppContent() {
     });
 
     return () => unsubscribe?.();
-  }, [language, refreshAccountData]);
+  }, [language, refreshAccountData, navigateTo, routeToTab]);
 
   // Check for SlickPay redirect return params
   React.useEffect(() => {
@@ -137,13 +155,14 @@ function AppContent() {
 
       if (paymentStatus === 'success' && pointsParam) {
         setIsLoggedIn(true);
+        navigateTo('pricing', true);
         refreshAccountData();
         showToast(language === 'ar' ? 'تم استلام الدفع بنجاح!' : 'Paiement validé avec succès !');
 
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch (e) {}
-  }, [language, refreshAccountData]);
+  }, [language, refreshAccountData, navigateTo]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -205,7 +224,7 @@ function AppContent() {
             onLoginSuccess={() => {
               setAuthModalMode('none');
               setIsLoggedIn(true);
-              setActiveTab('studio');
+              navigateTo('studio');
               showToast(language === 'ar' ? 'مرحباً بك مجدداً!' : 'Bon retour ! Connexion réussie.');
             }}
             onSwitchToSignin={() => setAuthModalMode('signin')}
@@ -223,7 +242,7 @@ function AppContent() {
             onSigninSuccess={() => {
               setAuthModalMode('none');
               setIsLoggedIn(true);
-              setActiveTab('studio');
+              navigateTo('studio');
               showToast(language === 'ar' ? 'تم إنشاء الحساب بنجاح! +50 نقطة هدية' : 'Compte créé avec succès ! +50 points offerts.');
             }}
             onSwitchToLogin={() => setAuthModalMode('login')}
@@ -259,7 +278,7 @@ function AppContent() {
       <Header
         balance={balance}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={navigateTo}
         historyCount={generations.length}
         onLogout={() => {
           import('./services/supabaseClient').then(({ signOutFromSupabase }) => signOutFromSupabase());
@@ -295,7 +314,7 @@ function AppContent() {
             <TTSStudio
               balance={balance}
               onDeductPoints={handleDeductPoints}
-              onOpenRecharge={() => setActiveTab('pricing')}
+              onOpenRecharge={() => navigateTo('pricing')}
               recentGenerations={generations}
             />
           )}
@@ -303,7 +322,7 @@ function AppContent() {
           {activeTab === 'history' && (
             <HistoryList
               generations={generations}
-              onNavigateToStudio={() => setActiveTab('studio')}
+              onNavigateToStudio={() => navigateTo('studio')}
             />
           )}
 
@@ -313,10 +332,12 @@ function AppContent() {
               onRechargeSuccess={handleRechargeSuccess}
               purchases={purchases}
               language={language}
+              onNavigateToStudio={() => navigateTo('studio')}
             />
           )}
         </Suspense>
       </main>
+      <ReportWidget />
 
     </div>
   );
