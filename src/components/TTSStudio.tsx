@@ -12,7 +12,7 @@ import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestG
 import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
-import { supabase, uploadGenerationAudio } from '../services/supabaseClient';
+import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
 
 interface TTSStudioProps {
@@ -113,6 +113,85 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const previewRequestRef = useRef<string | null>(null);
   const generationRequestLockRef = useRef(false);
 
+  // ------------------------------------------------------------------------
+  // FIX : résultat perdu quand on change d'onglet (Historique/Tarifs) puis
+  // revient sur le Studio, ou quand la page se recharge pendant/après une
+  // génération (écran de téléphone éteint, mise en veille...). La génération
+  // elle-même se termine toujours côté serveur quoi qu'il arrive côté
+  // navigateur — ce qui manquait, c'est de retrouver ce résultat au retour :
+  //  1. Au lancement d'une génération, on note "une génération est en cours"
+  //     dans le stockage local du navigateur.
+  //  2. Au montage du composant (retour sur l'onglet Studio, ou rechargement
+  //     de la page), si une génération était notée en cours, on va vérifier
+  //     dans l'historique si elle s'est terminée entretemps, et on l'affiche
+  //     directement — sans repayer, sans la relancer.
+  //  3. Sinon, on réaffiche simplement le tout dernier résultat généré, pour
+  //     ne pas perdre l'aperçu en changeant simplement d'onglet.
+  // ------------------------------------------------------------------------
+  const PENDING_GEN_KEY = 'sawtify_pending_generation';
+  const LAST_RESULT_KEY = 'sawtify_last_result';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restorePreviousState = async () => {
+      let pending: { startedAt: number; voiceId: string } | null = null;
+      try {
+        const raw = localStorage.getItem(PENDING_GEN_KEY);
+        if (raw) pending = JSON.parse(raw);
+      } catch {}
+
+      if (pending && Date.now() - pending.startedAt < 3 * 60 * 1000) {
+        // Une génération n'avait pas eu le temps de se terminer visuellement
+        // avant qu'on quitte/recharge la page : on la cherche pendant jusqu'à
+        // 30 secondes (le temps qu'elle finisse réellement côté serveur).
+        setIsGenerating(true);
+        for (let attempt = 0; attempt < 10 && !cancelled; attempt++) {
+          try {
+            const rows = await fetchMyGenerations(5);
+            const found = rows.find(r => new Date(r.createdAt).getTime() >= pending!.startedAt - 3000);
+            if (found) {
+              setCurrentAudioUrl(found.audioUrl || null);
+              setAudioDuration(found.durationSec || 0);
+              setLastGeneratedCost(found.pointsDeducted);
+              setIsGenerating(false);
+              showNotif(language === 'ar' ? '✅ تم استرجاع التسجيل المُنجز في الخلفية' : '✅ Génération terminée entretemps, résultat récupéré');
+              try {
+                localStorage.removeItem(PENDING_GEN_KEY);
+                localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: found.id, createdAt: found.createdAt }));
+              } catch {}
+              return;
+            }
+          } catch {}
+          if (!cancelled) await new Promise(r => setTimeout(r, 3000));
+        }
+        setIsGenerating(false);
+        try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
+        return;
+      }
+
+      // Pas de génération en attente : on réaffiche juste le dernier résultat
+      // connu (utile en revenant sur l'onglet Studio depuis Historique/Tarifs).
+      try {
+        const raw = localStorage.getItem(LAST_RESULT_KEY);
+        if (raw) {
+          const last = JSON.parse(raw);
+          const rows = await fetchMyGenerations(5);
+          const found = rows.find(r => r.id === last.id);
+          if (found && !cancelled) {
+            setCurrentAudioUrl(found.audioUrl || null);
+            setAudioDuration(found.durationSec || 0);
+            setLastGeneratedCost(found.pointsDeducted);
+          }
+        }
+      } catch {}
+    };
+
+    restorePreviousState();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const POINTS_COST = 20;
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const filteredVoices = voices.filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter));
@@ -186,7 +265,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
 
     try {
-      const audioUrl = await requestVoicePreview(voice.id, speed, pitch, voice.sampleAudioUrl);
+      const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
       previewRequestRef.current = null;
       playNaturalAudio(audioUrl, () => setPreviewingVoiceId(null), speed, pitch);
     } catch (err: any) { 
@@ -210,6 +289,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setIsGenerating(true); 
     setCurrentAudioUrl(null); 
     setMp3Url(null);
+    try { localStorage.setItem(PENDING_GEN_KEY, JSON.stringify({ startedAt: Date.now(), voiceId: currentVoice.id })); } catch {}
     
     let errMsg = '';
     try {
@@ -242,6 +322,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (response.degraded) {
         // Aperçu de secours généré localement (serveur injoignable) :
         // ce n'est PAS la vraie voix, donc on ne débite JAMAIS de points.
+        try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
         showNotif(language === 'ar' ? '⚠️ الخادم غير متاح، معاينة محلية (بدون خصم نقاط)' : '⚠️ Serveur injoignable — aperçu local (non facturé)');
       } else {
         // Upload de l'audio vers Supabase Storage pour qu'il reste lisible et
@@ -264,6 +345,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         await onDeductPoints(realCost, record, storagePath, response.remaining_balance ?? null);
         showNotif(response.notification || `-${realCost} Points`);
         playGenerationChime();
+        try {
+          localStorage.removeItem(PENDING_GEN_KEY);
+          localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: generationId, createdAt: record.createdAt }));
+        } catch {}
       }
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
       
@@ -309,6 +394,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
         setIsGenerating(false);
         generationRequestLockRef.current = false;
+        if (!errMsg) { /* déjà nettoyé plus haut en cas de succès/dégradé */ }
+        else { try { localStorage.removeItem(PENDING_GEN_KEY); } catch {} }
       }
     }
   }
