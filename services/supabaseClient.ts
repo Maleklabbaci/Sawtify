@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { GenerationRecord } from '../types';
+import { GenerationRecord } from '../src/types';
 
 // Ces deux valeurs sont publiques (clé "anon"), à définir dans un fichier .env :
 //   VITE_SUPABASE_URL=https://jjpcvevdztletxgmmzqr.supabase.co
@@ -184,7 +184,7 @@ export async function fetchMyGenerations(limit: number = 100): Promise<Generatio
  * (table transactions). Remplace l'ancien achat "pur_free_welcome" mocké en
  * dur côté client, qui n'existait pas forcément réellement en base.
  */
-export async function fetchMyPurchases(limit: number = 50): Promise<import('../types').PurchaseRecord[]> {
+export async function fetchMyPurchases(limit: number = 50): Promise<import('../src/types').PurchaseRecord[]> {
   const { data, error } = await supabase
     .from('transactions')
     .select('id, pack_id, gateway, gateway_reference, amount_dzd, points_credited, status, created_at')
@@ -263,7 +263,7 @@ export async function claimWelcomeBonus(): Promise<boolean> {
   try {
     const token = await getMyAccessToken();
     if (!token) return false;
-    const { API_BASE_URL } = await import('../config/apiBase');
+    const { API_BASE_URL } = await import('../src/config/apiBase');
     const res = await fetch(`${API_BASE_URL}/api/auth/claim-welcome-bonus`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },

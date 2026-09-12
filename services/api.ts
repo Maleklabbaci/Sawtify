@@ -1,5 +1,5 @@
-import { generateSyntheticTTS } from '../utils/audioGenerator';
-import { API_BASE_URL } from '../config/apiBase';
+import { generateSyntheticTTS } from '../src/utils/audioGenerator';
+import { API_BASE_URL } from '../src/config/apiBase';
 import { supabase } from './supabaseClient';
 
 export interface TTSApiRequest {

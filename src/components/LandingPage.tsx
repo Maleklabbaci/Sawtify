@@ -174,8 +174,8 @@ const Num = ({ children, className = "" }: { children: React.ReactNode; classNam
   <span dir="ltr" style={{ unicodeBidi: "isolate", fontFamily: NUM_STACK }} className={`inline-block tabular-nums ${className}`}>{children}</span>
 );
 
-const Mono = ({ children, className = "", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <span className={className} style={{ fontFamily: MONO_STACK, ...style }}>{children}</span>
+const Mono = ({ children, className = "", style, dir }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; dir?: React.HTMLAttributes<HTMLSpanElement>['dir'] }) => (
+  <span dir={dir} className={className} style={{ fontFamily: MONO_STACK, ...style }}>{children}</span>
 );
 
 const SectionHead = ({ title, sub, center = false, font }: {
@@ -229,7 +229,7 @@ const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suf
   return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>;
 };
 
-const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
+const SlideUp = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string; key?: React.Key }) => {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
   return (
