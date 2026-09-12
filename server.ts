@@ -1414,11 +1414,20 @@ Style vocal souhaité : ${style || "excited"}`;
       if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
       if (!supabaseClient) return res.status(503).json({ success: false, error: "Service indisponible." });
       const ip = getClientIp(req);
-      const { data: inserted, error: insertErr } = await supabaseClient.from("ip_claims").insert({ ip, user_id: userId }).select().single();
+
+      let insertErr: any = null, inserted: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const result = await supabaseClient.from("ip_claims").insert({ ip, user_id: userId }).select().single();
+        inserted = result.data; insertErr = result.error;
+        if (!insertErr || insertErr.code === "23505") break; // succès, ou vrai doublon (IP déjà utilisée) → pas la peine de réessayer
+        console.warn(`[Welcome Bonus] Tentative ${attempt}/3 échouée (erreur technique, pas un doublon):`, insertErr.message);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 300 * attempt));
+      }
+
       if (!insertErr && inserted) return res.json({ success: true, welcomeGranted: true });
       if (insertErr && insertErr.code !== "23505") {
-        console.warn("[Welcome Bonus] Insert ip_claims échoué (non fatal, bonus conservé):", insertErr.message);
-        return res.json({ success: true, welcomeGranted: true });
+        console.error("[Welcome Bonus] Échec après 3 tentatives, bonus NON accordé pour rester sûr:", insertErr.message);
+        return res.status(503).json({ success: false, error: "Impossible de vérifier ton bonus pour le moment. Réessaie dans un instant." });
       }
       await supabaseClient.from("profiles").update({ credits_balance: 0 }).eq("id", userId).eq("credits_balance", 50);
       return res.json({ success: true, welcomeGranted: false });

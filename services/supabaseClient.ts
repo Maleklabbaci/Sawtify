@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { GenerationRecord } from '../src/types';
+import { GenerationRecord } from '../types';
 
 // Ces deux valeurs sont publiques (clé "anon"), à définir dans un fichier .env :
 //   VITE_SUPABASE_URL=https://jjpcvevdztletxgmmzqr.supabase.co
@@ -184,7 +184,7 @@ export async function fetchMyGenerations(limit: number = 100): Promise<Generatio
  * (table transactions). Remplace l'ancien achat "pur_free_welcome" mocké en
  * dur côté client, qui n'existait pas forcément réellement en base.
  */
-export async function fetchMyPurchases(limit: number = 50): Promise<import('../src/types').PurchaseRecord[]> {
+export async function fetchMyPurchases(limit: number = 50): Promise<import('../types').PurchaseRecord[]> {
   const { data, error } = await supabase
     .from('transactions')
     .select('id, pack_id, gateway, gateway_reference, amount_dzd, points_credited, status, created_at')
@@ -259,22 +259,32 @@ export async function deductCreditsRPC(params: DeductCreditsParams): Promise<Ded
  * signup) : demande au serveur de vérifier si l'IP a déjà servi à créer un
  * compte et de retirer le bonus de 50 points si c'est le cas.
  */
-export async function claimWelcomeBonus(): Promise<boolean> {
+export async function claimWelcomeBonus(): Promise<'granted' | 'denied' | 'error'> {
   try {
     const token = await getMyAccessToken();
-    if (!token) return false;
-    const { API_BASE_URL } = await import('../src/config/apiBase');
+    if (!token) return 'error';
+    const { API_BASE_URL } = await import('../config/apiBase');
     const res = await fetch(`${API_BASE_URL}/api/auth/claim-welcome-bonus`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return false;
-    const data = await res.json();
-    return data.welcomeGranted === true;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return 'error';
+    return data.welcomeGranted === true ? 'granted' : 'denied';
   } catch (e) {
     console.warn('[Sawtify] Erreur vérification bonus de bienvenue:', e);
-    return false;
+    return 'error';
   }
+}
+
+export async function saveOnboardingData(params: { phone: string; useCase: string; source: string; fullName: string }): Promise<void> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw new Error('Session utilisateur introuvable.');
+
+  const { error: metadataError } = await supabase.auth.updateUser({
+    data: { full_name: params.fullName.trim(), phone_number: params.phone.trim(), onboarding_use_case: params.useCase, acquisition_source: params.source, onboarding_completed_at: new Date().toISOString() },
+  });
+  if (metadataError) throw new Error(metadataError.message);
 }
 
 export async function updateGenerationStoragePath(generationId: string, storagePath: string): Promise<boolean> {

@@ -147,8 +147,9 @@ function AppContent() {
 
           if (isBrandNewAccount) {
             welcomeBonusPromiseRef.current = import('./services/supabaseClient').then(({ claimWelcomeBonus }) => claimWelcomeBonus());
-            welcomeBonusPromiseRef.current.then((granted) => {
-              if (!granted) showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP. لم يتم منح نقاط الترحيب.' : "⚠️ Tu as déjà un compte avec cette IP. Aucun point de bienvenue offert cette fois-ci.");
+            welcomeBonusPromiseRef.current.then((result) => {
+              if (result === 'denied') showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP. لم يتم منح نقاط الترحيب.' : "⚠️ Tu as déjà un compte avec cette IP. Aucun point de bienvenue offert cette fois-ci.");
+              if (result === 'error') showToast(language === 'ar' ? '⚠️ تعذر التحقق من نقاط الترحيب، أعد المحاولة لاحقاً.' : "⚠️ Impossible de vérifier ton bonus pour le moment, réessaie plus tard.");
             });
             if (!wantsPasswordSetup) {
               showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
