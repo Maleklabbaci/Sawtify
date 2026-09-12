@@ -88,7 +88,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('general');
 
-  // Drawers mobiles (renommés par fonction, pas par position)
+  // Drawers mobiles
   const [isScriptMenuOpen, setIsScriptMenuOpen] = useState<boolean>(false);
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState<boolean>(false);
 
@@ -228,12 +228,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGeneratedCost(realCost);
 
       if (response.degraded) {
-        // Aperçu de secours généré localement (serveur injoignable) :
-        // ce n'est PAS la vraie voix, donc on ne débite JAMAIS de points.
         showNotif(language === 'ar' ? '⚠️ الخادم غير متاح، معاينة محلية (بدون خصم نقاط)' : '⚠️ Serveur injoignable — aperçu local (non facturé)');
       } else {
-        // Upload de l'audio vers Supabase Storage pour qu'il reste lisible et
-        // téléchargeable dans l'historique après un rechargement de page.
         let storagePath: string | null = null;
         const { data: userData } = await supabase.auth.getUser();
         const generationId = response.generation_id || `gen_${Date.now()}`;
@@ -556,25 +552,25 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
 
         {/* ============ EDITEUR CENTRAL ============ */}
-        {/* Padding dynamique : laisse la place à la barre d'actions fixe en bas,
-            + au player audio quand il est ouvert (empilé au-dessus de la barre) */}
+        {/* Padding-bottom dynamique : réserve la place pour la barre d'actions fixe
+            + le player audio quand il est ouvert */}
         <div 
           className="flex-1 min-w-0 min-h-0 flex flex-col p-3 sm:p-4 transition-[padding] duration-300"
           style={{
             paddingBottom: currentAudioUrl
-              ? 'calc(10.75rem + env(safe-area-inset-bottom))'
-              : 'calc(5.5rem + env(safe-area-inset-bottom))'
+              ? 'calc(11rem + env(safe-area-inset-bottom))'
+              : 'calc(5.75rem + env(safe-area-inset-bottom))'
           }}
         >
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500" />
-                <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span className="truncate">{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
               </div>
               <button 
                 onClick={onOpenRecharge} 
-                className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer">
+                className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer shrink-0">
                 {language === 'ar' ? 'شحن' : 'Recharger'}
               </button>
             </div>
@@ -585,13 +581,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             {/* HEADER : Dropdown Emotions + Compteur caractères */}
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
               
-              <div className="relative" ref={emotionsMenuRef}>
+              <div className="relative min-w-0" ref={emotionsMenuRef}>
                 <button 
                   onClick={() => setIsEmotionsMenuOpen(!isEmotionsMenuOpen)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                  <span>{language === 'ar' ? 'إدراج تأثير' : 'Insérer effet'}</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${isEmotionsMenuOpen ? 'rotate-180' : ''}`} />
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 whitespace-nowrap">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                  <span className="truncate">{language === 'ar' ? 'إدراج تأثير' : 'Insérer effet'}</span>
+                  <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isEmotionsMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {isEmotionsMenuOpen && (
@@ -605,7 +601,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                           key={tagObj.tag}
                           onClick={() => handleInsertTag(tagObj.tag)} 
                           title={tagObj.desc}
-                          className="text-[10px] font-mono px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start">
+                          className="text-[10px] font-mono px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start truncate">
                           {tagObj.tag}
                         </button>
                       ))}
@@ -643,33 +639,32 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               `}</style>
             </div>
 
-            {/* BARRE DE STATUT : Copie + Feedback uniquement.
-                (Magique et Générer sont désormais dans la barre d'actions fixe en bas) */}
+            {/* BARRE DE STATUT : Copie + Feedback + coût (léger, rien ne déborde) */}
             <div className="shrink-0 pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <button 
                   onClick={handleCopyText} 
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200 shrink-0"
                   title={language === 'ar' ? 'نسخ' : 'Copier'}>
                   {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
 
                 {lastGenType && lastGenOutput && (
                   <div className="flex items-center gap-1 ms-1 ps-2 border-s border-slate-200">
-                    <span className="text-[9px] text-slate-400 me-1">
+                    <span className="text-[9px] text-slate-400 me-1 shrink-0">
                       {feedbackSent ? '✅' : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
                     </span>
                     <button 
                       onClick={() => handleSendFeedback(5)} 
                       disabled={feedbackSent}
-                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
+                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default shrink-0 ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
                       title="👍">
                       <ThumbsUp className={`w-3 h-3 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-slate-400 hover:text-green-600'}`} />
                     </button>
                     <button 
                       onClick={() => handleSendFeedback(1)} 
                       disabled={feedbackSent}
-                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
+                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default shrink-0 ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
                       title="👎">
                       <ThumbsDown className={`w-3 h-3 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-slate-400 hover:text-red-500'}`} />
                     </button>
@@ -680,7 +675,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 )}
               </div>
 
-              <span className="text-[10px] text-slate-400 font-num shrink-0" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
+              <span className="text-[10px] text-slate-400 font-num shrink-0 whitespace-nowrap" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
                 {t.costLabel}: <span className="font-bold text-slate-600">{POINTS_COST}</span> {t.pointsLabel}
               </span>
             </div>
@@ -831,59 +826,67 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       </div>
 
       {/* ==========================================================================
-         BARRE D'ACTIONS FIXE EN BAS — Magique + Générer TOUJOURS visibles.
-         Placée au-dessus de la zone du widget "Signaler un problème" :
-         le bouton Générer est maintenant plus grand et plus haut que le widget.
-         ⚙️ "pe-16" = espace réservé à droite (mobile) pour ton widget flottant.
-            → Augmente (pe-20, pe-24) si ton widget est plus large.
+         BARRE D'ACTIONS FIXE EN BAS — refaite proprement
+         • Magique : carré compact 44px (icône seule sur mobile, + texte sur sm+)
+         • Générer : GRAND bouton principal, prend toute la largeur restante
+         • Aucun débordement possible : truncate + min-w-0 + whitespace-nowrap
+         • pe-16 = 64px réservés à droite pour le FAB WhatsApp
          ========================================================================== */}
-      <div className="fixed bottom-[calc(0.75rem_+_env(safe-area-inset-bottom))] inset-x-3 sm:inset-x-4 max-w-2xl mx-auto z-50">
-        <div className="bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl shadow-slate-900/15 py-2 ps-2 pe-16 lg:pe-2 flex items-center gap-2">
+      <div className="fixed bottom-[calc(0.75rem_+_env(safe-area-inset-bottom))] inset-x-3 sm:inset-x-4 lg:inset-x-auto lg:start-1/2 lg:-translate-x-1/2 lg:rtl:translate-x-1/2 lg:w-full lg:max-w-2xl z-50">
+        <div className="flex items-stretch gap-2 bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl shadow-slate-900/15 p-2 pe-[calc(0.5rem+64px)] lg:pe-2">
           
-          {/* Magique (compact) */}
+          {/* ===== MAGIQUE (compact, ne grandit jamais) ===== */}
           <button 
             onClick={handleEnhanceText} 
             disabled={isEnhancing || !text.trim() || balance < 2}
-            className="h-11 px-2.5 sm:px-3 shrink-0 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
+            className="h-12 px-2.5 sm:px-3.5 shrink-0 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-2"
             title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer le texte (2 pts)'}>
             {isEnhancing 
-              ? <RefreshCw className="w-4 h-4 text-purple-600 animate-spin" /> 
-              : <Wand2 className="w-4.5 h-4.5 w-[18px] h-[18px] text-purple-600" />}
-            <span className="hidden sm:block text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">
-              {language === 'ar' ? 'المحسن' : 'Magique'}
+              ? <RefreshCw className="w-4 h-4 text-purple-600 animate-spin shrink-0" /> 
+              : <Wand2 className="w-4 h-4 text-purple-600 shrink-0" />}
+            <span className="hidden sm:flex flex-col items-start leading-none gap-0.5">
+              <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">
+                {language === 'ar' ? 'المحسن' : 'Magique'}
+              </span>
+              <span className="text-[9px] font-bold text-purple-400 whitespace-nowrap">2 pts</span>
             </span>
-            <span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span>
           </button>
 
-          {/* Générer (grand bouton principal — plus grand que le widget) */}
+          {/* ===== GÉNÉRER (bouton principal, prend toute la place) ===== */}
           <button 
             onClick={() => handleGenerate()} 
             disabled={isGenerating || !text.trim()} 
-            className="flex-1 h-11 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-sm shadow-lg shadow-purple-600/25 active:scale-[0.98]">
+            className="flex-1 min-w-0 h-12 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-sm shadow-lg shadow-purple-600/25 active:scale-[0.98]">
             {isGenerating ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" /><span>{t.generatingBtn}</span></>
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+                <span className="truncate">{t.generatingBtn}</span>
+              </>
             ) : (
-              <><Volume2 className="w-4 h-4" /><span>{t.generateBtn}</span><span className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full">{POINTS_COST} pts</span></>
+              <>
+                <Volume2 className="w-4 h-4 shrink-0" />
+                <span className="truncate">{t.generateBtn}</span>
+              </>
             )}
           </button>
         </div>
       </div>
 
       {/* ==========================================================================
-         PLAYER AUDIO FLOTTANT — empilé AU-DESSUS de la barre d'actions
+         PLAYER AUDIO — empilé AU-DESSUS de la barre d'actions (jamais de chevauchement)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] inset-x-3 sm:inset-x-4 max-w-2xl mx-auto bg-slate-900/95 text-white rounded-2xl p-3 sm:p-3.5 shadow-2xl border border-slate-800/80 backdrop-blur-xl z-50 flex items-center justify-between gap-2 sm:gap-5 animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-[calc(5.25rem_+_env(safe-area-inset-bottom))] inset-x-3 sm:inset-x-4 lg:inset-x-auto lg:start-1/2 lg:-translate-x-1/2 lg:rtl:translate-x-1/2 lg:w-full lg:max-w-2xl bg-slate-900/95 text-white rounded-2xl p-2.5 sm:p-3.5 shadow-2xl border border-slate-800/80 backdrop-blur-xl z-50 flex items-center justify-between gap-2 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
           
-          {/* ZONE 1 : Bouton Play & Infos Voix */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* ZONE 1 : Play + infos voix */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <button 
               onClick={togglePlay} 
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/25 shrink-0">
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
             </button>
             
-            <div className="hidden sm:flex flex-col">
+            <div className="hidden sm:flex flex-col min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-white truncate">{currentVoice.name}</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold shrink-0">
@@ -896,7 +899,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           </div>
 
-          {/* ZONE 2 : Waveform dynamique au centre */}
+          {/* ZONE 2 : Waveform */}
           <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-800/50 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-slate-700/40">
             <div className="flex-1 min-w-0">
               <WaveformPlayer 
@@ -911,7 +914,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </span>
           </div>
 
-          {/* ZONE 3 : Téléchargement et Fermeture */}
+          {/* ZONE 3 : Download + Fermer */}
           <div className="flex items-center gap-1.5 shrink-0">
             {mp3Url ? (
               <a 
