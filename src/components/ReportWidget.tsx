@@ -81,18 +81,29 @@ export const ReportWidget: React.FC = () => {
 
   return (
     <>
+      {/* ==========================================================================
+         FAB COMPACT — icône seule, 44px, coin "end".
+         Pourquoi ça marche maintenant :
+         • Coin "end" (droite en LTR / gauche en RTL) = EXACTEMENT le côté où la
+           barre d'actions du studio réserve 64px (classe pe-16). Avant il était
+           au coin "start" (left-5/right-5) → il écrasait le bouton Magique.
+         • 44px de large (au lieu de ~190px pour la pill avec texte) → rentre
+           dans les 64px réservés, sans jamais toucher "Générer".
+         • bottom aligné avec la barre d'actions + safe-area iPhone.
+         • Le player audio s'ouvre PLUS HAUT (à 5rem) → jamais de chevauchement.
+         ========================================================================== */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`fixed bottom-5 ${isRTL ? 'right-5' : 'left-5'} z-40 inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-xl hover:bg-purple-700 transition`}
+        className="fixed z-40 bottom-[calc(1.25rem_+_env(safe-area-inset-bottom))] end-4 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-purple-700 hover:scale-105 active:scale-95 cursor-pointer"
+        title={t.openBtn}
         aria-label={t.openBtn}
       >
-        <AlertTriangle className="h-4 w-4" />
-        {t.openBtn}
+        <AlertTriangle className="h-5 w-5" />
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
           <form onSubmit={sendReport} dir={isRTL ? 'rtl' : 'ltr'} className={`w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-200 ${isRTL ? 'text-right' : 'text-left'}`}>
             <div className="flex items-start justify-between gap-4 mb-5">
               <div>
@@ -102,7 +113,7 @@ export const ReportWidget: React.FC = () => {
                 <h2 className="mt-1 text-xl font-extrabold text-slate-900">{t.title}</h2>
                 <p className="mt-1 text-xs text-slate-500">{t.subtitle}</p>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100" aria-label={t.close}><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setOpen(false)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 cursor-pointer" aria-label={t.close}><X className="h-5 w-5" /></button>
             </div>
 
             <label className="block text-xs font-bold text-slate-700 mb-1">{t.generalLabel}</label>
@@ -116,7 +127,7 @@ export const ReportWidget: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">{t.descLabel}</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={1200} rows={5} className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm resize-none" placeholder={t.descPlaceholder} />
 
-            <button type="submit" className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-extrabold text-white hover:bg-[#1fbd5a] transition">
+            <button type="submit" className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-extrabold text-white hover:bg-[#1fbd5a] transition cursor-pointer">
               <MessageCircle className="h-4 w-4" /> {t.sendBtn}
             </button>
           </form>
