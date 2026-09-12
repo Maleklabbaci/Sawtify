@@ -54,6 +54,7 @@ export const ReportWidget: React.FC = () => {
   const t = TEXT[language];
   const categories = CATEGORIES[language];
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [category, setCategory] = useState(categories[0]);
   const [detail, setDetail] = useState(t.detailDefault);
   const [description, setDescription] = useState('');
@@ -71,6 +72,15 @@ export const ReportWidget: React.FC = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
+
+  // La bulle reste visible au début puis se replie en petit onglet discret.
+  // Elle redevient immédiatement visible au survol ou au clic.
+  useEffect(() => {
+    if (open) return;
+    if (collapsed) return;
+    const timer = window.setTimeout(() => setCollapsed(true), 7000);
+    return () => window.clearTimeout(timer);
+  }, [open, collapsed]);
 
   const sendReport = (event: React.FormEvent) => {
     event.preventDefault();
@@ -96,12 +106,18 @@ export const ReportWidget: React.FC = () => {
          ===================================================================== */}
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className="fixed z-40 bottom-[calc(1rem_+_env(safe-area-inset-bottom))] end-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg shadow-[#25D366]/40 hover:bg-[#22c15e] hover:scale-105 active:scale-95 transition cursor-pointer"
+        onClick={() => { setCollapsed(false); setOpen(true); }}
+        onMouseEnter={() => setCollapsed(false)}
+        className={`fixed z-40 bottom-[calc(1rem_+_env(safe-area-inset-bottom))] flex items-center justify-center bg-[#25D366] text-white shadow-lg shadow-[#25D366]/40 transition-all duration-300 cursor-pointer ${
+          collapsed
+            ? 'end-0 h-11 w-3 rounded-s-xl shadow-md hover:w-10'
+            : 'end-4 h-11 w-11 rounded-full hover:bg-[#22c15e] hover:scale-105 active:scale-95'
+        }`}
         title={t.openBtn}
         aria-label={t.openBtn}
       >
-        <MessageCircle className="h-5 w-5" />
+        <MessageCircle className={`${collapsed ? 'h-3.5 w-3.5 opacity-80' : 'h-5 w-5'}`} />
+        {collapsed && <span className="sr-only">{t.openBtn}</span>}
       </button>
 
       {open && (
