@@ -8,6 +8,7 @@ export interface Voice {
   icon: string;
   category: 'commercial' | 'narrative' | 'social' | 'formal';
   sampleText: string;
+  sampleAudioUrl?: string;
   badge?: string;
   styles: string[];
   /** Extrait audio fixe (déjà enregistré) — évite un appel API à chaque écoute d'aperçu. */

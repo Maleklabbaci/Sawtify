@@ -13,6 +13,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'mic',
     category: 'commercial',
     sampleText: 'Salam alaykoum khawti ! Avec Sawtify, vos textes deviennent une voix humaine 100% naturelle et de haute qualité.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3',
     badge: 'Le plus populaire',
     styles: ['Naturel', 'Dynamique', 'Publicitaire'],
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3'
@@ -27,6 +28,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'sparkles',
     category: 'commercial',
     sampleText: 'Bienvenue à tous ! Découvrez la synthèse vocale IA algérienne au son chaleureux et d\'une clarté parfaite.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3',
     badge: 'Publicité & Commerce',
     styles: ['Fluide', 'Souriante', 'Marketing'],
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3'
@@ -41,6 +43,7 @@ export const VOICES_FR: Voice[] = [
     icon: 'radio',
     category: 'formal',
     sampleText: 'Nous vous présentons aujourd\'hui une technologie vocale d\'élite, avec une articulation précise et équilibrée.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav',
     badge: 'Documentaire & Formel',
     styles: ['Solennel', 'Documentaire', 'Journalistique'],
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav'
@@ -136,6 +139,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'mic',
     category: 'commercial',
     sampleText: 'سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي مئة بالمئة بلا أي نبرة آلية وبأعلى جودة.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3',
     badge: 'الأكثر طلباً',
     styles: ['طبيعي', 'حيوي', 'إعلاني'],
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3'
@@ -150,6 +154,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'sparkles',
     category: 'commercial',
     sampleText: 'مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق، صوت دافئ وبلا أي روبوتيك.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3',
     badge: 'إعلانات وتجارة',
     styles: ['انسيابي', 'مبتسم', 'تسويقي'],
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3'
@@ -164,6 +169,7 @@ export const VOICES_AR: Voice[] = [
     icon: 'radio',
     category: 'formal',
     sampleText: 'السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي ومخارج حروف واضحة ومتقنة.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav',
     badge: 'وثائقي ورسمي',
     styles: ['وقور', 'وثائقي', 'إخباري'],
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav'

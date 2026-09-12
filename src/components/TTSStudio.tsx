@@ -186,7 +186,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
 
     try {
-      const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
+      const audioUrl = await requestVoicePreview(voice.id, speed, pitch, voice.sampleAudioUrl);
       previewRequestRef.current = null;
       playNaturalAudio(audioUrl, () => setPreviewingVoiceId(null), speed, pitch);
     } catch (err: any) { 

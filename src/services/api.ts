@@ -74,7 +74,9 @@ function dataUriToBlob(dataUri: string): { blob: Blob; url: string } {
 /**
  * Récupère un aperçu vocal naturel instantané pour une voix donnée (sans coût).
  */
-export async function requestVoicePreview(voiceId: string, speed: number = 1.0, pitch: number = 1.0): Promise<string> {
+export async function requestVoicePreview(voiceId: string, speed: number = 1.0, pitch: number = 1.0, uploadedAudioUrl?: string): Promise<string> {
+  // Les échantillons uploadés sont gratuits et ne doivent jamais réveiller Render/Gemini.
+  if (uploadedAudioUrl) return uploadedAudioUrl;
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/tts/preview?voice_id=${encodeURIComponent(voiceId)}&speed=${speed}&pitch=${pitch}`);
     if (res.ok) {

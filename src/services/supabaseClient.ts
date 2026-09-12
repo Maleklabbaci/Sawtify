@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { GenerationRecord } from '../types';
+import { VOICES_FR } from '../data/voices';
 
 // Ces deux valeurs sont publiques (clé "anon"), à définir dans un fichier .env :
 //   VITE_SUPABASE_URL=https://jjpcvevdztletxgmmzqr.supabase.co
@@ -166,11 +167,15 @@ export async function fetchMyGenerations(limit: number = 100): Promise<Generatio
     })
   );
 
+  const publicVoiceNames: Record<string, string> = {
+    Puck: 'Amine', Kore: 'Yasmine', Charon: 'Khalid', Zephyr: 'Maryam', Fenrir: 'Rachid', Aoede: 'Layla', Orus: 'Bilal', Sulafat: 'Nour', Leda: 'Fayçal',
+    Achernar: 'Yasmine', Algenib: 'Khalid',
+  };
   return rows.map((row, i) => ({
     id: row.id,
     text: row.text_prompt,
     voiceId: row.voice_id,
-    voiceName: row.voice_name,
+    voiceName: VOICES_FR.find((v) => v.id === row.voice_id)?.name || publicVoiceNames[row.voice_name] || 'Sawtify Voice',
     pointsDeducted: row.points_deducted,
     durationSec: row.audio_duration_seconds || 0,
     latencyMs: row.latency_ms || 0,
