@@ -542,6 +542,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
       )}
 
+      <fieldset disabled={isGenerating} className="contents">
+
       {/* TOP BAR MOBILE */}
       <div className="lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2.5 z-30">
         <button 
@@ -1023,6 +1025,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             onEnded={() => setIsPlaying(false)} 
             className="hidden" 
           />
+        </div>
+      )}
+      </fieldset>
+      {isGenerating && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/20 backdrop-blur-[2px]" aria-live="polite" aria-busy="true">
+          <div className="mx-5 w-full max-w-sm rounded-3xl border border-purple-200 bg-white/95 p-7 text-center shadow-2xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 shadow-lg shadow-purple-600/30">
+              <RefreshCw className="h-7 w-7 animate-spin text-white" />
+            </div>
+            <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération de la voix en cours…'}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة ولا تغيّر الصوت حتى يكتمل الإنشاء.' : 'Ne ferme pas la page et ne modifie pas le script avant la fin de la génération.'}</p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
+          </div>
         </div>
       )}
     </div>
