@@ -277,6 +277,16 @@ export async function claimWelcomeBonus(): Promise<boolean> {
   }
 }
 
+export async function saveOnboardingData(params: { phone: string; useCase: string; source: string; fullName: string }): Promise<void> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw new Error('Session utilisateur introuvable.');
+
+  const { error: metadataError } = await supabase.auth.updateUser({
+    data: { full_name: params.fullName.trim(), phone_number: params.phone.trim(), onboarding_use_case: params.useCase, acquisition_source: params.source, onboarding_completed_at: new Date().toISOString() },
+  });
+  if (metadataError) throw new Error(metadataError.message);
+}
+
 export async function updateGenerationStoragePath(generationId: string, storagePath: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('update_generation_storage_path', {
     p_generation_id: generationId,

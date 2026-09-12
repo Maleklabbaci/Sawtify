@@ -4,6 +4,7 @@ import { LandingPage } from './components/LandingPage';
 import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
+import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 
 // Chargées à la demande seulement : évite d'embarquer ffmpeg.wasm, Supabase, etc.
 // dans le bundle initial affiché avant même la connexion (page trop longue à charger).
@@ -15,8 +16,15 @@ const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ d
 const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').then(m => ({ default: m.SetPasswordScreen })));
 
 const ViewFallback = () => (
-  <div className="flex items-center justify-center py-24">
-    <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+  <div className="min-h-screen flex items-center justify-center bg-[#f8f7ff] px-6">
+    <div className="w-full max-w-sm rounded-3xl border border-purple-100 bg-white p-8 text-center shadow-xl shadow-purple-900/10">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 text-white shadow-lg shadow-purple-600/25">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+      </div>
+      <h2 className="mt-5 text-lg font-extrabold text-slate-900">Sawtify prépare ton espace</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-500">Session sécurisée, solde, historique et bonus de bienvenue en cours de synchronisation…</p>
+      <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
+    </div>
   </div>
 );
 
@@ -35,6 +43,9 @@ function AppContent() {
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>(() => routeToTab(window.location.pathname));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
+  const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
 
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
@@ -73,6 +84,15 @@ function AppContent() {
     }
   }, []);
 
+  const finishWelcome = React.useCallback(async () => {
+    setWelcomeUser(null);
+    setIsBootstrapping(true);
+    if (welcomeBonusPromiseRef.current) await welcomeBonusPromiseRef.current;
+    await refreshAccountData();
+    setIsBootstrapping(false);
+    navigateTo('studio', true);
+  }, [refreshAccountData, navigateTo]);
+
   // Détecte la session Supabase réelle
   React.useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -82,7 +102,8 @@ function AppContent() {
         if (data.session) {
           setIsLoggedIn(true);
           navigateTo(routeToTab(window.location.pathname), true);
-          refreshAccountData();
+          setIsBootstrapping(true);
+          refreshAccountData().finally(() => setIsBootstrapping(false));
         } else {
           setIsBalanceLoading(false);
         }
@@ -93,7 +114,6 @@ function AppContent() {
           setIsLoggedIn(true);
           setAuthModalMode('none');
           navigateTo('studio');
-          refreshAccountData();
 
           // FIX: le bonus de bienvenue (et donc le check anti-abus par IP) ne
           // doit PAS dépendre d'un flag posé côté navigateur uniquement quand
@@ -108,19 +128,27 @@ function AppContent() {
           const isBrandNewAccount = createdAtMs > 0 && (Date.now() - createdAtMs) < 2 * 60 * 1000;
           const wantsPasswordSetup = consumeSignupIntent();
 
+          if (isBrandNewAccount) {
+            const metadata = session.user.user_metadata || {};
+            setWelcomeUser({
+              name: metadata.full_name || metadata.name || session.user.email?.split('@')[0] || 'Utilisateur Sawtify',
+              email: session.user.email || '',
+            });
+            setIsBootstrapping(false);
+          } else {
+            setIsBootstrapping(true);
+            refreshAccountData().finally(() => setIsBootstrapping(false));
+          }
+
           if (wantsPasswordSetup) {
             setPendingUserEmail(session.user.email ?? null);
             setNeedsPasswordSetup(true);
           }
 
           if (isBrandNewAccount) {
-            import('./services/supabaseClient').then(({ claimWelcomeBonus }) => {
-              claimWelcomeBonus().then((granted) => {
-                if (!granted) {
-                  refreshAccountData();
-                  showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP. لم يتم منح نقاط الترحيب.' : "⚠️ Tu as déjà un compte avec cette IP. Aucun point de bienvenue offert cette fois-ci.");
-                }
-              });
+            welcomeBonusPromiseRef.current = import('./services/supabaseClient').then(({ claimWelcomeBonus }) => claimWelcomeBonus());
+            welcomeBonusPromiseRef.current.then((granted) => {
+              if (!granted) showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP. لم يتم منح نقاط الترحيب.' : "⚠️ Tu as déjà un compte avec cette IP. Aucun point de bienvenue offert cette fois-ci.");
             });
             if (!wantsPasswordSetup) {
               showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
@@ -199,6 +227,14 @@ function AppContent() {
     const methodLabel = method === 'edahabia' ? (language === 'ar' ? 'البطاقة الذهبية' : 'Edahabia') : 'CIB';
     showToast(t.toastRecharged.replace('{points}', pack.points.toString()).replace('{method}', methodLabel));
   };
+
+  if (welcomeUser) {
+    return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={finishWelcome} />;
+  }
+
+  if (isBootstrapping) {
+    return <ViewFallback />;
+  }
 
   if (needsPasswordSetup) {
     return (
