@@ -316,6 +316,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         setAudioDuration(response.duration_seconds || 0);
       });
 
+      // La génération est terminée dès que l'audio est reçu. On affiche donc
+      // immédiatement le résultat et on déverrouille le Studio; l'upload
+      // Supabase et la conversion MP3 continuent ensuite sans bloquer l'UI.
+      setIsGenerating(false);
+
       const realCost = response.points_deducted || POINTS_COST;
       setLastGeneratedCost(realCost);
 
