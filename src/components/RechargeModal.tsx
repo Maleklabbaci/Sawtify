@@ -21,10 +21,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
   const { t, isRTL, language } = useLanguage();
   const [selectedPackId, setSelectedPackId] = useState<string>('pack_pro');
   const [paymentMethod, setPaymentMethod] = useState<'edahabia' | 'cib'>('edahabia');
-  const [phone, setPhone] = useState<string>('0550 12 34 56');
-  const [fullName, setFullName] = useState<string>('Client Sawtify');
-  const [email, setEmail] = useState<string>('client@sawtify.dz');
-  
+
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [step, setStep] = useState<'select' | 'checkout' | 'slickpay_frame' | 'success'>('select');
   
@@ -76,19 +73,25 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
   if (!isOpen) return null;
 
   // 1. Create Invoice via backend SlickPay API
-  const handleInitiateSlickPay = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleInitiateSlickPay = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setIsProcessing(true);
     setStatusMessage(language === 'ar' ? 'جاري الاتصال ببوابة SlickPay الجزائر...' : 'Connexion à la passerelle SlickPay Algérie...');
 
     try {
-      const { getMyAccessToken } = await import('../services/supabaseClient');
+      const { getMyAccessToken, supabase } = await import('../services/supabaseClient');
       const accessToken = await getMyAccessToken();
       if (!accessToken) {
         setIsProcessing(false);
         setStatusMessage(language === 'ar' ? 'يجب تسجيل الدخول لإعادة شحن النقاط' : 'Connecte-toi pour recharger tes points.');
         return;
       }
+
+      // Récupère l'e-mail réel du compte connecté (pas besoin de le demander à l'utilisateur).
+      const { data: userData } = await supabase.auth.getUser();
+      const accountEmail = userData?.user?.email || 'client@sawtify.dz';
+      const accountName = (userData?.user?.user_metadata?.full_name as string) || '';
+      const [firstname, ...lastnameParts] = accountName.split(' ').filter(Boolean);
 
       const response = await fetch(`${API_BASE_URL}/api/slickpay/create-invoice`, {
         method: 'POST',
@@ -98,10 +101,9 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
         },
         body: JSON.stringify({
           packId: selectedPack.id,
-          firstname: fullName.split(' ')[0] || 'Client',
-          lastname: fullName.split(' ').slice(1).join(' ') || 'Sawtify',
-          phone: phone.replace(/\s+/g, ''),
-          email: email.trim(),
+          firstname: firstname || 'Client',
+          lastname: lastnameParts.join(' ') || 'Sawtify',
+          email: accountEmail,
           paymentMethod
         })
       });
@@ -115,9 +117,8 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
         setStep('slickpay_frame');
         startStatusPolling(data.invoiceId);
         if (data.paymentUrl && data.paymentUrl.startsWith('http')) {
-          try {
-            window.open(data.paymentUrl, '_blank');
-          } catch (e) {}
+          // Redirection directe vers la page de paiement SlickPay/SATIM.
+          window.location.href = data.paymentUrl;
         }
       } else {
         setStatusMessage(data.error || data.message || data.diagnostics || 'Erreur lors de la création de la facture');
@@ -317,8 +318,8 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
 
         {/* STEP 2: Checkout Form */}
         {step === 'checkout' && (
-          <form onSubmit={handleInitiateSlickPay} className="space-y-4 overflow-y-auto pr-1">
-            
+          <div className="space-y-4 overflow-y-auto pr-1">
+
             {/* Payment card choice */}
             <div className="grid grid-cols-2 gap-2.5">
               <button
@@ -356,59 +357,37 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
               </button>
             </div>
 
-            {/* Customer Details */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  {language === 'ar' ? 'الاسم الكامل' : 'Nom & Prénom'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full p-2.5 text-xs font-sans bg-white border border-slate-200 rounded-xl focus:border-purple-500 outline-none text-slate-900"
-                  placeholder="Nom Prénom"
-                />
+            {/* Confirmation summary */}
+            <div className="p-4 bg-purple-50/70 border border-purple-200/60 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between text-xs text-purple-900">
+                <span>{language === 'ar' ? 'الباقة المختارة' : 'Pack sélectionné'}</span>
+                <span className="font-bold">{selectedPack.name}</span>
               </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                    {language === 'ar' ? 'رقم الهاتف' : 'Numéro de téléphone'}
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full p-2.5 text-xs font-mono bg-white border border-slate-200 rounded-xl focus:border-purple-500 outline-none text-slate-900"
-                    placeholder="05 / 06 / 07..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                    {language === 'ar' ? 'البريد الإلكتروني' : 'Email'}
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2.5 text-xs font-sans bg-white border border-slate-200 rounded-xl focus:border-purple-500 outline-none text-slate-900"
-                    placeholder="client@mail.dz"
-                  />
-                </div>
+              <div className="flex items-center justify-between text-xs text-purple-900">
+                <span>{language === 'ar' ? 'النقاط' : 'Points'}</span>
+                <span className="font-bold font-mono">+{selectedPack.points} {t.pointsLabel}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm pt-2 border-t border-purple-200/60 text-purple-900">
+                <span className="font-semibold">{language === 'ar' ? 'المبلغ الإجمالي' : 'Montant total'}</span>
+                <span className="font-bold font-mono text-base">{selectedPack.priceDZD.toLocaleString()} {language === 'ar' ? 'دج' : 'DA'}</span>
               </div>
             </div>
 
-            {/* Order Summary */}
-            <div className="flex items-center justify-between text-xs px-2 py-2 bg-purple-50/70 border border-purple-200/60 rounded-xl text-purple-900 font-mono">
-              <span>{selectedPack.name} (+{selectedPack.points} pts)</span>
-              <span className="font-bold text-sm">
-                {selectedPack.priceDZD} {language === 'ar' ? 'دج' : 'DA'}
-              </span>
-            </div>
+            {/* Payment rules / terms — read before paying */}
+            <ul className="space-y-1.5 text-[11px] text-slate-500 px-1">
+              <li className="flex items-start gap-1.5">
+                <Check className="w-3 h-3 mt-0.5 text-purple-500 shrink-0" />
+                <span>{language === 'ar' ? 'النقاط تُضاف فوراً إلى رصيدك بعد تأكيد الدفع عبر SATIM.' : 'Les points sont crédités automatiquement dès la confirmation du paiement par SATIM.'}</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <Check className="w-3 h-3 mt-0.5 text-purple-500 shrink-0" />
+                <span>{language === 'ar' ? 'في حالة فشل التوليد الصوتي، تُعاد النقاط المخصومة تلقائياً.' : "En cas d'échec d'une génération, les points déduits sont automatiquement recrédités."}</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <Check className="w-3 h-3 mt-0.5 text-purple-500 shrink-0" />
+                <span>{language === 'ar' ? 'النقاط غير قابلة للاسترجاع نقداً بعد الشحن.' : "Les points achetés ne sont pas remboursables en espèces une fois crédités."}</span>
+              </li>
+            </ul>
 
             {/* Actions */}
             <div className="flex items-center gap-2.5 pt-1">
@@ -421,8 +400,9 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
               </button>
 
               <button
-                type="submit"
+                type="button"
                 id="btn-submit-slickpay"
+                onClick={() => handleInitiateSlickPay()}
                 disabled={isProcessing}
                 className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:opacity-50 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition shadow-xs cursor-pointer text-xs"
               >
@@ -434,7 +414,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
                 ) : (
                   <>
                     <Lock className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? `دفع ${selectedPack.priceDZD} دج عبر SlickPay` : `Payer ${selectedPack.priceDZD} DA via SlickPay`}</span>
+                    <span>{language === 'ar' ? `تأكيد ودفع ${selectedPack.priceDZD} دج` : `Confirmer et payer ${selectedPack.priceDZD} DA`}</span>
                   </>
                 )}
               </button>
@@ -445,7 +425,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
               <span>{language === 'ar' ? 'معاملة بنكية مشفرة 256-bit عبر شبكة SATIM الرسمية' : 'Paiement sécurisé et certifié par SATIM Algérie'}</span>
             </div>
 
-          </form>
+          </div>
         )}
 
         {/* STEP 3: SlickPay Payment Gateway & Live Verification */}
