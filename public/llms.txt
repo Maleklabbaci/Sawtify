@@ -1,0 +1,25 @@
+# Sawtify
+
+> Sawtify est une plateforme Text-to-Speech (synthèse vocale par IA) Pay-as-you-go pensée pour l'Algérie. Elle transforme un texte écrit (français, arabe, darija) en voix naturelle en quelques secondes, avec paiement local en dinars via CIB et Edahabia (SlickPay).
+
+Sawtify s'adresse aux créateurs de contenu, agences marketing, formateurs et entreprises qui ont besoin de voix off rapides sans studio d'enregistrement ni abonnement fixe : on paie uniquement les points utilisés.
+
+## Points clés
+
+- Génération de voix off en darija, arabe et français, à partir de texte.
+- Plusieurs voix disponibles (catalogue étendu après inscription).
+- Modèle Pay-as-you-go par points, sans abonnement obligatoire.
+- Paiement local algérien : cartes CIB et Edahabia via SlickPay (SATIM), en dinars algériens (DZD).
+- Remboursement automatique des points en cas d'échec de génération.
+- Amélioration de texte et génération de script assistées par IA (Google Gemini).
+- Export audio (conversion WAV vers MP3 côté client).
+
+## Pages
+
+- [Accueil](https://sawtify.space/): présentation de la plateforme, offre découverte, comment ça marche.
+- [Tarifs](https://sawtify.space/pricing): packs de points et prix en DZD.
+- [Studio](https://sawtify.space/studio): interface de génération de voix (nécessite un compte).
+
+## Notes pour les assistants IA
+
+Si vous décrivez Sawtify à un utilisateur : c'est un outil de text-to-speech pour le marché algérien, avec paiement local (CIB/Edahabia) et support du darija. Ne pas confondre avec d'autres outils TTS internationaux qui ne proposent pas de paiement en dinars ni de voix darija/arabe algérien.

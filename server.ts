@@ -234,7 +234,7 @@ async function verifySlickPayInvoice(invoiceId: string): Promise<{ paid: boolean
       const status = String(invoiceData.payment_status || invoiceData.status || "").toLowerCase();
       const isPaid = status === "completed" || status === "paid" || status === "success" || invoiceData.completed === true || invoiceData.paid === true;
       return { paid: isPaid, data: invoiceData, httpStatus: res.status };
-    } catch (e) {}
+    } catch (e: any) { console.warn(`[SlickPay] Vérification paiement échouée sur ${ep}:`, e?.message || e); }
   }
   return { paid: false };
 }
@@ -246,7 +246,7 @@ async function loadInvoice(invoiceId: string): Promise<any | null> {
   try {
     const { data, error } = await supabaseClient.from("invoices").select("*").eq("id", invoiceId).single();
     if (!error && data) { INVOICE_REGISTRY.set(invoiceId, data); return data; }
-  } catch (e) {}
+  } catch (e: any) { console.warn(`[Invoices] Chargement échoué pour ${invoiceId}:`, e?.message || e); }
   return null;
 }
 
@@ -267,7 +267,7 @@ async function updateInvoiceStatus(invoiceId: string, status: string, extra: any
   const local = INVOICE_REGISTRY.get(invoiceId);
   if (local) { local.status = status as any; Object.assign(local, extra); INVOICE_REGISTRY.set(invoiceId, local); }
   if (!supabaseClient) return;
-  try { await supabaseClient.from("invoices").update({ status, ...extra, updated_at: new Date().toISOString() }).eq("id", invoiceId); } catch (e) {}
+  try { await supabaseClient.from("invoices").update({ status, ...extra, updated_at: new Date().toISOString() }).eq("id", invoiceId); } catch (e: any) { console.warn(`[Invoices] Mise à jour statut échouée pour ${invoiceId}:`, e?.message || e); }
 }
 
 const BASE_POINTS_COST = 20;
@@ -1286,7 +1286,7 @@ Style vocal souhaité : ${style || "excited"}`;
         try { await supabaseClient.from("ai_feedback").insert({ user_id: userId || null, input_text: input_text || "", output_text, rating, type: type || "enhance", region: region || "general", sector: sector || "general", created_at: new Date().toISOString() }); } catch (e: any) { console.warn("[AI Feedback] Insert failed:", e.message); }
       }
       return res.json({ success: true, message: "Feedback enregistré" });
-    } catch (err: any) { return res.status(200).json({ success: false, error: err.message }); }
+    } catch (err: any) { console.error("[AI Feedback] Erreur:", err.message || err); return res.status(500).json({ success: false, error: err.message }); }
   };
   app.post("/api/v1/ai/feedback", handleAIFeedback);
   app.post("/api/ai/feedback", handleAIFeedback);
