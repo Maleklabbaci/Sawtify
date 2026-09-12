@@ -88,7 +88,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('general');
 
-  // Drawers mobiles
+  // Drawers mobiles (renommés par fonction, pas par position)
   const [isScriptMenuOpen, setIsScriptMenuOpen] = useState<boolean>(false);
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState<boolean>(false);
 
@@ -173,6 +173,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     if (previewRequestRef.current) return;
     previewRequestRef.current = voice.id;
     setPreviewingVoiceId(voice.id);
+
+    // Amine / Yasmine / Khalid ont un vrai extrait audio déjà enregistré
+    // (le même que sur la landing page) : on le joue directement, sans
+    // appeler l'API Gemini à chaque écoute — ça ne consomme rien et c'est
+    // instantané. Vitesse/tonalité ne s'appliquent pas à un enregistrement
+    // réel (ça déformerait la voix), on le joue tel quel.
+    if (voice.sampleAudioUrl) {
+      playNaturalAudio(voice.sampleAudioUrl, () => setPreviewingVoiceId(null), 1, 1);
+      previewRequestRef.current = null;
+      return;
+    }
+
     try {
       const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
       previewRequestRef.current = null;
@@ -228,8 +240,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setLastGeneratedCost(realCost);
 
       if (response.degraded) {
+        // Aperçu de secours généré localement (serveur injoignable) :
+        // ce n'est PAS la vraie voix, donc on ne débite JAMAIS de points.
         showNotif(language === 'ar' ? '⚠️ الخادم غير متاح، معاينة محلية (بدون خصم نقاط)' : '⚠️ Serveur injoignable — aperçu local (non facturé)');
       } else {
+        // Upload de l'audio vers Supabase Storage pour qu'il reste lisible et
+        // téléchargeable dans l'historique après un rechargement de page.
         let storagePath: string | null = null;
         const { data: userData } = await supabase.auth.getUser();
         const generationId = response.generation_id || `gen_${Date.now()}`;
@@ -430,10 +446,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, [text, language, showNotif]);
 
   return (
-    <div 
-      className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative overflow-hidden"
-      style={{ height: 'calc(100dvh - 64px)' }}
-    >
+    <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative">
       
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
@@ -443,23 +456,23 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       )}
 
       {/* TOP BAR MOBILE */}
-      <div className="lg:hidden shrink-0 flex items-center justify-between gap-2 bg-white border-b border-slate-200 px-3 py-2 z-30">
+      <div className="lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2.5 z-30">
         <button 
           onClick={() => setIsScriptMenuOpen(true)} 
-          className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
           <Menu className="w-4 h-4" />
           <span>{language === 'ar' ? 'السيناريو' : 'Script'}</span>
         </button>
         
-        <div className="min-w-0 flex-1 flex justify-center px-1">
-          <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg truncate max-w-[40vw]">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">
             {currentVoice.name}
           </span>
         </div>
 
         <button 
           onClick={() => setIsVoiceMenuOpen(true)} 
-          className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
           <Settings className="w-4 h-4" />
           <span>{language === 'ar' ? 'الأصوات' : 'Voix'}</span>
         </button>
@@ -467,13 +480,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* ============ PANNEAU SCRIPT ============ */}
-        {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] transition-opacity" />}
+        {/* ============ PANNEAU SCRIPT (Gauche en LTR, Droite en RTL) ============ */}
+        {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
         <div className={`
-          fixed lg:static inset-y-0 start-0 z-[60] lg:z-0
+          fixed lg:static inset-y-0 start-0 z-50 lg:z-0
           w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col
-          pt-[env(safe-area-inset-top)] lg:pt-0
-          pb-[env(safe-area-inset-bottom)] lg:pb-0
           transition-transform duration-300 transform
           ${isScriptMenuOpen ? 'translate-x-0' : (isRTL ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0')}
         `}>
@@ -552,46 +563,38 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
 
         {/* ============ EDITEUR CENTRAL ============ */}
-        {/* Padding-bottom dynamique : réserve la place pour la barre d'actions fixe
-            + le player audio quand il est ouvert */}
-        <div 
-          className="flex-1 min-w-0 min-h-0 flex flex-col p-3 sm:p-4 transition-[padding] duration-300"
-          style={{
-            paddingBottom: currentAudioUrl
-              ? 'calc(11rem + env(safe-area-inset-bottom))'
-              : 'calc(5.75rem + env(safe-area-inset-bottom))'
-          }}
-        >
+        <div className="flex-1 min-w-0 flex flex-col p-3 sm:p-4">
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
-              <div className="flex items-center gap-2 min-w-0">
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                <span className="truncate">{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500" />
+                <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
               </div>
               <button 
                 onClick={onOpenRecharge} 
-                className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer shrink-0">
+                className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer">
                 {language === 'ar' ? 'شحن' : 'Recharger'}
               </button>
             </div>
           )}
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
+          <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
             
             {/* HEADER : Dropdown Emotions + Compteur caractères */}
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
               
-              <div className="relative min-w-0" ref={emotionsMenuRef}>
+              {/* Dropdown "Insérer une émotion" (Compact et propre) */}
+              <div className="relative" ref={emotionsMenuRef}>
                 <button 
                   onClick={() => setIsEmotionsMenuOpen(!isEmotionsMenuOpen)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 whitespace-nowrap">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                  <span className="truncate">{language === 'ar' ? 'إدراج تأثير' : 'Insérer effet'}</span>
-                  <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isEmotionsMenuOpen ? 'rotate-180' : ''}`} />
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                  <span>{language === 'ar' ? 'إدراج تأثير' : 'Insérer effet'}</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isEmotionsMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {isEmotionsMenuOpen && (
-                  <div className="absolute top-full mt-1.5 start-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-64 max-w-[calc(100vw-4rem)] max-h-72 overflow-y-auto custom-scrollbar">
+                  <div className="absolute top-full mt-1.5 start-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-64 max-h-72 overflow-y-auto custom-scrollbar">
                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pb-1.5 border-b border-slate-100 mb-1.5">
                       {language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}
                     </div>
@@ -601,7 +604,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                           key={tagObj.tag}
                           onClick={() => handleInsertTag(tagObj.tag)} 
                           title={tagObj.desc}
-                          className="text-[10px] font-mono px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start truncate">
+                          className="text-[10px] font-mono px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start">
                           {tagObj.tag}
                         </button>
                       ))}
@@ -610,7 +613,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 )}
               </div>
               
-              <div className="text-[11px] text-slate-400 font-num shrink-0">
+              {/* Compteur caractères (Info discrète) */}
+              <div className="text-[11px] text-slate-400 font-num">
                 <span className="font-semibold text-slate-600">{text.length}</span> {t.charsCount}
               </div>
             </div>
@@ -639,32 +643,49 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               `}</style>
             </div>
 
-            {/* BARRE DE STATUT : Copie + Feedback + coût (léger, rien ne déborde) */}
-            <div className="shrink-0 pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
+            {/* BARRE DE STATUT (Feedback + Actions intégrées, plus de flottement) */}
+            <div className="shrink-0 pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+              
+              {/* Groupe gauche : Bouton Magique + Copie */}
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={handleEnhanceText} 
+                  disabled={isEnhancing || !text.trim() || balance < 2}
+                  className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                  title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
+                  {isEnhancing ? (
+                    <><RefreshCw className="w-3 h-3 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
+                  ) : (
+                    <><Wand2 className="w-3 h-3 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
+                  )}
+                </button>
+                
                 <button 
                   onClick={handleCopyText} 
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200 shrink-0"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200"
                   title={language === 'ar' ? 'نسخ' : 'Copier'}>
                   {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
 
+                {/* Feedback discret intégré dans la barre */}
                 {lastGenType && lastGenOutput && (
-                  <div className="flex items-center gap-1 ms-1 ps-2 border-s border-slate-200">
-                    <span className="text-[9px] text-slate-400 me-1 shrink-0">
-                      {feedbackSent ? '✅' : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
+                  <div className="flex items-center gap-1 ms-2 ps-2 border-s border-slate-200">
+                    <span className="text-[9px] text-slate-400 me-1">
+                      {feedbackSent
+                        ? (language === 'ar' ? '✅' : '✅')
+                        : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
                     </span>
                     <button 
                       onClick={() => handleSendFeedback(5)} 
                       disabled={feedbackSent}
-                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default shrink-0 ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
+                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
                       title="👍">
                       <ThumbsUp className={`w-3 h-3 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-slate-400 hover:text-green-600'}`} />
                     </button>
                     <button 
                       onClick={() => handleSendFeedback(1)} 
                       disabled={feedbackSent}
-                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default shrink-0 ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
+                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
                       title="👎">
                       <ThumbsDown className={`w-3 h-3 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-slate-400 hover:text-red-500'}`} />
                     </button>
@@ -675,22 +696,31 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 )}
               </div>
 
-              <span className="text-[10px] text-slate-400 font-num shrink-0 whitespace-nowrap" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
-                {t.costLabel}: <span className="font-bold text-slate-600">{POINTS_COST}</span> {t.pointsLabel}
-              </span>
+              {/* Groupe droite : Coût + Générer */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-500 hidden sm:block" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
+                  {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
+                </span>
+                <button 
+                  onClick={() => handleGenerate()} 
+                  disabled={isGenerating || !text.trim()} 
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
+                  {isGenerating ? (
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>
+                  ) : (
+                    <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* ============ PANNEAU VOIX ============ */}
-        {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] transition-opacity" />}
+        {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
         <div className={`
-          fixed lg:static inset-y-0 end-0 z-[60] lg:z-0
-          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200
-          p-4
-          pt-[calc(1rem_+_env(safe-area-inset-top))] lg:pt-4
-          pb-[calc(1rem_+_env(safe-area-inset-bottom))] lg:pb-4
-          transition-transform duration-300 transform
+          fixed lg:static inset-y-0 end-0 z-50 lg:z-0
+          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-transform duration-300 transform
           ${isVoiceMenuOpen ? 'translate-x-0' : (isRTL ? '-translate-x-full lg:translate-x-0' : 'translate-x-full lg:translate-x-0')}
         `}>
           <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100">
@@ -705,7 +735,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           <div className="flex-1 min-h-0 flex flex-col">
             
-            {/* Filtre Genre */}
+            {/* Filtre Genre : Icônes + Texte pour clarté */}
             <div className="shrink-0 flex bg-slate-100 p-0.5 rounded-lg text-[10px] mb-2">
               <button 
                 onClick={() => setGenderFilter('all')} 
@@ -726,7 +756,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </button>
             </div>
 
-            {/* Filtre Catégorie */}
+            {/* Filtre Catégorie : Dropdown (Select) épuré */}
             <div className="shrink-0 mb-2">
               <div className="relative">
                 <select 
@@ -741,7 +771,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
             </div>
 
-            {/* Liste des voix */}
+            {/* Liste des voix (scrollbar customisée) */}
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1 pe-1">
               {filteredVoices.map((voice) => {
                 const isSelected = voice.id === selectedVoiceId;
@@ -771,7 +801,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           </div>
 
-          {/* Voix sélectionnée + Sliders */}
+          {/* Voix sélectionnée + Sliders épais (tactile-friendly) */}
           <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3">
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
@@ -788,6 +818,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </button>
             </div>
             
+            {/* Sliders épais tactile-friendly */}
             <div className="space-y-2.5">
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px]">
@@ -826,67 +857,20 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       </div>
 
       {/* ==========================================================================
-         BARRE D'ACTIONS FIXE EN BAS — refaite proprement
-         • Magique : carré compact 44px (icône seule sur mobile, + texte sur sm+)
-         • Générer : GRAND bouton principal, prend toute la largeur restante
-         • Aucun débordement possible : truncate + min-w-0 + whitespace-nowrap
-         • pe-16 = 64px réservés à droite pour le FAB WhatsApp
-         ========================================================================== */}
-      <div className="fixed bottom-[calc(0.75rem_+_env(safe-area-inset-bottom))] inset-x-3 sm:inset-x-4 lg:inset-x-auto lg:start-1/2 lg:-translate-x-1/2 lg:rtl:translate-x-1/2 lg:w-full lg:max-w-2xl z-50">
-        <div className="flex items-stretch gap-2 bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl shadow-slate-900/15 p-2 pe-[calc(0.5rem+64px)] lg:pe-2">
-          
-          {/* ===== MAGIQUE (compact, ne grandit jamais) ===== */}
-          <button 
-            onClick={handleEnhanceText} 
-            disabled={isEnhancing || !text.trim() || balance < 2}
-            className="h-12 px-2.5 sm:px-3.5 shrink-0 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-2"
-            title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer le texte (2 pts)'}>
-            {isEnhancing 
-              ? <RefreshCw className="w-4 h-4 text-purple-600 animate-spin shrink-0" /> 
-              : <Wand2 className="w-4 h-4 text-purple-600 shrink-0" />}
-            <span className="hidden sm:flex flex-col items-start leading-none gap-0.5">
-              <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">
-                {language === 'ar' ? 'المحسن' : 'Magique'}
-              </span>
-              <span className="text-[9px] font-bold text-purple-400 whitespace-nowrap">2 pts</span>
-            </span>
-          </button>
-
-          {/* ===== GÉNÉRER (bouton principal, prend toute la place) ===== */}
-          <button 
-            onClick={() => handleGenerate()} 
-            disabled={isGenerating || !text.trim()} 
-            className="flex-1 min-w-0 h-12 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-sm shadow-lg shadow-purple-600/25 active:scale-[0.98]">
-            {isGenerating ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
-                <span className="truncate">{t.generatingBtn}</span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4 shrink-0" />
-                <span className="truncate">{t.generateBtn}</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ==========================================================================
-         PLAYER AUDIO — empilé AU-DESSUS de la barre d'actions (jamais de chevauchement)
+         PLAYER AUDIO FLOTTANT HAUT DE GAMME (Style ElevenLabs / Spotify)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="fixed bottom-[calc(5.25rem_+_env(safe-area-inset-bottom))] inset-x-3 sm:inset-x-4 lg:inset-x-auto lg:start-1/2 lg:-translate-x-1/2 lg:rtl:translate-x-1/2 lg:w-full lg:max-w-2xl bg-slate-900/95 text-white rounded-2xl p-2.5 sm:p-3.5 shadow-2xl border border-slate-800/80 backdrop-blur-xl z-50 flex items-center justify-between gap-2 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-4 inset-x-4 max-w-3xl mx-auto bg-slate-900/95 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-800/80 backdrop-blur-xl z-50 flex items-center justify-between gap-3 sm:gap-5 animate-in slide-in-from-bottom-5 duration-300">
           
-          {/* ZONE 1 : Play + infos voix */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* ZONE 1 : Bouton Play & Infos Voix */}
+          <div className="flex items-center gap-3 shrink-0">
             <button 
               onClick={togglePlay} 
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/25 shrink-0">
+              className="w-11 h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/25 shrink-0">
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
             </button>
             
-            <div className="hidden sm:flex flex-col min-w-0">
+            <div className="hidden sm:flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-white truncate">{currentVoice.name}</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold shrink-0">
@@ -899,8 +883,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           </div>
 
-          {/* ZONE 2 : Waveform */}
-          <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-800/50 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-slate-700/40">
+          {/* ZONE 2 : Waveform dynamique au centre */}
+          <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-800/50 px-3 py-2 rounded-xl border border-slate-700/40">
             <div className="flex-1 min-w-0">
               <WaveformPlayer 
                 isPlaying={isPlaying}
@@ -909,18 +893,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 duration={audioDuration}
               />
             </div>
+            {/* Temps affiché sur mobile si les infos voix sont cachées */}
             <span className="sm:hidden text-[10px] text-purple-300 font-num font-bold shrink-0">
               {currentTime.toFixed(1)}s
             </span>
           </div>
 
-          {/* ZONE 3 : Download + Fermer */}
+          {/* ZONE 3 : Téléchargement et Fermeture */}
           <div className="flex items-center gap-1.5 shrink-0">
             {mp3Url ? (
               <a 
                 href={mp3Url} 
                 download="sawtify-audio.mp3" 
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-900/30"
+                className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-900/30"
                 title="Download MP3">
                 <Download className="w-4 h-4" />
                 <span className="hidden md:inline">MP3</span>
@@ -929,7 +914,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               <a 
                 href={currentAudioUrl} 
                 download="sawtify-audio.wav" 
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer border border-slate-700"
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer border border-slate-700"
                 title="Download WAV">
                 <Download className="w-4 h-4" />
                 <span className="hidden md:inline">WAV</span>

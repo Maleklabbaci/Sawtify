@@ -46,6 +46,11 @@ function AppContent() {
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
   const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
+  // Retient l'utilisateur déjà chargé pour ignorer les évènements SIGNED_IN
+  // redondants que Supabase renvoie quand l'onglet redevient actif (retour
+  // sur l'onglet, rafraîchissement du token) — sans ça, l'écran "Sawtify
+  // prépare ton espace" réapparaissait à chaque fois qu'on revenait sur l'onglet.
+  const bootstrappedUserIdRef = React.useRef<string | null>(null);
 
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
@@ -102,6 +107,7 @@ function AppContent() {
         if (data.session) {
           setIsLoggedIn(true);
           navigateTo(routeToTab(window.location.pathname), true);
+          bootstrappedUserIdRef.current = data.session.user.id;
           setIsBootstrapping(true);
           refreshAccountData().finally(() => setIsBootstrapping(false));
         } else {
@@ -111,6 +117,16 @@ function AppContent() {
 
       const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
+          // Retour sur l'onglet / token rafraîchi pour un utilisateur déjà
+          // chargé : Supabase renvoie SIGNED_IN, mais ce n'est pas une
+          // vraie nouvelle connexion. On garde la session active sans
+          // relancer tout le bootstrap (pas d'écran de chargement, pas de
+          // re-check du bonus de bienvenue).
+          if (bootstrappedUserIdRef.current === session.user.id) {
+            setIsLoggedIn(true);
+            return;
+          }
+          bootstrappedUserIdRef.current = session.user.id;
           setIsLoggedIn(true);
           setAuthModalMode('none');
           navigateTo('studio');
@@ -157,6 +173,7 @@ function AppContent() {
           }
         }
         if (event === 'SIGNED_OUT') {
+          bootstrappedUserIdRef.current = null;
           setIsLoggedIn(false);
         }
         // Lien "mot de passe oublié" cliqué dans l'e-mail reçu : Supabase ouvre

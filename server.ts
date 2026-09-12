@@ -9,6 +9,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Filet de sécurité global : une erreur non attrapée quelque part dans le code
+// (paiement, TTS, LLM...) ne doit JAMAIS faire planter tout le processus
+// Node — sinon Render renvoie des 502 à TOUS les utilisateurs le temps du
+// redémarrage, pour un bug qui ne concernait qu'une seule requête.
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Exception non interceptée (processus maintenu en vie) :", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Promesse rejetée non interceptée (processus maintenu en vie) :", reason);
+});
+
 // ==========================================================================
 // CHANGELOG DE CE FICHIER :
 // FIX n°1 : suppression totale du fallback audio synthétique (sinusoïdes =

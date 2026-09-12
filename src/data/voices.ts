@@ -14,7 +14,8 @@ export const VOICES_FR: Voice[] = [
     category: 'commercial',
     sampleText: 'Salam alaykoum khawti ! Avec Sawtify, vos textes deviennent une voix humaine 100% naturelle et de haute qualité.',
     badge: 'Le plus populaire',
-    styles: ['Naturel', 'Dynamique', 'Publicitaire']
+    styles: ['Naturel', 'Dynamique', 'Publicitaire'],
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3'
   },
   {
     id: 'voice_yasmin',
@@ -27,7 +28,8 @@ export const VOICES_FR: Voice[] = [
     category: 'commercial',
     sampleText: 'Bienvenue à tous ! Découvrez la synthèse vocale IA algérienne au son chaleureux et d\'une clarté parfaite.',
     badge: 'Publicité & Commerce',
-    styles: ['Fluide', 'Souriante', 'Marketing']
+    styles: ['Fluide', 'Souriante', 'Marketing'],
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3'
   },
   {
     id: 'voice_khalid',
@@ -40,7 +42,8 @@ export const VOICES_FR: Voice[] = [
     category: 'formal',
     sampleText: 'Nous vous présentons aujourd\'hui une technologie vocale d\'élite, avec une articulation précise et équilibrée.',
     badge: 'Documentaire & Formel',
-    styles: ['Solennel', 'Documentaire', 'Journalistique']
+    styles: ['Solennel', 'Documentaire', 'Journalistique'],
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav'
   },
   {
     id: 'voice_maryam',
@@ -134,7 +137,8 @@ export const VOICES_AR: Voice[] = [
     category: 'commercial',
     sampleText: 'سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي مئة بالمئة بلا أي نبرة آلية وبأعلى جودة.',
     badge: 'الأكثر طلباً',
-    styles: ['طبيعي', 'حيوي', 'إعلاني']
+    styles: ['طبيعي', 'حيوي', 'إعلاني'],
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3'
   },
   {
     id: 'voice_yasmin',
@@ -147,7 +151,8 @@ export const VOICES_AR: Voice[] = [
     category: 'commercial',
     sampleText: 'مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق، صوت دافئ وبلا أي روبوتيك.',
     badge: 'إعلانات وتجارة',
-    styles: ['انسيابي', 'مبتسم', 'تسويقي']
+    styles: ['انسيابي', 'مبتسم', 'تسويقي'],
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3'
   },
   {
     id: 'voice_khalid',
@@ -160,7 +165,8 @@ export const VOICES_AR: Voice[] = [
     category: 'formal',
     sampleText: 'السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي ومخارج حروف واضحة ومتقنة.',
     badge: 'وثائقي ورسمي',
-    styles: ['وقور', 'وثائقي', 'إخباري']
+    styles: ['وقور', 'وثائقي', 'إخباري'],
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav'
   },
   {
     id: 'voice_maryam',
