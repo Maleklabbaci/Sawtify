@@ -1318,28 +1318,31 @@ Style vocal souhaité : ${style || "excited"}`;
       } else return res.status(503).json({ success: false, error: "Paiement indisponible." });
 
       const returnUrl = getPublicUrl(req, `/?payment_status=success&pack_id=${packId}&points=${numPoints}`);
-      let cleanPhone = phone.replace(/[^0-9]/g, '');
-      if (cleanPhone.startsWith('213') && cleanPhone.length > 9) cleanPhone = '0' + cleanPhone.slice(3);
-      if (!cleanPhone || cleanPhone.length < 9) cleanPhone = "0550123456";
       let defaultAccountUuid: string | undefined = undefined, contactUuid: string | undefined = undefined;
       const slickPayApiRoot = SLICKPAY_BASE_URL.replace(/\/+$/, "");
       try { const accRes = await fetch(`${slickPayApiRoot}/users/accounts`, { headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Accept": "application/json" } }); if (accRes.ok) { const accData = await accRes.json(); const list = accData.data || accData.accounts || (Array.isArray(accData) ? accData : []); if (list.length > 0) defaultAccountUuid = list[0].uuid || list[0].id; } } catch (e) {}
 
       const contactCacheKey = email.trim().toLowerCase();
       contactUuid = SLICKPAY_CONTACT_CACHE.get(contactCacheKey);
+      let contactErrorDetail = "";
       if (!contactUuid) {
         try {
-          const contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger" }) });
-          if (contactRes.ok) { const contactData = await contactRes.json(); contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; if (contactUuid) SLICKPAY_CONTACT_CACHE.set(contactCacheKey, contactUuid); }
-        } catch (e) {}
+          const contactTitle = `${firstname.trim() || "Client"} ${lastname.trim() || "Sawtify"}`.trim();
+          const contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ title: contactTitle, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger" }) });
+          const contactBodyText = await contactRes.text();
+          let contactData: any;
+          try { contactData = JSON.parse(contactBodyText); } catch { contactData = { message: contactBodyText }; }
+          if (contactRes.ok) { contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; if (contactUuid) SLICKPAY_CONTACT_CACHE.set(contactCacheKey, contactUuid); }
+          else { contactErrorDetail = contactData?.message || `HTTP ${contactRes.status}`; console.warn("[SlickPay create contact] échec:", contactRes.status, contactData); }
+        } catch (e: any) { contactErrorDetail = e?.message || "Erreur réseau"; console.warn("[SlickPay create contact] erreur réseau:", e?.message || e); }
       }
       const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
-      const payload: any = { amount: numAmount, url: returnUrl, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: cleanPhone, email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", adress: address.trim() || "Alger", note: `Sawtify - ${packName}`, items: itemsList };
+      const payload: any = { amount: numAmount, url: returnUrl, note: `Sawtify - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
 
       if (!SLICKPAY_API_KEY) return res.status(503).json({ success: false, error: "SlickPay n'est pas configuré sur le serveur." });
-      if (!contactUuid) return res.status(502).json({ success: false, error: "Impossible de créer le contact SlickPay. Vérifie l'e-mail et le numéro de téléphone." });
+      if (!contactUuid) return res.status(502).json({ success: false, error: "Impossible de créer le contact SlickPay.", diagnostics: contactErrorDetail || undefined });
       const spRes = await fetch(primaryUrl, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(payload) });
       const spText = await spRes.text();
       let spData: any;
