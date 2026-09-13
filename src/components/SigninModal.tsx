@@ -64,7 +64,7 @@ export const SigninModal: React.FC<SigninModalProps> = ({
         {/* Background Photo with low opacity & nice overlay blend */}
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-overlay pointer-events-none"
-          style={{ backgroundImage: 'url("https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg")' }}
+          style={{ backgroundImage: 'url("https://i.pinimg.com/736x/42/91/50/429150b52e1e95fb7ad9312f5532e027.jpg")' }}
         />
 
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-fuchsia-400/20 rounded-full blur-3xl pointer-events-none" />
