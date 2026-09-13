@@ -6,6 +6,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -1328,7 +1329,13 @@ Style vocal souhaité : ${style || "excited"}`;
       if (!contactUuid) {
         try {
           const contactTitle = `${firstname.trim() || "Client"} ${lastname.trim() || "Sawtify"}`.trim();
-          const contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ title: contactTitle, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger" }) });
+          // SlickPay exige un champ "rib" pour créer un contact, alors que
+          // Sawtify ne collecte jamais de RIB (paiement par carte uniquement).
+          // On génère une valeur factice mais UNIQUE par client (dérivée de
+          // son e-mail) pour satisfaire ce champ obligatoire sans risquer un
+          // conflit d'unicité entre deux clients différents.
+          const fakeRib = crypto.createHash("sha256").update(contactCacheKey).digest("hex").replace(/[a-f]/g, "").padEnd(20, "0").slice(0, 20);
+          const contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ title: contactTitle, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", rib: fakeRib }) });
           const contactBodyText = await contactRes.text();
           let contactData: any;
           try { contactData = JSON.parse(contactBodyText); } catch { contactData = { message: contactBodyText }; }
