@@ -166,6 +166,14 @@ const LLM_RESPONSE_CACHE = new Map<string, { result: string; ts: number }>();
 const LLM_CACHE_MAX_SIZE = 200;
 const LLM_CACHE_TTL_MS = 1000 * 60 * 30;
 const DAILY_TTS_LIMIT = Number(process.env.DAILY_TTS_LIMIT) || 20;
+// FIX COST-1 : quota journalier pour les appels LLM payants (Magique + Script),
+// distinct du quota TTS. Comptés à partir de gemini_call_log (billable=true).
+const DAILY_LLM_LIMIT = Number(process.env.DAILY_LLM_LIMIT) || 30;
+// FIX COST-2 : au-delà de ce nombre d'appels Gemini (tous types confondus, preview
+// gratuite incluse) par utilisateur et par jour, une alerte silencieuse est levée
+// côté serveur — jamais visible côté client.
+const GEMINI_ALERT_THRESHOLD = Number(process.env.GEMINI_ALERT_THRESHOLD) || 60;
+const ADMIN_ALERT_WEBHOOK_URL = process.env.ADMIN_ALERT_WEBHOOK_URL || "";
 
 const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
 function mapGateway(method: string | undefined): string { 
@@ -203,6 +211,69 @@ async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
       .eq("user_id", userId).gte("created_at", since.toISOString());
     if (error) return false;
     return (count || 0) >= DAILY_TTS_LIMIT;
+  } catch { return false; }
+}
+
+/* ==========================================================================
+   FIX COST-1/2/3 : OBSERVABILITÉ GEMINI (journalisation + quota LLM + alerte)
+   — Ne modifie jamais la réponse HTTP renvoyée au client : purement interne.
+   — logGeminiCall() est LE point de passage unique de tout appel Gemini
+     (preview, tts, enhance, script) : un seul format de log, une seule table.
+   ========================================================================== */
+async function logGeminiCall(params: {
+  userId: string | null; callType: "preview" | "tts" | "enhance" | "script";
+  billable: boolean; pointsCost: number; charCount?: number; success: boolean; latencyMs?: number;
+}): Promise<void> {
+  const { userId, callType, billable, pointsCost, charCount, success, latencyMs } = params;
+  // Toujours en console (survit même si Supabase est indisponible).
+  console.log(JSON.stringify({
+    event: "gemini_call", type: callType, userId, billable, points_cost: pointsCost,
+    chars: charCount ?? null, success, latency_ms: latencyMs ?? null, ts: new Date().toISOString(),
+  }));
+  if (!supabaseClient || !userId) return;
+  try {
+    await supabaseClient.from("gemini_call_log").insert({
+      user_id: userId, call_type: callType, billable, points_cost: pointsCost,
+      char_count: charCount ?? null, success, latency_ms: latencyMs ?? null,
+    });
+  } catch { /* la journalisation ne doit jamais casser la réponse utilisateur */ }
+  // Vérification du seuil d'alerte : asynchrone, jamais bloquante pour la requête en cours.
+  checkAndRaiseUsageAlert(userId).catch(() => {});
+}
+
+async function checkAndRaiseUsageAlert(userId: string): Promise<void> {
+  if (!supabaseClient || GEMINI_ALERT_THRESHOLD <= 0) return;
+  try {
+    const since = new Date(); since.setHours(0, 0, 0, 0);
+    const { count } = await supabaseClient.from("gemini_call_log")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId).gte("created_at", since.toISOString());
+    const callCount = count || 0;
+    if (callCount < GEMINI_ALERT_THRESHOLD) return;
+    // Une seule alerte par utilisateur par jour, grâce à la contrainte UNIQUE(user_id, alert_date).
+    const { error: insertError } = await supabaseClient.from("gemini_usage_alerts")
+      .insert({ user_id: userId, call_count: callCount, threshold: GEMINI_ALERT_THRESHOLD });
+    if (insertError) return; // déjà alerté aujourd'hui → pas de spam
+    console.warn(JSON.stringify({ event: "gemini_usage_alert", userId, call_count: callCount, threshold: GEMINI_ALERT_THRESHOLD }));
+    if (ADMIN_ALERT_WEBHOOK_URL) {
+      fetch(ADMIN_ALERT_WEBHOOK_URL, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: `⚠️ Sawtify : l'utilisateur ${userId} a dépassé ${GEMINI_ALERT_THRESHOLD} appels Gemini aujourd'hui (${callCount}).` }),
+      }).catch(() => {});
+    }
+  } catch { /* best-effort : ne jamais impacter le flux principal */ }
+}
+
+async function hasReachedDailyLLMLimit(userId: string): Promise<boolean> {
+  if (!supabaseClient || DAILY_LLM_LIMIT <= 0) return false;
+  try {
+    const since = new Date(); since.setHours(0, 0, 0, 0);
+    const { count, error } = await supabaseClient.from("gemini_call_log")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId).in("call_type", ["enhance", "script"]).eq("billable", true)
+      .gte("created_at", since.toISOString());
+    if (error) return false;
+    return (count || 0) >= DAILY_LLM_LIMIT;
   } catch { return false; }
 }
 
@@ -1013,10 +1084,15 @@ async function startServer() {
     }
 
     const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
+    const previewUserId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
     const generation = (async () => {
       // FIX n°1 : SEUL du vrai audio Gemini est caché/persisté.
       // Échec → exception → 503. Jamais de sinusoïdes robotiques en cache.
+      // FIX COST-3 : ce bloc n'est atteint que sur un vrai cache miss (mémoire +
+      // persistant), donc ce log reflète un vrai appel Gemini, pas une requête HTTP.
+      const previewStart = Date.now();
       const { pcmBuffer, error: synthError } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 3, speed, pitch, voiceId, []);
+      logGeminiCall({ userId: previewUserId ?? null, callType: "preview", billable: false, pointsCost: 0, charCount: sampleScript.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - previewStart });
       if (!pcmBuffer || pcmBuffer.length <= 50) {
         throw new Error(synthError || "Gemini TTS indisponible");
       }
@@ -1082,7 +1158,8 @@ async function startServer() {
       const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
 
       const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
-      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, chunks: chunkCount, success: Boolean(pcmBuffer), maxRetries: 3 }));
+      // FIX COST-3 : génération payante → billable=true, séparée des previews gratuites (billable=false).
+      logGeminiCall({ userId, callType: "tts", billable: true, pointsCost: BASE_POINTS_COST, charCount: text.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - startTime });
 
       // FIX n°1 + FIX TTS-B : échec Gemini (ou audio tronqué) → 503 explicite.
       // JAMAIS d'audio partiel ni synthétique facturé comme une vraie génération.
@@ -1166,6 +1243,10 @@ RÈGLES STRICTES :
       const currentBalance = await getUserBalance(userId);
       if (currentBalance === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (currentBalance !== null && currentBalance < pointsCost) return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
+      // FIX COST-1 : quota journalier LLM (partagé avec le générateur de script).
+      if (await hasReachedDailyLLMLimit(userId)) {
+        return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_LLM_LIMIT} générations IA texte).` });
+      }
 
       const regionGuide = getRegionGuide(region);
       const { type: textType, guidance: typeGuidance } = detectTextType(text);
@@ -1198,7 +1279,9 @@ ${text}
 
 Génère maintenant la version optimisée :`;
 
+      const enhanceCallStart = Date.now();
       let enhancedText = await callGeminiTextAPI(buildEnhancePrompt(false), 0.6);
+      logGeminiCall({ userId, callType: "enhance", billable: true, pointsCost, charCount: text.length, success: Boolean(enhancedText), latencyMs: Date.now() - enhanceCallStart });
       enhancedText = enhancedText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Voici|Texte\s*amélioré|Version\s*optimisée)\s*:?/gi, "").replace(/^["«»']|["«»']$/g, "").replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/\n{3,}/g, "\n\n").trim();
 
       const tagCount = countEmotionTags(enhancedText);
@@ -1241,6 +1324,10 @@ Génère maintenant la version optimisée :`;
       const currentBalance = await getUserBalance(userId);
       if (currentBalance === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (currentBalance !== null && currentBalance < pointsCost) return res.status(402).json({ error: "Solde de points insuffisant (5 points requis)." });
+      // FIX COST-1 : même quota journalier LLM que le bouton Magique.
+      if (await hasReachedDailyLLMLimit(userId)) {
+        return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_LLM_LIMIT} générations IA texte).` });
+      }
 
       const selectedHook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
       const selectedProblem = PROBLEMS[Math.floor(Math.random() * PROBLEMS.length)];
@@ -1266,7 +1353,9 @@ SUJET / PRODUIT : "${product}"
 ⚠️ CONTRAINTES : Fluide en Darija, 90 à 120 mots, PAS DE TITRE, JUSTE LE TEXTE.
 Style vocal souhaité : ${style || "excited"}`;
 
+      const scriptCallStart = Date.now();
       let scriptText = await callGeminiTextAPI(scriptPrompt, 0.95);
+      logGeminiCall({ userId, callType: "script", billable: true, pointsCost, charCount: product.length, success: Boolean(scriptText), latencyMs: Date.now() - scriptCallStart });
       scriptText = scriptText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Structure|Accroche|Problème|Solution|CTA)\s*:?/gi, "").trim();
 
       const reduction = await deductCredits(userId, pointsCost);

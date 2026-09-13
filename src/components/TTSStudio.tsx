@@ -112,6 +112,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const previousMp3UrlRef = useRef<string | null>(null);
   const previewRequestRef = useRef<string | null>(null);
   const generationRequestLockRef = useRef(false);
+  // FIX COST-2 : même protection anti-double-clic que la génération TTS et la preview,
+  // appliquée au bouton Magique et au générateur de script (deux clics rapprochés ne
+  // doivent jamais déclencher deux appels Gemini payants).
+  const enhanceRequestLockRef = useRef(false);
+  const scriptRequestLockRef = useRef(false);
 
   // ------------------------------------------------------------------------
   // FIX : résultat perdu quand on change d'onglet (Historique/Tarifs) puis
@@ -406,8 +411,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }
 
   const handleEnhanceText = async () => {
-    if (!text.trim() || isEnhancing) return;
+    if (!text.trim() || isEnhancing || enhanceRequestLockRef.current) return;
     if (balance < 2) { setInsufficientAlert(true); return; }
+    enhanceRequestLockRef.current = true;
     setInsufficientAlert(false); 
     setIsEnhancing(true); 
     setFeedbackSent(false);
@@ -425,15 +431,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
+      // FIX COST-1 : message de quota lisible plutôt qu'une erreur générique.
+      else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي، عاود المحاولة غدًا' : 'Limite quotidienne atteinte, réessaie demain');
       else showNotif(language === 'ar' ? 'خطأ في التحسين' : 'Erreur d\'amélioration');
     } finally { 
       setIsEnhancing(false); 
+      enhanceRequestLockRef.current = false;
     }
   };
 
   const handleGenerateScript = async () => {
-    if (!productName.trim() || isGeneratingScript) return;
+    if (!productName.trim() || isGeneratingScript || scriptRequestLockRef.current) return;
     if (balance < 5) { setInsufficientAlert(true); return; }
+    scriptRequestLockRef.current = true;
     setInsufficientAlert(false); 
     setIsGeneratingScript(true); 
     setFeedbackSent(false);
@@ -453,9 +463,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
+      else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي، عاود المحاولة غدًا' : 'Limite quotidienne atteinte, réessaie demain');
       else showNotif(language === 'ar' ? 'خطأ في إنشاء السيناريو' : 'Erreur génération script');
     } finally { 
       setIsGeneratingScript(false); 
+      scriptRequestLockRef.current = false;
     }
   };
 
