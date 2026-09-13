@@ -107,6 +107,11 @@ const MeshBackground = () => {
     window.addEventListener("resize", measure);
 
     const loop = () => {
+      // Filet de sécurité : si les éléments ont disparu entretemps (changement
+      // de page très rapide), on arrête net au lieu de planter en essayant de
+      // toucher un élément qui n'existe plus.
+      if (!balls[0] || !balls[1] || !balls[2]) return;
+
       cx += (tx - cx) * 0.07;
       cy += (ty - cy) * 0.07;
       const p = Math.min(1, Math.max(0, window.scrollY / maxScroll));
@@ -121,9 +126,9 @@ const MeshBackground = () => {
       for (let i = 0; i < 6; i++) if (Math.abs(out[i] - applied[i]) > 0.25) { changed = true; break; }
       if (changed) {
         for (let i = 0; i < 6; i++) applied[i] = out[i];
-        balls[0]!.style.transform = `translate3d(${out[0].toFixed(1)}px, ${out[1].toFixed(1)}px, 0)`;
-        balls[1]!.style.transform = `translate3d(${out[2].toFixed(1)}px, ${out[3].toFixed(1)}px, 0)`;
-        balls[2]!.style.transform = `translate3d(${out[4].toFixed(1)}px, ${out[5].toFixed(1)}px, 0)`;
+        balls[0].style.transform = `translate3d(${out[0].toFixed(1)}px, ${out[1].toFixed(1)}px, 0)`;
+        balls[1].style.transform = `translate3d(${out[2].toFixed(1)}px, ${out[3].toFixed(1)}px, 0)`;
+        balls[2].style.transform = `translate3d(${out[4].toFixed(1)}px, ${out[5].toFixed(1)}px, 0)`;
       }
       raf = requestAnimationFrame(loop);
     };
