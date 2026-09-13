@@ -112,7 +112,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white overflow-hidden flex items-center justify-center shadow-md">
-            <img src="https://i.pinimg.com/1200x/89/1f/fa/891ffa1c876c683b3e4820333f4d7e02.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
+            <img src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
           </div>
           <span className="font-extrabold text-white tracking-tight text-lg">SAWTIFY</span>
         </motion.div>
@@ -157,7 +157,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         >
           <div className="space-y-2 text-center lg:text-left" style={isRTL ? { textAlign: 'right' } : undefined}>
             <div className="lg:hidden w-12 h-12 mx-auto lg:mx-0 rounded-2xl bg-white overflow-hidden flex items-center justify-center shadow-md mb-4 border border-slate-100">
-              <img src="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
+              <img src="https://i.pinimg.com/1200x/89/1f/fa/891ffa1c876c683b3e4820333f4d7e02.jpg" alt="Logo Sawtify" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               {isRTL ? 'تسجيل الدخول إلى صوتيفي' : 'Connexion à Sawtify'}
