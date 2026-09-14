@@ -1,0 +1,67 @@
+{
+  "name": "Sawtify - Voix IA Darija Algérienne",
+  "short_name": "Sawtify",
+  "description": "Premier générateur de voix IA en darija algérienne. Texte en voix naturelle, paiement CIB & Edahabia.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#8B5CF6",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "dir": "ltr",
+  "scope": "/",
+  "categories": ["entertainment", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://i.ibb.co/1Yj2w4Kh/Capture-d-cran-2026-09-14-053136.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Sawtify - Interface de génération de voix IA"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Studio",
+      "short_name": "Studio",
+      "url": "/studio",
+      "icons": [
+        {
+          "src": "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Tarifs",
+      "short_name": "Tarifs",
+      "url": "/pricing",
+      "icons": [
+        {
+          "src": "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}
