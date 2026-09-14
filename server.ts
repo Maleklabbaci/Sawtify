@@ -1005,7 +1005,7 @@ function validateLatinPreservation(original: string, enhanced: string): boolean 
 }
 
 function countEmotionTags(text: string): number {
-  return (text.match(/\[(excited|natural|calm|whisper|fast|dramatic)\]/gi) || []).length;
+  return (text.match(/\[(excited|natural|calm)\]/gi) || []).length;
 }
 
 // ==========================================================================
@@ -1214,15 +1214,18 @@ RÈGLES STRICTES :
 - Mots FR/techniques TOUJOURS en alphabet LATIN : livraison, WhatsApp, Instagram, Facebook, marketing digital, B2B, leads, closing, clients, service, formation, promotion, chiffre d'affaires, rendez-vous, réservation, etc.
 - JAMAIS de translittération arabe de ces mots ("لا ليفريزون" INTERDIT).
 
-2. BALISES D'ÉMOTION :
-- UNE SEULE balise par phrase, placée au début : [excited], [natural], [calm], [whisper], [fast].
+2. BALISES D'ÉMOTION (LIMITÉES) :
+- Utilise UNIQUEMENT ces 3 balises, jamais d'autres : [excited], [natural], [calm].
+- Maximum 2 balises différentes dans tout le script (pas une par phrase).
+- Si le client ne demande aucun ton particulier, reste simple : UNE SEULE balise [natural] au tout début, rien d'autre.
 - JAMAIS deux balises collées ([excited][natural] INTERDIT).
-- La première phrase DOIT commencer par une balise d'émotion claire.
+- JAMAIS de balise inventée ([whisper], [fast], [sigh], [laugh], etc. INTERDITS — non supportées par le moteur vocal).
+- ⚠️ CRITIQUE : les balises restent TOUJOURS exactement en anglais et en alphabet latin, MÊME quand le texte autour est en arabe/darija. INTERDIT de les traduire ou translittérer en arabe (ex: "[متحمس]", "[هادئ]" INTERDITS). Écris littéralement "[excited]", "[natural]" ou "[calm]", crochets inclus, sans aucune modification.
 
-3. LONGUEUR DES SCRIPTS (STRICT) :
-- Durée cible à l'oral : 30 à 40 secondes. JAMAIS plus de 40 secondes.
-- Environ 90 à 120 mots.
-- Texte complet et argumenté, mais concis.
+3. LONGUEUR DES SCRIPTS :
+- Par défaut (si le client ne précise rien) : 30 à 40 secondes, environ 90 à 120 mots.
+- Si le client demande une durée précise (ex: "20 secondes"), respecte CETTE durée en priorité, même si c'est plus court.
+- Texte complet et argumenté, mais concis — jamais étiré artificiellement pour atteindre un nombre de mots.
 
 4. SORTIE :
 - UNIQUEMENT le texte final à vocaliser.
@@ -1268,9 +1271,10 @@ ${originalLatinWords.length > 0 ? `🔒 MOTS FRANÇAIS/TECHNIQUES À GARDER EN L
 🚨 RÈGLES ABSOLUES :
 1. NE COUPE RIEN. Longueur cible : ${wordCount} à ${Math.floor(wordCount * 1.3)} mots.
 2. Garde TOUS les mots FR/techniques en ALPHABET LATIN.
-3. Ajoute AU MINIMUM ${expectedMinTags} balises d'émotion ([excited], [natural], [calm], [whisper], [fast]). La PREMIÈRE phrase DOIT commencer par une balise. JAMAIS deux balises collées.
-4. Alterne phrases courtes et moyennes. Utilise "..." pour les pauses.
-5. Renvoie UNIQUEMENT le texte final à vocaliser.
+3. Ajoute AU MINIMUM ${expectedMinTags} balises d'émotion, UNIQUEMENT parmi : [excited], [natural], [calm]. La PREMIÈRE phrase DOIT commencer par une balise. JAMAIS deux balises collées. JAMAIS d'autre balise ([whisper], [fast], [dramatic]... INTERDITES — non supportées par le moteur vocal).
+4. ⚠️ CRITIQUE : les balises restent TOUJOURS en anglais et alphabet latin exact — "[excited]", "[natural]", "[calm]" — MÊME dans un texte en arabe/darija. INTERDIT de les traduire ou translittérer en arabe.
+5. Alterne phrases courtes et moyennes. Utilise "..." pour les pauses.
+6. Renvoie UNIQUEMENT le texte final à vocaliser.
 
 ${isRetry ? `⚠️ TENTATIVE #2 : Respecte STRICTEMENT : minimum ${expectedMinTags} balises, longueur minimale ${Math.floor(wordCount * 0.9)} mots.` : ""}
 
@@ -1288,10 +1292,20 @@ Génère maintenant la version optimisée :`;
       const isTooShort = enhancedText.length < text.length * 0.6;
       const missingTags = tagCount < expectedMinTags;
       const latinPreserved = validateLatinPreservation(text, enhancedText);
-      const startsWithTag = /^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim());
+      const startsWithTag = /^\[(excited|natural|calm)\]/i.test(enhancedText.trim());
+
+      // Filet de sécurité : reconvertit en anglais toute balise que le modèle
+      // aurait quand même traduite/translittérée en arabe.
+      const ARABIC_TAG_MAP: Record<string, string> = {
+        "متحمس": "excited", "حماس": "excited", "طبيعي": "natural", "عادي": "natural", "هادئ": "calm", "هادئة": "calm",
+      };
+      enhancedText = enhancedText.replace(/\[([^\]]+)\]/g, (full, inner) => {
+        const key = inner.trim();
+        return ARABIC_TAG_MAP[key] ? `[${ARABIC_TAG_MAP[key]}]` : full;
+      });
 
       if (enhancedText.length < text.length * 0.4) enhancedText = /^\[/.test(text.trim()) ? text.trim() : `[natural] ${text.trim()}`;
-      if (!/^\[(excited|natural|calm|whisper|fast|dramatic)\]/i.test(enhancedText.trim())) enhancedText = `[natural] ${enhancedText}`;
+      if (!/^\[(excited|natural|calm)\]/i.test(enhancedText.trim())) enhancedText = `[natural] ${enhancedText}`;
 
       const reduction = await deductCredits(userId, pointsCost);
       if (!reduction.success) {
@@ -1338,24 +1352,47 @@ Génère maintenant la version optimisée :`;
       const regionGuide = getRegionGuide(region);
       const detectedSector = detectSector(product);
 
+      // Détection d'une durée explicitement demandée par le client (ex: "20 secondes", "30s").
+      const durationMatch = product.match(/(\d{1,3})\s*(?:sec(?:ondes?)?|s\b)/i);
+      const requestedSeconds = durationMatch ? Math.min(90, Math.max(5, parseInt(durationMatch[1], 10))) : null;
+      // ~2.3 mots/seconde à l'oral en darija — sert juste de repère, pas une règle stricte.
+      const wordTarget = requestedSeconds ? Math.round(requestedSeconds * 2.3) : null;
+      // Toute instruction custom du client (durée, mots à inclure, sujet libre, ton...) prime
+      // TOUJOURS sur la structure par défaut ci-dessous, qui n'est qu'un guide de secours.
+      const customInstructionsBlock = wordTarget
+        ? `\n\n⚠️ INSTRUCTION PRIORITAIRE DU CLIENT : durée demandée ≈ ${requestedSeconds} sec (~${wordTarget} mots). Respecte cette longueur AVANT toute autre contrainte, quitte à raccourcir ou fusionner les étapes de la structure ci-dessous.`
+        : "";
+
       const scriptPrompt = `${LLM_SYSTEM_PROMPT}
 
 LAHDJA CIBLE : ${regionGuide}
 SECTEUR DÉTECTÉ : ${detectedSector}
-SUJET / PRODUIT : "${product}"
+DEMANDE DU CLIENT (à suivre au mot près si elle contient des instructions précises — sujet, mots à inclure, ton, longueur) : "${product}"
 
-🎯 ARCHITECTURE OBLIGATOIRE DU SCRIPT :
+🎯 STRUCTURE PAR DÉFAUT (uniquement si le client ne donne pas d'instructions contraires) :
 1. ACCROCHE (HOOK) [3-5 sec] -> "${selectedHook}"
 2. LE PROBLÈME [8-12 sec] -> "${selectedProblem}"
 3. LA SOLUTION & PREUVE [15-20 sec] -> "${selectedSolution}" ET "${selectedProof}"
 4. APPEL À L'ACTION (CTA) [5 sec] -> "${selectedCTA}"
 
-⚠️ CONTRAINTES : Fluide en Darija, 90 à 120 mots, PAS DE TITRE, JUSTE LE TEXTE.
+⚠️ RÈGLE ABSOLUE : si la demande du client précise un sujet exact, des mots à utiliser, une durée, ou "suis exactement ce que je dis" — IGNORE la structure ci-dessus et écris uniquement ce qui est demandé, sans l'étirer artificiellement.${customInstructionsBlock}
+
+⚠️ CONTRAINTES GÉNÉRALES : Fluide en Darija, ${wordTarget ? `environ ${wordTarget} mots (± 15%)` : "90 à 120 mots par défaut si aucune longueur n'est précisée"}, PAS DE TITRE, JUSTE LE TEXTE.
 Style vocal souhaité : ${style || "excited"}`;
 
       const scriptCallStart = Date.now();
       let scriptText = await callGeminiTextAPI(scriptPrompt, 0.95);
       logGeminiCall({ userId, callType: "script", billable: true, pointsCost, charCount: product.length, success: Boolean(scriptText), latencyMs: Date.now() - scriptCallStart });
+      // Filet de sécurité : si le modèle traduit quand même les balises en arabe
+      // malgré la consigne, on les reconvertit en anglais (le moteur TTS ne
+      // reconnaît que [excited]/[natural]/[calm] en anglais).
+      const ARABIC_TAG_MAP: Record<string, string> = {
+        "متحمس": "excited", "حماس": "excited", "طبيعي": "natural", "عادي": "natural", "هادئ": "calm", "هادئة": "calm",
+      };
+      scriptText = scriptText.replace(/\[([^\]]+)\]/g, (full, inner) => {
+        const key = inner.trim();
+        return ARABIC_TAG_MAP[key] ? `[${ARABIC_TAG_MAP[key]}]` : full;
+      });
       scriptText = scriptText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Structure|Accroche|Problème|Solution|CTA)\s*:?/gi, "").trim();
 
       const reduction = await deductCredits(userId, pointsCost);
