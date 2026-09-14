@@ -1420,16 +1420,23 @@ Style vocal souhaité : ${style || "excited"}`;
           const contactTitle = `${firstname.trim() || "Client"} ${lastname.trim() || "Sawtify"}`.trim();
           // SlickPay exige un champ "rib" pour créer un contact, alors que
           // Sawtify ne collecte jamais de RIB (paiement par carte uniquement).
-          // On génère une valeur factice mais UNIQUE par client (dérivée de
-          // son e-mail) pour satisfaire ce champ obligatoire sans risquer un
-          // conflit d'unicité entre deux clients différents.
-          const fakeRib = crypto.createHash("sha256").update(contactCacheKey).digest("hex").replace(/[a-f]/g, "").padEnd(20, "0").slice(0, 20);
-          const contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ title: contactTitle, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", rib: fakeRib }) });
-          const contactBodyText = await contactRes.text();
-          let contactData: any;
-          try { contactData = JSON.parse(contactBodyText); } catch { contactData = { message: contactBodyText }; }
-          if (contactRes.ok) { contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; if (contactUuid) SLICKPAY_CONTACT_CACHE.set(contactCacheKey, contactUuid); }
-          else { contactErrorDetail = contactData?.message || `HTTP ${contactRes.status}`; console.warn("[SlickPay create contact] échec:", contactRes.status, contactData); }
+          // Le rib est factice et ALÉATOIRE à chaque tentative (et non plus
+          // dérivé de l'e-mail) : un rib déterministe entre en collision avec
+          // le contact déjà créé côté SlickPay dès que le cache mémoire
+          // (SLICKPAY_CONTACT_CACHE) est vidé par un redémarrage serveur,
+          // provoquant l'erreur 422 "La valeur du champ rib est déjà utilisée."
+          const makeFakeRib = () => crypto.randomBytes(16).toString("hex").replace(/[a-f]/g, "").padEnd(20, "0").slice(0, 20);
+          let contactRes: Response, contactBodyText: string, contactData: any;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            contactRes = await fetch(`${slickPayApiRoot}/users/contacts`, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ title: contactTitle, firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger", rib: makeFakeRib() }) });
+            contactBodyText = await contactRes.text();
+            try { contactData = JSON.parse(contactBodyText); } catch { contactData = { message: contactBodyText }; }
+            if (contactRes.ok) break;
+            const isRibConflict = contactRes.status === 422 && JSON.stringify(contactData?.errors || contactData).includes("rib");
+            if (!isRibConflict) break; // autre erreur : inutile de retenter
+          }
+          if (contactRes!.ok) { contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid; if (contactUuid) SLICKPAY_CONTACT_CACHE.set(contactCacheKey, contactUuid); }
+          else { contactErrorDetail = contactData?.message || `HTTP ${contactRes!.status}`; console.warn("[SlickPay create contact] échec:", contactRes!.status, contactData); }
         } catch (e: any) { contactErrorDetail = e?.message || "Erreur réseau"; console.warn("[SlickPay create contact] erreur réseau:", e?.message || e); }
       }
       const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
