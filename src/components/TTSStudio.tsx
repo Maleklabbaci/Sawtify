@@ -709,9 +709,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                         <button 
                           key={tagObj.tag}
                           onClick={() => handleInsertTag(tagObj.tag)} 
-                          title={tagObj.desc}
-                          className="text-[10px] font-mono px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start">
-                          {tagObj.tag}
+                          title={`${tagObj.tag} — ${tagObj.desc}`}
+                          className="text-[10px] font-semibold px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start">
+                          {`[${tagObj.label}]`}
                         </button>
                       ))}
                     </div>
