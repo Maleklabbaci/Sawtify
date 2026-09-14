@@ -7,6 +7,7 @@ import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import crypto from "crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 dotenv.config();
 
@@ -21,8 +22,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("[FATAL] Promesse rejetée non interceptée (processus maintenu en vie) :", reason);
 });
 
-// ==========================================================================
-// CHANGELOG DE CE FICHIER :
+// ===================================================================// CHANGELOG DE CE FICHIER :
 // FIX n°1 : suppression totale du fallback audio synthétique (sinusoïdes =
 //          son 100% robotique) et de sa mise en cache/persistance à vie.
 //          Échec Gemini → 503, rien n'est débité ni empoisonné.
@@ -57,12 +57,9 @@ process.on("unhandledRejection", (reason) => {
 //          artificiels entre chaque morceau).
 // FIX TTS-E : garde-fou durée — si l'audio généré est absurdement plus court
 //          que ce que le texte devrait donner à l'oral → rejet, aucun débit.
-// ==========================================================================
-
-// ==========================================================================
-// CONCURRENCY LIMITER (Fix: expose activeCount / pendingCount)
-// ==========================================================================
-function createLimiter(concurrency: number) {
+// ===================================================================
+// ===================================================================// CONCURRENCY LIMITER (Fix: expose activeCount / pendingCount)
+// ===================================================================function createLimiter(concurrency: number) {
   let active = 0;
   const queue: Array<() => void> = [];
   const next = () => {
@@ -150,10 +147,8 @@ const TTS_CONCURRENCY_LIMIT = Number(process.env.TTS_CONCURRENCY_LIMIT) || 6;
 const TTS_CONCURRENCY = createLimiter(TTS_CONCURRENCY_LIMIT);
 const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
 
-// ==========================================================================
-// NOUVEAUX PARAMÈTRES TTS (tous surchargables via .env, valeurs par défaut saines)
-// ==========================================================================
-const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
+// ===================================================================// NOUVEAUX PARAMÈTRES TTS (tous surchargables via .env, valeurs par défaut saines)
+// ===================================================================const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
 const TTS_FETCH_TIMEOUT_MS = Number(process.env.TTS_FETCH_TIMEOUT_MS) || 45000;   // FIX TTS-A
 const TTS_CHUNK_MAX_CHARS = Number(process.env.TTS_CHUNK_MAX_CHARS) || 800;       // FIX TTS-C
 const TTS_CHUNK_GAP_MS = Number(process.env.TTS_CHUNK_GAP_MS) || 200;             // FIX TTS-C
@@ -174,6 +169,67 @@ const DAILY_LLM_LIMIT = Number(process.env.DAILY_LLM_LIMIT) || 30;
 // côté serveur — jamais visible côté client.
 const GEMINI_ALERT_THRESHOLD = Number(process.env.GEMINI_ALERT_THRESHOLD) || 60;
 const ADMIN_ALERT_WEBHOOK_URL = process.env.ADMIN_ALERT_WEBHOOK_URL || "";
+const DAILY_GEMINI_LIMIT = Number(process.env.DAILY_GEMINI_LIMIT) || 30;
+const API_MIN_BALANCE = 1000;
+const GENERATION_RETENTION_DAYS = 7;
+const API_KEY_PREFIX = "swt_beta_";
+
+function hashApiKey(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function newApiKey(): string {
+  return `${API_KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
+}
+
+async function recordGeminiUsage(params: { userId?: string | null; operation: "tts" | "enhance" | "script" | "preview"; characters?: number; success: boolean; model?: string; metadata?: Record<string, unknown> }): Promise<number | null> {
+  if (!supabaseClient) return null;
+  try {
+    await supabaseClient.from("gemini_usage_logs").insert({
+      user_id: params.userId || null, operation: params.operation, model: params.model || null,
+      characters: params.characters || 0, success: params.success, metadata: params.metadata || {},
+    });
+    if (!params.userId) return null;
+    const since = new Date(); since.setHours(0, 0, 0, 0);
+    const { count } = await supabaseClient.from("gemini_usage_logs").select("id", { count: "exact", head: true })
+      .eq("user_id", params.userId).neq("operation", "preview").gte("created_at", since.toISOString());
+    const total = count || 0;
+    if (total >= Math.max(10, DAILY_GEMINI_LIMIT * 0.75)) console.warn(`[Gemini ALERT] user=${params.userId} ${total}/${DAILY_GEMINI_LIMIT} appels aujourd'hui`);
+    return total;
+  } catch (err: any) {
+    console.warn("[Gemini usage log unavailable]", err?.message || err);
+    return null;
+  }
+}
+
+async function hasReachedDailyGeminiLimit(userId: string): Promise<boolean> {
+  if (!supabaseClient || DAILY_GEMINI_LIMIT <= 0) return false;
+  try {
+    const since = new Date(); since.setHours(0, 0, 0, 0);
+    const { count, error } = await supabaseClient.from("gemini_usage_logs").select("id", { count: "exact", head: true })
+      .eq("user_id", userId).neq("operation", "preview").gte("created_at", since.toISOString());
+    return !error && (count || 0) >= DAILY_GEMINI_LIMIT;
+  } catch { return false; }
+}
+
+async function cleanupExpiredGenerations(): Promise<void> {
+  if (!supabaseClient) return;
+  const cutoff = new Date(Date.now() - GENERATION_RETENTION_DAYS * 86400000).toISOString();
+  try {
+    let deleted = 0;
+    for (let batch = 0; batch < 20; batch++) {
+      const { data: rows } = await supabaseClient.from("voice_generations").select("id, audio_storage_path").lt("created_at", cutoff).order("created_at", { ascending: true }).limit(500);
+      if (!rows?.length) break;
+      const paths = rows.map((row: any) => row.audio_storage_path).filter(Boolean);
+      if (paths.length) await supabaseClient.storage.from("audio-generations").remove(paths);
+      const ids = rows.map((row: any) => row.id);
+      await supabaseClient.from("voice_generations").delete().in("id", ids);
+      deleted += ids.length;
+      if (rows.length < 500) break;
+    }
+    if (deleted) console.log(`[Retention] ${deleted} génération(s) supprimée(s) après ${GENERATION_RETENTION_DAYS} jours`);
+  } catch (err: any) { console.warn("[Retention] nettoyage impossible:", err?.message || err); }
+}
 
 const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
 function mapGateway(method: string | undefined): string { 
@@ -214,8 +270,7 @@ async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
   } catch { return false; }
 }
 
-/* ==========================================================================
-   FIX COST-1/2/3 : OBSERVABILITÉ GEMINI (journalisation + quota LLM + alerte)
+/* ===================================================================   FIX COST-1/2/3 : OBSERVABILITÉ GEMINI (journalisation + quota LLM + alerte)
    — Ne modifie jamais la réponse HTTP renvoyée au client : purement interne.
    — logGeminiCall() est LE point de passage unique de tout appel Gemini
      (preview, tts, enhance, script) : un seul format de log, une seule table.
@@ -373,12 +428,10 @@ function pcmToWavBuffer(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, 
 // dans Supabase Storage, donc une voix restait robotique À VIE après
 // une seule erreur Gemini.
 
-// ==========================================================================
-// FIX n°4 : 9 personas → 9 vraies voix Gemini distinctes, alignées sur le
+// ===================================================================// FIX n°4 : 9 personas → 9 vraies voix Gemini distinctes, alignées sur le
 // profil naturel de chaque voix (avant : 5 hommes = Puck, 4 femmes = Zephyr,
 // et on demandait à Puck "Upbeat" d'être un narrateur posé → incohérence).
-// ==========================================================================
-const GEMINI_VOICE_MAP: Record<string, string> = {
+// ===================================================================const GEMINI_VOICE_MAP: Record<string, string> = {
   // ── Hommes ──
   voice_amin:   "Puck",     // Upbeat      → jeune, sympa, dynamique
   voice_khalid: "Charon",   // Informative → narrateur documentaire, posé
@@ -470,15 +523,13 @@ function injectNaturalFiller(text: string): string {
   return `... ${clean}`;
 }
 
-// ==========================================================================
-// FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs.
+// ===================================================================// FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs.
 // Avant : [excited] était remplacé par "، بحماس واضح وطاقة عالية، " DANS le
 // transcript → la voix lisait ces instructions à voix haute ou livrait un
 // débit mécanique. La doc Google est explicite : "If your transcript is not
 // in English, for best results we recommend that you still use English audio
 // tags." Gemini TTS comprend nativement [excited], [whispers], [very fast]...
-// ==========================================================================
-const EMOTION_TAG_MAP: Record<string, string> = {
+// ===================================================================const EMOTION_TAG_MAP: Record<string, string> = {
   excited: "[excited]",
   natural: "[natural]",
   calm: "[calm]",
@@ -541,12 +592,10 @@ const REGION_GUIDES: Record<string, string> = {
 
 function getRegionGuide(region: string): string { return REGION_GUIDES[region] || REGION_GUIDES.general; }
 
-// ==========================================================================
-// FIX TTS-C : DÉCOUPAGE DU TEXTE EN MORCEAUX
+// ===================================================================// FIX TTS-C : DÉCOUPAGE DU TEXTE EN MORCEAUX
 // On coupe UNIQUEMENT sur des fins de phrase (jamais au milieu d'un mot ou
 // d'une idée) pour que les coutures entre morceaux soient inaudibles.
-// ==========================================================================
-function hardSplitByWords(text: string, maxChars: number): string[] {
+// ===================================================================function hardSplitByWords(text: string, maxChars: number): string[] {
   // Filet de sécurité : un bloc sans AUCUNE ponctuation (rare) → coupe par mots.
   const words = text.split(" ");
   const out: string[] = [];
@@ -593,8 +642,7 @@ function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): st
   return chunks.filter((c) => c.length > 0);
 }
 
-// ==========================================================================
-// FIX TTS-A + FIX TTS-B : APPEL GEMINI TTS NON-STREAMING AVEC CHRONOMÈTRE
+// ===================================================================// FIX TTS-A + FIX TTS-B : APPEL GEMINI TTS NON-STREAMING AVEC CHRONOMÈTRE
 // ET VALIDATION finishReason.
 // - Timeout sur TOUTE l'opération (envoi + headers + lecture du corps).
 //   Un appel qui traîne → abort → retry. Fini les fetch qui pendent à vie
@@ -602,8 +650,7 @@ function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): st
 // - Si finishReason != STOP (MAX_TOKENS, OTHER, SAFETY...) → l'audio est
 //   probablement TRONQUÉ → on le REJETTE. Avant, un son coupé en plein
 //   milieu était renvoyé comme un succès et FACTURÉ au client.
-// ==========================================================================
-async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
+// ===================================================================async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${apiKey}`;
@@ -658,14 +705,12 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
   }
 }
 
-// ==========================================================================
-// SYNTHESIZE WITH RETRY (réécrit : chunking + timeout + finishReason)
+// ===================================================================// SYNTHESIZE WITH RETRY (réécrit : chunking + timeout + finishReason)
 // FIX n°3 conservé : prompt court type "Director's Notes".
 // L'ancienne stratégie "streaming" SSE est SUPPRIMÉE (FIX TTS-BIS) : elle
 // bufferisait toute la réponse avant de parser (aucun gain de latence) et
 // était la source principale des blocages et coupures aléatoires.
-// ==========================================================================
-function buildTTSPrompt(preparedText: string, persona: string, pace: string, pitchNote: string, emotionNote: string): string {
+// ===================================================================function buildTTSPrompt(preparedText: string, persona: string, pace: string, pitchNote: string, emotionNote: string): string {
   return `TTS the following transcript. Do not read these notes aloud.
 
 DIRECTOR'S NOTES
@@ -795,8 +840,7 @@ async function synthesizeWithRetry(
 }
 
 
-/* ==========================================================================
-   LLM CALLER HELPER
+/* ===================================================================   LLM CALLER HELPER
    ========================================================================== */
 function simpleHash(str: string): string {
   let h = 5381;
@@ -1008,10 +1052,8 @@ function countEmotionTags(text: string): number {
   return (text.match(/\[(excited|natural|calm)\]/gi) || []).length;
 }
 
-// ==========================================================================
-// START SERVER
-// ==========================================================================
-async function startServer() {
+// ===================================================================// START SERVER
+// ===================================================================async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
@@ -1039,8 +1081,8 @@ async function startServer() {
   app.use((req, res, next) => {
     const origin = req.get("origin") || "";
     if (allowedOrigin === "*" || !allowedOrigin || origin === allowedOrigin) res.setHeader("Access-Control-Allow-Origin", allowedOrigin || origin || "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key");
     if (req.method === "OPTIONS") return res.sendStatus(200);
     next();
   });
@@ -1048,8 +1090,73 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => res.json({ status: "ok", service: "sawtify-tts-server", voices_count: 9 }));
 
-  /* ==========================================================================
-     TTS PREVIEW (gratuit)
+  // ===================================================================  // SAWTIFY DEVELOPER API — BETA
+  // Authentification par clé dédiée, jamais par la clé Gemini.
+  // ===================================================================  const resolveDeveloperKey = async (req: express.Request): Promise<{ id: string; userId: string } | null> => {
+    if (!supabaseClient) return null;
+    const raw = req.get("x-sawtify-api-key") || req.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+    if (!raw.startsWith(API_KEY_PREFIX)) return null;
+    const { data } = await supabaseClient.from("developer_api_keys").select("id, user_id").eq("key_hash", hashApiKey(raw)).eq("active", true).maybeSingle();
+    return data ? { id: data.id, userId: data.user_id } : null;
+  };
+
+  app.post("/api/v1/developer/keys", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
+    if (!userId || !supabaseClient) return res.status(401).json({ error: "Authentification requise." });
+    const balance = await getUserBalance(userId);
+    if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
+    if (balance <= API_MIN_BALANCE) return res.status(403).json({ error: `L'API Beta nécessite plus de ${API_MIN_BALANCE} points disponibles.`, required_balance: API_MIN_BALANCE + 1, current_balance: balance });
+    const rawKey = newApiKey();
+    const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "Application Beta";
+    const { data, error } = await supabaseClient.from("developer_api_keys").insert({ user_id: userId, name, key_prefix: rawKey.slice(0, 16), key_hash: hashApiKey(rawKey) }).select("id, name, key_prefix, created_at").single();
+    if (error) return res.status(500).json({ error: "Impossible de créer la clé API." });
+    return res.status(201).json({ beta: true, warning: "Copiez cette clé maintenant. Elle ne sera plus affichée.", api_key: rawKey, key: data });
+  });
+
+  app.get("/api/v1/developer/keys", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
+    if (!userId || !supabaseClient) return res.status(401).json({ error: "Authentification requise." });
+    const { data, error } = await supabaseClient.from("developer_api_keys").select("id, name, key_prefix, active, last_used_at, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(20);
+    if (error) return res.status(500).json({ error: "Impossible de charger les clés API." });
+    return res.json({ beta: true, keys: data || [] });
+  });
+
+  app.delete("/api/v1/developer/keys/:id", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
+    if (!userId || !supabaseClient) return res.status(401).json({ error: "Authentification requise." });
+    await supabaseClient.from("developer_api_keys").update({ active: false }).eq("id", req.params.id).eq("user_id", userId);
+    return res.json({ success: true });
+  });
+
+  app.post("/api/v1/developer/tts", async (req, res) => {
+    const key = await resolveDeveloperKey(req);
+    if (!key || !supabaseClient) return res.status(401).json({ error: "Clé API Beta invalide ou absente." });
+    const { text, voice_id = "voice_amin", speed = 1, pitch = 1, format = "wav" } = req.body || {};
+    if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "text est obligatoire." });
+    if (text.length > 5000) return res.status(400).json({ error: "text dépasse 5000 caractères." });
+    if (format !== "wav" && format !== "json") return res.status(400).json({ error: "format doit être wav ou json." });
+    const balance = await getUserBalance(key.userId);
+    if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
+    if (balance <= API_MIN_BALANCE) return res.status(403).json({ error: `L'API Beta est disponible au-dessus de ${API_MIN_BALANCE} points.`, required_balance: API_MIN_BALANCE + 1, current_balance: balance });
+    if (await hasReachedDailyTTSLimit(key.userId)) return res.status(429).json({ error: `Quota quotidien atteint (${DAILY_TTS_LIMIT} générations).` });
+    const selectedVoiceName = GEMINI_VOICE_MAP[voice_id] || "Puck";
+    const started = Date.now();
+    const generated = await synthesizeWithRetry(text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, []);
+    const usageCount = await recordGeminiUsage({ userId: key.userId, operation: "tts", characters: text.length, success: Boolean(generated.pcmBuffer), model: TTS_MODEL, metadata: { source: "developer_api", key_id: key.id } });
+    if (!generated.pcmBuffer) return res.status(503).json({ error: "Génération indisponible; aucun point débité.", detail: generated.error });
+    const duration = Math.round((generated.pcmBuffer.length / 48000) * 10) / 10;
+    const cost = computePointsCost(duration);
+    const wav = pcmToWavBuffer(generated.pcmBuffer, 24000, 1, 16);
+    const { data, error } = await supabaseClient.rpc("deduct_and_record_generation_service", { p_user_id: key.userId, p_amount: cost, p_voice_id: voice_id, p_voice_name: selectedVoiceName, p_prompt: text.trim(), p_char_count: text.length, p_duration: duration, p_latency: Date.now() - started });
+    if (error || !data?.success) return res.status(402).json({ error: error?.message || data?.error || "Solde insuffisant; aucun audio validé." });
+    const bonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: key.userId });
+    await supabaseClient.from("developer_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id);
+    if (format === "json") return res.json({ success: true, beta: true, format: "wav", mime_type: "audio/wav", sample_rate: 24000, audio_base64: wav.toString("base64"), duration_seconds: duration, points_deducted: cost, remaining_balance: bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount });
+    res.set({ "Content-Type": "audio/wav", "Content-Disposition": "attachment; filename=sawtify-output.wav", "X-Sawtify-Format": "wav", "X-Sawtify-Duration": String(duration), "X-Sawtify-Points": String(cost), "X-Sawtify-Milestone-Bonus": bonus.data?.awarded ? "30" : "0", "X-Sawtify-Remaining-Balance": String(bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance ?? "") });
+    return res.send(wav);
+  });
+
+  /* ===================================================================     TTS PREVIEW (gratuit)
      FIX n°1 + FIX n°5 : plus de fallback synthétique ; la voix Gemini fait
      partie de la cacheKey (invalidation auto si la map change) ; un échec
      Gemini renvoie 503 SANS rien mettre en cache ni persister.
@@ -1057,6 +1164,7 @@ async function startServer() {
      sont courts → 1 seul morceau, comportement identique à avant.)
      ========================================================================== */
   const handleTTSPreview = async (req: express.Request, res: express.Response) => {
+    const previewUserId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
     const voiceId = (req.query.voice_id as string) || "voice_amin";
     const speed = parseFloat(req.query.speed as string) || 1.0;
     const pitch = parseFloat(req.query.pitch as string) || 1.0;
@@ -1099,6 +1207,7 @@ async function startServer() {
       const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
       PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
       await savePersistentPreview(cacheKey, dataUri);
+      await recordGeminiUsage({ userId: previewUserId, operation: "preview", characters: sampleScript.length, success: true, model: TTS_MODEL, metadata: { voice: voiceId, free: true } });
       return dataUri;
     })();
     PREVIEW_INFLIGHT.set(cacheKey, generation);
@@ -1114,8 +1223,7 @@ async function startServer() {
   app.get("/api/v1/tts/preview", previewLimiter, handleTTSPreview);
   app.get("/api/tts/preview", previewLimiter, handleTTSPreview);
 
-  /* ==========================================================================
-     TTS GENERATE (débit côté serveur)
+  /* ===================================================================     TTS GENERATE (débit côté serveur)
      Bénéficie des FIX TTS-A → TTS-E :
      - plus de blocage infini (timeout 45s par appel Gemini)
      - un son coupé en plein milieu (finishReason != STOP) est rejeté/retenté
@@ -1152,6 +1260,9 @@ async function startServer() {
       if (await hasReachedDailyTTSLimit(userId)) {
         return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_TTS_LIMIT} générations audio).` });
       }
+      if (await hasReachedDailyGeminiLimit(userId)) {
+        return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
+      }
 
       // FIX n°2 : les balises deviennent des audio tags natifs dans le transcript.
       const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
@@ -1160,6 +1271,8 @@ async function startServer() {
       const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
       // FIX COST-3 : génération payante → billable=true, séparée des previews gratuites (billable=false).
       logGeminiCall({ userId, callType: "tts", billable: true, pointsCost: BASE_POINTS_COST, charCount: text.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - startTime });
+      const geminiUsageCount = await recordGeminiUsage({ userId, operation: "tts", characters: text.length, success: Boolean(pcmBuffer), model: TTS_MODEL, metadata: { voice: requestedVoice, chunks: chunkCount } });
+      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, chunks: chunkCount, success: Boolean(pcmBuffer), daily_calls: geminiUsageCount, maxRetries: 3 }));
 
       // FIX n°1 + FIX TTS-B : échec Gemini (ou audio tronqué) → 503 explicite.
       // JAMAIS d'audio partiel ni synthétique facturé comme une vraie génération.
@@ -1184,12 +1297,14 @@ async function startServer() {
       }
       generationId = data.generation_id;
       remainingBalance = data.remaining_balance;
+      const milestoneBonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: userId });
+      if (milestoneBonus.data?.awarded) remainingBalance = milestoneBonus.data.new_balance;
 
       return res.json({
         status: "success", success: true, audio_base64: wavBase64, audio_url: `data:audio/wav;base64,${wavBase64}`,
         format: "wav", sample_rate: 24000, generation_id: generationId || `gen_${Date.now()}`,
         duration_seconds: durationSeconds, latency_ms: Date.now() - startTime,
-        points_deducted: finalPointsCost, points_cost: finalPointsCost,
+        points_deducted: finalPointsCost, points_cost: finalPointsCost, milestone_bonus: milestoneBonus.data?.awarded ? 30 : 0,
         notification: `-${finalPointsCost} Points`,
         remaining_balance: remainingBalance, voice_id: requestedVoice, gemini_voice: selectedVoiceName,
         parsed_tags: emotionTags,
@@ -1202,8 +1317,7 @@ async function startServer() {
   app.post("/api/v1/tts/generate", resolveUserIdMiddleware, ttsLimiter, handleTTSGenerate);
   app.post("/api/tts/generate", resolveUserIdMiddleware, ttsLimiter, handleTTSGenerate);
 
-  /* ==========================================================================
-     LLM SYSTEM PROMPT
+  /* ===================================================================     LLM SYSTEM PROMPT
      ========================================================================== */
   const LLM_SYSTEM_PROMPT = `Tu es un rédacteur publicitaire professionnel en Darija Algérienne, spécialisé dans les scripts vocaux (TTS) pour vidéos courtes.
 
@@ -1231,8 +1345,7 @@ RÈGLES STRICTES :
 - UNIQUEMENT le texte final à vocaliser.
 - Aucun titre, markdown, étoile, guillemets, commentaire, note, "TTS Refinement".`;
 
-  /* ==========================================================================
-     LLM ENHANCE — المحسن السحري (-2 pts)
+  /* ===================================================================     LLM ENHANCE — المحسن السحري (-2 pts)
      ========================================================================== */
   const handleLLMEnhance = async (req: express.Request, res: express.Response) => {
     try {
@@ -1241,6 +1354,7 @@ RÈGLES STRICTES :
       const { text, region = "general" } = req.body;
       if (!text || typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Texte manquant ou invalide" });
       if (text.length > 2000) return res.status(400).json({ error: "Texte trop long (maximum 2000 caractères)." });
+      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
 
       const pointsCost = 2;
       const currentBalance = await getUserBalance(userId);
@@ -1286,6 +1400,7 @@ Génère maintenant la version optimisée :`;
       const enhanceCallStart = Date.now();
       let enhancedText = await callGeminiTextAPI(buildEnhancePrompt(false), 0.6);
       logGeminiCall({ userId, callType: "enhance", billable: true, pointsCost, charCount: text.length, success: Boolean(enhancedText), latencyMs: Date.now() - enhanceCallStart });
+      await recordGeminiUsage({ userId, operation: "enhance", characters: text.length, success: Boolean(enhancedText), metadata: { region } });
       enhancedText = enhancedText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Voici|Texte\s*amélioré|Version\s*optimisée)\s*:?/gi, "").replace(/^["«»']|["«»']$/g, "").replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/\n{3,}/g, "\n\n").trim();
 
       const tagCount = countEmotionTags(enhancedText);
@@ -1323,8 +1438,7 @@ Génère maintenant la version optimisée :`;
   app.post("/api/v1/llm/enhance", resolveUserIdMiddleware, llmLimiter, handleLLMEnhance);
   app.post("/api/llm/enhance", resolveUserIdMiddleware, llmLimiter, handleLLMEnhance);
 
-  /* ==========================================================================
-     LLM SCRIPT GENERATOR (-5 pts)
+  /* ===================================================================     LLM SCRIPT GENERATOR (-5 pts)
      ========================================================================== */
   const handleLLMGenerateScript = async (req: express.Request, res: express.Response) => {
     try {
@@ -1333,6 +1447,7 @@ Génère maintenant la version optimisée :`;
       const { product, style, region = "general" } = req.body;
       if (!product || typeof product !== "string" || !product.trim()) return res.status(400).json({ error: "Nom du produit ou service manquant" });
       if (product.length > 200) return res.status(400).json({ error: "Nom du produit trop long (maximum 200 caractères)." });
+      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
 
       const pointsCost = 5;
       const currentBalance = await getUserBalance(userId);
@@ -1383,6 +1498,7 @@ Style vocal souhaité : ${style || "excited"}`;
       const scriptCallStart = Date.now();
       let scriptText = await callGeminiTextAPI(scriptPrompt, 0.95);
       logGeminiCall({ userId, callType: "script", billable: true, pointsCost, charCount: product.length, success: Boolean(scriptText), latencyMs: Date.now() - scriptCallStart });
+      await recordGeminiUsage({ userId, operation: "script", characters: product.length, success: Boolean(scriptText), metadata: { region } });
       // Filet de sécurité : si le modèle traduit quand même les balises en arabe
       // malgré la consigne, on les reconvertit en anglais (le moteur TTS ne
       // reconnaît que [excited]/[natural]/[calm] en anglais).
@@ -1411,8 +1527,7 @@ Style vocal souhaité : ${style || "excited"}`;
   app.post("/api/v1/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
   app.post("/api/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
 
-  /* ==========================================================================
-     AI FEEDBACK
+  /* ===================================================================     AI FEEDBACK
      ========================================================================== */
   const handleAIFeedback = async (req: express.Request, res: express.Response) => {
     try {
@@ -1429,8 +1544,7 @@ Style vocal souhaité : ${style || "excited"}`;
   app.post("/api/v1/ai/feedback", handleAIFeedback);
   app.post("/api/ai/feedback", handleAIFeedback);
 
-  /* ==========================================================================
-     SLICKPAY
+  /* ===================================================================     SLICKPAY
      ========================================================================== */
   app.post("/api/slickpay/create-invoice", async (req, res) => {
     try {
@@ -1599,6 +1713,8 @@ Style vocal souhaité : ${style || "excited"}`;
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    void cleanupExpiredGenerations();
+    setInterval(() => void cleanupExpiredGenerations(), 24 * 60 * 60 * 1000).unref();
   });
 }
 

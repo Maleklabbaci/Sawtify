@@ -43,6 +43,7 @@ function AppContent() {
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>(() => routeToTab(window.location.pathname));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showInstagramNudge, setShowInstagramNudge] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
   const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
@@ -51,6 +52,18 @@ function AppContent() {
   // sur l'onglet, rafraîchissement du token) — sans ça, l'écran "Sawtify
   // prépare ton espace" réapparaissait à chaque fois qu'on revenait sur l'onglet.
   const bootstrappedUserIdRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isLoggedIn) return;
+    let alreadyShown = false;
+    try { alreadyShown = Number(sessionStorage.getItem('sawtify_instagram_nudge_at') || 0) > Date.now() - 24 * 60 * 60 * 1000; } catch {}
+    if (alreadyShown) return;
+    const timer = window.setTimeout(() => {
+      setShowInstagramNudge(true);
+      try { sessionStorage.setItem('sawtify_instagram_nudge_at', String(Date.now())); } catch {}
+    }, 18000);
+    return () => window.clearTimeout(timer);
+  }, [isLoggedIn]);
 
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
@@ -392,6 +405,17 @@ function AppContent() {
         </Suspense>
       </main>
       <ReportWidget />
+      {showInstagramNudge && (
+        <div className={`fixed bottom-5 ${isRTL ? 'right-5' : 'left-5'} z-40 flex max-w-[calc(100vw-6rem)] items-center gap-3 rounded-2xl border border-pink-100 bg-white px-4 py-3 shadow-xl shadow-pink-900/10 animate-in slide-in-from-bottom-3`}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 text-sm font-black text-white">◎</div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-extrabold text-slate-900">{language === 'ar' ? 'تابع Sawtify على Instagram' : 'Suis Sawtify sur Instagram'}</p>
+            <p className="text-[10px] text-slate-500">{language === 'ar' ? 'هدايا وأخبار جديدة' : 'Cadeaux et nouveautés'}</p>
+          </div>
+          <a href="https://www.instagram.com/sawtify.ai" target="_blank" rel="noreferrer" onClick={() => setShowInstagramNudge(false)} className="shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-purple-600">@sawtify.ai</a>
+          <button type="button" onClick={() => setShowInstagramNudge(false)} className="shrink-0 text-slate-400 hover:text-slate-700" aria-label="Fermer">×</button>
+        </div>
+      )}
 
     </div>
   );

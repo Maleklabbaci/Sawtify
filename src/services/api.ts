@@ -23,6 +23,7 @@ export interface TTSApiResponse {
   blob?: Blob;
   notice?: string;
   notification?: string;
+  milestone_bonus?: number;
   /** true = audio de secours généré localement (offline/panne serveur), pas la vraie voix, jamais facturé */
   degraded?: boolean;
 }
@@ -74,9 +75,18 @@ function dataUriToBlob(dataUri: string): { blob: Blob; url: string } {
 /**
  * Récupère un aperçu vocal naturel instantané pour une voix donnée (sans coût).
  */
+const voicePreviewCache = new Map<string, string>();
+const voicePreviewInflight = new Map<string, Promise<string>>();
+
 export async function requestVoicePreview(voiceId: string, speed: number = 1.0, pitch: number = 1.0, uploadedAudioUrl?: string): Promise<string> {
   // Les échantillons uploadés sont gratuits et ne doivent jamais réveiller Render/Gemini.
   if (uploadedAudioUrl) return uploadedAudioUrl;
+  const cacheKey = `${voiceId}:${speed.toFixed(1)}:${pitch.toFixed(1)}`;
+  const cached = voicePreviewCache.get(cacheKey);
+  if (cached) return cached;
+  const pending = voicePreviewInflight.get(cacheKey);
+  if (pending) return pending;
+  const request = (async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/tts/preview?voice_id=${encodeURIComponent(voiceId)}&speed=${speed}&pitch=${pitch}`);
     if (res.ok) {
@@ -84,8 +94,10 @@ export async function requestVoicePreview(voiceId: string, speed: number = 1.0, 
       if (data.audio_url) {
         if (data.audio_url.startsWith('data:audio/wav;base64,')) {
           const { url } = dataUriToBlob(data.audio_url);
+          voicePreviewCache.set(cacheKey, url);
           return url;
         }
+        voicePreviewCache.set(cacheKey, data.audio_url);
         return data.audio_url;
       }
     }
@@ -94,7 +106,11 @@ export async function requestVoicePreview(voiceId: string, speed: number = 1.0, 
   }
 
   const synth = await generateSyntheticTTS("Bonjour et bienvenue sur Sawtify", getLocaleForVoice(voiceId), speed, pitch);
+  voicePreviewCache.set(cacheKey, synth.url);
   return synth.url;
+  })();
+  voicePreviewInflight.set(cacheKey, request);
+  try { return await request; } finally { voicePreviewInflight.delete(cacheKey); }
 }
 
 /**

@@ -3,7 +3,7 @@ import {
   Play, Pause, Download, Volume2, AlertCircle, 
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
   AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown,
-  Menu, Settings, ChevronDown
+  Menu, Settings, ChevronDown, Star
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
@@ -56,6 +56,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_amin');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
+  const [favoriteVoiceIds, setFavoriteVoiceIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('sawtify_favorite_voices') || '[]'); } catch { return []; }
+  });
   const [speed, setSpeed] = useState<number>(1.0);
   const [pitch, setPitch] = useState<number>(1.0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -199,7 +202,17 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const POINTS_COST = 20;
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
-  const filteredVoices = voices.filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter));
+  const filteredVoices = voices
+    .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
+    .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
+
+  const toggleFavoriteVoice = (voiceId: string) => {
+    setFavoriteVoiceIds((previous) => {
+      const next = previous.includes(voiceId) ? previous.filter((id) => id !== voiceId) : [...previous, voiceId];
+      try { localStorage.setItem('sawtify_favorite_voices', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   // Fermer dropdown emotions au clic extérieur
   useEffect(() => {
@@ -353,7 +366,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         };
 
         await onDeductPoints(realCost, record, storagePath, response.remaining_balance ?? null);
-        showNotif(response.notification || `-${realCost} Points`);
+        showNotif(response.milestone_bonus ? `-${realCost} Points · +${response.milestone_bonus} bonus` : (response.notification || `-${realCost} Points`));
         playGenerationChime();
         try {
           localStorage.removeItem(PENDING_GEN_KEY);
@@ -721,7 +734,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               
               {/* Compteur caractères (Info discrète) */}
               <div className="text-[11px] text-slate-400 font-num">
-                <span className="font-semibold text-slate-600">{text.length}</span> {t.charsCount}
+                <span className={`font-semibold ${text.length >= 4500 ? 'text-amber-600' : 'text-slate-600'}`}>{text.length}</span> / 5000 {t.charsCount}
               </div>
             </div>
 
@@ -731,6 +744,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 ref={textareaRef} 
                 value={text} 
                 onChange={(e) => setText(e.target.value)} 
+                maxLength={5000}
                 placeholder={t.textPlaceholder || 'Écrivez...'} 
                 className={`w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto custom-scrollbar transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }}
@@ -896,6 +910,15 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                         <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }}
+                      className={`p-1 rounded shrink-0 ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
+                      title={favoriteVoiceIds.includes(voice.id) ? (language === 'ar' ? 'إزالة من المفضلة' : 'Retirer des favoris') : (language === 'ar' ? 'إضافة إلى المفضلة' : 'Ajouter aux favoris')}
+                      aria-label={favoriteVoiceIds.includes(voice.id) ? 'Favori actif' : 'Ajouter aux favoris'}
+                    >
+                      <Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} />
+                    </button>
                     <button 
                       onClick={(e) => handlePreviewVoice(e, voice)} 
                       className={`p-1 rounded shrink-0 ${isPreviewing ? 'text-purple-600' : 'text-slate-400 hover:text-slate-700'}`}>
