@@ -1239,16 +1239,21 @@ async function startServer() {
       const pointValueDzd = paidPointsIssued > 0 ? revenueDzd / paidPointsIssued : 0;
       const logs = usageLogs || [];
       let geminiUsd = 0;
+      let freeGeminiUsd = 0;
+      let paidGeminiUsd = 0;
       for (const log of logs) {
         const chars = Number(log.characters || 0);
         const inputTokens = chars / 4;
+        let logCost = 0;
         if (log.operation === "tts" || log.operation === "preview") {
           const seconds = log.operation === "preview" ? 2.5 : chars / TTS_CHARS_PER_SECOND_ESTIMATE;
-          geminiUsd += (inputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
+          logCost = (inputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
         } else {
           // Conservative estimate for text features; exact billing remains visible in Google Cloud.
-          geminiUsd += (inputTokens / 1_000_000) * 0.30 + (Math.max(inputTokens, 1) / 1_000_000) * 1.50;
+          logCost = (inputTokens / 1_000_000) * 0.30 + (Math.max(inputTokens, 1) / 1_000_000) * 1.50;
         }
+        geminiUsd += logCost;
+        if (paidUserIds.has(log.user_id)) paidGeminiUsd += logCost; else freeGeminiUsd += logCost;
       }
       const geminiCostDzd = geminiUsd * USD_TO_DZD;
       const grossMarginDzd = revenueDzd - geminiCostDzd;
@@ -1256,7 +1261,7 @@ async function startServer() {
       const recentUsers = users.slice(0, 20);
       const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
-      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
