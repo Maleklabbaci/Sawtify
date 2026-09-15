@@ -1162,6 +1162,25 @@ async function startServer() {
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger les statistiques API.", detail: error?.message }); }
   });
 
+  // URL média sans query-string Supabase : certains intégrateurs refusent les
+  // URLs signées ou ne savent pas télécharger leur token. L'URL reste publique
+  // comme toute URL média d'automatisation, mais elle expire après 7 jours.
+  app.get("/api/v1/developer/media/:userId/:keyId/:fileName", async (req, res) => {
+    const { userId, keyId, fileName } = req.params;
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(keyId) || !/^\d+\.wav$/i.test(fileName)) {
+      return res.status(404).json({ error: "Media introuvable." });
+    }
+    const createdAt = Number(fileName.slice(0, -4));
+    if (!Number.isFinite(createdAt) || Date.now() - createdAt > 7 * 86400 * 1000 || createdAt > Date.now() + 60000) {
+      return res.status(410).json({ error: "URL média expirée." });
+    }
+    const filePath = `${userId}/developer/${keyId}/${fileName}`;
+    const { data, error } = await supabaseClient.storage.from("audio-generations").download(filePath);
+    if (error || !data) return res.status(404).json({ error: "Media introuvable ou supprimé." });
+    res.set({ "Content-Type": "audio/wav", "Content-Length": String(data.size), "Cache-Control": "public, max-age=3600" });
+    return res.send(Buffer.from(await data.arrayBuffer()));
+  });
+
   app.post("/api/v1/developer/tts", async (req, res) => {
     const key = await resolveDeveloperKey(req);
     if (!key || !supabaseClient) return res.status(401).json({ error: "Clé API Beta invalide ou absente." });
@@ -1189,10 +1208,10 @@ async function startServer() {
     const { error: mediaUploadError } = await supabaseClient.storage.from("audio-generations").upload(mediaPath, wav, { contentType: "audio/wav", upsert: false });
     let mediaUrl: string | null = null;
     if (!mediaUploadError) {
-      const signed = await supabaseClient.storage.from("audio-generations").createSignedUrl(mediaPath, 7 * 86400);
-      mediaUrl = signed.data?.signedUrl || null;
+      mediaUrl = getPublicUrl(req, `/api/v1/developer/media/${key.userId}/${key.id}/${mediaPath.split("/").pop()}`);
     }
-    const responseMeta = { success: true, beta: true, format: "wav", mime_type: "audio/wav", media_type: "audio/wav", media_url: mediaUrl, audio_url: mediaUrl, sample_rate: 24000, duration_seconds: duration, points_deducted: cost, remaining_balance: bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount, media_url_expires_in_seconds: mediaUrl ? 7 * 86400 : null };
+    const pointsRemaining = bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance;
+    const responseMeta = { success: true, beta: true, format: "wav", mime_type: "audio/wav", media_type: "audio/wav", media_url: mediaUrl, audio_url: mediaUrl, sample_rate: 24000, duration_seconds: duration, points_deducted: cost, points_remaining: pointsRemaining, remaining_balance: pointsRemaining, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount, media_url_expires_in_seconds: mediaUrl ? 7 * 86400 : null };
     if (format === "json") return res.json({ ...responseMeta, audio_base64: wav.toString("base64") });
     res.set({ "Content-Type": "audio/wav", "Content-Disposition": "attachment; filename=sawtify-output.wav", "X-Sawtify-Format": "wav", "X-Sawtify-Media-URL": mediaUrl || "", "X-Sawtify-Duration": String(duration), "X-Sawtify-Points": String(cost), "X-Sawtify-Milestone-Bonus": bonus.data?.awarded ? "30" : "0", "X-Sawtify-Remaining-Balance": String(bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance ?? "") });
     return res.send(wav);
