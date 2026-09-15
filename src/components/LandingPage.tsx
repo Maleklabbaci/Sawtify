@@ -365,7 +365,7 @@ const SlideUp = ({
   children,
   delay = 0,
   className = "",
-}: {
+}: React.Attributes & {
   children: React.ReactNode;
   delay?: number;
   className?: string;
