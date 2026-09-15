@@ -183,6 +183,7 @@ const GENERATION_RETENTION_DAYS = 7;
 const API_KEY_PREFIX = "swt_beta_";
 const USD_TO_DZD = 260;
 const ADMIN_USER_IDS = new Set((process.env.ADMIN_USER_IDS || "").split(",").map((id) => id.trim()).filter(Boolean));
+const ADMIN_EMAILS = new Set((process.env.ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean));
 const GEMINI_TTS_INPUT_USD_PER_1M = 1;
 const GEMINI_TTS_AUDIO_USD_PER_1M = 20;
 const GEMINI_AUDIO_TOKENS_PER_SECOND = 25;
@@ -293,6 +294,8 @@ async function isAdminRequest(req: express.Request): Promise<{ userId: string | 
   if (!userId || !supabaseClient) return { userId: null, role: null };
   if (ADMIN_USER_IDS.has(userId)) return { userId, role: "owner" };
   try {
+    const { data: profile } = await supabaseClient.from("profiles").select("email").eq("id", userId).maybeSingle();
+    if (profile?.email && ADMIN_EMAILS.has(String(profile.email).toLowerCase())) return { userId, role: "owner" };
     const { data } = await supabaseClient.from("admin_users").select("role, active").eq("user_id", userId).eq("active", true).maybeSingle();
     return data ? { userId, role: data.role } : { userId, role: null };
   } catch { return { userId, role: null }; }
