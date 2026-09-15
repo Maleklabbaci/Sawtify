@@ -1003,11 +1003,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   const nav = [
-    { href: "#voices", label: t.navVoices },
-    { href: "#process", label: t.navHow },
-    { href: "#pricing", label: t.navPricing },
-    { href: "#faq", label: t.navFaq },
-    { href: "#contact", label: t.navContact },
+    { href: "/services", target: "#voices", label: t.navVoices },
+    { href: "/services", target: "#process", label: t.navHow },
+    { href: "/pricing", target: "#pricing", label: t.navPricing },
+    { href: "/faq", target: "#faq", label: t.navFaq },
+    { href: "/contact", target: "#contact", label: t.navContact },
   ];
   const featured = VOICES.find((v) => v.id === featuredId) || VOICES[0];
   const heroSamplePlaying = playingId === featured.id;
@@ -1281,6 +1281,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       behavior: "smooth",
     });
   }, []);
+  const navigatePublicSection = useCallback((path: string, target: string) => {
+    window.history.pushState({}, "", path);
+    smoothTo(target);
+  }, [smoothTo]);
+  useEffect(() => {
+    const initialTarget: Record<string, string> = {
+      "/home": "#home",
+      "/pricing": "#pricing",
+      "/services": "#voices",
+      "/faq": "#faq",
+      "/contact": "#contact",
+    };
+    const target = initialTarget[window.location.pathname];
+    if (!target) return;
+    const timer = window.setTimeout(() => smoothTo(target), 0);
+    return () => window.clearTimeout(timer);
+  }, [smoothTo]);
   const openListen = (voice: VoiceCard) => {
     stopIntroAudio();
     setFeaturedId(voice.id);
@@ -1416,11 +1433,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#16121F]/60">
             {nav.map((l) => (
               <a
-                key={l.href}
+                key={`${l.href}-${l.target}`}
                 href={l.href}
                 onClick={(e) => {
                   e.preventDefault();
-                  smoothTo(l.href);
+                  navigatePublicSection(l.href, l.target);
                 }}
                 className="hover:text-[#16121F] transition-colors focus-ring"
               >
@@ -1499,11 +1516,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <nav className="flex-1 px-5 py-6 flex flex-col">
                 {nav.map((l) => (
                   <a
-                    key={l.href}
+                    key={`${l.href}-${l.target}`}
                     href={l.href}
                     onClick={(e) => {
                       e.preventDefault();
-                      smoothTo(l.href);
+                      navigatePublicSection(l.href, l.target);
                     }}
                     className="py-4 text-[18px] font-bold focus-ring"
                     style={{ borderBottom: `1px solid ${BORDER}` }}
@@ -2781,11 +2798,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex flex-col gap-2 text-[13px] font-medium">
                   {nav.map((l) => (
                     <a
-                      key={l.href}
+                      key={`${l.href}-${l.target}`}
                       href={l.href}
                       onClick={(e) => {
                         e.preventDefault();
-                        smoothTo(l.href);
+                        navigatePublicSection(l.href, l.target);
                       }}
                       className="text-[#16121F]/60 hover:text-[#7C3AED] transition-colors"
                     >
