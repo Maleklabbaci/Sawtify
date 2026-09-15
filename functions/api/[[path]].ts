@@ -20,7 +20,17 @@ export async function onRequest(context: any): Promise<Response> {
     const upstream = await fetch(target, init);
     const responseHeaders = new Headers(upstream.headers);
     responseHeaders.delete('content-encoding');
-    responseHeaders.delete('content-length');
+    // Telegram, WhatsApp et certains connecteurs refusent un média distant
+    // sans taille connue. Ne pas supprimer Content-Length pour les fichiers
+    // audio binaires servis par /api/v1/developer/media/.
+    if (incoming.pathname.includes('/api/v1/developer/media/')) {
+      const length = upstream.headers.get('content-length');
+      if (length) responseHeaders.set('content-length', length);
+      responseHeaders.set('Content-Disposition', 'inline');
+      responseHeaders.set('Accept-Ranges', 'bytes');
+    } else {
+      responseHeaders.delete('content-length');
+    }
     responseHeaders.set('Cache-Control', 'no-store');
     return new Response(upstream.body, {
       status: upstream.status,

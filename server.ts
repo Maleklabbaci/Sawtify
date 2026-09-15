@@ -1177,7 +1177,7 @@ async function startServer() {
     const filePath = `${userId}/developer/${keyId}/${fileName}`;
     const { data, error } = await supabaseClient.storage.from("audio-generations").download(filePath);
     if (error || !data) return res.status(404).json({ error: "Media introuvable ou supprimé." });
-    res.set({ "Content-Type": "audio/wav", "Content-Length": String(data.size), "Cache-Control": "public, max-age=3600" });
+    res.set({ "Content-Type": "audio/wav", "Content-Length": String(data.size), "Content-Disposition": "inline; filename=sawtify-output.wav", "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600" });
     return res.send(Buffer.from(await data.arrayBuffer()));
   });
 
