@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import crypto from "crypto";
 import { createHash, randomBytes } from "node:crypto";
+import * as lamejsModule from "lamejs";
 
 dotenv.config();
 
@@ -100,6 +101,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 const FRONTEND_URL = process.env.FRONTEND_URL || "";
 const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space").replace(/\/+$/, "");
+const lamejs: any = (lamejsModule as any).default || lamejsModule;
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
@@ -426,6 +428,20 @@ function pcmToWavBuffer(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, 
   const byteRate = (sampleRate * numChannels * bitsPerSample) / 8; const blockAlign = (numChannels * bitsPerSample) / 8; const dataLength = pcmBuffer.length; const header = Buffer.alloc(44);
   header.write("RIFF", 0); header.writeUInt32LE(36 + dataLength, 4); header.write("WAVE", 8); header.write("fmt ", 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(numChannels, 22); header.writeUInt32LE(sampleRate, 24); header.writeUInt32LE(byteRate, 28); header.writeUInt16LE(blockAlign, 32); header.writeUInt16LE(bitsPerSample, 34); header.write("data", 36); header.writeUInt32LE(dataLength, 40);
   return Buffer.concat([header, pcmBuffer]);
+}
+
+function pcmToMp3Buffer(pcmBuffer: Buffer, sampleRate = 24000): Buffer {
+  const encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+  const samples = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, Math.floor(pcmBuffer.length / 2));
+  const chunks: Buffer[] = [];
+  const blockSize = 1152;
+  for (let offset = 0; offset < samples.length; offset += blockSize) {
+    const encoded = encoder.encodeBuffer(samples.subarray(offset, Math.min(offset + blockSize, samples.length)));
+    if (encoded.length) chunks.push(Buffer.from(encoded));
+  }
+  const flushed = encoder.flush();
+  if (flushed.length) chunks.push(Buffer.from(flushed));
+  return Buffer.concat(chunks);
 }
 
 // FIX n°1 : generateSmoothVocalWavBuffer SUPPRIMÉ intégralement.
@@ -1168,7 +1184,7 @@ async function startServer() {
   // comme toute URL média d'automatisation, mais elle expire après 7 jours.
   app.get("/api/v1/developer/media/:userId/:keyId/:fileName", async (req, res) => {
     const { userId, keyId, fileName } = req.params;
-    if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(keyId) || !/^\d+\.wav$/i.test(fileName)) {
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(keyId) || !/^\d+\.(wav|mp3)$/i.test(fileName)) {
       return res.status(404).json({ error: "Media introuvable." });
     }
     const createdAt = Number(fileName.slice(0, -4));
@@ -1178,7 +1194,8 @@ async function startServer() {
     const filePath = `${userId}/developer/${keyId}/${fileName}`;
     const { data, error } = await supabaseClient.storage.from("audio-generations").download(filePath);
     if (error || !data) return res.status(404).json({ error: "Media introuvable ou supprimé." });
-    res.set({ "Content-Type": "audio/wav", "Content-Length": String(data.size), "Content-Disposition": "inline; filename=sawtify-output.wav", "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600" });
+    const isMp3 = fileName.toLowerCase().endsWith(".mp3");
+    res.set({ "Content-Type": isMp3 ? "audio/mpeg" : "audio/wav", "Content-Length": String(data.size), "Content-Disposition": `inline; filename=sawtify-output.${isMp3 ? "mp3" : "wav"}`, "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600" });
     return res.send(Buffer.from(await data.arrayBuffer()));
   });
 
@@ -1201,18 +1218,25 @@ async function startServer() {
     const duration = Math.round((generated.pcmBuffer.length / 48000) * 10) / 10;
     const cost = computePointsCost(duration);
     const wav = pcmToWavBuffer(generated.pcmBuffer, 24000, 1, 16);
+    const mp3 = pcmToMp3Buffer(generated.pcmBuffer, 24000);
     const { data, error } = await supabaseClient.rpc("deduct_and_record_generation_service", { p_user_id: key.userId, p_amount: cost, p_voice_id: voice_id, p_voice_name: selectedVoiceName, p_prompt: text.trim(), p_char_count: text.length, p_duration: duration, p_latency: Date.now() - started });
     if (error || !data?.success) return res.status(402).json({ error: error?.message || data?.error || "Solde insuffisant; aucun audio validé." });
     const bonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: key.userId });
     await supabaseClient.from("developer_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id);
     const mediaPath = `${key.userId}/developer/${key.id}/${Date.now()}.wav`;
     const { error: mediaUploadError } = await supabaseClient.storage.from("audio-generations").upload(mediaPath, wav, { contentType: "audio/wav", upsert: false });
+    const mp3Path = mediaPath.replace(/\.wav$/, ".mp3");
+    const { error: mp3UploadError } = await supabaseClient.storage.from("audio-generations").upload(mp3Path, mp3, { contentType: "audio/mpeg", upsert: false });
     let mediaUrl: string | null = null;
+    let mp3Url: string | null = null;
     if (!mediaUploadError) {
       mediaUrl = `${PUBLIC_MEDIA_URL}/api/v1/developer/media/${key.userId}/${key.id}/${mediaPath.split("/").pop()}`;
     }
+    if (!mp3UploadError) {
+      mp3Url = `${PUBLIC_MEDIA_URL}/api/v1/developer/media/${key.userId}/${key.id}/${mp3Path.split("/").pop()}`;
+    }
     const pointsRemaining = bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance;
-    const responseMeta = { success: true, beta: true, format: "wav", mime_type: "audio/wav", media_type: "audio/wav", media_url: mediaUrl, audio_url: mediaUrl, sample_rate: 24000, duration_seconds: duration, points_deducted: cost, points_remaining: pointsRemaining, remaining_balance: pointsRemaining, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount, media_url_expires_in_seconds: mediaUrl ? 7 * 86400 : null };
+    const responseMeta = { success: true, beta: true, format: "wav", mime_type: "audio/wav", media_type: "audio/wav", media_url: mediaUrl, audio_url: mediaUrl, wav_url: mediaUrl, mp3_url: mp3Url, mp3_mime_type: "audio/mpeg", sample_rate: 24000, duration_seconds: duration, points_deducted: cost, points_remaining: pointsRemaining, remaining_balance: pointsRemaining, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount, media_url_expires_in_seconds: mediaUrl || mp3Url ? 7 * 86400 : null };
     if (format === "json") return res.json({ ...responseMeta, audio_base64: wav.toString("base64") });
     res.set({ "Content-Type": "audio/wav", "Content-Disposition": "attachment; filename=sawtify-output.wav", "X-Sawtify-Format": "wav", "X-Sawtify-Media-URL": mediaUrl || "", "X-Sawtify-Duration": String(duration), "X-Sawtify-Points": String(cost), "X-Sawtify-Milestone-Bonus": bonus.data?.awarded ? "30" : "0", "X-Sawtify-Remaining-Balance": String(bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance ?? "") });
     return res.send(wav);
