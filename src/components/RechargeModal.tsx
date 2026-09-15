@@ -495,7 +495,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
 
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 font-mono">
               <ShieldCheck className="w-3 h-3 text-purple-600" />
-              <span>{language === 'ar' ? 'سيرفر مشفر ومربوط بـ Supabase و SlickPay' : 'Synchronisé avec Supabase & SlickPay API'}</span>
+              <span>{language === 'ar' ? 'دفع محمي ومتزامن' : 'Paiement protégé et synchronisé'}</span>
             </div>
 
           </div>
