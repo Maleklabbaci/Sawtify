@@ -4,8 +4,8 @@ import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
   balance: number;
-  activeTab: 'studio' | 'history' | 'pricing' | 'developer';
-  setActiveTab: (tab: 'studio' | 'history' | 'pricing' | 'developer') => void;
+  activeTab: 'studio' | 'history' | 'pricing' | 'developer' | 'admin';
+  setActiveTab: (tab: 'studio' | 'history' | 'pricing' | 'developer' | 'admin') => void;
   historyCount: number;
   onLogout: () => void;
 }

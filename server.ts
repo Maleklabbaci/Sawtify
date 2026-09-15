@@ -181,6 +181,11 @@ const DAILY_GEMINI_LIMIT = Number(process.env.DAILY_GEMINI_LIMIT) || 30;
 const API_MIN_BALANCE = 1000;
 const GENERATION_RETENTION_DAYS = 7;
 const API_KEY_PREFIX = "swt_beta_";
+const USD_TO_DZD = 260;
+const ADMIN_USER_IDS = new Set((process.env.ADMIN_USER_IDS || "").split(",").map((id) => id.trim()).filter(Boolean));
+const GEMINI_TTS_INPUT_USD_PER_1M = 1;
+const GEMINI_TTS_AUDIO_USD_PER_1M = 20;
+const GEMINI_AUDIO_TOKENS_PER_SECOND = 25;
 
 function hashApiKey(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -281,6 +286,16 @@ async function getUserBalance(userId: string): Promise<number | null> {
     const { data: profile } = await supabaseClient.from("profiles").select("credits_balance").eq("id", userId).single();
     return profile ? profile.credits_balance : null;
   } catch { return null; }
+}
+
+async function isAdminRequest(req: express.Request): Promise<{ userId: string | null; role: string | null }> {
+  const userId = await getUserIdFromAuthHeader(req);
+  if (!userId || !supabaseClient) return { userId: null, role: null };
+  if (ADMIN_USER_IDS.has(userId)) return { userId, role: "owner" };
+  try {
+    const { data } = await supabaseClient.from("admin_users").select("role, active").eq("user_id", userId).eq("active", true).maybeSingle();
+    return data ? { userId, role: data.role } : { userId, role: null };
+  } catch { return { userId, role: null }; }
 }
 
 async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
@@ -1197,6 +1212,51 @@ async function startServer() {
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger les statistiques API.", detail: error?.message }); }
   });
 
+  app.get("/api/admin/overview", async (req, res) => {
+    const admin = await isAdminRequest(req);
+    if (!admin.userId || !admin.role) return res.status(403).json({ error: "Accès Admin interdit." });
+    if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
+    try {
+      const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+      const [{ data: profiles }, { data: transactions }, { data: generations }, { data: usageLogs }] = await Promise.all([
+        supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
+        supabaseClient.from("transactions").select("user_id, amount_dzd, points_credited, status, gateway, created_at").limit(10000),
+        supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, created_at").limit(20000),
+        supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, created_at").limit(20000),
+      ]);
+      const users = profiles || [], paidTx = (transactions || []).filter((row: any) => row.status === "completed");
+      const paidUserIds = new Set(paidTx.map((row: any) => row.user_id));
+      const gens = generations || [];
+      const freeGenerations = gens.filter((row: any) => row.generation_source === "free_trial" || (row.generation_source === "legacy" && !paidUserIds.has(row.user_id))).length;
+      const paidGenerations = gens.filter((row: any) => row.generation_source === "paid_balance" || (row.generation_source === "legacy" && paidUserIds.has(row.user_id))).length;
+      const apiGenerations = gens.filter((row: any) => row.generation_source === "developer_api").length;
+      const revenueDzd = paidTx.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const paidPointsIssued = paidTx.reduce((sum: number, row: any) => sum + Number(row.points_credited || 0), 0);
+      const pointsConsumed = gens.reduce((sum: number, row: any) => sum + Number(row.points_deducted || 0), 0);
+      const pointValueDzd = paidPointsIssued > 0 ? revenueDzd / paidPointsIssued : 0;
+      const logs = usageLogs || [];
+      let geminiUsd = 0;
+      for (const log of logs) {
+        const chars = Number(log.characters || 0);
+        const inputTokens = chars / 4;
+        if (log.operation === "tts" || log.operation === "preview") {
+          const seconds = log.operation === "preview" ? 2.5 : chars / TTS_CHARS_PER_SECOND_ESTIMATE;
+          geminiUsd += (inputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
+        } else {
+          // Conservative estimate for text features; exact billing remains visible in Google Cloud.
+          geminiUsd += (inputTokens / 1_000_000) * 0.30 + (Math.max(inputTokens, 1) / 1_000_000) * 1.50;
+        }
+      }
+      const geminiCostDzd = geminiUsd * USD_TO_DZD;
+      const grossMarginDzd = revenueDzd - geminiCostDzd;
+      const activeUsers30d = users.filter((row: any) => String(row.updated_at || row.created_at) >= since30).length;
+      const recentUsers = users.slice(0, 20);
+      const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
+      await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
+      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+    } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
+  });
+
   // URL média sans query-string Supabase : certains intégrateurs refusent les
   // URLs signées ou ne savent pas télécharger leur token. L'URL reste publique
   // comme toute URL média d'automatisation, mais elle expire après 7 jours.
@@ -1242,6 +1302,7 @@ async function startServer() {
     const mp3 = pcmToMp3Buffer(generated.pcmBuffer, 24000);
     const { data, error } = await supabaseClient.rpc("deduct_and_record_generation_service", { p_user_id: key.userId, p_amount: cost, p_voice_id: voice_id, p_voice_name: selectedVoiceName, p_prompt: text.trim(), p_char_count: text.length, p_duration: duration, p_latency: Date.now() - started });
     if (error || !data?.success) return res.status(402).json({ error: error?.message || data?.error || "Solde insuffisant; aucun audio validé." });
+    if (data.generation_id) await supabaseClient.from("voice_generations").update({ generation_source: "developer_api" }).eq("id", data.generation_id).eq("user_id", key.userId);
     const bonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: key.userId });
     await supabaseClient.from("developer_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id);
     const mediaPath = `${key.userId}/developer/${key.id}/${Date.now()}.wav`;
@@ -1399,6 +1460,7 @@ async function startServer() {
       const durationSeconds = Math.round((pcmBuffer.length / 48000) * 10) / 10;
 
       const finalPointsCost = computePointsCost(durationSeconds);
+      const { count: paidTransactionCount } = await supabaseClient.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed");
 
       let generationId: string | null = null;
       let remainingBalance: number | null = null;
@@ -1412,6 +1474,7 @@ async function startServer() {
       }
       generationId = data.generation_id;
       remainingBalance = data.remaining_balance;
+      if (generationId) await supabaseClient.from("voice_generations").update({ generation_source: paidTransactionCount ? "paid_balance" : "free_trial" }).eq("id", generationId).eq("user_id", userId);
       const milestoneBonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: userId });
       if (milestoneBonus.data?.awarded) remainingBalance = milestoneBonus.data.new_balance;
 
