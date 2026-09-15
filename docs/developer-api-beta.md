@@ -65,7 +65,20 @@ curl -X POST https://sawtify.space/api/v1/developer/tts \
   -d '{"text":"Votre commande est confirmée.","voice_id":"voice_yasmin","format":"json"}'
 ```
 
-La réponse contient `audio_base64`, `mime_type: audio/wav`, `sample_rate: 24000`, la durée et le coût. Pour un serveur vocal, décoder la base64 vers un buffer WAV avant de l’envoyer au fournisseur téléphonique.
+La réponse contient `audio_base64`, `mime_type: audio/wav`, `sample_rate: 24000`, la durée et le coût. Elle contient également `media_url` et `audio_url` : une URL HTTPS signée, valable 7 jours, que tu peux coller dans le champ **Media URL** de n8n, Viasocket, un chatbot ou une boîte vocale. Pour un serveur vocal, tu peux aussi décoder la base64 vers un buffer WAV.
+
+```json
+{
+  "media_url": "https://.../audio-generations/.../signed-url",
+  "audio_url": "https://.../audio-generations/.../signed-url",
+  "media_type": "audio/wav",
+  "mime_type": "audio/wav",
+  "format": "wav",
+  "sample_rate": 24000
+}
+```
+
+Le format audio est **WAV PCM mono 24 kHz**, accepté par la majorité des outils d’automatisation. Avec `format: "wav"`, l’URL est aussi disponible dans l’en-tête `X-Sawtify-Media-URL`.
 
 ## Exemple JavaScript serveur
 

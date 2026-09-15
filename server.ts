@@ -1185,8 +1185,16 @@ async function startServer() {
     if (error || !data?.success) return res.status(402).json({ error: error?.message || data?.error || "Solde insuffisant; aucun audio validé." });
     const bonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: key.userId });
     await supabaseClient.from("developer_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id);
-    if (format === "json") return res.json({ success: true, beta: true, format: "wav", mime_type: "audio/wav", sample_rate: 24000, audio_base64: wav.toString("base64"), duration_seconds: duration, points_deducted: cost, remaining_balance: bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount });
-    res.set({ "Content-Type": "audio/wav", "Content-Disposition": "attachment; filename=sawtify-output.wav", "X-Sawtify-Format": "wav", "X-Sawtify-Duration": String(duration), "X-Sawtify-Points": String(cost), "X-Sawtify-Milestone-Bonus": bonus.data?.awarded ? "30" : "0", "X-Sawtify-Remaining-Balance": String(bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance ?? "") });
+    const mediaPath = `${key.userId}/developer/${key.id}/${Date.now()}.wav`;
+    const { error: mediaUploadError } = await supabaseClient.storage.from("audio-generations").upload(mediaPath, wav, { contentType: "audio/wav", upsert: false });
+    let mediaUrl: string | null = null;
+    if (!mediaUploadError) {
+      const signed = await supabaseClient.storage.from("audio-generations").createSignedUrl(mediaPath, 7 * 86400);
+      mediaUrl = signed.data?.signedUrl || null;
+    }
+    const responseMeta = { success: true, beta: true, format: "wav", mime_type: "audio/wav", media_type: "audio/wav", media_url: mediaUrl, audio_url: mediaUrl, sample_rate: 24000, duration_seconds: duration, points_deducted: cost, remaining_balance: bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount, media_url_expires_in_seconds: mediaUrl ? 7 * 86400 : null };
+    if (format === "json") return res.json({ ...responseMeta, audio_base64: wav.toString("base64") });
+    res.set({ "Content-Type": "audio/wav", "Content-Disposition": "attachment; filename=sawtify-output.wav", "X-Sawtify-Format": "wav", "X-Sawtify-Media-URL": mediaUrl || "", "X-Sawtify-Duration": String(duration), "X-Sawtify-Points": String(cost), "X-Sawtify-Milestone-Bonus": bonus.data?.awarded ? "30" : "0", "X-Sawtify-Remaining-Balance": String(bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance ?? "") });
     return res.send(wav);
   });
   app.get("/api/v1/developer/tts", (_req, res) => {
