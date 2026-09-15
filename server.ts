@@ -235,6 +235,24 @@ async function cleanupExpiredGenerations(): Promise<void> {
       deleted += ids.length;
       if (rows.length < 500) break;
     }
+    // Les générations Developer possèdent deux fichiers (WAV + MP3) et ne
+    // sont pas toujours liées à une ligne voice_generations. On les parcourt
+    // par utilisateur/clé pour éviter de laisser le Storage gratuit se remplir.
+    const { data: userFolders } = await supabaseClient.storage.from("audio-generations").list("", { limit: 1000 });
+    for (const userFolder of userFolders || []) {
+      if (!userFolder.id) continue;
+      const { data: developerFolders } = await supabaseClient.storage.from("audio-generations").list(`${userFolder.name}/developer`, { limit: 1000 });
+      for (const keyFolder of developerFolders || []) {
+        if (!keyFolder.id) continue;
+        const base = `${userFolder.name}/developer/${keyFolder.name}`;
+        const { data: mediaFiles } = await supabaseClient.storage.from("audio-generations").list(base, { limit: 1000 });
+        const expired = (mediaFiles || []).filter((file: any) => {
+          const timestamp = Number(String(file.name).replace(/\.(wav|mp3)$/i, ""));
+          return /^(\d+)\.(wav|mp3)$/i.test(String(file.name)) && Number.isFinite(timestamp) && timestamp < Date.now() - GENERATION_RETENTION_DAYS * 86400000;
+        }).map((file: any) => `${base}/${file.name}`);
+        if (expired.length) await supabaseClient.storage.from("audio-generations").remove(expired);
+      }
+    }
     if (deleted) console.log(`[Retention] ${deleted} génération(s) supprimée(s) après ${GENERATION_RETENTION_DAYS} jours`);
   } catch (err: any) { console.warn("[Retention] nettoyage impossible:", err?.message || err); }
 }
@@ -1209,6 +1227,9 @@ async function startServer() {
     const balance = await getUserBalance(key.userId);
     if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
     if (balance <= API_MIN_BALANCE) return res.status(403).json({ error: `L'API Beta est disponible au-dessus de ${API_MIN_BALANCE} points.`, required_balance: API_MIN_BALANCE + 1, current_balance: balance });
+    const estimatedDuration = Math.ceil(text.trim().length / TTS_CHARS_PER_SECOND_ESTIMATE);
+    const estimatedCost = computePointsCost(estimatedDuration);
+    if (balance < estimatedCost) return res.status(402).json({ error: "Solde insuffisant pour ce texte.", estimated_duration_seconds: estimatedDuration, estimated_points_required: estimatedCost, current_balance: balance });
     if (await hasReachedDailyTTSLimit(key.userId)) return res.status(429).json({ error: `Quota quotidien atteint (${DAILY_TTS_LIMIT} générations).` });
     const selectedVoiceName = GEMINI_VOICE_MAP[voice_id] || "Puck";
     const started = Date.now();
@@ -1345,6 +1366,11 @@ async function startServer() {
       if (balanceBeforeGeneration === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (balanceBeforeGeneration !== null && balanceBeforeGeneration < BASE_POINTS_COST) {
         return res.status(402).json({ error: `Solde de points insuffisant (${BASE_POINTS_COST} points minimum requis).` });
+      }
+      const estimatedDuration = Math.ceil(text.trim().length / TTS_CHARS_PER_SECOND_ESTIMATE);
+      const estimatedCost = computePointsCost(estimatedDuration);
+      if (balanceBeforeGeneration < estimatedCost) {
+        return res.status(402).json({ error: "Solde insuffisant pour ce texte.", estimated_duration_seconds: estimatedDuration, estimated_points_required: estimatedCost, current_balance: balanceBeforeGeneration });
       }
       if (await hasReachedDailyTTSLimit(userId)) {
         return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_TTS_LIMIT} générations audio).` });
