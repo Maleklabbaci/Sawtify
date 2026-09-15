@@ -1173,6 +1173,10 @@ async function startServer() {
     res.set({ "Content-Type": "audio/wav", "Content-Disposition": "attachment; filename=sawtify-output.wav", "X-Sawtify-Format": "wav", "X-Sawtify-Duration": String(duration), "X-Sawtify-Points": String(cost), "X-Sawtify-Milestone-Bonus": bonus.data?.awarded ? "30" : "0", "X-Sawtify-Remaining-Balance": String(bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance ?? "") });
     return res.send(wav);
   });
+  app.get("/api/v1/developer/tts", (_req, res) => {
+    res.setHeader("Allow", "POST, OPTIONS");
+    return res.status(405).json({ error: "Méthode incorrecte. Utilisez POST avec un body JSON contenant text, voice_id et format." });
+  });
 
   /* ===================================================================     TTS PREVIEW (gratuit)
      FIX n°1 + FIX n°5 : plus de fallback synthétique ; la voix Gemini fait
