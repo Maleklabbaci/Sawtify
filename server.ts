@@ -99,6 +99,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 const FRONTEND_URL = process.env.FRONTEND_URL || "";
+const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space").replace(/\/+$/, "");
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
@@ -1208,7 +1209,7 @@ async function startServer() {
     const { error: mediaUploadError } = await supabaseClient.storage.from("audio-generations").upload(mediaPath, wav, { contentType: "audio/wav", upsert: false });
     let mediaUrl: string | null = null;
     if (!mediaUploadError) {
-      mediaUrl = getPublicUrl(req, `/api/v1/developer/media/${key.userId}/${key.id}/${mediaPath.split("/").pop()}`);
+      mediaUrl = `${PUBLIC_MEDIA_URL}/api/v1/developer/media/${key.userId}/${key.id}/${mediaPath.split("/").pop()}`;
     }
     const pointsRemaining = bonus.data?.awarded ? bonus.data.new_balance : data.remaining_balance;
     const responseMeta = { success: true, beta: true, format: "wav", mime_type: "audio/wav", media_type: "audio/wav", media_url: mediaUrl, audio_url: mediaUrl, sample_rate: 24000, duration_seconds: duration, points_deducted: cost, points_remaining: pointsRemaining, remaining_balance: pointsRemaining, milestone_bonus: bonus.data?.awarded ? 30 : 0, daily_gemini_calls: usageCount, media_url_expires_in_seconds: mediaUrl ? 7 * 86400 : null };
