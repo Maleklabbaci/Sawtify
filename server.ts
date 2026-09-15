@@ -22,7 +22,8 @@ process.on("unhandledRejection", (reason) => {
   console.error("[FATAL] Promesse rejetée non interceptée (processus maintenu en vie) :", reason);
 });
 
-// ===================================================================// CHANGELOG DE CE FICHIER :
+// ===================================================================
+//  CHANGELOG DE CE FICHIER :
 // FIX n°1 : suppression totale du fallback audio synthétique (sinusoïdes =
 //          son 100% robotique) et de sa mise en cache/persistance à vie.
 //          Échec Gemini → 503, rien n'est débité ni empoisonné.
@@ -58,8 +59,10 @@ process.on("unhandledRejection", (reason) => {
 // FIX TTS-E : garde-fou durée — si l'audio généré est absurdement plus court
 //          que ce que le texte devrait donner à l'oral → rejet, aucun débit.
 // ===================================================================
-// ===================================================================// CONCURRENCY LIMITER (Fix: expose activeCount / pendingCount)
-// ===================================================================function createLimiter(concurrency: number) {
+// ===================================================================
+//  CONCURRENCY LIMITER (Fix: expose activeCount / pendingCount)
+// ===================================================================
+function createLimiter(concurrency: number) {
   let active = 0;
   const queue: Array<() => void> = [];
   const next = () => {
@@ -147,8 +150,10 @@ const TTS_CONCURRENCY_LIMIT = Number(process.env.TTS_CONCURRENCY_LIMIT) || 6;
 const TTS_CONCURRENCY = createLimiter(TTS_CONCURRENCY_LIMIT);
 const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
 
-// ===================================================================// NOUVEAUX PARAMÈTRES TTS (tous surchargables via .env, valeurs par défaut saines)
-// ===================================================================const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
+// ===================================================================
+//  NOUVEAUX PARAMÈTRES TTS (tous surchargables via .env, valeurs par défaut saines)
+// ===================================================================
+const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
 const TTS_FETCH_TIMEOUT_MS = Number(process.env.TTS_FETCH_TIMEOUT_MS) || 45000;   // FIX TTS-A
 const TTS_CHUNK_MAX_CHARS = Number(process.env.TTS_CHUNK_MAX_CHARS) || 800;       // FIX TTS-C
 const TTS_CHUNK_GAP_MS = Number(process.env.TTS_CHUNK_GAP_MS) || 200;             // FIX TTS-C
@@ -428,10 +433,12 @@ function pcmToWavBuffer(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, 
 // dans Supabase Storage, donc une voix restait robotique À VIE après
 // une seule erreur Gemini.
 
-// ===================================================================// FIX n°4 : 9 personas → 9 vraies voix Gemini distinctes, alignées sur le
+// ===================================================================
+//  FIX n°4 : 9 personas → 9 vraies voix Gemini distinctes, alignées sur le
 // profil naturel de chaque voix (avant : 5 hommes = Puck, 4 femmes = Zephyr,
 // et on demandait à Puck "Upbeat" d'être un narrateur posé → incohérence).
-// ===================================================================const GEMINI_VOICE_MAP: Record<string, string> = {
+// ===================================================================
+const GEMINI_VOICE_MAP: Record<string, string> = {
   // ── Hommes ──
   voice_amin:   "Puck",     // Upbeat      → jeune, sympa, dynamique
   voice_khalid: "Charon",   // Informative → narrateur documentaire, posé
@@ -523,13 +530,15 @@ function injectNaturalFiller(text: string): string {
   return `... ${clean}`;
 }
 
-// ===================================================================// FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs.
+// ===================================================================
+//  FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs.
 // Avant : [excited] était remplacé par "، بحماس واضح وطاقة عالية، " DANS le
 // transcript → la voix lisait ces instructions à voix haute ou livrait un
 // débit mécanique. La doc Google est explicite : "If your transcript is not
 // in English, for best results we recommend that you still use English audio
 // tags." Gemini TTS comprend nativement [excited], [whispers], [very fast]...
-// ===================================================================const EMOTION_TAG_MAP: Record<string, string> = {
+// ===================================================================
+const EMOTION_TAG_MAP: Record<string, string> = {
   excited: "[excited]",
   natural: "[natural]",
   calm: "[calm]",
@@ -592,10 +601,12 @@ const REGION_GUIDES: Record<string, string> = {
 
 function getRegionGuide(region: string): string { return REGION_GUIDES[region] || REGION_GUIDES.general; }
 
-// ===================================================================// FIX TTS-C : DÉCOUPAGE DU TEXTE EN MORCEAUX
+// ===================================================================
+//  FIX TTS-C : DÉCOUPAGE DU TEXTE EN MORCEAUX
 // On coupe UNIQUEMENT sur des fins de phrase (jamais au milieu d'un mot ou
 // d'une idée) pour que les coutures entre morceaux soient inaudibles.
-// ===================================================================function hardSplitByWords(text: string, maxChars: number): string[] {
+// ===================================================================
+function hardSplitByWords(text: string, maxChars: number): string[] {
   // Filet de sécurité : un bloc sans AUCUNE ponctuation (rare) → coupe par mots.
   const words = text.split(" ");
   const out: string[] = [];
@@ -642,7 +653,8 @@ function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): st
   return chunks.filter((c) => c.length > 0);
 }
 
-// ===================================================================// FIX TTS-A + FIX TTS-B : APPEL GEMINI TTS NON-STREAMING AVEC CHRONOMÈTRE
+// ===================================================================
+//  FIX TTS-A + FIX TTS-B : APPEL GEMINI TTS NON-STREAMING AVEC CHRONOMÈTRE
 // ET VALIDATION finishReason.
 // - Timeout sur TOUTE l'opération (envoi + headers + lecture du corps).
 //   Un appel qui traîne → abort → retry. Fini les fetch qui pendent à vie
@@ -650,7 +662,8 @@ function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): st
 // - Si finishReason != STOP (MAX_TOKENS, OTHER, SAFETY...) → l'audio est
 //   probablement TRONQUÉ → on le REJETTE. Avant, un son coupé en plein
 //   milieu était renvoyé comme un succès et FACTURÉ au client.
-// ===================================================================async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
+// ===================================================================
+async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${apiKey}`;
@@ -705,12 +718,14 @@ function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): st
   }
 }
 
-// ===================================================================// SYNTHESIZE WITH RETRY (réécrit : chunking + timeout + finishReason)
+// ===================================================================
+//  SYNTHESIZE WITH RETRY (réécrit : chunking + timeout + finishReason)
 // FIX n°3 conservé : prompt court type "Director's Notes".
 // L'ancienne stratégie "streaming" SSE est SUPPRIMÉE (FIX TTS-BIS) : elle
 // bufferisait toute la réponse avant de parser (aucun gain de latence) et
 // était la source principale des blocages et coupures aléatoires.
-// ===================================================================function buildTTSPrompt(preparedText: string, persona: string, pace: string, pitchNote: string, emotionNote: string): string {
+// ===================================================================
+function buildTTSPrompt(preparedText: string, persona: string, pace: string, pitchNote: string, emotionNote: string): string {
   return `TTS the following transcript. Do not read these notes aloud.
 
 DIRECTOR'S NOTES
@@ -1052,8 +1067,10 @@ function countEmotionTags(text: string): number {
   return (text.match(/\[(excited|natural|calm)\]/gi) || []).length;
 }
 
-// ===================================================================// START SERVER
-// ===================================================================async function startServer() {
+// ===================================================================
+//  START SERVER
+// ===================================================================
+async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
@@ -1092,7 +1109,8 @@ function countEmotionTags(text: string): number {
 
   // ===================================================================  // SAWTIFY DEVELOPER API — BETA
   // Authentification par clé dédiée, jamais par la clé Gemini.
-  // ===================================================================  const resolveDeveloperKey = async (req: express.Request): Promise<{ id: string; userId: string } | null> => {
+  // ===================================================================
+  const resolveDeveloperKey = async (req: express.Request): Promise<{ id: string; userId: string } | null> => {
     if (!supabaseClient) return null;
     const raw = req.get("x-sawtify-api-key") || req.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
     if (!raw.startsWith(API_KEY_PREFIX)) return null;
@@ -1192,7 +1210,6 @@ function countEmotionTags(text: string): number {
     }
 
     const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
-    const previewUserId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
     const generation = (async () => {
       // FIX n°1 : SEUL du vrai audio Gemini est caché/persisté.
       // Échec → exception → 503. Jamais de sinusoïdes robotiques en cache.
