@@ -11,6 +11,7 @@ import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 const TTSStudio = lazy(() => import('./components/TTSStudio').then(m => ({ default: m.TTSStudio })));
 const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
 const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
+const DeveloperPage = lazy(() => import('./components/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
 const LoginModal = lazy(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })));
 const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ default: m.SigninModal })));
 const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').then(m => ({ default: m.SetPasswordScreen })));
@@ -30,9 +31,10 @@ const ViewFallback = () => (
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
-  const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'pricing' => {
+  const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'pricing' | 'developer' => {
     if (path === '/historique' || path === '/history') return 'history';
     if (path === '/pricing' || path === '/recharge') return 'pricing';
+    if (path === '/developer') return 'developer';
     return 'studio';
   }, []);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -41,7 +43,7 @@ function AppContent() {
   const [pendingUserEmail, setPendingUserEmail] = useState<string | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing'>(() => routeToTab(window.location.pathname));
+  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing' | 'developer'>(() => routeToTab(window.location.pathname));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showInstagramNudge, setShowInstagramNudge] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
@@ -68,8 +70,8 @@ function AppContent() {
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
-  const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'pricing', replace = false) => {
-    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : '/studio';
+  const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'pricing' | 'developer', replace = false) => {
+    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
   }, []);
@@ -402,6 +404,8 @@ function AppContent() {
               onNavigateToStudio={() => navigateTo('studio')}
             />
           )}
+
+          {activeTab === 'developer' && <DeveloperPage balance={balance} />}
         </Suspense>
       </main>
       <ReportWidget />

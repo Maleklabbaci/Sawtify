@@ -1,11 +1,11 @@
 import React from 'react';
-import { Mic, History, Plus, CreditCard, LogOut, Zap } from 'lucide-react';
+import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
   balance: number;
-  activeTab: 'studio' | 'history' | 'pricing';
-  setActiveTab: (tab: 'studio' | 'history' | 'pricing') => void;
+  activeTab: 'studio' | 'history' | 'pricing' | 'developer';
+  setActiveTab: (tab: 'studio' | 'history' | 'pricing' | 'developer') => void;
   historyCount: number;
   onLogout: () => void;
 }
@@ -19,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const isLowBalance = balance < 20;
+  const canUseDeveloperApi = balance > 1000;
 
   return (
     <header className="sticky top-0 z-50 w-full h-16 bg-white/85 backdrop-blur-md border-b border-slate-200/80 transition-all">
@@ -81,6 +82,17 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <CreditCard className="w-3.5 h-3.5" />
               <span className="hidden md:inline">{t.pricingTab}</span>
+            </button>
+
+            <button
+              onClick={() => canUseDeveloperApi && setActiveTab('developer')}
+              disabled={!canUseDeveloperApi}
+              title={canUseDeveloperApi ? 'Developer API Beta' : 'Disponible avec plus de 1 000 points'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${activeTab === 'developer' ? 'bg-purple-600 text-white shadow-sm' : canUseDeveloperApi ? 'text-slate-600 hover:text-slate-900 hover:bg-white/50 cursor-pointer' : 'text-slate-400 cursor-not-allowed'}`}
+            >
+              {canUseDeveloperApi ? <Code2 className="w-3.5 h-3.5" /> : <Lock className="w-3 h-3" />}
+              <span className="hidden md:inline">Développeur</span>
+              <span className="hidden lg:inline text-[9px] font-bold">BETA</span>
             </button>
           </nav>
 
