@@ -1146,6 +1146,22 @@ async function startServer() {
     return res.json({ success: true });
   });
 
+  app.get("/api/v1/developer/usage", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
+    if (!userId || !supabaseClient) return res.status(401).json({ error: "Authentification requise." });
+    try {
+      const since = new Date(Date.now() - 30 * 86400000).toISOString();
+      const [{ data: logs }, { data: keys }] = await Promise.all([
+        supabaseClient.from("gemini_usage_logs").select("operation, characters, created_at, metadata").eq("user_id", userId).eq("operation", "tts").gte("created_at", since).limit(1000),
+        supabaseClient.from("developer_api_keys").select("id, name, key_prefix, active, last_used_at, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(50),
+      ]);
+      const rows = logs || [];
+      const characters = rows.reduce((sum: number, row: any) => sum + (Number(row.characters) || 0), 0);
+      const estimatedMinutes = Math.round((characters / TTS_CHARS_PER_SECOND_ESTIMATE / 60) * 10) / 10;
+      return res.json({ period_days: 30, api_calls: rows.length, characters, estimated_minutes: estimatedMinutes, active_keys: (keys || []).filter((key: any) => key.active).length, keys: keys || [], daily: rows.reduce((out: Record<string, number>, row: any) => { const day = String(row.created_at).slice(0, 10); out[day] = (out[day] || 0) + 1; return out; }, {}) });
+    } catch (error: any) { return res.status(500).json({ error: "Impossible de charger les statistiques API.", detail: error?.message }); }
+  });
+
   app.post("/api/v1/developer/tts", async (req, res) => {
     const key = await resolveDeveloperKey(req);
     if (!key || !supabaseClient) return res.status(401).json({ error: "Clé API Beta invalide ou absente." });
