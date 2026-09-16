@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { GenerationRecord } from '../types';
+import { VOICES_FR } from '../data/voices';
 
 // Ces deux valeurs sont publiques (clé "anon"), à définir dans un fichier .env :
 //   VITE_SUPABASE_URL=https://jjpcvevdztletxgmmzqr.supabase.co
@@ -57,7 +58,10 @@ export async function signInWithEmailPassword(email: string, password: string) {
 // Définit le mot de passe du compte connecté (appelé juste après le tout premier
 // Google Sign-In pour permettre ensuite une connexion classique email + mot de passe).
 export async function setAccountPassword(password: string) {
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await supabase.auth.updateUser({
+    password,
+    data: { password_set_at: new Date().toISOString() },
+  });
   if (error) throw error;
 }
 
@@ -166,11 +170,15 @@ export async function fetchMyGenerations(limit: number = 100): Promise<Generatio
     })
   );
 
+  const publicVoiceNames: Record<string, string> = {
+    Puck: 'Amine', Kore: 'Yasmine', Charon: 'Khalid', Zephyr: 'Maryam', Fenrir: 'Rachid', Aoede: 'Layla', Orus: 'Bilal', Sulafat: 'Nour', Leda: 'Fayçal',
+    Achernar: 'Yasmine', Algenib: 'Khalid',
+  };
   return rows.map((row, i) => ({
     id: row.id,
     text: row.text_prompt,
     voiceId: row.voice_id,
-    voiceName: row.voice_name,
+    voiceName: VOICES_FR.find((v) => v.id === row.voice_id)?.name || publicVoiceNames[row.voice_name] || 'Sawtify Voice',
     pointsDeducted: row.points_deducted,
     durationSec: row.audio_duration_seconds || 0,
     latencyMs: row.latency_ms || 0,
@@ -259,21 +267,21 @@ export async function deductCreditsRPC(params: DeductCreditsParams): Promise<Ded
  * signup) : demande au serveur de vérifier si l'IP a déjà servi à créer un
  * compte et de retirer le bonus de 50 points si c'est le cas.
  */
-export async function claimWelcomeBonus(): Promise<'granted' | 'denied' | 'error'> {
+export async function claimWelcomeBonus(): Promise<boolean> {
   try {
     const token = await getMyAccessToken();
-    if (!token) return 'error';
+    if (!token) return false;
     const { API_BASE_URL } = await import('../config/apiBase');
     const res = await fetch(`${API_BASE_URL}/api/auth/claim-welcome-bonus`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return 'error';
-    return data.welcomeGranted === true ? 'granted' : 'denied';
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.welcomeGranted === true;
   } catch (e) {
     console.warn('[Sawtify] Erreur vérification bonus de bienvenue:', e);
-    return 'error';
+    return false;
   }
 }
 
