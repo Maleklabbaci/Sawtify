@@ -123,8 +123,22 @@ function AppContent() {
       supabase.auth.getUser().then(({ data, error }) => {
         if (data.user && !error) {
           setIsLoggedIn(true);
-          navigateTo(routeToTab(window.location.pathname), true);
           bootstrappedUserIdRef.current = data.user.id;
+
+          // Tant que l'onboarding (téléphone / usage / source) n'a pas été
+          // rempli, on le réaffiche à CHAQUE connexion/reload -> pas de
+          // dépendance à un délai de 2 minutes après la création du compte.
+          const metadata = data.user.user_metadata || {};
+          if (!metadata.onboarding_completed_at) {
+            setWelcomeUser({
+              name: metadata.full_name || metadata.name || data.user.email?.split('@')[0] || 'Utilisateur Sawtify',
+              email: data.user.email || '',
+            });
+            setIsBootstrapping(false);
+            return;
+          }
+
+          navigateTo(routeToTab(window.location.pathname), true);
           setIsBootstrapping(true);
           refreshAccountData().finally(() => setIsBootstrapping(false));
         } else {
@@ -155,21 +169,20 @@ function AppContent() {
           setAuthModalMode('none');
           navigateTo('studio');
 
-          // FIX: le bonus de bienvenue (et donc le check anti-abus par IP) ne
-          // doit PAS dépendre d'un flag posé côté navigateur uniquement quand
-          // un bouton "Créer un compte" précis est cliqué — Google OAuth ne
-          // fait aucune vraie différence entre connexion et inscription, donc
-          // ce flag peut rester absent même pour un compte tout juste créé
-          // (le check IP était alors silencieusement sauté). On se base à la
-          // place sur l'horodatage réel fourni par Supabase : ce compte a-t-il
-          // été créé il y a moins de 2 minutes ? Fiable quel que soit le
-          // bouton cliqué ou la méthode d'inscription.
+          // Le bonus de bienvenue (et le check anti-abus par IP) sert UNE
+          // seule fois, donc reste basé sur "compte créé il y a moins de
+          // 2 minutes". L'affichage du formulaire d'onboarding, lui, ne doit
+          // PAS dépendre de ce délai : tant que l'utilisateur n'a pas rempli
+          // téléphone / usage / source (metadata.onboarding_completed_at
+          // absente), on le lui redemande à chaque connexion, même des jours
+          // plus tard.
           const createdAtMs = session.user.created_at ? new Date(session.user.created_at).getTime() : 0;
           const isBrandNewAccount = createdAtMs > 0 && (Date.now() - createdAtMs) < 2 * 60 * 1000;
+          const metadata = session.user.user_metadata || {};
+          const needsOnboarding = !metadata.onboarding_completed_at;
           const wantsPasswordSetup = consumeSignupIntent();
 
-          if (isBrandNewAccount) {
-            const metadata = session.user.user_metadata || {};
+          if (needsOnboarding) {
             setWelcomeUser({
               name: metadata.full_name || metadata.name || session.user.email?.split('@')[0] || 'Utilisateur Sawtify',
               email: session.user.email || '',
