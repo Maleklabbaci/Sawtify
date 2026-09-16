@@ -125,10 +125,20 @@ function AppContent() {
           setIsLoggedIn(true);
           bootstrappedUserIdRef.current = data.user.id;
 
+          const metadata = data.user.user_metadata || {};
+
+          // Même logique que l'onboarding : tant que le compte n'a pas de
+          // mot de passe défini (metadata.password_set_at absente), on
+          // réaffiche l'écran "Crée ton mot de passe" à chaque connexion —
+          // plus de dépendance à un flag sessionStorage perdu au reload.
+          if (!metadata.password_set_at) {
+            setPendingUserEmail(data.user.email ?? null);
+            setNeedsPasswordSetup(true);
+          }
+
           // Tant que l'onboarding (téléphone / usage / source) n'a pas été
           // rempli, on le réaffiche à CHAQUE connexion/reload -> pas de
           // dépendance à un délai de 2 minutes après la création du compte.
-          const metadata = data.user.user_metadata || {};
           if (!metadata.onboarding_completed_at) {
             setWelcomeUser({
               name: metadata.full_name || metadata.name || data.user.email?.split('@')[0] || 'Utilisateur Sawtify',
@@ -180,6 +190,9 @@ function AppContent() {
           const isBrandNewAccount = createdAtMs > 0 && (Date.now() - createdAtMs) < 2 * 60 * 1000;
           const metadata = session.user.user_metadata || {};
           const needsOnboarding = !metadata.onboarding_completed_at;
+          const needsPassword = !metadata.password_set_at;
+          // Gardé uniquement pour savoir si on doit afficher le toast générique
+          // "Bienvenue sur Sawtify !" (évite un doublon avec l'écran mot de passe).
           const wantsPasswordSetup = consumeSignupIntent();
 
           if (needsOnboarding) {
@@ -193,7 +206,7 @@ function AppContent() {
             refreshAccountData().finally(() => setIsBootstrapping(false));
           }
 
-          if (wantsPasswordSetup) {
+          if (needsPassword) {
             setPendingUserEmail(session.user.email ?? null);
             setNeedsPasswordSetup(true);
           }
