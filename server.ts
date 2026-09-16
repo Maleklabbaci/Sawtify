@@ -1894,6 +1894,10 @@ Style vocal souhaité : ${style || "excited"}`;
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
+    app.use("/api", (req, res, next) => {
+      if (req.method === "GET" || req.method === "HEAD") return res.status(404).json({ error: "Endpoint API introuvable." });
+      return res.status(404).json({ error: "Endpoint API ou méthode introuvable." });
+    });
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
