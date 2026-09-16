@@ -120,14 +120,21 @@ function AppContent() {
     let unsubscribe: (() => void) | undefined;
 
     import('./services/supabaseClient').then(({ supabase, consumeSignupIntent }) => {
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session) {
+      supabase.auth.getUser().then(({ data, error }) => {
+        if (data.user && !error) {
           setIsLoggedIn(true);
           navigateTo(routeToTab(window.location.pathname), true);
-          bootstrappedUserIdRef.current = data.session.user.id;
+          bootstrappedUserIdRef.current = data.user.id;
           setIsBootstrapping(true);
           refreshAccountData().finally(() => setIsBootstrapping(false));
         } else {
+          // Le token local existe peut-être encore, mais le compte n'existe
+          // plus (ou plus) côté serveur : on nettoie la session locale pour
+          // éviter un faux "connecté" (compte supprimé mais encore affiché).
+          if (error) {
+            supabase.auth.signOut().catch(() => {});
+          }
+          setIsLoggedIn(false);
           setIsBalanceLoading(false);
         }
       });
