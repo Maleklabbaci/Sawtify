@@ -62,7 +62,21 @@ export async function setAccountPassword(password: string) {
     password,
     data: { password_set_at: new Date().toISOString() },
   });
-  if (error) throw error;
+  if (error) {
+    // Comptes créés AVANT l'ajout du suivi password_set_at : ils ont déjà
+    // un vrai mot de passe en base. Supabase refuse juste parce que la
+    // valeur saisie est identique à l'ancienne — ce n'est pas un échec,
+    // ça confirme au contraire qu'un mot de passe existe déjà. On se
+    // contente alors d'enregistrer le flag pour ne plus jamais redemander.
+    if (error.message?.toLowerCase().includes('different from the old password')) {
+      const { error: metaError } = await supabase.auth.updateUser({
+        data: { password_set_at: new Date().toISOString() },
+      });
+      if (metaError) throw metaError;
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function signOutFromSupabase() {
