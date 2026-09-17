@@ -121,12 +121,15 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
           window.location.href = data.paymentUrl;
         }
       } else {
-        setStatusMessage(data.error || data.message || data.diagnostics || 'Erreur lors de la création de la facture');
+        const message = `${data.error || data.message || 'Erreur lors de la création de la facture'}${data.error_id ? ` [${data.error_id}]` : ''}${data.diagnostics ? ` — ${data.diagnostics}` : ''}`;
+        setStatusMessage(message);
+        window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: data.error || 'Erreur lors de la création de la facture', description: `Diagnostic automatique : ${message}\nÉtape : création de la facture SlickPay\nURL : ${window.location.pathname}` } }));
       }
     } catch (err) {
       console.warn('[SlickPay Init Warning]:', err);
       setIsProcessing(false);
       setStatusMessage('Erreur de communication avec le serveur');
+      window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: 'Erreur de communication avec le serveur de paiement', description: `Diagnostic automatique : ${err instanceof Error ? err.message : 'Erreur réseau'}\nÉtape : création de la facture SlickPay\nURL : ${window.location.pathname}` } }));
     }
   };
 

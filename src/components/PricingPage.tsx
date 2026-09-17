@@ -145,11 +145,14 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           } catch (e) {}
         }
       } else {
-        setStatusMessage(data.error || data.message || data.diagnostics || (language === 'ar' ? 'حدث خطأ أثناء إنشاء الفاتورة' : 'Erreur lors de la création de la facture'));
+        const message = `${data.error || data.message || (language === 'ar' ? 'حدث خطأ أثناء إنشاء الفاتورة' : 'Erreur lors de la création de la facture')}${data.error_id ? ` [${data.error_id}]` : ''}${data.diagnostics ? ` — ${data.diagnostics}` : ''}`;
+        setStatusMessage(message);
+        window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: data.error || 'Erreur lors de la création de la facture', description: `Diagnostic automatique : ${message}\nÉtape : création de la facture SlickPay\nURL : ${window.location.pathname}` } }));
       }
     } catch (err) {
       console.warn('[Pricing Checkout Error]:', err);
       setStatusMessage(language === 'ar' ? 'تعذر الاتصال بخادم الدفع' : 'Erreur de communication avec le serveur');
+      window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: 'Erreur de communication avec le serveur de paiement', description: `Diagnostic automatique : ${err instanceof Error ? err.message : 'Erreur réseau'}\nÉtape : création de la facture SlickPay\nURL : ${window.location.pathname}` } }));
     } finally {
       setIsProcessing(false);
     }

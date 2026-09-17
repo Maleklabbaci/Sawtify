@@ -1797,9 +1797,11 @@ Style vocal souhaité : ${style || "excited"}`;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
 
       if (!SLICKPAY_API_KEY) return res.status(503).json({ success: false, error: "SlickPay n'est pas configuré sur le serveur." });
-      // SlickPay accepte aussi les données du contact directement dans la facture.
-      // Le fallback évite qu’un contact déjà existant ou une validation RIB bloque le paiement.
-      if (!contactUuid) console.warn("[SlickPay] Contact non créé, utilisation des informations inline:", contactErrorDetail || "erreur inconnue");
+      if (!contactUuid) {
+        const errorId = `SP-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+        console.error(`[SlickPay ${errorId}] Contact impossible à créer:`, contactErrorDetail || "erreur inconnue");
+        return res.status(502).json({ success: false, error: "Impossible de créer le contact SlickPay.", error_id: errorId, error_code: "SLICKPAY_CONTACT_CREATE_FAILED", diagnostics: contactErrorDetail || "SlickPay a refusé la création du contact." });
+      }
       const spRes = await fetch(primaryUrl, { method: "POST", headers: { "Authorization": `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(payload) });
       const spText = await spRes.text();
       let spData: any;
@@ -1807,7 +1809,9 @@ Style vocal souhaité : ${style || "excited"}`;
       const invoiceData = spData?.data || spData?.invoice || spData;
       if (!spRes.ok || !(invoiceData && (invoiceData.id || invoiceData.uuid || invoiceData.url))) {
         console.error("[SlickPay create invoice]", spRes.status, spData);
-        return res.status(502).json({ success: false, error: "Impossible de créer la facture SlickPay.", diagnostics: spData?.message || spData?.error || `HTTP ${spRes.status}` });
+        const errorId = `SP-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+        console.error(`[SlickPay ${errorId}] Facture refusée:`, spRes.status, spData);
+        return res.status(502).json({ success: false, error: "Impossible de créer la facture SlickPay.", error_id: errorId, error_code: "SLICKPAY_INVOICE_CREATE_FAILED", diagnostics: spData?.message || spData?.error || `HTTP ${spRes.status}` });
       }
 
       const invoiceId = invoiceData.id || invoiceData.uuid || `INV_${Date.now()}`;

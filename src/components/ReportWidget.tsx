@@ -73,6 +73,19 @@ export const ReportWidget: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  useEffect(() => {
+    const onDetectedError = (event: Event) => {
+      const diagnostic = (event as CustomEvent<{ detail?: string; description?: string }>).detail || {};
+      setCategory(categories[0]);
+      setDetail(diagnostic.detail || t.detailDefault);
+      setDescription(diagnostic.description || '');
+      setCollapsed(false);
+      setOpen(true);
+    };
+    window.addEventListener('sawtify:report-error', onDetectedError);
+    return () => window.removeEventListener('sawtify:report-error', onDetectedError);
+  }, [categories, t.detailDefault]);
+
   // La bulle reste visible au début puis se replie en petit onglet discret.
   // Elle redevient immédiatement visible au survol ou au clic.
   useEffect(() => {
