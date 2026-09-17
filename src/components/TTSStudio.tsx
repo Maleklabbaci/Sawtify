@@ -826,7 +826,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   disabled={isGenerating || !text.trim()} 
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
                   {isGenerating ? (
-                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{t.generatingBtn}</span></>
+                    <><span className="sawtify-button-loader" aria-hidden="true"><span className="sawtify-button-loader-ring" /><span className="sawtify-button-loader-letters"><span>S</span><span>A</span><span>W</span></span></span><span>{t.generatingBtn}</span></>
                   ) : (
                     <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
                   )}
