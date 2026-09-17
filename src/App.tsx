@@ -18,14 +18,16 @@ const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ d
 const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').then(m => ({ default: m.SetPasswordScreen })));
 
 const ViewFallback = () => (
-  <div className="min-h-screen flex items-center justify-center bg-[#f8f7ff] px-6">
-    <div className="w-full max-w-sm rounded-3xl border border-purple-100 bg-white p-8 text-center shadow-xl shadow-purple-900/10">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 text-white shadow-lg shadow-purple-600/25">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-      </div>
-      <h2 className="mt-5 text-lg font-extrabold text-slate-900">Sawtify prépare ton espace</h2>
+  <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f7ff] px-6 gap-5">
+    <div className="sawtify-fallback-loader-wrapper">
+      <div className="sawtify-fallback-loader" />
+      {'Sawtify'.split('').map((char, i) => (
+        <span key={i} className="sawtify-fallback-loader-letter">{char}</span>
+      ))}
+    </div>
+    <div className="text-center">
+      <h2 className="text-lg font-extrabold text-slate-900">Sawtify prépare ton espace</h2>
       <p className="mt-2 text-sm leading-6 text-slate-500">Session sécurisée, solde, historique et bonus de bienvenue en cours de synchronisation…</p>
-      <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
     </div>
   </div>
 );
@@ -49,6 +51,12 @@ function AppContent() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showInstagramNudge, setShowInstagramNudge] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
+  // Tant que la session Supabase n'a pas encore répondu au premier chargement,
+  // on ne sait pas si l'utilisateur est connecté ou non. Avant, isLoggedIn valait
+  // "false" par défaut pendant ce court instant, donc la Landing s'affichait une
+  // seconde avant de basculer vers la vraie page (ex: /pricing) une fois la
+  // session confirmée. On garde donc un loader neutre tant que c'est en cours.
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
   const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
   // Retient l'utilisateur déjà chargé pour ignorer les évènements SIGNED_IN
@@ -161,7 +169,7 @@ function AppContent() {
           setIsLoggedIn(false);
           setIsBalanceLoading(false);
         }
-      });
+      }).finally(() => setIsCheckingSession(false));
 
       const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
@@ -300,7 +308,7 @@ function AppContent() {
     return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={finishWelcome} />;
   }
 
-  if (isBootstrapping) {
+  if (isBootstrapping || isCheckingSession) {
     return <ViewFallback />;
   }
 
