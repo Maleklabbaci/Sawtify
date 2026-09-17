@@ -58,6 +58,19 @@ export const ReportWidget: React.FC = () => {
   const [category, setCategory] = useState(categories[0]);
   const [detail, setDetail] = useState(t.detailDefault);
   const [description, setDescription] = useState('');
+  const [detectedIssue, setDetectedIssue] = useState<{ id: string; detail: string } | null>(null);
+  const isBrowserNoise = (message: string) => /listener indicated an asynchronous response|message channel closed|ResizeObserver loop|chrome-extension:|moz-extension:/i.test(message);
+  const detectIssue = (detailText: string, diagnostic: string, shouldOpen = true) => {
+    if (!detailText || isBrowserNoise(`${detailText} ${diagnostic}`)) return;
+    const id = `BUG-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    const context = [`ID: ${id}`, `Type: ${detailText}`, `Page: ${window.location.pathname}`, `Heure: ${new Date().toISOString()}`, `Navigateur: ${navigator.userAgent.slice(0, 140)}`, `Diagnostic: ${diagnostic}`].join('\n');
+    setDetectedIssue({ id, detail: detailText });
+    setCategory(categories[0]);
+    setDetail(detailText.slice(0, 160));
+    setDescription(context);
+    setCollapsed(false);
+    if (shouldOpen) setOpen(true);
+  };
 
   // Garde le choix/texte cohérents si l'utilisateur change de langue en cours de route.
   useEffect(() => {
@@ -76,14 +89,20 @@ export const ReportWidget: React.FC = () => {
   useEffect(() => {
     const onDetectedError = (event: Event) => {
       const diagnostic = (event as CustomEvent<{ detail?: string; description?: string }>).detail || {};
-      setCategory(categories[0]);
-      setDetail(diagnostic.detail || t.detailDefault);
-      setDescription(diagnostic.description || '');
-      setCollapsed(false);
-      setOpen(true);
+      detectIssue(diagnostic.detail || 'Erreur détectée dans Sawtify', diagnostic.description || 'Erreur signalée par un module Sawtify.');
     };
     window.addEventListener('sawtify:report-error', onDetectedError);
     return () => window.removeEventListener('sawtify:report-error', onDetectedError);
+  }, [categories, t.detailDefault]);
+
+  useEffect(() => {
+    const onWindowError = (event: ErrorEvent) => detectIssue('Erreur JavaScript dans Sawtify', event.message || 'Erreur JavaScript inconnue.');
+    const onRejection = (event: PromiseRejectionEvent) => detectIssue('Action interrompue dans Sawtify', event.reason instanceof Error ? event.reason.message : String(event.reason || 'Promesse rejetée'));
+    const onOffline = () => detectIssue('Connexion internet interrompue', 'Le navigateur est passé hors ligne.', false);
+    window.addEventListener('error', onWindowError);
+    window.addEventListener('unhandledrejection', onRejection);
+    window.addEventListener('offline', onOffline);
+    return () => { window.removeEventListener('error', onWindowError); window.removeEventListener('unhandledrejection', onRejection); window.removeEventListener('offline', onOffline); };
   }, [categories, t.detailDefault]);
 
   // La bulle reste visible au début puis se replie en petit onglet discret.
@@ -103,10 +122,12 @@ export const ReportWidget: React.FC = () => {
       `${t.detailMsg} : ${detail}`,
       `${t.descMsg} : ${description.trim() || t.noDesc}`,
       `${t.pageMsg} : ${window.location.pathname}`,
+      detectedIssue ? `ID du problème détecté : ${detectedIssue.id}` : '',
     ].join('\n');
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
     setOpen(false);
     setDescription('');
+    setDetectedIssue(null);
   };
 
   const inputCls = "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 bg-white placeholder:text-slate-400 focus:outline-none focus:border-[#25D366]/60 focus:ring-2 focus:ring-[#25D366]/10 transition";
@@ -132,6 +153,7 @@ export const ReportWidget: React.FC = () => {
         <MessageCircle className={`${collapsed ? 'h-3.5 w-3.5 opacity-80' : 'h-5 w-5'}`} />
         {collapsed && <span className="sr-only">{t.openBtn}</span>}
       </button>
+      {detectedIssue && !open && <button type="button" onClick={() => { setCollapsed(false); setOpen(true); }} className="fixed z-40 bottom-20 end-4 max-w-[240px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold text-amber-900 shadow-lg"><span className="block">Problème détecté</span><span className="mt-0.5 block truncate font-normal">{detectedIssue.detail} · ouvrir le rapport</span></button>}
 
       {open && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center bg-slate-950/50 backdrop-blur-sm">
