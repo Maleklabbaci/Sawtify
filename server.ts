@@ -387,7 +387,19 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 }
 
 function getClientIp(req: express.Request): string {
-  return req.ip || "unknown";
+  // req.ip (calculé par Express via "trust proxy") renvoyait une adresse
+  // interne au réseau Render (plage 10.x.x.x) au lieu de la vraie IP
+  // publique du visiteur — ce qui cassait silencieusement l'anti-abus par
+  // IP (bonus de bienvenue). Le header X-Forwarded-For contient la vraie
+  // chaîne de proxys ; la toute première valeur est systématiquement l'IP
+  // d'origine du visiteur, quel que soit le nombre de sauts internes.
+  const xff = req.headers["x-forwarded-for"];
+  const first = Array.isArray(xff) ? xff[0] : xff;
+  if (first) {
+    const ip = first.split(",")[0].trim();
+    if (ip) return ip;
+  }
+  return req.ip || req.socket.remoteAddress || "unknown";
 }
 
 function getPublicUrl(req?: express.Request, path = "/"): string {
@@ -1127,7 +1139,10 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.set("trust proxy", 1);
+  // "true" fait confiance à toute la chaîne de proxys de Render pour lire la
+  // vraie IP d'origine (X-Forwarded-For) — avec juste "1", req.ip résolvait
+  // une adresse interne (10.x.x.x), ce qui cassait le rate-limiting par IP.
+  app.set("trust proxy", true);
 
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
