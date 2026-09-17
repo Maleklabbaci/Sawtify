@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { GenerationRecord } from '../types';
+import { GenerationRecord, PurchaseRecord } from '../types';
 import { Download, Clock, ArrowRight, Radio, FileAudio, RefreshCw, AlertCircle } from 'lucide-react';
 import { convertWavToMp3, formatBytes } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HistoryListProps {
   generations: GenerationRecord[];
+  purchases: PurchaseRecord[];
   onNavigateToStudio: () => void;
 }
 
 export const HistoryList: React.FC<HistoryListProps> = ({
   generations,
+  purchases,
   onNavigateToStudio,
 }) => {
   const { t, isRTL, language } = useLanguage();
@@ -106,13 +108,14 @@ export const HistoryList: React.FC<HistoryListProps> = ({
       </div>
 
       <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs">
+        {purchases.length > 0 && <section className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-extrabold text-emerald-900">Paiements et recharges</h3><span className="text-xs font-bold text-emerald-700">{purchases.length}</span></div><div className="mt-3 space-y-2">{purchases.map((purchase) => <div key={purchase.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/80 px-3 py-2.5 text-xs"><div><p className="font-bold text-slate-900">{purchase.packName}</p><p className="text-slate-500">{new Date(purchase.createdAt).toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} · {purchase.paymentMethod.toUpperCase()}</p></div><div className="text-right"><p className="font-black text-emerald-700">+{purchase.pointsCredited} points</p><p className="text-slate-500">{purchase.amountDZD.toLocaleString()} DZD · {purchase.status === 'paid' ? 'Confirmé' : purchase.status}</p></div></div>)}</div></section>}
         {generations.length === 0 ? (
           <div className="text-center py-16 space-y-3">
             <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto border border-slate-200">
               <Radio className="w-5 h-5" />
             </div>
             <p className="text-xs text-slate-500">
-              {t.emptyHistoryTitle}
+              {purchases.length > 0 ? 'Aucune génération vocale pour le moment.' : t.emptyHistoryTitle}
             </p>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
               {t.emptyHistorySubtitle}

@@ -426,6 +426,7 @@ function AppContent() {
           {activeTab === 'history' && (
             <HistoryList
               generations={generations}
+              purchases={purchases}
               onNavigateToStudio={() => navigateTo('studio')}
             />
           )}

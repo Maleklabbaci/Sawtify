@@ -163,14 +163,20 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     setPollingActive(false);
 
-    const activeInvoiceId = invoiceId || `INV_DZ_${Date.now()}`;
+    const activeInvoiceId = invoiceId;
+    if (!activeInvoiceId) {
+      const message = 'Paiement détecté sans facture Sawtify liée. Aucun point n’a été ajouté.';
+      setStatusMessage(message);
+      window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: 'Paiement sans facture liée', description: message } }));
+      return;
+    }
     
     // Demande au serveur de créditer réellement les points (idempotent : si check-status
     // ou le webhook l'ont déjà fait, celle-ci ne fait rien de plus).
     try {
       const { getMyAccessToken } = await import('../services/supabaseClient');
       const accessToken = await getMyAccessToken();
-      await fetch(`${API_BASE_URL}/api/slickpay/confirm-payment`, {
+      const confirmResponse = await fetch(`${API_BASE_URL}/api/slickpay/confirm-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,6 +184,13 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
         },
         body: JSON.stringify({ invoiceId: activeInvoiceId })
       });
+      const confirmData = await confirmResponse.json().catch(() => ({}));
+      if (!confirmResponse.ok || !confirmData.success) {
+        const message = confirmData.error || 'Le paiement n’a pas pu être confirmé. Aucun point n’a été ajouté.';
+        setStatusMessage(message);
+        window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: 'Confirmation du paiement échouée', description: `${message}\nFacture : ${activeInvoiceId}` } }));
+        return;
+      }
     } catch (e) {
       console.warn('[Supabase Sync Warning]:', e);
     }
