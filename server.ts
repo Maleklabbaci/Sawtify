@@ -264,6 +264,7 @@ async function cleanupExpiredGenerations(): Promise<void> {
 }
 
 const VALID_GATEWAYS = new Set(['edahabia', 'cib', 'slickpay', 'satim']);
+const PAYMENT_FEE_RATE = 0.03;
 function mapGateway(method: string | undefined): string { 
   return VALID_GATEWAYS.has((method || '').toLowerCase()) ? method!.toLowerCase() : 'slickpay'; 
 }
@@ -1756,7 +1757,7 @@ Style vocal souhaité : ${style || "excited"}`;
       if (supabaseClient) {
         const { data: packRow, error: packErr } = await supabaseClient.from("credit_packs").select("name, points, price_dzd").eq("id", packId).eq("is_active", true).single();
         if (packErr || !packRow) return res.status(400).json({ success: false, error: "Pack inconnu." });
-        packName = packRow.name; numAmount = Number(packRow.price_dzd); numPoints = Number(packRow.points);
+        packName = packRow.name; numAmount = Math.round(Number(packRow.price_dzd) * (1 + PAYMENT_FEE_RATE)); numPoints = Number(packRow.points);
       } else return res.status(503).json({ success: false, error: "Paiement indisponible." });
 
       const returnUrl = getPublicUrl(req, `/?payment_status=success&pack_id=${packId}&points=${numPoints}`);
@@ -1791,7 +1792,7 @@ Style vocal souhaité : ${style || "excited"}`;
           else { contactErrorDetail = contactData?.message || `HTTP ${contactRes!.status}`; console.warn("[SlickPay create contact] échec:", contactRes!.status, contactData); }
         } catch (e: any) { contactErrorDetail = e?.message || "Erreur réseau"; console.warn("[SlickPay create contact] erreur réseau:", e?.message || e); }
       }
-      const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
+      const itemsList = [{ name: `${packName} (+${numPoints} pts, frais de paiement inclus)`, price: numAmount, quantity: 1 }];
       const payload: any = { amount: numAmount, url: returnUrl, webhook_url: getPublicUrl(req, "/api/slickpay/webhook"), webhook_meta_data: [{ invoice_source: "sawtify", user_id: userId, pack_id: String(packId) }], firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: phone.trim() || "0550123456", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger, Algérie", note: `Sawtify - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;

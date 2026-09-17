@@ -47,6 +47,8 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
 
   const creditPacks = getCreditPacks(language);
   const selectedPack = creditPacks.find(p => p.id === selectedPackId) || creditPacks[1];
+  const paymentFee = Math.round(selectedPack.priceDZD * 0.03);
+  const totalToPay = selectedPack.priceDZD + paymentFee;
 
   // Cleanup polling when unmounting or closing
   useEffect(() => {
@@ -185,7 +187,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
       packId: selectedPack.id,
       packName: selectedPack.name,
       pointsCredited: selectedPack.points,
-      amountDZD: selectedPack.priceDZD,
+      amountDZD: totalToPay,
       paymentMethod: paymentMethod,
       transactionId: String(activeInvoiceId),
       status: 'paid',
@@ -370,9 +372,13 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
                 <span>{language === 'ar' ? 'النقاط' : 'Points'}</span>
                 <span className="font-bold font-mono">+{selectedPack.points} {t.pointsLabel}</span>
               </div>
+              <div className="flex items-center justify-between text-xs text-purple-800">
+                <span>{language === 'ar' ? 'رسوم الدفع (3٪)' : 'Frais de paiement (3 %)'}</span>
+                <span className="font-bold font-mono">+{paymentFee.toLocaleString()} {language === 'ar' ? 'دج' : 'DA'}</span>
+              </div>
               <div className="flex items-center justify-between text-sm pt-2 border-t border-purple-200/60 text-purple-900">
                 <span className="font-semibold">{language === 'ar' ? 'المبلغ الإجمالي' : 'Montant total'}</span>
-                <span className="font-bold font-mono text-base">{selectedPack.priceDZD.toLocaleString()} {language === 'ar' ? 'دج' : 'DA'}</span>
+                <span className="font-bold font-mono text-base">{totalToPay.toLocaleString()} {language === 'ar' ? 'دج' : 'DA'}</span>
               </div>
             </div>
 
@@ -417,7 +423,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
                 ) : (
                   <>
                     <Lock className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? `تأكيد ودفع ${selectedPack.priceDZD} دج` : `Confirmer et payer ${selectedPack.priceDZD} DA`}</span>
+                    <span>{language === 'ar' ? `تأكيد ودفع ${totalToPay} دج` : `Confirmer et payer ${totalToPay} DA`}</span>
                   </>
                 )}
               </button>

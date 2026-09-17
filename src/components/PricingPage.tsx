@@ -60,6 +60,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
   const selectedPack = creditPacks.find(p => p.id === selectedPackId) || creditPacks[1];
+  const paymentFee = Math.round(selectedPack.priceDZD * 0.03);
+  const totalToPay = selectedPack.priceDZD + paymentFee;
 
   // Start live polling when invoice is generated
   useEffect(() => {
@@ -94,7 +96,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       packId: selectedPack.id,
       packName: selectedPack.name,
       pointsCredited: selectedPack.points,
-      amountDZD: selectedPack.priceDZD,
+      amountDZD: totalToPay,
       paymentMethod,
       createdAt: new Date().toISOString(),
       transactionId: invoiceId ? `SATIM-${invoiceId}` : `SATIM-${Date.now().toString().slice(-6)}`,
@@ -413,11 +415,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                   <span>{language === 'ar' ? 'المعادل التقديري :' : 'Volume estimé :'}</span>
                   <span className="text-slate-200"><span className="font-num">~{Math.floor(selectedPack.points / 20)}</span> {language === 'ar' ? 'تسجيل صوتي' : 'audios'}</span>
                 </div>
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span>{language === 'ar' ? 'رسوم الدفع (3٪) :' : 'Frais de paiement (3 %) :'}</span>
+                  <span className="font-num">+{paymentFee.toLocaleString()} DZD</span>
+                </div>
                 <div className="pt-3 border-t border-slate-700 flex justify-between items-baseline">
                   <span className="text-sm font-bold text-white">{language === 'ar' ? 'المبلغ الإجمالي :' : 'Total à payer :'}</span>
                   <div className="text-right">
                     <span className="text-2xl font-num font-extrabold text-white tracking-tight">
-                      {selectedPack.priceDZD.toLocaleString()}
+                      {totalToPay.toLocaleString()}
                     </span>
                     <span className="text-xs text-slate-400 ml-1">DZD</span>
                   </div>
@@ -634,8 +640,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                         <Lock className="w-4 h-4" />
                         <span>
                           {language === 'ar'
-                            ? `دفع ${selectedPack.priceDZD.toLocaleString()} دج والتوجه إلى SATIM`
-                            : `Payer ${selectedPack.priceDZD.toLocaleString()} DZD via SATIM`}
+                            ? `دفع ${totalToPay.toLocaleString()} دج والتوجه إلى SATIM`
+                            : `Payer ${totalToPay.toLocaleString()} DZD via SATIM`}
                         </span>
                         <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
                       </>
