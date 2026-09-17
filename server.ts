@@ -1792,7 +1792,7 @@ Style vocal souhaité : ${style || "excited"}`;
         } catch (e: any) { contactErrorDetail = e?.message || "Erreur réseau"; console.warn("[SlickPay create contact] erreur réseau:", e?.message || e); }
       }
       const itemsList = [{ name: `${packName} (+${numPoints} pts)`, price: numAmount, quantity: 1 }];
-      const payload: any = { amount: numAmount, url: returnUrl, note: `Sawtify - ${packName}`, items: itemsList };
+      const payload: any = { amount: numAmount, url: returnUrl, webhook_url: getPublicUrl(req, "/api/slickpay/webhook"), webhook_meta_data: [{ invoice_source: "sawtify", user_id: userId, pack_id: String(packId) }], note: `Sawtify - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
 
