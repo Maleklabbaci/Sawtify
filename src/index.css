@@ -107,6 +107,9 @@
   border-radius: 50%;
   background-color: transparent;
   user-select: none;
+  /* Sans ça, en langue arabe (page RTL), les lettres du mot s'affichaient
+     dans l'ordre inverse ("yfitwaS" au lieu de "Sawtify"). */
+  direction: ltr;
 }
 
 .sawtify-fallback-loader {
@@ -119,6 +122,8 @@
   background-color: transparent;
   animation: sawtify-fallback-rotate 2s linear infinite;
   z-index: 0;
+  /* Adoucit le bord net du cercle (contour visible) en un halo dégradé. */
+  filter: blur(10px);
 }
 
 @keyframes sawtify-fallback-rotate {
