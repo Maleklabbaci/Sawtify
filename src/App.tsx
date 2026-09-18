@@ -37,7 +37,7 @@ function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
   const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin' => {
     if (path === '/historique' || path === '/history') return 'history';
-    if (path === '/edit-video') return 'edit-video';
+    if (path === '/edit-video') return 'studio';
     if (path === '/pricing' || path === '/recharge') return 'pricing';
     if (path === '/developer') return 'developer';
     if (path === '/admin') return 'admin';
@@ -83,7 +83,8 @@ function AppContent() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
   const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin', replace = false) => {
-    const path = tab === 'history' ? '/historique' : tab === 'edit-video' ? '/edit-video' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : '/studio';
+    if (tab === 'edit-video') { setToastMessage('Le montage vidéo est fermé pour le moment — Prochainement.'); return; }
+    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
   }, []);
