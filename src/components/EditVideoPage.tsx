@@ -41,7 +41,7 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Rendu vidéo impossible.'); }
       const blob = await response.blob();
       setResultUrl(URL.createObjectURL(blob));
-      setMessage('Montage terminé. 250 points ont été débités.');
+      setMessage('Montage terminé. Le coût est calculé à 70 points par minute commencée.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Montage impossible.'); }
     finally { setBusy(false); }
   };
@@ -66,7 +66,7 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
       </section>
     </div>
     {message && <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">{message}</div>}
-    <button type="button" disabled={busy} onClick={() => void makeVideo()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-purple-200 transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />} Faire le montage en un clic · 250 points</button>
+    <button type="button" disabled={busy} onClick={() => void makeVideo()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-purple-200 transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />} Faire le montage en un clic · 70 points / minute</button>
     {resultUrl && <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5"><div className="mb-3 flex items-center gap-2 font-black text-emerald-900"><CheckCircle2 className="h-5 w-5" /> Ton montage est prêt</div><video src={resultUrl} controls className="mx-auto max-h-[70vh] w-full max-w-sm rounded-2xl bg-black" /><a href={resultUrl} download="sawtify-montage.mp4" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white"><Download className="h-4 w-4" /> Télécharger le MP4</a></div>}
   </div>;
 };

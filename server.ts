@@ -107,7 +107,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "";
 const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space").replace(/\/+$/, "");
 const lamejs: any = (lamejsModule as any).default || lamejsModule;
 const VIDEO_STORAGE_DIR = path.join(process.cwd(), "storage", "video");
-const VIDEO_MONTAGE_COST = 250;
+const VIDEO_POINTS_PER_MINUTE = 70;
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
@@ -943,7 +943,7 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   const cached = LLM_RESPONSE_CACHE.get(cacheKey);
   if (cached && Date.now() - cached.ts < LLM_CACHE_TTL_MS) return cached.result;
 
-  const models = ["gemini-3.6-flash", "gemini-2.5-flash"];
+  const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
   let allErrors: string[] = [];
 
   for (const model of models) {
@@ -1150,6 +1150,21 @@ function runVideoFfmpeg(args: string[]) {
   });
 }
 
+function probeVideoDuration(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    if (!ffmpegPath) return reject(new Error("FFmpeg indisponible."));
+    const child = spawn(ffmpegPath, ["-i", filePath, "-f", "null", "-"], { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-12000); });
+    child.on("error", reject);
+    child.on("close", () => {
+      const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (!match) return reject(new Error("Durée audio introuvable."));
+      resolve(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]));
+    });
+  });
+}
+
 // ===================================================================
 //  START SERVER
 // ===================================================================
@@ -1233,8 +1248,14 @@ async function startServer() {
       const remote = await fetch(audioUrl);
       if (!remote.ok) return res.status(502).json({ error: "Impossible de récupérer la voix Sawtify." });
       await writeFile(audioPath, Buffer.from(await remote.arrayBuffer()));
+      const durationSeconds = await probeVideoDuration(audioPath);
+      const billedMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
+      const montageCost = billedMinutes * VIDEO_POINTS_PER_MINUTE;
+      if (balance < montageCost) return res.status(402).json({ error: `Solde insuffisant : ce montage coûte ${montageCost} points (${billedMinutes} min).`, required_points: montageCost, current_balance: balance, duration_seconds: durationSeconds });
+      const montagePlan = await callGeminiTextAPI(`Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`, 0.35);
+      console.log(`[Video/Gemini] plan généré avec Gemini Flash (${montagePlan.length} caractères), durée=${durationSeconds.toFixed(1)}s, coût=${montageCost} points`);
       await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outputPath]);
-      const debit = await deductCredits(userId, VIDEO_MONTAGE_COST);
+      const debit = await deductCredits(userId, montageCost);
       if (!debit.success) return res.status(402).json({ error: debit.error || "Points insuffisants." });
       res.setHeader("Content-Type", "video/mp4");
       res.setHeader("Content-Disposition", "attachment; filename=sawtify-montage.mp4");
