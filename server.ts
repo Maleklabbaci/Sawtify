@@ -1405,14 +1405,18 @@ async function startServer() {
         supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, created_at").limit(20000),
         supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, created_at").limit(20000),
       ]);
-      const users = profiles || [], paidTx = (transactions || []).filter((row: any) => row.status === "completed");
-      const paidUserIds = new Set(paidTx.map((row: any) => row.user_id));
-      const gens = generations || [];
+      const { data: authUsersData, error: authUsersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const realAuthIds = authUsersError ? null : new Set((authUsersData?.users || []).map((user: any) => user.id));
+      const users = realAuthIds ? (profiles || []).filter((profile: any) => realAuthIds.has(profile.id)) : (profiles || []);
+      const paidTx = (transactions || []).filter((row: any) => row.status === "completed");
+      const filteredTransactions = realAuthIds ? paidTx.filter((row: any) => realAuthIds.has(row.user_id)) : paidTx;
+      const paidUserIds = new Set(filteredTransactions.map((row: any) => row.user_id));
+      const gens = realAuthIds ? (generations || []).filter((row: any) => realAuthIds.has(row.user_id)) : (generations || []);
       const freeGenerations = gens.filter((row: any) => row.generation_source === "free_trial" || (row.generation_source === "legacy" && !paidUserIds.has(row.user_id))).length;
       const paidGenerations = gens.filter((row: any) => row.generation_source === "paid_balance" || (row.generation_source === "legacy" && paidUserIds.has(row.user_id))).length;
       const apiGenerations = gens.filter((row: any) => row.generation_source === "developer_api").length;
-      const revenueDzd = paidTx.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
-      const paidPointsIssued = paidTx.reduce((sum: number, row: any) => sum + Number(row.points_credited || 0), 0);
+      const revenueDzd = filteredTransactions.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const paidPointsIssued = filteredTransactions.reduce((sum: number, row: any) => sum + Number(row.points_credited || 0), 0);
       const pointsConsumed = gens.reduce((sum: number, row: any) => sum + Number(row.points_deducted || 0), 0);
       const pointValueDzd = paidPointsIssued > 0 ? revenueDzd / paidPointsIssued : 0;
       const logs = usageLogs || [];
