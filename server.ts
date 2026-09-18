@@ -949,7 +949,7 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   for (const model of models) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature, maxOutputTokens: 4096 } }) });
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(12000), body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature, maxOutputTokens: 4096 } }) });
       if (response.ok) {
         const data = await response.json();
         let result = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || data.candidates?.[0]?.content?.parts?.[0]?.text || "";
