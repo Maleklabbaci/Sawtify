@@ -1172,13 +1172,14 @@ const CAPTION_COLORS: Record<string, string> = { white: "&H00FFFFFF", yellow: "&
 const CAPTION_STYLES = ["bold", "boxed", "shadow", "outline", "karaoke", "minimal", "neon", "bubble", "lower", "center", "top", "impact", "clean", "marker", "glow", "split", "rounded", "news", "reel", "cinema"];
 function assTime(seconds: number): string { const cs = Math.max(0, Math.round(seconds * 100)); const h = Math.floor(cs / 360000); const m = Math.floor((cs % 360000) / 6000); const s = Math.floor((cs % 6000) / 100); const c = cs % 100; return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(c).padStart(2, "0")}`; }
 function assEscape(value: string): string { return value.replace(/[{}]/g, "").replace(/\\/g, "\\\\").replace(/\n/g, " "); }
-function buildCaptionsAss(script: string, duration: number, fontFamily: string, theme: string, style: string): string {
+function buildCaptionsAss(script: string, duration: number, fontFamily: string, theme: string, style: string, requestedSize?: number): string {
   const words = script.replace(/\[[^\]]+\]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   const chunks: string[] = []; let current = "";
   for (const word of words) { if (current && `${current} ${word}`.length > 32) { chunks.push(current); current = word; } else current = current ? `${current} ${word}` : word; }
   if (current) chunks.push(current);
   const maxChars = Math.max(...chunks.map((chunk) => chunk.length), 0);
-  const fontSize = maxChars > 46 ? 36 : maxChars > 38 ? 42 : maxChars > 30 ? 48 : 54;
+  const autoSize = maxChars > 46 ? 36 : maxChars > 38 ? 42 : maxChars > 30 ? 48 : 54;
+  const fontSize = Math.max(24, Math.min(76, Number(requestedSize) || autoSize));
   const color = CAPTION_COLORS[CAPTION_THEMES.includes(theme) ? theme : "white"];
   const bold = CAPTION_STYLES.includes(style) && !["minimal", "cinema"].includes(style) ? 1 : 0;
   const outline = ["boxed", "outline", "neon", "impact", "news", "reel"].includes(style) ? 4 : 2;
@@ -1288,7 +1289,7 @@ async function startServer() {
           const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
           const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
           console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
-          await writeFile(captionPath, buildCaptionsAss(String(req.body?.script || ""), durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold")), "utf8");
+          await writeFile(captionPath, buildCaptionsAss(String(req.body?.script || ""), durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold"), Number(req.body?.captionSize)), "utf8");
           const segmentDuration = durationSeconds / videoPaths.length;
           const inputArgs: string[] = [];
           videoPaths.forEach((filePath: string, index: number) => { if (String(videos[index]?.kind) === "image") inputArgs.push("-loop", "1"); else inputArgs.push("-stream_loop", "-1"); inputArgs.push("-i", filePath); });

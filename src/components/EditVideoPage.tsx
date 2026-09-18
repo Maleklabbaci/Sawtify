@@ -25,6 +25,7 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
   const [captionFont, setCaptionFont] = useState('Cairo');
   const [captionStyle, setCaptionStyle] = useState('Bold');
   const [captionTheme, setCaptionTheme] = useState('White');
+  const [captionSize, setCaptionSize] = useState(48);
   const canAccess = balance > 1000;
   const selectedVoice = useMemo(() => recentGenerations.find((generation) => generation.audioUrl === audioUrl) || recentGenerations[0], [audioUrl, recentGenerations]);
 
@@ -44,7 +45,7 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
     setBusy(true); setMessage('Montage vidéo en cours…'); setResultUrl('');
     try {
       const token = await getMyAccessToken();
-      const response = await fetch(`${API_BASE_URL}/api/video/render`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ script, audioUrl, videos, captionFont, captionStyle: captionStyle.toLowerCase().replace(/\s+/g, '-'), captionTheme: captionTheme.toLowerCase() }), signal: AbortSignal.timeout(110000) });
+      const response = await fetch(`${API_BASE_URL}/api/video/render`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ script, audioUrl, videos, captionFont, captionStyle: captionStyle.toLowerCase().replace(/\s+/g, '-'), captionTheme: captionTheme.toLowerCase(), captionSize }), signal: AbortSignal.timeout(110000) });
       if (!response.ok) {
         const raw = await response.text().catch(() => '');
         let errorMessage = raw;
@@ -89,12 +90,26 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
     finally { setBusy(false); }
   };
 
-  return <div className="mx-auto w-full max-w-6xl space-y-6 animate-in fade-in">
+  const themeColors: Record<string, string> = { White: '#ffffff', Yellow: '#fde047', Cyan: '#22d3ee', Pink: '#f472b6', Lime: '#84cc16', Orange: '#fb923c', Blue: '#60a5fa', Red: '#f87171', Purple: '#c084fc', Gold: '#facc15', Mint: '#6ee7b7', Sky: '#7dd3fc', Coral: '#fb7185', Violet: '#a78bfa', Cream: '#fef3c7', Electric: '#22d3ee', Rose: '#fb7185', Aqua: '#67e8f9', Sun: '#fbbf24', Mono: '#e2e8f0' };
+  const previewText = script.replace(/\[[^\]]+\]/g, '').trim() || 'واش راك؟\nMontage vidéo';
+  const previewColor = themeColors[captionTheme] || '#ffffff';
+  return <div className="mx-auto w-full max-w-7xl space-y-6 animate-in fade-in">
     <div className="flex flex-col gap-4 rounded-3xl bg-gradient-to-br from-[#21114d] via-purple-700 to-fuchsia-600 p-6 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between">
       <div><div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.18em] text-purple-200"><Clapperboard className="h-4 w-4" /> Sawtify Video</div><h1 className="text-2xl font-black">Montage vidéo automatique</h1><p className="mt-1 max-w-xl text-sm text-purple-100">Ta voix Sawtify, ton script et tes rushs dans le même espace. Aucun autre site.</p></div>
       <div className="flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3"><Coins className="h-4 w-4 text-yellow-300" /><strong>{balance}</strong><span className="text-xs text-purple-100">points</span></div>
     </div>
     {!canAccess && <button type="button" onClick={onOpenRecharge} className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm font-bold text-amber-900">Il faut plus de 1000 points pour accéder au montage. Recharger les points →</button>}
+    <section className="grid gap-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[280px_1fr]">
+      <div className="mx-auto w-full max-w-[240px]">
+        <div className="mb-2 flex items-center justify-between text-xs font-black text-slate-700"><span>Aperçu 9:16</span><span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">Live</span></div>
+        <div className="relative aspect-[9/16] overflow-hidden rounded-[22px] border-[6px] border-slate-900 bg-gradient-to-br from-[#21114d] via-purple-700 to-fuchsia-500 shadow-2xl">
+          <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(circle at 70% 25%, #fff 0 2%, transparent 18%), linear-gradient(145deg, transparent 35%, rgba(0,0,0,.5))' }} />
+          <div className="absolute inset-x-3 bottom-[18%] text-center" dir="auto"><span className="inline-block max-w-full rounded-xl px-3 py-2 font-black leading-tight" style={{ color: previewColor, fontFamily: `'${captionFont}', sans-serif`, fontSize: `${Math.max(12, captionSize / 3)}px`, textShadow: ['Shadow','Glow','Neon'].includes(captionStyle) ? '0 3px 8px #000' : '0 2px 3px #000', WebkitTextStroke: ['Outline','Impact','Boxed'].includes(captionStyle) ? '0.5px #111827' : undefined, background: ['Boxed','Bubble','Rounded'].includes(captionStyle) ? 'rgba(15,23,42,.72)' : undefined }}>{previewText}</span></div>
+          <span className="absolute left-3 top-3 rounded-full bg-black/30 px-2 py-1 text-[9px] font-bold text-white">SAWTIFY</span>
+        </div>
+      </div>
+      <div className="flex flex-col justify-center rounded-2xl bg-slate-50 p-5"><div className="mb-5"><h2 className="text-lg font-black text-slate-900">Aperçu en direct</h2><p className="mt-1 text-sm text-slate-500">Chaque clic met à jour l’écran 9:16 immédiatement.</p></div><label className="text-sm font-black text-slate-700">Taille du caption <span className="float-right rounded-full bg-purple-100 px-2 py-1 text-purple-700">{captionSize}px</span><input type="range" min="24" max="76" step="2" value={captionSize} onChange={(event) => setCaptionSize(Number(event.target.value))} className="mt-4 w-full accent-purple-600" /></label><div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-xl bg-white p-3"><b className="block text-slate-900">{captionFont}</b><span className="text-slate-500">Police</span></div><div className="rounded-xl bg-white p-3"><b className="block text-slate-900">{captionStyle}</b><span className="text-slate-500">Style</span></div><div className="rounded-xl bg-white p-3"><b className="block text-slate-900">{captionTheme}</b><span className="text-slate-500">Thème</span></div></div></div>
+    </section>
     <div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]">
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-2"><Mic2 className="h-4 w-4 text-purple-600" /><h2 className="font-black">Voix et script Sawtify</h2></div>
