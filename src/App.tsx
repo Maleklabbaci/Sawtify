@@ -10,6 +10,7 @@ import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 // dans le bundle initial affiché avant même la connexion (page trop longue à charger).
 const TTSStudio = lazy(() => import('./components/TTSStudio').then(m => ({ default: m.TTSStudio })));
 const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
+const EditVideoPage = lazy(() => import('./components/EditVideoPage').then(m => ({ default: m.EditVideoPage })));
 const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
 const DeveloperPage = lazy(() => import('./components/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
 const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -34,8 +35,9 @@ const ViewFallback = () => (
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
-  const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'pricing' | 'developer' | 'admin' => {
+  const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin' => {
     if (path === '/historique' || path === '/history') return 'history';
+    if (path === '/edit-video') return 'edit-video';
     if (path === '/pricing' || path === '/recharge') return 'pricing';
     if (path === '/developer') return 'developer';
     if (path === '/admin') return 'admin';
@@ -47,7 +49,7 @@ function AppContent() {
   const [pendingUserEmail, setPendingUserEmail] = useState<string | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'pricing' | 'developer' | 'admin'>(() => routeToTab(window.location.pathname));
+  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin'>(() => routeToTab(window.location.pathname));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showInstagramNudge, setShowInstagramNudge] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
@@ -80,8 +82,8 @@ function AppContent() {
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
-  const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'pricing' | 'developer' | 'admin', replace = false) => {
-    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : '/studio';
+  const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin', replace = false) => {
+    const path = tab === 'history' ? '/historique' : tab === 'edit-video' ? '/edit-video' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
   }, []);
@@ -428,13 +430,6 @@ function AppContent() {
               onDeductPoints={handleDeductPoints}
               onOpenRecharge={() => navigateTo('pricing')}
               recentGenerations={generations}
-              onOpenVideoMontage={(audioUrl, script) => {
-                const base = (import.meta.env.VITE_VIDEO_MONTAGE_URL || 'https://vide-omontage.vercel.app').replace(/\/$/, '');
-                const url = new URL(`${base}/quick`);
-                if (audioUrl) url.searchParams.set('audioUrl', audioUrl);
-                if (script) url.searchParams.set('script', script);
-                window.open(url.toString(), '_blank', 'noopener,noreferrer');
-              }}
             />
           )}
 
@@ -442,9 +437,12 @@ function AppContent() {
             <HistoryList
               generations={generations}
               purchases={purchases}
+              balance={balance}
               onNavigateToStudio={() => navigateTo('studio')}
+              onNavigateToEditVideo={() => navigateTo('edit-video')}
             />
           )}
+          {activeTab === 'edit-video' && <EditVideoPage balance={balance} recentGenerations={generations} onOpenRecharge={() => navigateTo('pricing')} />}
 
           {activeTab === 'pricing' && (
             <PricingPage

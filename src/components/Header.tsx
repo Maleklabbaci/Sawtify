@@ -1,11 +1,11 @@
 import React from 'react';
-import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock } from 'lucide-react';
+import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock, Clapperboard } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
   balance: number;
-  activeTab: 'studio' | 'history' | 'pricing' | 'developer' | 'admin';
-  setActiveTab: (tab: 'studio' | 'history' | 'pricing' | 'developer' | 'admin') => void;
+  activeTab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin';
+  setActiveTab: (tab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin') => void;
   historyCount: number;
   onLogout: () => void;
 }
@@ -71,6 +71,14 @@ export const Header: React.FC<HeaderProps> = ({
                   {historyCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('edit-video')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${activeTab === 'edit-video' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}`}
+            >
+              <Clapperboard className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Montage vidéo</span>
             </button>
 
             {/* Pricing Tab */}

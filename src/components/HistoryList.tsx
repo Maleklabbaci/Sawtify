@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { GenerationRecord, PurchaseRecord } from '../types';
-import { Download, Clock, ArrowRight, Radio, FileAudio, RefreshCw, AlertCircle } from 'lucide-react';
+import { Download, Clock, ArrowRight, Radio, FileAudio, RefreshCw, AlertCircle, Clapperboard, Lock } from 'lucide-react';
 import { convertWavToMp3, formatBytes } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HistoryListProps {
   generations: GenerationRecord[];
   purchases: PurchaseRecord[];
+  balance: number;
   onNavigateToStudio: () => void;
+  onNavigateToEditVideo: () => void;
 }
 
 export const HistoryList: React.FC<HistoryListProps> = ({
   generations,
   purchases,
+  balance,
   onNavigateToStudio,
+  onNavigateToEditVideo,
 }) => {
   const { t, isRTL, language } = useLanguage();
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -93,6 +97,8 @@ export const HistoryList: React.FC<HistoryListProps> = ({
     }
   };
 
+  const canAccessMontage = balance > 1000;
+
   return (
     <div className="max-w-4xl mx-auto space-y-4 animate-in fade-in">
       
@@ -104,6 +110,19 @@ export const HistoryList: React.FC<HistoryListProps> = ({
           <span className="text-xs font-mono text-slate-400">
             ({generations.length})
           </span>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 via-white to-fuchsia-50 p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm"><Clapperboard className="h-5 w-5" /></div>
+            <div><p className="text-sm font-black text-slate-900">Montage vidéo automatique</p><p className="text-xs text-slate-500">Utilise une voix Sawtify et son script pour créer une vidéo en un clic.</p></div>
+          </div>
+          <button type="button" onClick={onNavigateToEditVideo} className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition ${canAccessMontage ? 'cursor-pointer bg-purple-600 hover:bg-purple-500' : 'cursor-not-allowed bg-slate-300'}`}>
+            {canAccessMontage ? <Clapperboard className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+            {canAccessMontage ? 'Faire le montage' : 'Disponible avec +1000 points'}
+          </button>
         </div>
       </div>
 
@@ -170,6 +189,10 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+                    <button type="button" onClick={onNavigateToEditVideo} disabled={!canAccessMontage} className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition shadow-xs ${canAccessMontage ? 'cursor-pointer bg-fuchsia-600 text-white hover:bg-fuchsia-500' : 'cursor-not-allowed bg-slate-100 text-slate-400'}`} title={canAccessMontage ? 'Créer un montage vidéo avec cette voix' : 'Disponible avec plus de 1000 points'}>
+                      {canAccessMontage ? <Clapperboard className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                      <span>Montage</span>
+                    </button>
                     {/* 🛠️ FIX 5 : Largeur adaptée du player audio (w-full sm:w-52) */}
                     {gen.audioUrl && (
                       <audio 

@@ -20,7 +20,6 @@ interface TTSStudioProps {
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
   onOpenRecharge: () => void;
   recentGenerations?: GenerationRecord[];
-  onOpenVideoMontage?: (audioUrl?: string, script?: string) => void;
 }
 
 const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female'; className?: string }> = ({ icon, gender, className = "w-4 h-4" }) => {
@@ -42,7 +41,7 @@ type CategoryFilter = 'all' | 'commercial' | 'narrative' | 'social' | 'formal';
 type GenderFilter = 'all' | 'male' | 'female';
 type RegionId = 'general' | 'centre' | 'ouest' | 'est';
 
-export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, onOpenRecharge, recentGenerations = [], onOpenVideoMontage }) => {
+export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, onOpenRecharge, recentGenerations = [] }) => {
   const { t, isRTL, language } = useLanguage();
   const voices = getVoices(language);
   const styleTags = getStyleTags(language);
@@ -662,16 +661,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
 
           <div className="p-3 border-b border-slate-100 bg-slate-50/10">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[11px] font-semibold text-slate-800 flex items-center gap-1.5">
-                <History className="w-3.5 h-3.5 text-purple-600" />
-                {language === 'ar' ? 'الأخيرة' : 'Récentes'}
-              </h3>
-              <button type="button" onClick={() => onOpenVideoMontage?.(currentAudioUrl || undefined, text)} className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-2 py-1.5 text-[10px] font-bold text-white shadow-sm transition hover:bg-purple-500">
-                <Video className="h-3 w-3" />
-                {language === 'ar' ? 'مونتاج فيديو' : 'Montage vidéo'}
-              </button>
-            </div>
+            <h3 className="text-[11px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5 text-purple-600" /> 
+              {language === 'ar' ? 'الأخيرة' : 'Récentes'}
+            </h3>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 space-y-1">
             {recentGenerations.slice(0, 8).map((gen) => (

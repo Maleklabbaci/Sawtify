@@ -9,6 +9,10 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import { createHash, randomBytes } from "node:crypto";
 import * as lamejsModule from "lamejs";
+import ffmpegPath from "ffmpeg-static";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 
 dotenv.config();
 
@@ -102,6 +106,8 @@ const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 const FRONTEND_URL = process.env.FRONTEND_URL || "";
 const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space").replace(/\/+$/, "");
 const lamejs: any = (lamejsModule as any).default || lamejsModule;
+const VIDEO_STORAGE_DIR = path.join(process.cwd(), "storage", "video");
+const VIDEO_MONTAGE_COST = 250;
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
@@ -1133,6 +1139,17 @@ function countEmotionTags(text: string): number {
   return (text.match(/\[(excited|natural|calm)\]/gi) || []).length;
 }
 
+function runVideoFfmpeg(args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    if (!ffmpegPath) return reject(new Error("FFmpeg indisponible."));
+    const child = spawn(ffmpegPath, args, { stdio: ["ignore", "ignore", "pipe"] });
+    let error = "";
+    child.stderr.on("data", (chunk) => { error = `${error}${chunk}`.slice(-5000); });
+    child.on("error", reject);
+    child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg: ${error}`)));
+  });
+}
+
 // ===================================================================
 //  START SERVER
 // ===================================================================
@@ -1175,6 +1192,59 @@ async function startServer() {
   app.use((req, res, next) => { res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups"); next(); });
 
   app.get("/api/health", (req, res) => res.json({ status: "ok", service: "sawtify-tts-server", voices_count: 9 }));
+
+  app.post("/api/video/upload", resolveUserIdMiddleware, express.raw({ type: "application/octet-stream", limit: "250mb" }), async (req, res) => {
+    const userId = (req as any).resolvedUserId as string | null;
+    if (!userId) return res.status(401).json({ error: "Authentification requise." });
+    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+    if (!body.length) return res.status(400).json({ error: "Fichier vidéo vide." });
+    const original = decodeURIComponent(String(req.get("x-file-name") || "video.mp4")).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const ext = path.extname(original).toLowerCase() || ".mp4";
+    const id = `${crypto.randomUUID()}${ext}`;
+    await mkdir(VIDEO_STORAGE_DIR, { recursive: true });
+    await writeFile(path.join(VIDEO_STORAGE_DIR, id), body);
+    return res.json({ id, name: original, kind: String(req.get("x-file-type") || "").startsWith("image/") ? "image" : "video", url: `/api/video/file/${id}` });
+  });
+
+  app.get("/api/video/file/:id", resolveUserIdMiddleware, async (req, res) => {
+    if (!(req as any).resolvedUserId) return res.status(401).end();
+    const id = path.basename(req.params.id);
+    const filePath = path.join(VIDEO_STORAGE_DIR, id);
+    if (!existsSync(filePath)) return res.status(404).end();
+    return res.sendFile(filePath);
+  });
+
+  app.post("/api/video/render", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId as string | null;
+    if (!userId) return res.status(401).json({ error: "Authentification requise." });
+    const balance = await getUserBalance(userId);
+    if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
+    if (balance <= API_MIN_BALANCE) return res.status(403).json({ error: "Le montage vidéo nécessite plus de 1000 points.", current_balance: balance });
+    const audioUrl = String(req.body?.audioUrl || "");
+    const videos = Array.isArray(req.body?.videos) ? req.body.videos : [];
+    if (!audioUrl || !videos.length) return res.status(400).json({ error: "Ajoute une voix et au moins une vidéo." });
+    const video = videos[0];
+    const videoPath = path.join(VIDEO_STORAGE_DIR, path.basename(String(video.id || "")));
+    if (!existsSync(videoPath)) return res.status(404).json({ error: "Le fichier vidéo est introuvable." });
+    const token = crypto.randomUUID();
+    const audioPath = path.join(VIDEO_STORAGE_DIR, `${token}-audio`);
+    const outputPath = path.join(VIDEO_STORAGE_DIR, `${token}-result.mp4`);
+    try {
+      const remote = await fetch(audioUrl);
+      if (!remote.ok) return res.status(502).json({ error: "Impossible de récupérer la voix Sawtify." });
+      await writeFile(audioPath, Buffer.from(await remote.arrayBuffer()));
+      await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outputPath]);
+      const debit = await deductCredits(userId, VIDEO_MONTAGE_COST);
+      if (!debit.success) return res.status(402).json({ error: debit.error || "Points insuffisants." });
+      res.setHeader("Content-Type", "video/mp4");
+      res.setHeader("Content-Disposition", "attachment; filename=sawtify-montage.mp4");
+      return res.send(await readFile(outputPath));
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Rendu vidéo impossible." });
+    } finally {
+      await Promise.allSettled([readFile(audioPath).then(() => import("node:fs/promises").then(({ unlink }) => unlink(audioPath))).catch(() => undefined), readFile(outputPath).then(() => import("node:fs/promises").then(({ unlink }) => unlink(outputPath))).catch(() => undefined)]);
+    }
+  });
 
   // ===================================================================  // SAWTIFY DEVELOPER API — BETA
   // Authentification par clé dédiée, jamais par la clé Gemini.
