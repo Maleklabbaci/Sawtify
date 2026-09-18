@@ -1400,18 +1400,19 @@ async function startServer() {
     try {
       const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
       const [{ data: profiles }, { data: transactions }, { data: generations }, { data: usageLogs }] = await Promise.all([
-        supabaseClient.from("profiles").select("id, email, full_name, phone, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
+        supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
         supabaseClient.from("transactions").select("user_id, amount_dzd, points_credited, status, gateway, created_at").limit(10000),
         supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, created_at").limit(20000),
         supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, created_at").limit(20000),
       ]);
       const { data: authUsersData, error: authUsersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const realAuthIds = authUsersError ? null : new Set((authUsersData?.users || []).map((user: any) => user.id));
-      const users = realAuthIds ? (profiles || []).filter((profile: any) => realAuthIds.has(profile.id)) : (profiles || []);
+      const authById = new Map<string, any>((authUsersData?.users || []).map((user: any) => [user.id, user] as [string, any]));
+      const users = (profiles || []).map((profile: any) => { const authUser = authById.get(profile.id); return { ...profile, phone: authUser?.user_metadata?.phone_number || authUser?.phone || null }; });
       const paidTx = (transactions || []).filter((row: any) => row.status === "completed");
-      const filteredTransactions = realAuthIds ? paidTx.filter((row: any) => realAuthIds.has(row.user_id)) : paidTx;
+      const filteredTransactions = paidTx;
       const paidUserIds = new Set(filteredTransactions.map((row: any) => row.user_id));
-      const gens = realAuthIds ? (generations || []).filter((row: any) => realAuthIds.has(row.user_id)) : (generations || []);
+      const gens = generations || [];
       const freeGenerations = gens.filter((row: any) => row.generation_source === "free_trial" || (row.generation_source === "legacy" && !paidUserIds.has(row.user_id))).length;
       const paidGenerations = gens.filter((row: any) => row.generation_source === "paid_balance" || (row.generation_source === "legacy" && paidUserIds.has(row.user_id))).length;
       const apiGenerations = gens.filter((row: any) => row.generation_source === "developer_api").length;
