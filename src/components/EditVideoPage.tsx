@@ -47,9 +47,25 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
       }
       const job = await response.json();
       if (!job.jobId) throw new Error('Le serveur n’a pas créé la tâche de montage.');
+      let transientFailures = 0;
       for (let attempt = 0; attempt < 180; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        const statusResponse = await fetch(`${API_BASE_URL}/api/video/render/${encodeURIComponent(job.jobId)}`, { headers: { Authorization: `Bearer ${token || ''}` }, signal: AbortSignal.timeout(15000) });
+        let statusResponse: Response;
+        try {
+          statusResponse = await fetch(`${API_BASE_URL}/api/video/render/${encodeURIComponent(job.jobId)}`, { headers: { Authorization: `Bearer ${token || ''}` }, signal: AbortSignal.timeout(15000) });
+        } catch (error) {
+          transientFailures += 1;
+          if (transientFailures >= 8) throw new Error('Render redémarre pendant le rendu. Réessaie avec une vidéo plus courte ou plus légère.');
+          setMessage('Render redémarre… reprise automatique du suivi.');
+          continue;
+        }
+        if (statusResponse.status === 502 || statusResponse.status === 503 || statusResponse.status === 504) {
+          transientFailures += 1;
+          if (transientFailures >= 8) throw new Error('Render redémarre pendant le rendu. Réessaie avec une vidéo plus courte ou plus légère.');
+          setMessage('Render redémarre… reprise automatique du suivi.');
+          continue;
+        }
+        transientFailures = 0;
         const status = await statusResponse.json().catch(() => ({}));
         if (!statusResponse.ok) throw new Error(status.error || `Statut du montage indisponible (HTTP ${statusResponse.status}).`);
         if (status.status === 'failed') throw new Error(status.error || 'Rendu vidéo impossible.');

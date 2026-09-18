@@ -1266,7 +1266,7 @@ async function startServer() {
           const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
           const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
           console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
-          await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "27", "-threads", "2", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outputPath]);
+          await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-threads", "1", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", outputPath]);
           const debit = await deductCredits(userId, montageCost);
           if (!debit.success) throw new Error(debit.error || "Points insuffisants.");
           job.status = "ready";
