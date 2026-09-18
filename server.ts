@@ -108,6 +108,8 @@ const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space
 const lamejs: any = (lamejsModule as any).default || lamejsModule;
 const VIDEO_STORAGE_DIR = path.join(process.cwd(), "storage", "video");
 const VIDEO_POINTS_PER_MINUTE = 70;
+type VideoJob = { userId: string; status: "queued" | "processing" | "ready" | "failed"; outputPath?: string; cost?: number; error?: string; createdAt: number };
+const VIDEO_JOBS = new Map<string, VideoJob>();
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
@@ -1244,9 +1246,9 @@ async function startServer() {
     const video = videos[0];
     const videoPath = path.join(VIDEO_STORAGE_DIR, path.basename(String(video.id || "")));
     if (!existsSync(videoPath)) return res.status(404).json({ error: "Le fichier vidéo est introuvable." });
-    const token = crypto.randomUUID();
-    const audioPath = path.join(VIDEO_STORAGE_DIR, `${token}-audio`);
-    const outputPath = path.join(VIDEO_STORAGE_DIR, `${token}-result.mp4`);
+    const jobId = crypto.randomUUID();
+    const audioPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-audio`);
+    const outputPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-result.mp4`);
     try {
       const remote = await fetch(audioUrl);
       if (!remote.ok) return res.status(502).json({ error: "Impossible de récupérer la voix Sawtify." });
@@ -1255,26 +1257,49 @@ async function startServer() {
       const billedMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
       const montageCost = billedMinutes * VIDEO_POINTS_PER_MINUTE;
       if (balance < montageCost) return res.status(402).json({ error: `Solde insuffisant : ce montage coûte ${montageCost} points (${billedMinutes} min).`, required_points: montageCost, current_balance: balance, duration_seconds: durationSeconds });
-      const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
-      const montagePlan = await Promise.race([
-        callGeminiTextAPI(montagePrompt, 0.35),
-        new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500)),
-      ]).catch((error: any) => {
-        console.warn(`[Video/Gemini] plan indisponible, rendu continué: ${error?.message || error}`);
-        return "plan-standard";
-      });
-      console.log(`[Video/Gemini] ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, durée=${durationSeconds.toFixed(1)}s, coût=${montageCost} points`);
-      await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "27", "-threads", "2", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outputPath]);
-      const debit = await deductCredits(userId, montageCost);
-      if (!debit.success) return res.status(402).json({ error: debit.error || "Points insuffisants." });
-      res.setHeader("Content-Type", "video/mp4");
-      res.setHeader("Content-Disposition", "attachment; filename=sawtify-montage.mp4");
-      return res.send(await readFile(outputPath));
+      VIDEO_JOBS.set(jobId, { userId, status: "queued", cost: montageCost, createdAt: Date.now() });
+      void (async () => {
+        const job = VIDEO_JOBS.get(jobId);
+        if (!job) return;
+        job.status = "processing";
+        try {
+          const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
+          const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
+          console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
+          await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "27", "-threads", "2", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outputPath]);
+          const debit = await deductCredits(userId, montageCost);
+          if (!debit.success) throw new Error(debit.error || "Points insuffisants.");
+          job.status = "ready";
+          job.outputPath = outputPath;
+        } catch (error: any) {
+          job.status = "failed";
+          job.error = error?.message || "Rendu vidéo impossible.";
+          console.error(`[Video] job=${jobId} failed`, error);
+          await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(outputPath)).catch(() => undefined)]);
+        } finally {
+          await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(audioPath)).catch(() => undefined)]);
+        }
+      })();
+      return res.status(202).json({ jobId, status: "queued", cost: montageCost, duration_seconds: durationSeconds, pollAfterMs: 2000 });
     } catch (error: any) {
       return res.status(500).json({ error: error?.message || "Rendu vidéo impossible." });
-    } finally {
-      await Promise.allSettled([readFile(audioPath).then(() => import("node:fs/promises").then(({ unlink }) => unlink(audioPath))).catch(() => undefined), readFile(outputPath).then(() => import("node:fs/promises").then(({ unlink }) => unlink(outputPath))).catch(() => undefined)]);
     }
+  });
+  app.get("/api/video/render/:jobId", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId as string | null;
+    const job = VIDEO_JOBS.get(path.basename(req.params.jobId));
+    if (!userId || !job || job.userId !== userId) return res.status(404).json({ error: "Tâche introuvable." });
+    if (job.status === "failed") { VIDEO_JOBS.delete(req.params.jobId); return res.status(500).json({ status: "failed", error: job.error || "Rendu vidéo impossible." }); }
+    if (job.status !== "ready") return res.json({ status: job.status, cost: job.cost });
+    return res.json({ status: "ready", downloadUrl: `/api/video/render/${encodeURIComponent(req.params.jobId)}/download`, cost: job.cost });
+  });
+  app.get("/api/video/render/:jobId/download", resolveUserIdMiddleware, async (req, res) => {
+    const userId = (req as any).resolvedUserId as string | null;
+    const job = VIDEO_JOBS.get(path.basename(req.params.jobId));
+    if (!userId || !job || job.userId !== userId || job.status !== "ready" || !job.outputPath || !existsSync(job.outputPath)) return res.status(404).json({ error: "Vidéo indisponible." });
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Content-Disposition", "attachment; filename=sawtify-montage.mp4");
+    return res.send(await readFile(job.outputPath));
   });
 
   // ===================================================================  // SAWTIFY DEVELOPER API — BETA

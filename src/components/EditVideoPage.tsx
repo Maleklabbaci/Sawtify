@@ -45,9 +45,24 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
         try { errorMessage = JSON.parse(raw)?.error || raw; } catch { /* réponse proxy non JSON */ }
         throw new Error(errorMessage || `Rendu vidéo impossible (HTTP ${response.status}).`);
       }
-      const blob = await response.blob();
-      setResultUrl(URL.createObjectURL(blob));
-      setMessage('Montage terminé. Le coût est calculé à 70 points par minute commencée.');
+      const job = await response.json();
+      if (!job.jobId) throw new Error('Le serveur n’a pas créé la tâche de montage.');
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`${API_BASE_URL}/api/video/render/${encodeURIComponent(job.jobId)}`, { headers: { Authorization: `Bearer ${token || ''}` }, signal: AbortSignal.timeout(15000) });
+        const status = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok) throw new Error(status.error || `Statut du montage indisponible (HTTP ${statusResponse.status}).`);
+        if (status.status === 'failed') throw new Error(status.error || 'Rendu vidéo impossible.');
+        if (status.status === 'ready') {
+          const downloadResponse = await fetch(`${API_BASE_URL}${status.downloadUrl}`, { headers: { Authorization: `Bearer ${token || ''}` }, signal: AbortSignal.timeout(60000) });
+          if (!downloadResponse.ok) throw new Error('La vidéo est prête mais son téléchargement a échoué.');
+          setResultUrl(URL.createObjectURL(await downloadResponse.blob()));
+          setMessage(`Montage terminé. ${status.cost || job.cost} points ont été débités.`);
+          break;
+        }
+        setMessage(`Montage en cours… ${status.status === 'queued' ? 'dans la file' : 'rendu FFmpeg'}`);
+        if (attempt === 179) throw new Error('Le rendu prend trop de temps. Réessaie dans quelques instants.');
+      }
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Montage impossible.'); }
     finally { setBusy(false); }
   };
