@@ -1174,15 +1174,19 @@ function assTime(seconds: number): string { const cs = Math.max(0, Math.round(se
 function assEscape(value: string): string { return value.replace(/[{}]/g, "").replace(/\\/g, "\\\\").replace(/\n/g, " "); }
 function buildCaptionsAss(script: string, duration: number, fontFamily: string, theme: string, style: string): string {
   const words = script.replace(/\[[^\]]+\]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-  const chunks: string[] = []; for (let i = 0; i < words.length; i += 6) chunks.push(words.slice(i, i + 6).join(" "));
+  const chunks: string[] = []; let current = "";
+  for (const word of words) { if (current && `${current} ${word}`.length > 32) { chunks.push(current); current = word; } else current = current ? `${current} ${word}` : word; }
+  if (current) chunks.push(current);
+  const maxChars = Math.max(...chunks.map((chunk) => chunk.length), 0);
+  const fontSize = maxChars > 46 ? 36 : maxChars > 38 ? 42 : maxChars > 30 ? 48 : 54;
   const color = CAPTION_COLORS[CAPTION_THEMES.includes(theme) ? theme : "white"];
   const bold = CAPTION_STYLES.includes(style) && !["minimal", "cinema"].includes(style) ? 1 : 0;
   const outline = ["boxed", "outline", "neon", "impact", "news", "reel"].includes(style) ? 4 : 2;
   const alignment = ["top", "news"].includes(style) ? 8 : ["lower"].includes(style) ? 2 : 5;
   const marginV = alignment === 8 ? 100 : alignment === 2 ? 180 : 260;
-  const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 720\nPlayResY: 1280\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Sawtify,${fontFamily || "Cairo"},54,${color},${color},&H00101010,&H99000000,${bold},0,0,0,100,100,0,0,1,${outline},2,${alignment},36,36,${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+  const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 720\nPlayResY: 1280\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Sawtify,${fontFamily || "Cairo"},${fontSize},${color},${color},&H00101010,&H99000000,${bold},0,0,0,100,100,0,0,1,${outline},2,${alignment},36,36,${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
   const step = duration / Math.max(chunks.length, 1);
-  return header + chunks.map((chunk, index) => `Dialogue: 0,${assTime(index * step)},${assTime(Math.min(duration, (index + 1) * step))},Sawtify,,0,0,0,,${assEscape(chunk)}`).join("\n") + "\n";
+  return header + chunks.map((chunk, index) => { const wordsInLine = chunk.split(" "); const midpoint = Math.ceil(wordsInLine.length / 2); const display = wordsInLine.length > 4 ? `${wordsInLine.slice(0, midpoint).join(" ")}\\N${wordsInLine.slice(midpoint).join(" ")}` : chunk; return `Dialogue: 0,${assTime(index * step)},${assTime(Math.min(duration, (index + 1) * step))},Sawtify,,0,0,0,,${assEscape(display)}`; }).join("\n") + "\n";
 }
 
 // ===================================================================
