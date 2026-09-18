@@ -428,6 +428,13 @@ function AppContent() {
               onDeductPoints={handleDeductPoints}
               onOpenRecharge={() => navigateTo('pricing')}
               recentGenerations={generations}
+              onOpenVideoMontage={(audioUrl, script) => {
+                const base = (import.meta.env.VITE_VIDEO_MONTAGE_URL || 'https://vide-omontage.vercel.app').replace(/\/$/, '');
+                const url = new URL(`${base}/quick`);
+                if (audioUrl) url.searchParams.set('audioUrl', audioUrl);
+                if (script) url.searchParams.set('script', script);
+                window.open(url.toString(), '_blank', 'noopener,noreferrer');
+              }}
             />
           )}
 
