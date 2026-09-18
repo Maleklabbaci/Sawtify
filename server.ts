@@ -191,7 +191,10 @@ const GENERATION_RETENTION_DAYS = 7;
 const API_KEY_PREFIX = "swt_beta_";
 const USD_TO_DZD = 260;
 const ADMIN_USER_IDS = new Set((process.env.ADMIN_USER_IDS || "").split(",").map((id) => id.trim()).filter(Boolean));
-const ADMIN_EMAILS = new Set((process.env.ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean));
+const ADMIN_EMAILS = new Set([
+  "abdelmaleklabbaci01@gmail.com",
+  ...(process.env.ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean),
+]);
 const GEMINI_TTS_INPUT_USD_PER_1M = 1;
 const GEMINI_TTS_AUDIO_USD_PER_1M = 20;
 const GEMINI_AUDIO_TOKENS_PER_SECOND = 25;
