@@ -11,6 +11,9 @@ interface Props {
 }
 
 type Uploaded = { id: string; name: string; url: string; kind: 'video' | 'image' };
+const CAPTION_FONTS = ['Cairo','Tajawal','Changa','Almarai','Noto Sans Arabic','Noto Kufi Arabic','IBM Plex Sans Arabic','Readex Pro','Alexandria','El Messiri','Inter','Poppins','Montserrat','Oswald','Bebas Neue','Anton','Barlow Condensed','Archivo Black','Raleway','Sora'];
+const CAPTION_STYLES = ['Bold','Boxed','Shadow','Outline','Karaoke','Minimal','Neon','Bubble','Lower Third','Center','Top','Impact','Clean','Marker','Glow','Split','Rounded','News','Reel','Cinema'];
+const CAPTION_THEMES = ['White','Yellow','Cyan','Pink','Lime','Orange','Blue','Red','Purple','Gold','Mint','Sky','Coral','Violet','Cream','Electric','Rose','Aqua','Sun','Mono'];
 
 export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = [], onOpenRecharge }) => {
   const [script, setScript] = useState(recentGenerations[0]?.text || '');
@@ -19,6 +22,9 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [resultUrl, setResultUrl] = useState('');
+  const [captionFont, setCaptionFont] = useState('Cairo');
+  const [captionStyle, setCaptionStyle] = useState('Bold');
+  const [captionTheme, setCaptionTheme] = useState('White');
   const canAccess = balance > 1000;
   const selectedVoice = useMemo(() => recentGenerations.find((generation) => generation.audioUrl === audioUrl) || recentGenerations[0], [audioUrl, recentGenerations]);
 
@@ -38,7 +44,7 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
     setBusy(true); setMessage('Montage vidéo en cours…'); setResultUrl('');
     try {
       const token = await getMyAccessToken();
-      const response = await fetch(`${API_BASE_URL}/api/video/render`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ script, audioUrl, videos }), signal: AbortSignal.timeout(110000) });
+      const response = await fetch(`${API_BASE_URL}/api/video/render`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ script, audioUrl, videos, captionFont, captionStyle: captionStyle.toLowerCase().replace(/\s+/g, '-'), captionTheme: captionTheme.toLowerCase() }), signal: AbortSignal.timeout(110000) });
       if (!response.ok) {
         const raw = await response.text().catch(() => '');
         let errorMessage = raw;
@@ -102,6 +108,14 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
         {videos.map((video) => <div key={video.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs"><span className="truncate font-bold">{video.name}</span><span className="text-slate-400">Prêt</span></div>)}
       </section>
     </div>
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between"><div><h2 className="font-black">Captions darija</h2><p className="text-xs text-slate-500">20 polices, 20 styles et 20 thèmes. Les captions suivent automatiquement le script.</p></div><span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">20 × 20 × 20</span></div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <label className="text-xs font-bold text-slate-600">Police<select value={captionFont} onChange={(event) => setCaptionFont(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal">{CAPTION_FONTS.map((font) => <option key={font}>{font}</option>)}</select></label>
+        <label className="text-xs font-bold text-slate-600">Style<select value={captionStyle} onChange={(event) => setCaptionStyle(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal">{CAPTION_STYLES.map((style) => <option key={style}>{style}</option>)}</select></label>
+        <label className="text-xs font-bold text-slate-600">Thème<select value={captionTheme} onChange={(event) => setCaptionTheme(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal">{CAPTION_THEMES.map((theme) => <option key={theme}>{theme}</option>)}</select></label>
+      </div>
+    </section>
     {message && <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">{message}</div>}
     <button type="button" disabled={busy} onClick={() => void makeVideo()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-purple-200 transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />} Faire le montage en un clic · 70 points / minute</button>
     {resultUrl && <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5"><div className="mb-3 flex items-center gap-2 font-black text-emerald-900"><CheckCircle2 className="h-5 w-5" /> Ton montage est prêt</div><video src={resultUrl} controls className="mx-auto max-h-[70vh] w-full max-w-sm rounded-2xl bg-black" /><a href={resultUrl} download="sawtify-montage.mp4" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white"><Download className="h-4 w-4" /> Télécharger le MP4</a></div>}

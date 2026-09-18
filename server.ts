@@ -1167,6 +1167,24 @@ function probeVideoDuration(filePath: string): Promise<number> {
   });
 }
 
+const CAPTION_THEMES = ["white", "yellow", "cyan", "pink", "lime", "orange", "blue", "red", "purple", "gold", "mint", "sky", "coral", "violet", "cream", "electric", "rose", "aqua", "sun", "mono"];
+const CAPTION_COLORS: Record<string, string> = { white: "&H00FFFFFF", yellow: "&H0000EFFF", cyan: "&H00FFFF00", pink: "&H00FF66FF", lime: "&H0000FF66", orange: "&H000080FF", blue: "&H00FFCC00", red: "&H000000FF", purple: "&H00CC66FF", gold: "&H0000D7FF", mint: "&H00AAFFDD", sky: "&H00FFDD88", coral: "&H005080FF", violet: "&H00EE99FF", cream: "&H00DDFFFF", electric: "&H00FFFF00", rose: "&H007799FF", aqua: "&H00FFFFAA", sun: "&H0000CCFF", mono: "&H00FFFFFF" };
+const CAPTION_STYLES = ["bold", "boxed", "shadow", "outline", "karaoke", "minimal", "neon", "bubble", "lower", "center", "top", "impact", "clean", "marker", "glow", "split", "rounded", "news", "reel", "cinema"];
+function assTime(seconds: number): string { const cs = Math.max(0, Math.round(seconds * 100)); const h = Math.floor(cs / 360000); const m = Math.floor((cs % 360000) / 6000); const s = Math.floor((cs % 6000) / 100); const c = cs % 100; return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(c).padStart(2, "0")}`; }
+function assEscape(value: string): string { return value.replace(/[{}]/g, "").replace(/\\/g, "\\\\").replace(/\n/g, " "); }
+function buildCaptionsAss(script: string, duration: number, fontFamily: string, theme: string, style: string): string {
+  const words = script.replace(/\[[^\]]+\]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const chunks: string[] = []; for (let i = 0; i < words.length; i += 6) chunks.push(words.slice(i, i + 6).join(" "));
+  const color = CAPTION_COLORS[CAPTION_THEMES.includes(theme) ? theme : "white"];
+  const bold = CAPTION_STYLES.includes(style) && !["minimal", "cinema"].includes(style) ? 1 : 0;
+  const outline = ["boxed", "outline", "neon", "impact", "news", "reel"].includes(style) ? 4 : 2;
+  const alignment = ["top", "news"].includes(style) ? 8 : ["lower"].includes(style) ? 2 : 5;
+  const marginV = alignment === 8 ? 100 : alignment === 2 ? 180 : 260;
+  const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 720\nPlayResY: 1280\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Sawtify,${fontFamily || "Cairo"},54,${color},${color},&H00101010,&H99000000,${bold},0,0,0,100,100,0,0,1,${outline},2,${alignment},36,36,${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+  const step = duration / Math.max(chunks.length, 1);
+  return header + chunks.map((chunk, index) => `Dialogue: 0,${assTime(index * step)},${assTime(Math.min(duration, (index + 1) * step))},Sawtify,,0,0,0,,${assEscape(chunk)}`).join("\n") + "\n";
+}
+
 // ===================================================================
 //  START SERVER
 // ===================================================================
@@ -1243,12 +1261,12 @@ async function startServer() {
     const audioUrl = String(req.body?.audioUrl || "");
     const videos = Array.isArray(req.body?.videos) ? req.body.videos : [];
     if (!audioUrl || !videos.length) return res.status(400).json({ error: "Ajoute une voix et au moins une vidéo." });
-    const video = videos[0];
-    const videoPath = path.join(VIDEO_STORAGE_DIR, path.basename(String(video.id || "")));
-    if (!existsSync(videoPath)) return res.status(404).json({ error: "Le fichier vidéo est introuvable." });
+    const videoPaths = videos.map((item: any) => path.join(VIDEO_STORAGE_DIR, path.basename(String(item.id || ""))));
+    if (videoPaths.some((filePath: string) => !existsSync(filePath))) return res.status(404).json({ error: "Un fichier vidéo est introuvable. Réuploade les rushs." });
     const jobId = crypto.randomUUID();
     const audioPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-audio`);
     const outputPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-result.mp4`);
+    const captionPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-captions.ass`);
     try {
       const remote = await fetch(audioUrl);
       if (!remote.ok) return res.status(502).json({ error: "Impossible de récupérer la voix Sawtify." });
@@ -1266,7 +1284,15 @@ async function startServer() {
           const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
           const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
           console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
-          await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-threads", "1", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", outputPath]);
+          await writeFile(captionPath, buildCaptionsAss(String(req.body?.script || ""), durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold")), "utf8");
+          const segmentDuration = durationSeconds / videoPaths.length;
+          const inputArgs: string[] = [];
+          videoPaths.forEach((filePath: string, index: number) => { if (String(videos[index]?.kind) === "image") inputArgs.push("-loop", "1"); else inputArgs.push("-stream_loop", "-1"); inputArgs.push("-i", filePath); });
+          inputArgs.push("-i", audioPath);
+          const videoFilters = videoPaths.map((_filePath: string, index: number) => `[${index}:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p,trim=duration=${segmentDuration.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`).join(";");
+          const concatInputs = videoPaths.map((_filePath: string, index: number) => `[v${index}]`).join("");
+          const filterComplex = `${videoFilters};${concatInputs}concat=n=${videoPaths.length}:v=1:a=0[base];[base]subtitles=${captionPath.replace(/:/g, "\\:")}[vout]`;
+          await runVideoFfmpeg(["-y", ...inputArgs, "-filter_complex", filterComplex, "-map", "[vout]", "-map", `${videoPaths.length}:a:0`, "-t", durationSeconds.toFixed(3), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-threads", "1", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", outputPath]);
           const debit = await deductCredits(userId, montageCost);
           if (!debit.success) throw new Error(debit.error || "Points insuffisants.");
           job.status = "ready";
@@ -1277,7 +1303,7 @@ async function startServer() {
           console.error(`[Video] job=${jobId} failed`, error);
           await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(outputPath)).catch(() => undefined)]);
         } finally {
-          await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(audioPath)).catch(() => undefined)]);
+          await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(audioPath)).catch(() => undefined), import("node:fs/promises").then(({ unlink }) => unlink(captionPath)).catch(() => undefined)]);
         }
       })();
       return res.status(202).json({ jobId, status: "queued", cost: montageCost, duration_seconds: durationSeconds, pollAfterMs: 2000 });
