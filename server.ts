@@ -1397,7 +1397,7 @@ async function startServer() {
     try {
       const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
       const [{ data: profiles }, { data: transactions }, { data: generations }, { data: usageLogs }] = await Promise.all([
-        supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
+        supabaseClient.from("profiles").select("id, email, full_name, phone, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
         supabaseClient.from("transactions").select("user_id, amount_dzd, points_credited, status, gateway, created_at").limit(10000),
         supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, created_at").limit(20000),
         supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, created_at").limit(20000),

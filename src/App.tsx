@@ -90,10 +90,17 @@ function AppContent() {
   }, []);
 
   React.useEffect(() => {
-    const onPopState = () => setActiveTab(routeToTab(window.location.pathname));
+    const onPopState = () => {
+      if (needsPasswordSetup || welcomeUser) {
+        window.history.replaceState({}, '', isLoggedIn ? '/studio' : '/');
+        setActiveTab('studio');
+        return;
+      }
+      setActiveTab(routeToTab(window.location.pathname));
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [routeToTab]);
+  }, [routeToTab, needsPasswordSetup, welcomeUser, isLoggedIn]);
 
   // Recharge le solde, l'historique ET les achats réels depuis Supabase
   // (avant : "purchases" démarrait avec un faux achat mocké "pur_free_welcome"
@@ -323,6 +330,7 @@ function AppContent() {
           language={language}
           onDone={() => {
             setNeedsPasswordSetup(false);
+            navigateTo('studio', true);
             showToast(language === 'ar' ? 'تم إنشاء كلمة المرور! مرحباً بك في صوتيفي' : 'Mot de passe créé ! Bienvenue sur Sawtify');
           }}
         />
