@@ -1213,12 +1213,12 @@ async function startServer() {
     if (!userId) return res.status(401).json({ error: "Authentification requise." });
     const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
     if (!body.length) return res.status(400).json({ error: "Fichier vidéo vide." });
-    const original = decodeURIComponent(String(req.get("x-file-name") || "video.mp4")).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const original = decodeURIComponent(String(req.query.filename || req.get("x-file-name") || "video.mp4")).replace(/[^a-zA-Z0-9._-]/g, "_");
     const ext = path.extname(original).toLowerCase() || ".mp4";
     const id = `${crypto.randomUUID()}${ext}`;
     await mkdir(VIDEO_STORAGE_DIR, { recursive: true });
     await writeFile(path.join(VIDEO_STORAGE_DIR, id), body);
-    return res.json({ id, name: original, kind: String(req.get("x-file-type") || "").startsWith("image/") ? "image" : "video", url: `/api/video/file/${id}` });
+    return res.json({ id, name: original, kind: String(req.query.filetype || req.get("x-file-type") || "").startsWith("image/") ? "image" : "video", url: `/api/video/file/${id}` });
   });
 
   app.get("/api/video/file/:id", resolveUserIdMiddleware, async (req, res) => {

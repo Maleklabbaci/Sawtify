@@ -25,7 +25,8 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
   const uploadVideo = async (file: File) => {
     if (!file.type.startsWith('video/') && !file.type.startsWith('image/')) return;
     const token = await getMyAccessToken();
-    const response = await fetch(`${API_BASE_URL}/api/video/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name), 'X-File-Type': file.type }, body: file });
+    const uploadUrl = `${API_BASE_URL}/api/video/upload?filename=${encodeURIComponent(file.name)}&filetype=${encodeURIComponent(file.type)}`;
+    const response = await fetch(uploadUrl, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/octet-stream' }, body: file });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Upload impossible.');
     setVideos((current) => [...current, data]);
