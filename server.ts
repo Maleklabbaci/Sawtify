@@ -1264,7 +1264,9 @@ async function startServer() {
     if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
     if (balance <= API_MIN_BALANCE) return res.status(403).json({ error: "Le montage vidéo nécessite plus de 1000 points.", current_balance: balance });
     const audioUrl = String(req.body?.audioUrl || "");
+    const script = String(req.body?.script || "");
     const videos = Array.isArray(req.body?.videos) ? req.body.videos : [];
+    if (script.length > 30000) return res.status(413).json({ error: `Script trop long : ${script.length} caractères. La limite est de 30 000 caractères.` });
     if (!audioUrl || !videos.length) return res.status(400).json({ error: "Ajoute une voix et au moins une vidéo." });
     const videoPaths = videos.map((item: any) => path.join(VIDEO_STORAGE_DIR, path.basename(String(item.id || ""))));
     if (videoPaths.some((filePath: string) => !existsSync(filePath))) return res.status(404).json({ error: "Un fichier vidéo est introuvable. Réuploade les rushs." });
@@ -1286,10 +1288,10 @@ async function startServer() {
         if (!job) return;
         job.status = "processing";
         try {
-          const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
+          const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${script.slice(0, 5000)}`;
           const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
           console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
-          await writeFile(captionPath, buildCaptionsAss(String(req.body?.script || ""), durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold"), Number(req.body?.captionSize)), "utf8");
+          await writeFile(captionPath, buildCaptionsAss(script, durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold"), Number(req.body?.captionSize)), "utf8");
           const segmentDuration = durationSeconds / videoPaths.length;
           const inputArgs: string[] = [];
           videoPaths.forEach((filePath: string, index: number) => { if (String(videos[index]?.kind) === "image") inputArgs.push("-loop", "1"); else inputArgs.push("-stream_loop", "-1"); inputArgs.push("-i", filePath); });

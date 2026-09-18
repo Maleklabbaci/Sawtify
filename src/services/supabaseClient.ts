@@ -58,7 +58,7 @@ export async function signInWithEmailPassword(email: string, password: string) {
 // Définit le mot de passe du compte connecté (appelé juste après le tout premier
 // Google Sign-In pour permettre ensuite une connexion classique email + mot de passe).
 export async function setAccountPassword(password: string) {
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await supabase.auth.updateUser({ password, data: { password_set_at: new Date().toISOString() } });
   if (error) throw error;
 }
 
