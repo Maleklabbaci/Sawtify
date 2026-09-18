@@ -1180,6 +1180,18 @@ async function startServer() {
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
 
+  const allowedOrigins = new Set((FRONTEND_URL || "https://sawtify.space").split(",").map((value) => value.trim().replace(/\/+$/, "")).filter(Boolean));
+  app.use((req, res, next) => {
+    const origin = String(req.get("origin") || "").replace(/\/+$/, "");
+    if (origin && (allowedOrigins.has(origin) || process.env.NODE_ENV !== "production")) res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key,X-File-Name,X-File-Type");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Type,Content-Disposition,X-Request-Id");
+    res.setHeader("Vary", "Origin");
+    if (req.method === "OPTIONS") return res.status(204).end();
+    next();
+  });
+
   const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes." }) });
   app.use(globalLimiter);
 
@@ -1195,15 +1207,6 @@ async function startServer() {
   const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
   const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes LLM." }) });
 
-  const allowedOrigin = FRONTEND_URL || (process.env.NODE_ENV !== "production" ? "*" : "");
-  app.use((req, res, next) => {
-    const origin = req.get("origin") || "";
-    if (allowedOrigin === "*" || !allowedOrigin || origin === allowedOrigin) res.setHeader("Access-Control-Allow-Origin", allowedOrigin || origin || "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key,X-File-Name,X-File-Type");
-    if (req.method === "OPTIONS") return res.sendStatus(200);
-    next();
-  });
   app.use((req, res, next) => { res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups"); next(); });
 
   app.get("/api/health", (req, res) => res.json({ status: "ok", service: "sawtify-tts-server", voices_count: 9 }));
@@ -1252,9 +1255,16 @@ async function startServer() {
       const billedMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
       const montageCost = billedMinutes * VIDEO_POINTS_PER_MINUTE;
       if (balance < montageCost) return res.status(402).json({ error: `Solde insuffisant : ce montage coûte ${montageCost} points (${billedMinutes} min).`, required_points: montageCost, current_balance: balance, duration_seconds: durationSeconds });
-      const montagePlan = await callGeminiTextAPI(`Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`, 0.35);
-      console.log(`[Video/Gemini] plan généré avec Gemini Flash (${montagePlan.length} caractères), durée=${durationSeconds.toFixed(1)}s, coût=${montageCost} points`);
-      await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outputPath]);
+      const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${String(req.body?.script || "").slice(0, 5000)}`;
+      const montagePlan = await Promise.race([
+        callGeminiTextAPI(montagePrompt, 0.35),
+        new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500)),
+      ]).catch((error: any) => {
+        console.warn(`[Video/Gemini] plan indisponible, rendu continué: ${error?.message || error}`);
+        return "plan-standard";
+      });
+      console.log(`[Video/Gemini] ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, durée=${durationSeconds.toFixed(1)}s, coût=${montageCost} points`);
+      await runVideoFfmpeg(["-y", "-stream_loop", "-1", "-i", videoPath, "-i", audioPath, "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "27", "-threads", "2", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outputPath]);
       const debit = await deductCredits(userId, montageCost);
       if (!debit.success) return res.status(402).json({ error: debit.error || "Points insuffisants." });
       res.setHeader("Content-Type", "video/mp4");
@@ -2013,6 +2023,12 @@ Style vocal souhaité : ${style || "excited"}`;
     });
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
+
+  app.use((error: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error(`[API error] ${req.method} ${req.path}`, error?.stack || error);
+    if (res.headersSent) return;
+    res.status(error?.status || 500).json({ error: error?.message || "Erreur interne du serveur." });
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

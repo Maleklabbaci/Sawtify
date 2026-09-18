@@ -38,8 +38,13 @@ export const EditVideoPage: React.FC<Props> = ({ balance, recentGenerations = []
     setBusy(true); setMessage('Montage vidéo en cours…'); setResultUrl('');
     try {
       const token = await getMyAccessToken();
-      const response = await fetch(`${API_BASE_URL}/api/video/render`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ script, audioUrl, videos }) });
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Rendu vidéo impossible.'); }
+      const response = await fetch(`${API_BASE_URL}/api/video/render`, { method: 'POST', headers: { Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ script, audioUrl, videos }), signal: AbortSignal.timeout(110000) });
+      if (!response.ok) {
+        const raw = await response.text().catch(() => '');
+        let errorMessage = raw;
+        try { errorMessage = JSON.parse(raw)?.error || raw; } catch { /* réponse proxy non JSON */ }
+        throw new Error(errorMessage || `Rendu vidéo impossible (HTTP ${response.status}).`);
+      }
       const blob = await response.blob();
       setResultUrl(URL.createObjectURL(blob));
       setMessage('Montage terminé. Le coût est calculé à 70 points par minute commencée.');
