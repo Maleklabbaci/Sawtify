@@ -1200,7 +1200,7 @@ async function startServer() {
     const origin = req.get("origin") || "";
     if (allowedOrigin === "*" || !allowedOrigin || origin === allowedOrigin) res.setHeader("Access-Control-Allow-Origin", allowedOrigin || origin || "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key,X-File-Name,X-File-Type");
     if (req.method === "OPTIONS") return res.sendStatus(200);
     next();
   });
