@@ -57,7 +57,7 @@ export const AdminPage: React.FC = () => {
     finally { setDetailLoading(false); }
   };
 
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 15000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 60000); return () => window.clearInterval(timer); }, []);
   if (loading) return <div className="rounded-3xl bg-white p-10 text-center text-slate-500">Chargement du dashboard sécurisé…</div>;
   if (error) return <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-700"><ShieldAlert className="mx-auto mb-3 h-8 w-8" /><p className="font-bold">{error}</p><button onClick={load} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Réessayer</button></div>;
   if (!data) return null;
