@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GenerationRecord, PurchaseRecord } from '../types';
-import { Download, Clock, ArrowRight, Radio, FileAudio, RefreshCw, AlertCircle, Clapperboard, Lock } from 'lucide-react';
+import { Download, Clock, ArrowRight, Radio, FileAudio, RefreshCw, AlertCircle, Clapperboard, Lock, Link2, Copy, Check } from 'lucide-react';
 import { convertWavToMp3, formatBytes } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -23,6 +23,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [localMp3Urls, setLocalMp3Urls] = useState<Record<string, string>>({});
   const [conversionErrorId, setConversionErrorId] = useState<string | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   // 🛠️ FIX 1 : Nettoyage de la mémoire RAM (revokeObjectURL) au démontage
   useEffect(() => {
@@ -98,6 +99,14 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   };
 
   const canAccessMontage = balance > 1000;
+  const publicAudioUrl = (id: string) => `https://sawtify.space/audio/${id}`;
+  const copyPublicAudioUrl = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(publicAudioUrl(id));
+      setCopiedLinkId(id);
+      window.setTimeout(() => setCopiedLinkId((current) => current === id ? null : current), 1800);
+    } catch { setCopiedLinkId(null); }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-4 animate-in fade-in">
@@ -199,6 +208,17 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                         controls 
                         className="h-8 w-full sm:w-52 accent-purple-600 rounded-lg" 
                       />
+                    )}
+
+                    {gen.audioUrl && (
+                      <div className="flex items-center gap-1">
+                        <a href={publicAudioUrl(gen.id)} target="_blank" rel="noreferrer" className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-purple-700" title="Ouvrir le lien audio Sawtify">
+                          <Link2 className="h-4 w-4" />
+                        </a>
+                        <button type="button" onClick={() => void copyPublicAudioUrl(gen.id)} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-purple-700" title="Copier le lien audio Sawtify">
+                          {copiedLinkId === gen.id ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
                     )}
 
                     {/* Téléchargement WAV */}

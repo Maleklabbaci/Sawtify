@@ -1501,6 +1501,17 @@ async function startServer() {
     return res.json({ period_days: 30, counts, campaigns: Object.values(campaigns).map((item: any) => ({ name: item.name, visitors: item.sessions.size, signup_open: item.signup_open.size, accounts: item.account_created.size, onboarding: item.onboarding_completed.size })) });
   });
 
+  app.get("/api/audio/:generationId", async (req, res) => {
+    if (!supabaseClient || !/^[0-9a-f-]{36}$/i.test(req.params.generationId)) return res.status(404).json({ error: "Audio introuvable." });
+    try {
+      const { data: generation, error } = await supabaseClient.from("voice_generations").select("audio_storage_path").eq("id", req.params.generationId).maybeSingle();
+      if (error || !generation?.audio_storage_path) return res.status(404).json({ error: "Audio introuvable ou non stocké." });
+      const { data: signed, error: signedError } = await supabaseClient.storage.from("audio-generations").createSignedUrl(generation.audio_storage_path, 3600);
+      if (signedError || !signed?.signedUrl) return res.status(404).json({ error: "Lien audio indisponible." });
+      return res.redirect(302, signed.signedUrl);
+    } catch { return res.status(404).json({ error: "Audio introuvable." }); }
+  });
+
   // URL média sans query-string Supabase : certains intégrateurs refusent les
   // URLs signées ou ne savent pas télécharger leur token. L'URL reste publique
   // comme toute URL média d'automatisation, mais elle expire après 7 jours.
