@@ -1448,6 +1448,57 @@ async function startServer() {
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
+  app.get("/api/admin/users/:userId", async (req, res) => {
+    const admin = await isAdminRequest(req);
+    if (!admin.userId || !admin.role) return res.status(403).json({ error: "Accès Admin interdit." });
+    if (!supabaseClient || !/^[0-9a-f-]{36}$/i.test(req.params.userId)) return res.status(400).json({ error: "Utilisateur invalide." });
+    try {
+      const userId = req.params.userId;
+      const [{ data: profile, error: profileError }, { data: generations, error: generationsError }, { data: transactions }, { data: usageLogs }] = await Promise.all([
+        supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at, onboarding_completed_at, acquisition_source").eq("id", userId).maybeSingle(),
+        supabaseClient.from("voice_generations").select("id, voice_id, voice_name, text_prompt, char_count, points_deducted, audio_storage_path, audio_duration_seconds, latency_ms, status, generation_source, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+        supabaseClient.from("transactions").select("id, amount_dzd, points_credited, status, gateway, gateway_reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+        supabaseClient.from("gemini_usage_logs").select("operation, characters, success, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+      ]);
+      if (profileError || generationsError || !profile) return res.status(404).json({ error: "Utilisateur introuvable." });
+      const signedGenerations = await Promise.all((generations || []).map(async (generation: any) => {
+        let audioUrl: string | null = null;
+        if (generation.audio_storage_path) {
+          const signed = await supabaseClient!.storage.from("audio-generations").createSignedUrl(generation.audio_storage_path, 3600);
+          audioUrl = signed.data?.signedUrl || null;
+        }
+        return { ...generation, audio_url: audioUrl };
+      }));
+      const { data: authUser } = await supabaseClient.auth.admin.getUserById(userId);
+      await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_user_detail", metadata: { viewed_user_id: userId, role: admin.role } });
+      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: usageLogs || [] });
+    } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le détail utilisateur.", detail: error?.message }); }
+  });
+
+  app.post("/api/marketing/events", async (req, res) => {
+    if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
+    const { sessionId, eventName, path: eventPath, source, medium, campaign, referrer, metadata } = req.body || {};
+    const allowed = new Set(["landing_view", "landing_90_percent", "signup_open", "google_signup_click", "oauth_return", "account_created", "onboarding_completed"]);
+    if (typeof sessionId !== "string" || sessionId.length < 16 || sessionId.length > 100 || !allowed.has(eventName)) return res.status(400).json({ error: "Événement invalide." });
+    const { error } = await supabaseClient.from("marketing_events").insert({ session_id: sessionId.slice(0, 100), event_name: eventName, path: typeof eventPath === "string" ? eventPath.slice(0, 200) : null, source: typeof source === "string" ? source.slice(0, 80) : null, medium: typeof medium === "string" ? medium.slice(0, 80) : null, campaign: typeof campaign === "string" ? campaign.slice(0, 120) : null, referrer: typeof referrer === "string" ? referrer.slice(0, 300) : null, metadata: metadata && typeof metadata === "object" ? metadata : {} });
+    if (error) return res.status(500).json({ error: "Événement non enregistré." });
+    return res.status(204).end();
+  });
+
+  app.get("/api/admin/marketing-funnel", async (req, res) => {
+    const admin = await isAdminRequest(req);
+    if (!admin.userId || !admin.role || !supabaseClient) return res.status(403).json({ error: "Accès Admin interdit." });
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data, error } = await supabaseClient.from("marketing_events").select("session_id,event_name,source,medium,campaign,created_at").gte("created_at", since).order("created_at", { ascending: false }).limit(100000);
+    if (error) return res.status(500).json({ error: "Impossible de charger le funnel. Vérifie la migration marketing_funnel.sql." });
+    const rows = data || [];
+    const stages = ["landing_view", "landing_90_percent", "signup_open", "google_signup_click", "oauth_return", "account_created", "onboarding_completed"];
+    const counts = Object.fromEntries(stages.map((stage) => [stage, new Set(rows.filter((row: any) => row.event_name === stage).map((row: any) => row.session_id)).size]));
+    const campaigns: Record<string, any> = {};
+    for (const row of rows) { const key = row.campaign || row.source || "direct"; campaigns[key] ||= { name: key, sessions: new Set<string>(), signup_open: new Set<string>(), account_created: new Set<string>(), onboarding_completed: new Set<string>() }; campaigns[key].sessions.add(row.session_id); if (row.event_name === "signup_open") campaigns[key].signup_open.add(row.session_id); if (row.event_name === "account_created") campaigns[key].account_created.add(row.session_id); if (row.event_name === "onboarding_completed") campaigns[key].onboarding_completed.add(row.session_id); }
+    return res.json({ period_days: 30, counts, campaigns: Object.values(campaigns).map((item: any) => ({ name: item.name, visitors: item.sessions.size, signup_open: item.signup_open.size, accounts: item.account_created.size, onboarding: item.onboarding_completed.size })) });
+  });
+
   // URL média sans query-string Supabase : certains intégrateurs refusent les
   // URLs signées ou ne savent pas télécharger leur token. L'URL reste publique
   // comme toute URL média d'automatisation, mais elle expire après 7 jours.

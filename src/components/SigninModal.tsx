@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, ShieldCheck, Gift, Zap, Mic, Volume2, AlertCircle } from 'lucide-react';
 import { signInWithGoogle } from '../services/supabaseClient';
+import { trackMarketingEvent } from '../services/marketingTracking';
 
 interface SigninModalProps {
   onClose: () => void;
@@ -44,6 +45,7 @@ export const SigninModal: React.FC<SigninModalProps> = ({
   const handleGoogleAuth = async () => {
     setAuthError(null);
     setIsLoading(true);
+    trackMarketingEvent('google_signup_click');
     try {
       await signInWithGoogle('signup');
     } catch (err: any) {

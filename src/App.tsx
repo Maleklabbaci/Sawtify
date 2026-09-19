@@ -5,6 +5,7 @@ import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
+import { trackMarketingEvent } from './services/marketingTracking';
 
 // Chargées à la demande seulement : évite d'embarquer ffmpeg.wasm, Supabase, etc.
 // dans le bundle initial affiché avant même la connexion (page trop longue à charger).
@@ -133,6 +134,10 @@ function AppContent() {
     navigateTo('studio', true);
   }, [refreshAccountData, navigateTo]);
 
+  React.useEffect(() => {
+    if (!isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
+  }, [isLoggedIn, authModalMode]);
+
   // Détecte la session Supabase réelle
   React.useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -140,6 +145,7 @@ function AppContent() {
     import('./services/supabaseClient').then(({ supabase, consumeSignupIntent }) => {
       supabase.auth.getUser().then(({ data, error }) => {
         if (data.user && !error) {
+          trackMarketingEvent('oauth_return');
           setIsLoggedIn(true);
           bootstrappedUserIdRef.current = data.user.id;
 
@@ -193,6 +199,7 @@ function AppContent() {
             return;
           }
           bootstrappedUserIdRef.current = session.user.id;
+          trackMarketingEvent('account_created');
           setIsLoggedIn(true);
           setAuthModalMode('none');
           navigateTo('studio');
@@ -315,7 +322,7 @@ function AppContent() {
   };
 
   if (welcomeUser) {
-    return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={finishWelcome} />;
+    return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={() => { trackMarketingEvent('onboarding_completed'); return finishWelcome(); }} />;
   }
 
   if (isBootstrapping || isCheckingSession) {
@@ -378,8 +385,8 @@ function AppContent() {
     return (
       <>
         <LandingPage
-          onLoginClick={() => setAuthModalMode('login')}
-          onSigninClick={() => setAuthModalMode('signin')}
+          onLoginClick={() => { trackMarketingEvent('signup_open', { intent: 'login' }); setAuthModalMode('login'); }}
+          onSigninClick={() => { trackMarketingEvent('signup_open'); setAuthModalMode('signin'); }}
           language={language}
           setLanguage={setLanguage}
         />
