@@ -1454,13 +1454,15 @@ async function startServer() {
     if (!supabaseClient || !/^[0-9a-f-]{36}$/i.test(req.params.userId)) return res.status(400).json({ error: "Utilisateur invalide." });
     try {
       const userId = req.params.userId;
-      const [{ data: profile, error: profileError }, { data: generations, error: generationsError }, { data: transactions }, { data: usageLogs }] = await Promise.all([
-        supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at, onboarding_completed_at, acquisition_source").eq("id", userId).maybeSingle(),
+      const { data: profile, error: profileError } = await supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at").eq("id", userId).maybeSingle();
+      if (profileError) return res.status(500).json({ error: "Impossible de lire le profil utilisateur.", detail: profileError.message });
+      if (!profile) return res.status(404).json({ error: "Profil utilisateur introuvable.", detail: "Cet identifiant existe peut-être dans Auth mais pas dans public.profiles." });
+      const [{ data: generations, error: generationsError }, { data: transactions }, { data: usageLogs }] = await Promise.all([
         supabaseClient.from("voice_generations").select("id, voice_id, voice_name, text_prompt, char_count, points_deducted, audio_storage_path, audio_duration_seconds, latency_ms, status, generation_source, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
         supabaseClient.from("transactions").select("id, amount_dzd, points_credited, status, gateway, gateway_reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
         supabaseClient.from("gemini_usage_logs").select("operation, characters, success, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       ]);
-      if (profileError || generationsError || !profile) return res.status(404).json({ error: "Utilisateur introuvable." });
+      if (generationsError) return res.status(500).json({ error: "Impossible de lire les générations de cet utilisateur.", detail: generationsError.message });
       const signedGenerations = await Promise.all((generations || []).map(async (generation: any) => {
         let audioUrl: string | null = null;
         if (generation.audio_storage_path) {
@@ -1471,7 +1473,7 @@ async function startServer() {
       }));
       const { data: authUser } = await supabaseClient.auth.admin.getUserById(userId);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_user_detail", metadata: { viewed_user_id: userId, role: admin.role } });
-      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: usageLogs || [] });
+      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null, onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null, acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: usageLogs || [] });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le détail utilisateur.", detail: error?.message }); }
   });
 
