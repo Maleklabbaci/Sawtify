@@ -31,7 +31,6 @@ import {
   Lock,
   Timer,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
 
@@ -43,16 +42,15 @@ export interface LandingPageProps {
 }
 
 /* ═══════════ PALETTE — VIOLET ALGÉRIEN (KSAR / OASIS MODERNE) ═══════════ */
-// Violet algérien profond : évocation du ksar, des tapis, du crépuscule
-const PAPER = "#FAF6EE"; // papier crème chaud (conservé — liant)
-const INK = "#1A0F2E"; // encre violet nuit
-const PURPLE = "#6B2DBC"; // violet principal (royal)
-const PURPLE_DARK = "#4A1E87"; // violet profond
-const PURPLE_SOFT = "#F0E8FA"; // violet papier
+const PAPER = "#FAF6EE";
+const INK = "#1A0F2E";
+const PURPLE = "#6B2DBC";
+const PURPLE_DARK = "#4A1E87";
+const PURPLE_SOFT = "#F0E8FA";
 const PURPLE_GLOW = "rgba(107, 45, 188, 0.45)";
-const GREEN = "#0E7A45"; // conservé en accent secondaire (algérien)
-const AMBER = "#E9A13B"; // ambre (tampons, étoiles, compte à rebours)
-const CLAY = "#C2452A"; // brique
+const GREEN = "#0E7A45";
+const AMBER = "#E9A13B";
+const CLAY = "#C2452A";
 const BORDER = "#E5DCCB";
 const BG_VIDEO_URL =
   "https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202509051613.mp4";
@@ -82,7 +80,6 @@ const GlobalStyles = () => (
     @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
     #sawtify-landing .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
     #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${PURPLE}; outline-offset: 3px; border-radius: 10px; }
-    /* Grain papier */
     #sawtify-landing .grain { position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"); }
     @keyframes marquee { to { transform: translateX(-50%); } }
@@ -91,10 +88,10 @@ const GlobalStyles = () => (
     #sawtify-landing .card-lift { transition: transform .35s cubic-bezier(0.16,1,0.3,1), box-shadow .35s, border-color .35s; }
     @media (hover: hover) { #sawtify-landing .card-lift:hover { transform: translateY(-4px); box-shadow: 0 16px 36px -18px rgba(26,15,46,0.32); border-color: rgba(107,45,188,0.4); } }
     #sawtify-landing .hov-ink:hover, #sawtify-landing .hov-ink:focus-visible { border-color: rgba(26,15,46,0.5); }
-    /* Nouveaux effets : halo violet, brillance, parallaxe */
     @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 ${PURPLE_GLOW}; } 70% { box-shadow: 0 0 0 18px rgba(107,45,188,0); } }
     #sawtify-landing .pulse-glow { animation: pulse-glow 2.4s infinite; }
     @keyframes shine { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
+    #sawtify-landing .shine { position: relative; overflow: hidden; }
     #sawtify-landing .shine::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%); animation: shine 3.5s ease-in-out infinite; pointer-events: none; }
     @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     #sawtify-landing .float { animation: float-y 4.5s ease-in-out infinite; }
@@ -102,42 +99,60 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-/* ═══════════ 🆕 COMPOSANT VIDÉO D'ARRIÈRE-PLAN ═══════════ */
+/* ═══════════ 🎬 COMPOSANT VIDÉO D'ARRIÈRE-PLAN (corrigé) ═══════════ */
 const BackgroundVideo = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
-  const { scrollY } = useScroll();
+  const [parallaxY, setParallaxY] = useState(0);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    // Lecture automatique silencieuse, en boucle, sans contrôles
     v.muted = true;
     v.playsInline = true;
     v.loop = true;
     v.autoplay = true;
+    v.setAttribute("muted", "");
+    v.setAttribute("playsinline", "");
+    v.setAttribute("loop", "");
     const onReady = () => setReady(true);
     v.addEventListener("canplay", onReady, { once: true });
     const playPromise = v.play();
     if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => { /* autoplay bloqué : on ré-essaiera à l'interaction */ });
+      playPromise.catch(() => { /* autoplay bloqué : on ré-essaiera */ });
     }
     return () => v.removeEventListener("canplay", onReady);
   }, []);
 
-  // Tente de relancer la vidéo si l'autoplay a été bloqué au chargement
+  // Parallaxe via listener (évite le bug du MotionValue non réactif en style inline)
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        setParallaxY(Math.min(window.scrollY * 0.08, 60));
+        raf = 0;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Relance l'autoplay si bloqué au chargement
   useEffect(() => {
     const onFirstInteract = () => {
-      if (videoRef.current && videoRef.current.paused) {
-        videoRef.current.play().catch(() => {});
-      }
+      const v = videoRef.current;
+      if (v && v.paused) v.play().catch(() => {});
     };
     window.addEventListener("pointerdown", onFirstInteract, { once: true, capture: true });
     return () => window.removeEventListener("pointerdown", onFirstInteract, { capture: true } as EventListenerOptions);
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
+    <div className="absolute inset-0 z-0 overflow-hidden bg-[#1A0F2E]" aria-hidden>
       <video
         ref={videoRef}
         src={BG_VIDEO_URL}
@@ -146,25 +161,26 @@ const BackgroundVideo = () => {
         playsInline
         autoPlay
         preload="auto"
+        controls={false}
+        disablePictureInPicture
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
         style={{
-          opacity: ready ? 0.55 : 0,
-          // Légère parallaxe au scroll (effet "profondeur" subtil)
-          transform: `translate3d(0, ${Math.min(scrollY.get() * 0.08, 60)}px, 0) scale(${1 + Math.min(scrollY.get() * 0.00015, 0.04)})`,
+          opacity: ready ? 1 : 0,
+          minWidth: "100%",
+          minHeight: "100%",
+          transform: `translate3d(0, ${parallaxY}px, 0)`,
           willChange: "transform",
         }}
       />
-      {/* Overlay dégradé violet — assure lisibilité du texte + cohérence charte */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "linear-gradient(180deg, rgba(26,15,46,0.35) 0%, rgba(26,15,46,0.55) 35%, rgba(26,15,46,0.85) 75%, rgba(26,15,46,0.95) 100%)",
+            "linear-gradient(180deg, rgba(26,15,46,0.55) 0%, rgba(26,15,46,0.7) 35%, rgba(26,15,46,0.88) 75%, rgba(26,15,46,0.96) 100%)",
         }}
       />
-      {/* Vignettage subtil pour focus central */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
             "radial-gradient(ellipse at center, transparent 35%, rgba(26,15,46,0.45) 100%)",
@@ -415,6 +431,7 @@ function useSampleAudio() {
   return { playingId, sampleProgress, sampleElapsed, sampleTotal, durations, playSample, stopSample, setSampleRate };
 }
 
+/* ═══════════ 🎧 AudioDock compact (corrigé : tout en un seul bouton) ═══════════ */
 const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
   isPlaying: boolean; volume: number; onToggle: () => void; isRTL: boolean; hidden?: boolean;
 }) => {
@@ -424,31 +441,44 @@ const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
       initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", damping: 22, stiffness: 120, delay: 0.8 }}
       className={`fixed bottom-24 sm:bottom-6 end-3 sm:end-6 z-[80] transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none translate-y-3" : "opacity-100"}`}>
-      <div className="flex items-center gap-3 rounded-full border bg-white pl-4 pr-1.5 py-1.5 shadow-[0_10px_30px_rgba(107,45,188,0.25)]"
-        style={{ borderColor: "rgba(107,45,188,0.25)" }}>
-        {isPlaying ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: PURPLE }} />
-          : <VolumeX className="w-4 h-4 shrink-0 text-[#1A0F2E]/30" />}
-        <div className="flex items-end gap-[2.5px] h-4 shrink-0" dir="ltr" aria-hidden>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={isPlaying}
+        aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل التقديم" : "Lire l'intro")}
+        className="flex items-center gap-2 rounded-full border bg-white pl-3 pr-1 py-1 shadow-[0_10px_30px_rgba(107,45,188,0.25)] hover:scale-[1.02] transition pulse-glow focus-ring"
+        style={{ borderColor: "rgba(107,45,188,0.25)" }}
+      >
+        {isPlaying
+          ? <Volume2 className="w-3.5 h-3.5 shrink-0" style={{ color: PURPLE }} />
+          : <VolumeX className="w-3.5 h-3.5 shrink-0 text-[#1A0F2E]/30" />}
+        {/* mini waveform */}
+        <div className="hidden sm:flex items-end gap-[2px] h-3.5 shrink-0" dir="ltr" aria-hidden>
           {F.map((f, i) => (
-            <span key={i} className="w-[3px] rounded-full"
+            <span key={i} className="w-[2.5px] rounded-full"
               style={{
-                height: isPlaying ? Math.max(4, 4 + volume * 14 * f) : 4,
+                height: isPlaying ? Math.max(3, 3 + volume * 12 * f) : 3,
                 background: isPlaying ? PURPLE : "rgba(26,15,46,0.18)",
                 transition: "height 0.09s ease-out",
               }} />
           ))}
         </div>
-        <Kicker ar={isRTL} className="hidden sm:block text-[11px] whitespace-nowrap"
-          style={{ color: isPlaying ? PURPLE : "rgba(26,15,46,0.55)" }}>
+        <Kicker
+          ar={isRTL}
+          className="text-[10.5px] whitespace-nowrap"
+          style={{ color: isPlaying ? PURPLE : "rgba(26,15,46,0.55)" }}
+        >
           {isPlaying ? (isRTL ? "بثّ مباشر" : "On air") : (isRTL ? "اسمع التقديم" : "Écouter l'intro")}
         </Kicker>
-        <button type="button" onClick={onToggle} aria-pressed={isPlaying}
-          aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل التقديم" : "Lire l'intro")}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring pulse-glow"
-          style={{ background: PURPLE, color: "#fff" }}>
-          {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ms-0.5" />}
-        </button>
-      </div>
+        <span
+          className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: PURPLE, color: "#fff" }}
+        >
+          {isPlaying
+            ? <Pause className="w-3 h-3 fill-current" />
+            : <Play className="w-3 h-3 fill-current translate-x-[1px]" />}
+        </span>
+      </button>
     </motion.div>
   );
 };
@@ -1165,7 +1195,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       <div className="relative z-[1]">
         {/* ═══════════ HERO avec VIDÉO D'ARRIÈRE-PLAN ═══════════ */}
-        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate"
+        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate overflow-hidden"
           style={{ color: PAPER }}>
           <BackgroundVideo />
 
@@ -1178,12 +1208,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </Kicker>
               </SlideUp>
               <SlideUp delay={0.06}>
-                <h1 className="text-[clamp(2.7rem,7vw,5.2rem)] leading-[1.02] tracking-[-0.02em] font-extrabold"
-                  style={{ color: "#fff", fontFamily: display, textShadow: "0 2px 30px rgba(0,0,0,0.35)" }}>
+                {/* ✅ CORRECTION : whitespace-nowrap + SVG qui suit le texte, pas le parent */}
+                <h1
+                  className="text-[clamp(2.5rem,7vw,5rem)] leading-[1.02] tracking-[-0.02em] font-extrabold"
+                  style={{ color: "#fff", fontFamily: display, textShadow: "0 2px 30px rgba(0,0,0,0.4)" }}
+                >
                   {t.heroTitle1}{" "}
-                  <span className="relative inline-block">
+                  <span className="relative inline-block whitespace-nowrap">
                     {t.heroTitle2}
-                    <svg className="absolute -bottom-2 inset-x-0 w-full h-3" viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden>
+                    <svg
+                      className="absolute -bottom-2 start-0 end-0 w-full h-3 pointer-events-none"
+                      viewBox="0 0 200 12"
+                      preserveAspectRatio="none"
+                      aria-hidden
+                    >
                       <path d="M2 8 C 40 2, 80 11, 120 6 S 180 3, 198 7" fill="none" stroke={AMBER} strokeWidth="4.5" strokeLinecap="round" />
                     </svg>
                   </span>
@@ -1198,15 +1236,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <SlideUp delay={0.22}>
                 <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
                   <button type="button" onClick={goSignup}
-                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine relative overflow-hidden"
+                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
                     style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                     {t.tryFree}
                   </button>
+                  {/* ✅ CORRECTION : Play recentré via translate-x-[1px] */}
                   <button type="button" onClick={handleToggleIntroAudio}
                     className="h-12 px-5 rounded-full border-2 bg-white/10 backdrop-blur-md hover:bg-white/20 text-[14px] font-semibold transition focus-ring flex items-center gap-2.5"
                     style={{ borderColor: "rgba(255,255,255,0.4)", color: "#fff" }}>
-                    <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: PAPER, color: PURPLE }}>
-                      {isIntroPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current ms-0.5" />}
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: PAPER, color: PURPLE }}>
+                      {isIntroPlaying
+                        ? <Pause className="w-3 h-3 fill-current" />
+                        : <Play className="w-3 h-3 fill-current translate-x-[1px]" />}
                     </span>
                     {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
@@ -1308,7 +1349,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           aria-label={heroSamplePlaying ? t.pause : t.listenInStudio} aria-pressed={heroSamplePlaying}
                           className="w-14 h-14 rounded-full flex items-center justify-center text-white transition hover:scale-105 focus-ring shadow-lg"
                           style={{ background: featured.color, boxShadow: `0 10px 26px -10px ${featured.color}` }}>
-                          {heroSamplePlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ms-0.5" />}
+                          {heroSamplePlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current translate-x-[1px]" />}
                         </button>
                         <button type="button" onClick={() => stepVoice(1)} aria-label={isRTL ? "الصوت التالي" : "Voix suivante"}
                           className="w-10 h-10 rounded-full border bg-white hov-ink flex items-center justify-center transition focus-ring" style={{ borderColor: BORDER }}>
@@ -1432,7 +1473,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
                 <button type="button" onClick={goSignup}
-                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine relative overflow-hidden"
+                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
                   style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                   {t.tryFree}
                 </button>
@@ -1476,7 +1517,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         <span className="absolute inset-0 flex items-center justify-center transition-opacity" style={{ opacity: active ? 1 : 0 }}>
                           {active
                             ? <Pause className="w-4 h-4 fill-current" style={{ color: v.color }} />
-                            : <Play className="w-4 h-4 fill-current ms-0.5" style={{ color: v.color }} />}
+                            : <Play className="w-4 h-4 fill-current translate-x-[1px]" style={{ color: v.color }} />}
                         </span>
                       </span>
                       <span className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[15px] shrink-0"
@@ -1499,7 +1540,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </Mono>
                       <span className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition"
                         style={{ background: active ? v.color : "rgba(26,15,46,0.8)" }}>
-                        {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
+                        {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current translate-x-[1px]" />}
                       </span>
                     </button>
                   );
@@ -1548,7 +1589,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {journeySteps.map((s, i) => (
                 <SlideUp key={s.n} delay={i * 0.07}>
                   <div className="relative rounded-2xl border bg-white p-6 sm:p-7 h-full min-h-[190px] flex flex-col justify-between card-lift overflow-hidden" style={{ borderColor: BORDER }}>
-                    {/* coin violet décoratif */}
                     <div className="absolute -top-12 -end-12 w-28 h-28 rounded-full opacity-10" style={{ background: PURPLE }} aria-hidden />
                     <div className="relative w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[15px]"
                       style={{ background: PURPLE, color: AMBER, fontFamily: MONO_STACK }}>{s.n}</div>
@@ -1789,7 +1829,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </span>
                     </div>
                     <button type="button" onClick={goSignup}
-                      className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring mt-4 text-white hover:brightness-110`}
+                      className="h-11 rounded-xl text-[13px] font-bold transition focus-ring mt-4 text-white hover:brightness-110"
                       style={p.featured ? { background: INK } : { background: PURPLE }}>
                       {t.choose}
                     </button>
@@ -1871,7 +1911,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   ))}
                 </div>
                 <div className="absolute top-7 end-7 w-2.5 h-2.5 rotate-45" style={{ background: AMBER }} aria-hidden />
-                {/* halo subtil */}
                 <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-30 blur-3xl" style={{ background: "radial-gradient(circle, #E9A13B 0%, transparent 70%)" }} aria-hidden />
                 <div className="relative">
                   <h2 className="text-[clamp(2rem,5vw,3.6rem)] leading-[1.06] font-extrabold" style={{ fontFamily: display }}>
@@ -2036,7 +2075,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     {playingId === listenVoice.id ? (
                       <><Pause className="w-4 h-4 fill-current" />{t.pause}</>
                     ) : (
-                      <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>
+                      <><Play className="w-4 h-4 fill-current translate-x-[1px]" />{t.listenInStudio}</>
                     )}
                   </button>
                   <p className="mt-2 text-[11px] text-center text-[#1A0F2E]/45">{t.studioNote}</p>
@@ -2088,7 +2127,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 )}
                 <button type="button" onClick={() => { setExitOpen(false); goSignup(); }}
-                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring shine relative overflow-hidden"
+                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring shine"
                   style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                   {t.exitCta}
                 </button>
