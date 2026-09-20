@@ -2,7 +2,7 @@
 <html lang="fr" dir="ltr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
     <title>Sawtify — Voix Off Darija Algérienne | Texte à Parole IA</title>
@@ -255,8 +255,19 @@
 
     <style>
       html, body, #root { height: 100%; margin: 0; padding: 0; }
+      html {
+        /* Empêche tout défilement horizontal (glissement gauche/droite) et
+           le zoom via pincement, pour un rendu figé comme une vraie appli. */
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+        touch-action: pan-y;
+      }
       body {
+        overflow-x: hidden;
+        max-width: 100vw;
         overscroll-behavior-y: none;
+        overscroll-behavior-x: none;
+        touch-action: pan-y;
         -webkit-tap-highlight-color: transparent;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;

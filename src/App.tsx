@@ -423,7 +423,7 @@ function AppContent() {
   }
 
   return (
-    <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
+    <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} overflow-x-hidden max-w-[100vw] bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
 
       {showInAppBrowserBanner && (
         <div className={`shrink-0 w-full bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-3 text-amber-900 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
