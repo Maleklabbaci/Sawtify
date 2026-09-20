@@ -597,13 +597,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </button>
       </div>
 
-      <div className="flex-none lg:flex-1 lg:flex lg:overflow-hidden relative">
+      <div className="flex-none lg:flex lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden relative">
         
         {/* ============ PANNEAU SCRIPT (Gauche en LTR, Droite en RTL) ============ */}
         {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
              <div className={`
           fixed lg:static inset-y-0 start-0 z-50 lg:z-0
-          w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col
+          w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col lg:h-full lg:min-h-0
           transition-all duration-300 transform
           ${isScriptMenuOpen 
             ? 'translate-x-0 opacity-100 pointer-events-auto' 
@@ -686,7 +686,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
 
         {/* ============ EDITEUR CENTRAL ============ */}
-        <div className="w-full min-w-0 flex flex-col p-3 sm:p-4 lg:flex-1 lg:overflow-hidden">
+        <div className="w-full min-w-0 flex flex-col p-3 sm:p-4 lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden">
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
               <div className="flex items-center gap-2">
@@ -701,7 +701,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           )}
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl min-h-[520px] flex-none flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative lg:flex-1 lg:min-h-0">
+          <div className="bg-white border border-slate-200/80 rounded-2xl min-h-[520px] flex-none flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative lg:h-full lg:flex-1 lg:min-h-0">
             
             {/* HEADER : Dropdown Emotions + Compteur caractères */}
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
@@ -844,7 +844,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
                <div className={`
           fixed lg:static inset-y-0 end-0 z-50 lg:z-0
-          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-all duration-300 transform
+          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-all duration-300 transform lg:h-full lg:min-h-0
           ${isVoiceMenuOpen 
             ? 'translate-x-0 opacity-100 pointer-events-auto' 
             : (isRTL ? '-translate-x-full' : 'translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
