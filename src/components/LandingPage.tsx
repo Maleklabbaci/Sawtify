@@ -41,12 +41,11 @@ export interface LandingPageProps {
   setLanguage: (lang: "fr" | "ar") => void;
 }
 
-/* ═══════════ PALETTE — VIOLET ALGÉRIEN ═══════════ */
+/* ═══════════ PALETTE — VIOLET ALGÉRIEN (KSAR / OASIS MODERNE) ═══════════ */
 const PAPER = "#FAF6EE";
 const INK = "#1A0F2E";
 const PURPLE = "#6B2DBC";
 const PURPLE_DARK = "#4A1E87";
-const PURPLE_DEEPER = "#2E0F5C";
 const PURPLE_SOFT = "#F0E8FA";
 const PURPLE_GLOW = "rgba(107, 45, 188, 0.45)";
 const GREEN = "#0E7A45";
@@ -84,7 +83,7 @@ const GlobalStyles = () => (
     #sawtify-landing .grain { position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"); }
     @keyframes marquee { to { transform: translateX(-50%); } }
-    #sawtify-landing .marquee-track { animation: marquee 28s linear infinite; }
+    #sawtify-landing .marquee-track { animation: marquee 28s linear infinite; will-change: transform; }
     #sawtify-landing .marquee:hover .marquee-track { animation-play-state: paused; }
     #sawtify-landing .card-lift { transition: transform .35s cubic-bezier(0.16,1,0.3,1), box-shadow .35s, border-color .35s; }
     @media (hover: hover) { #sawtify-landing .card-lift:hover { transform: translateY(-4px); box-shadow: 0 16px 36px -18px rgba(26,15,46,0.32); border-color: rgba(107,45,188,0.4); } }
@@ -94,48 +93,66 @@ const GlobalStyles = () => (
     @keyframes shine { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
     #sawtify-landing .shine { position: relative; overflow: hidden; }
     #sawtify-landing .shine::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%); animation: shine 3.5s ease-in-out infinite; pointer-events: none; }
+    @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    #sawtify-landing .float { animation: float-y 4.5s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
   `}</style>
 );
 
-/* ═══════════ 🎬 VIDÉO D'ARRIÈRE-PLAN — simplifiée, affichage garanti ═══════════ */
+/* ═══════════ 🎬 COMPOSANT VIDÉO D'ARRIÈRE-PLAN (corrigé) ═══════════ */
 const BackgroundVideo = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
+  const [parallaxY, setParallaxY] = useState(0);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     v.muted = true;
+    v.playsInline = true;
+    v.loop = true;
+    v.autoplay = true;
     v.setAttribute("muted", "");
     v.setAttribute("playsinline", "");
     v.setAttribute("loop", "");
-    v.setAttribute("autoplay", "");
     const onReady = () => setReady(true);
     v.addEventListener("canplay", onReady, { once: true });
-    v.addEventListener("loadeddata", onReady, { once: true });
-    const p = v.play();
-    if (p && typeof p.catch === "function") p.catch(() => {});
+    const playPromise = v.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => { /* autoplay bloqué : on ré-essaiera */ });
+    }
+    return () => v.removeEventListener("canplay", onReady);
+  }, []);
+
+  // Parallaxe via listener (évite le bug du MotionValue non réactif en style inline)
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        setParallaxY(Math.min(window.scrollY * 0.08, 60));
+        raf = 0;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      v.removeEventListener("canplay", onReady);
-      v.removeEventListener("loadeddata", onReady);
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
     };
   }, []);
 
-  // Relance si bloqué
+  // Relance l'autoplay si bloqué au chargement
   useEffect(() => {
-    const onFirst = () => {
+    const onFirstInteract = () => {
       const v = videoRef.current;
       if (v && v.paused) v.play().catch(() => {});
     };
-    window.addEventListener("pointerdown", onFirst, { once: true, capture: true });
-    return () => window.removeEventListener("pointerdown", onFirst, { capture: true } as EventListenerOptions);
+    window.addEventListener("pointerdown", onFirstInteract, { once: true, capture: true });
+    return () => window.removeEventListener("pointerdown", onFirstInteract, { capture: true } as EventListenerOptions);
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
-      {/* Fond violet plein : visible pendant le chargement */}
-      <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${PURPLE_DEEPER} 0%, ${PURPLE_DARK} 100%)` }} />
+    <div className="absolute inset-0 z-0 overflow-hidden bg-[#1A0F2E]" aria-hidden>
       <video
         ref={videoRef}
         src={BG_VIDEO_URL}
@@ -151,44 +168,56 @@ const BackgroundVideo = () => {
           opacity: ready ? 1 : 0,
           minWidth: "100%",
           minHeight: "100%",
-        }}
-      />
-      {/* Overlay dégradé violet pour lisibilité */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(46,15,92,0.5) 0%, rgba(74,30,135,0.55) 35%, rgba(46,15,92,0.8) 75%, rgba(26,15,46,0.92) 100%)",
+          transform: `translate3d(0, ${parallaxY}px, 0)`,
+          willChange: "transform",
         }}
       />
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse at center, transparent 30%, rgba(26,15,46,0.5) 100%)",
+            "linear-gradient(180deg, rgba(26,15,46,0.55) 0%, rgba(26,15,46,0.7) 35%, rgba(26,15,46,0.88) 75%, rgba(26,15,46,0.96) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 35%, rgba(26,15,46,0.45) 100%)",
         }}
       />
     </div>
   );
 };
 
-const Logo = ({ size = 38, dark = false }: { size?: number; dark?: boolean }) => {
+const Logo = ({ size = 38 }: { size?: number }) => {
   const [imgError, setImgError] = useState(false);
   return (
     <div className="flex items-center gap-2.5 select-none">
       <div
         className="rounded-xl overflow-hidden shrink-0"
-        style={{ width: size, height: size, boxShadow: dark ? "0 3px 14px rgba(255,255,255,0.18)" : "0 3px 12px rgba(107,45,188,0.35)" }}
+        style={{ width: size, height: size, boxShadow: "0 3px 12px rgba(107,45,188,0.35)" }}
       >
         {!imgError ? (
-          <img src={LOGO} alt="Sawtify" width={size} height={size} decoding="async"
-            onError={() => setImgError(true)} className="w-full h-full object-cover" />
+          <img
+            src={LOGO}
+            alt="Sawtify"
+            width={size}
+            height={size}
+            decoding="async"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <div className="w-full h-full flex items-center justify-center font-bold text-white"
-            style={{ background: PURPLE, fontSize: size * 0.5, fontFamily: NUM_STACK }}>S</div>
+          <div
+            className="w-full h-full flex items-center justify-center font-bold text-white"
+            style={{ background: PURPLE, fontSize: size * 0.5, fontFamily: NUM_STACK }}
+          >
+            S
+          </div>
         )}
       </div>
-      <span className="font-bold text-[19px] tracking-tight" style={{ color: dark ? "#fff" : INK, fontFamily: NUM_STACK }}>
+      <span className="font-bold text-[19px] tracking-tight" style={{ color: INK, fontFamily: NUM_STACK }}>
         Sawtify
       </span>
     </div>
@@ -281,7 +310,7 @@ const Counter = ({ target, suffix = "", duration = 1800 }: { target: number; suf
 };
 
 const SlideUp = ({ children, delay = 0, className = "" }: {
-  children: React.ReactNode; delay?: number; className?: string;
+  children: React.ReactNode; delay?: number; className?: string; key?: React.Key;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
@@ -402,6 +431,7 @@ function useSampleAudio() {
   return { playingId, sampleProgress, sampleElapsed, sampleTotal, durations, playSample, stopSample, setSampleRate };
 }
 
+/* ═══════════ 🎧 AudioDock compact (corrigé : tout en un seul bouton) ═══════════ */
 const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
   isPlaying: boolean; volume: number; onToggle: () => void; isRTL: boolean; hidden?: boolean;
 }) => {
@@ -422,6 +452,7 @@ const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
         {isPlaying
           ? <Volume2 className="w-3.5 h-3.5 shrink-0" style={{ color: PURPLE }} />
           : <VolumeX className="w-3.5 h-3.5 shrink-0 text-[#1A0F2E]/30" />}
+        {/* mini waveform */}
         <div className="hidden sm:flex items-end gap-[2px] h-3.5 shrink-0" dir="ltr" aria-hidden>
           {F.map((f, i) => (
             <span key={i} className="w-[2.5px] rounded-full"
@@ -589,14 +620,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const overlayRef = useRef(false);
   overlayRef.current = overlayOpen;
 
-  /* ✅ DÉFAUT ARABE — sauvegardé, sinon arabe */
   const bootRef = useRef(false);
   useLayoutEffect(() => {
     if (bootRef.current) return;
     bootRef.current = true;
     let saved: string | null = null;
     try { saved = window.localStorage.getItem("sawtify_lang"); } catch {}
-    const target = saved === "fr" || saved === "ar" ? saved : "ar"; // ✅ ARABE par défaut
+    const target = saved === "fr" || saved === "ar" ? saved : "ar";
     if (target !== language) setLanguage(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -963,7 +993,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     { k: "Edahabia", v: isRTL ? "بريد الجزائر" : "La Poste" },
     { k: "CIB", v: isRTL ? "البنوك" : "Banques" },
     { k: "SATIM", v: isRTL ? "دفع آمن" : "Paiement sécurisé" },
-    { k: "24 kHz", v: isRTL ? "جودة استوديو" : " Qualité studio" },
+    { k: "24 kHz", v: isRTL ? "جودة استوديو" : "Qualité studio" },
     { k: "MP3 · WAV", v: isRTL ? "بلا علامة مائية" : "Sans filigrane" },
   ], [isRTL]);
 
@@ -1062,15 +1092,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[90] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm text-white"
         style={{ background: PURPLE }}>{t.skip}</a>
 
-      {/* ═══════════ 📌 BARRE D'URGENCE — alignée à DROITE (corrigé) ═══════════ */}
-      <div className="fixed top-0 inset-x-0 z-[70] h-11 flex items-center justify-end gap-2.5 px-4 sm:px-6"
+      {/* ═══════════ 📌 BARRE D'URGENCE ═══════════ */}
+      <div className="fixed top-0 inset-x-0 z-[70] h-11 flex items-center justify-center gap-2.5 px-3"
         style={{ background: INK, color: PAPER }}>
-        <span className="hidden md:inline text-[11.5px] sm:text-[12.5px] font-bold truncate ms-auto">
-          {t.urgency}
-        </span>
-        <span className="md:hidden text-[11.5px] font-bold truncate ms-auto">
-          {isRTL ? "50 نقطة هدية" : "50 pts"}
-        </span>
+        <Gift className="w-4 h-4 shrink-0" style={{ color: AMBER }} />
+        <span className="text-[11.5px] sm:text-[12.5px] font-bold truncate">{t.urgency}</span>
         {countdown && (
           <Mono dir="ltr" className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md tabular-nums"
             style={{ background: "rgba(255,255,255,0.12)", color: AMBER }}>
@@ -1078,69 +1104,52 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </Mono>
         )}
         <button type="button" onClick={goSignup}
-          className="shrink-0 text-[11.5px] font-bold underline underline-offset-4 hover:opacity-80 transition focus-ring whitespace-nowrap"
+          className="hidden sm:inline-block shrink-0 text-[11.5px] font-bold underline underline-offset-4 decoration-amber hover:opacity-80 transition focus-ring"
           style={{ textDecorationColor: AMBER }}>
           {t.urgencyCta} ↖
         </button>
       </div>
 
-      {/* ═══════════ HEADER — fond VIOLET + texte BLANC quand scrollé (corrigé) ═══════════ */}
-      <header className={`fixed top-11 inset-x-0 z-[60] transition-all duration-300 ${scrolled ? "shadow-lg" : ""}`}
+      {/* ═══════════ HEADER ═══════════ */}
+      <header className="fixed top-11 inset-x-0 z-[60] border-b border-slate-200/80 bg-white/95 shadow-[0_8px_24px_rgba(26,15,46,0.10)] backdrop-blur-xl transition-all duration-300"
         style={{
-          background: scrolled ? PURPLE : "transparent",
-          borderBottom: scrolled ? `1px solid rgba(255,255,255,0.12)` : "1px solid transparent",
-          color: scrolled ? "#fff" : INK,
+          borderColor: BORDER,
         }}>
-        <div className={`mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between`}>
+        <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }}
             className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
-            <Logo size={38} dark={scrolled} />
+            <Logo size={38} />
           </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold"
-            style={{ color: scrolled ? "rgba(255,255,255,0.85)" : "rgba(26,15,46,0.6)" }}>
+          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#1A0F2E]/60">
             {nav.map((l) => (
               <a key={`${l.href}-${l.target}`} href={l.href}
                 onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                className="hover:opacity-100 transition-colors focus-ring"
-                style={scrolled ? { color: "#fff" } : undefined}
-                onMouseEnter={(e) => { if (scrolled) e.currentTarget.style.color = AMBER; }}
-                onMouseLeave={(e) => { if (scrolled) e.currentTarget.style.color = "#fff"; }}>
-                {l.label}
-              </a>
+                className="hover:text-[#6B2DBC] transition-colors focus-ring">{l.label}</a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button type="button" onClick={switchLang}
-              className="w-10 h-10 rounded-full text-[12px] font-bold transition focus-ring"
-              style={{
-                color: scrolled ? "rgba(255,255,255,0.9)" : "rgba(26,15,46,0.6)",
-                background: scrolled ? "rgba(255,255,255,0.1)" : "transparent",
-              }}
+              <button type="button" onClick={switchLang}
+              className="w-10 h-10 rounded-full text-[12px] font-bold text-[#1A0F2E]/70 hover:bg-[#F3EEFF] transition focus-ring"
               aria-label={isRTL ? "التبديل إلى الفرنسية" : "Switch to Arabic"}>
               {t.switchLang}
             </button>
             <button type="button" onClick={onLoginClick}
-              className="hidden md:block text-[13px] font-semibold px-3 focus-ring transition-colors"
-              style={{ color: scrolled ? "rgba(255,255,255,0.85)" : "rgba(26,15,46,0.6)" }}>
+              className="hidden md:block text-[13px] font-semibold text-[#1A0F2E]/60 hover:text-[#1A0F2E] px-3 focus-ring">
               {t.signin}
             </button>
             <button type="button" onClick={goSignup}
               className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
-              style={{ background: scrolled ? AMBER : PURPLE, color: scrolled ? INK : "#fff" }}>
+              style={{ background: PURPLE }}>
               {t.start}
             </button>
             <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open}
-              className="lg:hidden w-10 h-10 rounded-full flex items-center justify-center focus-ring transition-colors"
-              style={{
-                color: scrolled ? "#fff" : INK,
-                background: scrolled ? "rgba(255,255,255,0.1)" : "transparent",
-              }}>
+              className="lg:hidden w-10 h-10 rounded-full hover:bg-[#F3EEFF] flex items-center justify-center focus-ring">
               <Menu className="w-5 h-5" />
             </button>
           </div>
         </div>
         <motion.div aria-hidden className="absolute bottom-0 inset-x-0 h-[2.5px]"
-          style={{ scaleX: scrollYProgress, background: AMBER, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
+          style={{ scaleX: scrollYProgress, background: PURPLE, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
       </header>
 
       <AnimatePresence>
@@ -1165,7 +1174,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {nav.map((l) => (
                   <a key={`${l.href}-${l.target}`} href={l.href}
                     onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                    className="py-4 text-[18px] font-bold focus-ring" style={{ borderBottom: `1px solid ${BORDER}`, color: INK }}>
+                    className="py-4 text-[18px] font-bold focus-ring" style={{ borderBottom: `1px solid ${BORDER}` }}>
                     {l.label}
                   </a>
                 ))}
@@ -1198,9 +1207,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </Kicker>
               </SlideUp>
               <SlideUp delay={0.06}>
+                {/* ✅ CORRECTION : whitespace-nowrap + SVG qui suit le texte, pas le parent */}
                 <h1
                   className="text-[clamp(2.5rem,7vw,5rem)] leading-[1.02] tracking-[-0.02em] font-extrabold"
-                  style={{ color: "#fff", fontFamily: display, textShadow: "0 2px 30px rgba(0,0,0,0.5)" }}
+                  style={{ color: "#fff", fontFamily: display, textShadow: "0 2px 30px rgba(0,0,0,0.4)" }}
                 >
                   {t.heroTitle1}{" "}
                   <span className="relative inline-block whitespace-nowrap">
@@ -1217,8 +1227,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </h1>
               </SlideUp>
               <SlideUp delay={0.14}>
-                <p className="mt-7 text-[15px] sm:text-[16px] text-white/90 max-w-xl mx-auto leading-relaxed"
-                  style={{ textShadow: "0 1px 12px rgba(0,0,0,0.4)" }}>
+                <p className="mt-7 text-[15px] sm:text-[16px] text-white/85 max-w-xl mx-auto leading-relaxed"
+                  style={{ textShadow: "0 1px 12px rgba(0,0,0,0.3)" }}>
                   {t.heroSub}
                 </p>
               </SlideUp>
@@ -1226,9 +1236,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
                   <button type="button" onClick={goSignup}
                     className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
-                    style={{ background: AMBER, color: INK, boxShadow: "0 10px 26px -10px rgba(233,161,59,0.7)" }}>
+                    style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                     {t.tryFree}
                   </button>
+                  {/* ✅ CORRECTION : Play recentré via translate-x-[1px] */}
                   <button type="button" onClick={handleToggleIntroAudio}
                     className="h-12 px-5 rounded-full border-2 bg-white/10 backdrop-blur-md hover:bg-white/20 text-[14px] font-semibold transition focus-ring flex items-center gap-2.5"
                     style={{ borderColor: "rgba(255,255,255,0.4)", color: "#fff" }}>
@@ -1245,7 +1256,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-3 sm:gap-5 flex-wrap">
                   {heroChecks.map((c) => (
-                    <span key={c} className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-white/85">
+                    <span key={c} className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-white/80">
                       <Check className="w-3.5 h-3.5 shrink-0" style={{ color: AMBER }} /> {c}
                     </span>
                   ))}
@@ -1269,7 +1280,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)]"
+                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]"
                   style={{ borderColor: "rgba(107,45,188,0.25)" }}
                   onMouseEnter={() => setPauseRotate(true)} onMouseLeave={() => setPauseRotate(false)}
                   onFocusCapture={() => setPauseRotate(true)} onBlurCapture={() => setPauseRotate(false)}>
@@ -1360,8 +1371,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </SlideUp>
 
             <SlideUp delay={0.44} className="mt-9">
-              <div className="flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/90 flex-wrap"
-                style={{ textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}>
+              <div className="flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/85 flex-wrap"
+                style={{ textShadow: "0 1px 8px rgba(0,0,0,0.3)" }}>
                 <div className="flex -space-x-1.5" dir="ltr">
                   {AVATAR_COLORS.map((c) => (
                     <div key={c} className="w-7 h-7 rounded-full border-2 border-white" style={{ background: c }} />
@@ -1386,9 +1397,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {[0, 1].map((copy) => (
               <div key={copy} className="flex items-center shrink-0">
                 {marqueeItems.map((m, i) => (
-                  <span key={i} className="flex items-center mx-7">
+                  <span key={i} className="flex items-center px-4 sm:px-6">
                     <span className="text-[13px] font-bold whitespace-nowrap" style={{ color: PAPER }}>{m}</span>
-                    <span className="ms-7 w-1.5 h-1.5 rotate-45 shrink-0" style={{ background: AMBER }} />
+                    <span className="ms-4 sm:ms-6 w-1.5 h-1.5 rotate-45 shrink-0" style={{ background: AMBER }} />
                   </span>
                 ))}
               </div>
@@ -1403,7 +1414,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {trust.map((p, i) => (
                 <span key={p.k} className="flex items-center gap-7">
                   <span className="flex flex-col items-center">
-                    <span className="text-[14px] font-extrabold tracking-tight" style={{ color: INK }}>{p.k}</span>
+                    <span className="text-[14px] font-extrabold tracking-tight">{p.k}</span>
                     <Kicker ar={isRTL} className="text-[10.5px] text-[#1A0F2E]/45 mt-0.5">{p.v}</Kicker>
                   </span>
                   {i < trust.length - 1 && (
