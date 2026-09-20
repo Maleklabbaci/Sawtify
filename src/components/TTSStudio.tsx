@@ -24,6 +24,7 @@ const formatTime = (seconds: number): string => {
   if (!seconds || isNaN(seconds)) return '0:00';
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
+  const [isPlayerMinimized, setIsPlayerMinimized] = useState<boolean>(false);
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
@@ -575,8 +576,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   // RENDER
   // ------------------------------------------------------------------
   return (
-    <div className="h-[calc(100dvh-64px)] w-full overflow-y-auto bg-slate-50/40 relative pb-28 lg:h-[calc(100vh-64px)] lg:overflow-hidden lg:pb-0">
-      
+<div className={`h-[calc(100dvh-64px)] w-full overflow-y-auto bg-slate-50/40 relative transition-all duration-300 lg:h-[calc(100vh-64px)] lg:overflow-hidden ${currentAudioUrl ? 'pb-[120px] lg:pb-0' : 'pb-28 lg:pb-0'}`}>
+  
       {/* Notification toast */}
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
