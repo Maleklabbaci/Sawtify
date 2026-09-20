@@ -1000,12 +1000,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const smoothTo = useCallback((href: string) => {
     setMenuOpen(false);
-    requestAnimationFrame(() => {
+    let tries = 0;
+    const tryScroll = () => {
       const el = document.querySelector(href) as HTMLElement | null;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY - 120;
-      window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" });
-    });
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (tries < 20) {
+        tries += 1;
+        requestAnimationFrame(tryScroll);
+      }
+    };
+    requestAnimationFrame(tryScroll);
   }, []);
   const navigatePublicSection = useCallback((path: string, target: string) => {
     smoothTo(target);
@@ -1019,7 +1024,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     };
     const target = initialTarget[window.location.pathname];
     if (!target) return;
-    const timer = window.setTimeout(() => smoothTo(target), 0);
+    const timer = window.setTimeout(() => smoothTo(target), 400);
     return () => window.clearTimeout(timer);
   }, [smoothTo]);
 
@@ -1191,7 +1196,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       
       <div className="relative z-[1]">
         {/* ═══════════ HERO avec VIDÉO D'ARRIÈRE-PLAN ═══════════ */}
-        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate overflow-hidden"
+        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate overflow-hidden scroll-mt-[130px]"
           style={{ color: PAPER }}>
           <BackgroundVideo />
 
@@ -1479,7 +1484,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ VOIX ═══ */}
-        <section id="voices" className="py-16 sm:py-24">
+        <section id="voices" className="py-16 sm:py-24 scroll-mt-[130px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <SectionHead eyebrow={isRTL ? "المكتبة الصوتية" : "La voixothèque"}
@@ -1575,7 +1580,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ PROCESSUS ═══ */}
-        <section id="process" className="py-16 sm:py-24">
+        <section id="process" className="py-16 sm:py-24 scroll-mt-[130px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <SectionHead eyebrow={isRTL ? "الطريقة" : "La méthode"}
@@ -1762,7 +1767,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ TARIFS ═══ */}
-        <section id="pricing" className="py-16 sm:py-24">
+        <section id="pricing" className="py-16 sm:py-24 scroll-mt-[130px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <SectionHead eyebrow={isRTL ? "الباقات" : "Les packs"}
@@ -1850,7 +1855,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ FAQ ═══ */}
-        <section id="faq" className="py-16 sm:py-24">
+        <section id="faq" className="py-16 sm:py-24 scroll-mt-[130px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="grid lg:grid-cols-12 gap-10">
               <div className="lg:col-span-4">
@@ -1937,7 +1942,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ FOOTER ═══ */}
-        <footer id="contact" className="pt-12 pb-28 sm:pb-12" style={{ borderTop: `1px solid ${BORDER}` }}>
+        <footer id="contact" className="pt-12 pb-28 sm:pb-12 scroll-mt-[110px]" style={{ borderTop: `1px solid ${BORDER}` }}>
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
               <div className="lg:col-span-2">
