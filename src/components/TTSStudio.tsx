@@ -12,8 +12,9 @@ import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestG
 import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
-import { supabase, uploadGenerationAudio, fetchMyGenerations } from './services/supabaseClient';
+import { supabase, uploadGenerationFile, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
+import { Download } from 'lucide-react'; // AJOUTE CECI SI MANQUANT
 
 // ==========================================================================
 // UTILITAIRES
