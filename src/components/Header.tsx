@@ -24,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-50 w-full h-16 bg-white/85 backdrop-blur-md border-b border-slate-200/80 transition-all">
       <div className="h-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-full gap-2 sm:gap-4">
+        <div className="flex items-center justify-between h-full gap-4">
           
           {/* Left: Branding */}
           <div 
@@ -44,14 +44,12 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </div>
 
-          {/* Center: Navigation Pills — défilement horizontal contrôlé et
-              contenu à cette seule zone, pour ne jamais faire déborder toute
-              la page (le verrou global anti-scroll-horizontal reste intact). */}
-          <nav className="flex items-center gap-0.5 bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/60 text-xs font-medium min-w-0 overflow-x-auto hide-scrollbar" style={{ touchAction: 'pan-x' }}>
+          {/* Center: Navigation Pills */}
+          <nav className="hidden lg:flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/60 text-xs font-medium">
             {/* Studio Tab */}
             <button
               onClick={() => setActiveTab('studio')}
-              className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 activeTab === 'studio' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
@@ -62,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* History Tab */}
             <button
               onClick={() => setActiveTab('history')}
-              className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 activeTab === 'history' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
@@ -79,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => undefined}
               disabled
               title="Montage vidéo — Prochainement"
-              className="group relative flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg px-3 py-1.5 text-slate-400 opacity-60 blur-[0.4px] transition"
+              className="group relative flex cursor-not-allowed items-center gap-1.5 rounded-lg px-3 py-1.5 text-slate-400 opacity-60 blur-[0.4px] transition"
             >
               <Clapperboard className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Montage vidéo</span>
@@ -89,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Pricing Tab */}
             <button
               onClick={() => setActiveTab('pricing')}
-              className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 activeTab === 'pricing' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
@@ -101,7 +99,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => canUseDeveloperApi && setActiveTab('developer')}
               disabled={!canUseDeveloperApi}
               title={canUseDeveloperApi ? 'Developer API Beta' : 'Disponible avec plus de 1 000 points'}
-              className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${activeTab === 'developer' ? 'bg-purple-600 text-white shadow-sm' : canUseDeveloperApi ? 'text-slate-600 hover:text-slate-900 hover:bg-white/50 cursor-pointer' : 'text-slate-400 cursor-not-allowed'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${activeTab === 'developer' ? 'bg-purple-600 text-white shadow-sm' : canUseDeveloperApi ? 'text-slate-600 hover:text-slate-900 hover:bg-white/50 cursor-pointer' : 'text-slate-400 cursor-not-allowed'}`}
             >
               {canUseDeveloperApi ? <Code2 className="w-3.5 h-3.5" /> : <Lock className="w-3 h-3" />}
               <span className="hidden md:inline">Développeur</span>
@@ -110,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Right: Balance & Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             
             {/* Balance Badge */}
             <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition ${

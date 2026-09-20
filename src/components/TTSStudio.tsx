@@ -563,7 +563,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, [text, language, showNotif]);
 
   return (
-    <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative">
+    <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative pb-20 lg:pb-0">
       
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
@@ -764,7 +764,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
 
             {/* BARRE DE STATUT (Feedback + Actions intégrées, plus de flottement) */}
-            <div className="shrink-0 pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            <div className="sticky bottom-0 z-20 -mx-4 -mb-4 mt-2 shrink-0 border-t border-slate-100 bg-white/95 px-3 pb-3 pt-3 backdrop-blur-xl lg:static lg:mx-0 lg:mb-0 lg:bg-transparent lg:px-0 lg:pb-0">
               
               {/* Groupe gauche : Bouton Magique + Copie */}
               <div className="flex items-center gap-1.5">
@@ -817,14 +817,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
 
               {/* Groupe droite : Coût + Générer */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-500 hidden sm:block" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
+              <div className="flex w-full items-center justify-between gap-2 lg:w-auto">
+                <span className="text-[10px] text-slate-500" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
                   {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
                 </span>
                 <button 
                   onClick={() => handleGenerate()} 
                   disabled={isGenerating || !text.trim()} 
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-40 text-xs">
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-500 disabled:opacity-40 lg:flex-none lg:px-4 lg:py-2">
                   {isGenerating ? (
                     <><span className="sawtify-button-loader" aria-hidden="true"><span className="sawtify-button-loader-ring" /><span className="sawtify-button-loader-letters"><span>S</span><span>A</span><span>W</span></span></span><span>{t.generatingBtn}</span></>
                   ) : (
@@ -989,7 +989,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
          PLAYER AUDIO FLOTTANT HAUT DE GAMME (Style ElevenLabs / Spotify)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="fixed bottom-4 inset-x-4 max-w-3xl mx-auto bg-slate-900/95 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-800/80 backdrop-blur-xl z-50 flex items-center justify-between gap-3 sm:gap-5 animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-[5.5rem] inset-x-3 z-[65] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 sm:bottom-4 sm:inset-x-4 sm:gap-5 sm:p-3.5">
           
           {/* ZONE 1 : Bouton Play & Infos Voix */}
           <div className="flex items-center gap-3 shrink-0">
