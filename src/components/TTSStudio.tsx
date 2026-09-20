@@ -996,7 +996,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
          PLAYER AUDIO FLOTTANT HAUT DE GAMME (Style ElevenLabs / Spotify)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="fixed bottom-[10.5rem] inset-x-3 z-[67] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 sm:bottom-4 sm:inset-x-4 sm:gap-5 sm:p-3.5">
+        <div className="fixed bottom-[10.5rem] inset-x-3 z-[67] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 sm:bottom-4 sm:inset-x-4 sm:gap-5 sm:p-3.5 lg:bottom-24">
           
           {/* ZONE 1 : Bouton Play & Infos Voix */}
           <div className="flex items-center gap-3 shrink-0">
