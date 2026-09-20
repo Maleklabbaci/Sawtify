@@ -12,7 +12,7 @@ import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestG
 import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
-import { supabase, uploadGenerationFile, fetchMyGenerations } from '../services/supabaseClient';
+import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
 
 // ==========================================================================
@@ -362,7 +362,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             const { data: userData } = await supabase.auth.getUser();
             const generationId = response.generation_id || `gen_${Date.now()}`;
             if (userData.user && audioBlob.size > 0) {
-              storagePath = await uploadGenerationFile(userData.user.id, generationId, audioBlob);
+              storagePath = await uploadGenerationAudio(userData.user.id, generationId, audioBlob);
             }
 
             const record: GenerationRecord = {
