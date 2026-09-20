@@ -96,7 +96,17 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
   const [, setLastGeneratedCost] = useState<number>(20);
+// Détecteur mobile (ajoute ceci près des autres useState)
+const [isMobile, setIsMobile] = useState(false);
+const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
 
+// Effet de détection responsive
+useEffect(() => {
+  const checkMobile = () => setIsMobile(window.innerWidth < 768);
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+  return () => window.removeEventListener('resize', checkMobile);
+}, []);
   // Menu emotions
   const [isEmotionsMenuOpen, setIsEmotionsMenuOpen] = useState<boolean>(false);
   const emotionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -971,139 +981,269 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       </div>
       </fieldset>
 
-      {/* ==================================================================
-          PLAYER AUDIO FLOTTANT AVEC MINIMIZE (CORRIGÉ)
+         {/* ==================================================================
+          PLAYER AUDIO : VERSION ADAPTATIVE 
+          - PC : Grand, fixe en bas, waveform visible
+          - Mobile : Compact par défaut, expansible au tap, ne cache RIEN
           ================================================================== */}
       {currentAudioUrl && (
         <div 
           className={`
-            fixed inset-x-0 bottom-0 z-[70] transition-all duration-300 ease-out origin-bottom
-            ${isPlayerMinimized ? 'translate-y-[calc(100%-56px)]' : 'translate-y-0'}
-            bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900/95
-            border-t border-purple-500/30 shadow-[0_-8px_32px_rgba(0,0,0,0.7)] backdrop-blur-xl
+            fixed left-0 right-0 z-[70] transition-all duration-300 ease-out
+            ${isMobile ? 'bottom-0 safe-area-bottom' : 'bottom-0'}
+            bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900/98
+            border-t border-purple-500/30 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] backdrop-blur-xl
           `}
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6 sm:py-3.5 flex items-center gap-3 sm:gap-5 relative">
-            
-            {/* Bouton minimize/maximize */}
-            <button 
-              onClick={() => setIsPlayerMinimized(!isPlayerMinimized)}
-              className="absolute -top-3 left-1/2 -translate-x-1/2 z-20
-                         w-8 h-6 bg-slate-700 hover:bg-slate-600 rounded-full 
-                         flex items-center justify-center cursor-pointer
-                         border border-slate-500 shadow-lg transition-colors"
-              title={isPlayerMinimized ? (language === 'ar' ? 'توسيع' : 'Agrandir') : (language === 'ar' ? 'تصغير' : 'Réduire')}
-            >
-              <ChevronDown className={`w-3 h-3 text-white transition-transform duration-300 ${isPlayerMinimized ? '' : 'rotate-180'}`} />
-            </button>
+          
+          {/* ========== VERSION MOBILE (Compacte) ========== */}
+          {isMobile && !isPlayerExpanded ? (
+            <div className="px-3 py-2.5 flex items-center gap-3">
+              {/* Bouton Play/Pause grand et accessible */}
+              <button 
+                onClick={togglePlay} 
+                className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer active:scale-95 transition-transform shrink-0 shadow-lg"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
+              </button>
 
-            {/* Contenu étendu (caché si minimized) */}
-            <div className={`flex items-center gap-3 sm:gap-5 w-full transition-all duration-300 overflow-hidden ${isPlayerMinimized ? 'opacity-0 h-0' : 'opacity-100'}`}>
-              
-              {/* Play button */}
-              <div className="flex items-center gap-3 shrink-0">
-                <button 
-                  onClick={togglePlay} 
-                  className="group relative w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 
-                             text-white flex items-center justify-center cursor-pointer 
-                             hover:scale-105 active:scale-95 transition-transform duration-200
-                             shadow-lg shadow-purple-600/40 ring-2 ring-white/10 shrink-0"
-                >
-                  {isPlaying ? (
-                    <Pause className="w-5 h-5 fill-white" />
-                  ) : (
-                    <Play className="w-5 h-5 ms-0.5 fill-white" />
-                  )}
-                </button>
+              {/* Infos essentielles */}
+              <div className="flex-1 min-w-0" onClick={() => setIsPlayerExpanded(true)}>
+                <p className="text-sm font-bold text-white truncate">{currentVoice.name}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-purple-300 font-mono tabular-nums">{formatTime(currentTime)}</span>
+                  {/* Mini progress bar tactile */}
+                  <div 
+                    className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden cursor-pointer"
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const percent = (e.clientX - rect.left) / rect.width;
+                      if(audioRef.current && audioDuration > 0) {
+                        audioRef.current.currentTime = percent * audioDuration;
+                        setCurrentTime(percent * audioDuration);
+                      }
+                    }}
+                  >
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
+                      style={{width: `${audioDuration > 0 ? Math.min(100, (currentTime/audioDuration)*100) : 0}%`}}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400 font-mono tabular-nums">{formatTime(audioDuration)}</span>
+                </div>
+              </div>
+
+              {/* Bouton Télécharger (toujours visible) */}
+              {mp3Url ? (
+                <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="shrink-0 p-2.5 bg-purple-600 rounded-lg text-white">
+                  <Download className="w-5 h-5" />
+                </a>
+              ) : (
+                <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="shrink-0 p-2.5 bg-slate-700 rounded-lg text-slate-300">
+                  <Download className="w-5 h-5" />
+                </a>
+              )}
+
+              {/* Bouton Fermer (petit mais tactile) */}
+              <button 
+                onClick={handleClosePlayer} 
+                className="shrink-0 p-2.5 text-slate-400 hover:text-red-400 rounded-lg active:bg-slate-800 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Fermer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Bouton Expand (flèche vers le haut) */}
+              <button 
+                onClick={() => setIsPlayerExpanded(true)} 
+                className="shrink-0 p-2 text-purple-400 hover:text-purple-300 rounded-lg active:bg-slate-800/50 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Agrandir le lecteur"
+              >
+                <ChevronUp className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            /* ========== VERSION PC OU MOBILE ÉTENDU (Complète) ========== */
+            <div className="relative">
+              {/* Header avec bouton minimise (seulement si mobile) */}
+              {isMobile && (
+                <div className="flex justify-center pb-1">
+                  <button 
+                    onClick={() => setIsPlayerExpanded(false)} 
+                    className="w-10 h-1 rounded-full bg-slate-600 hover:bg-slate-500 cursor-pointer transition-colors"
+                    aria-label="Réduire le lecteur"
+                  />
+                </div>
+              )}
+
+              <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-5 relative z-10">
                 
-                <div className="hidden sm:flex flex-col min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white truncate max-w-[180px]">{currentVoice.name}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">Ready</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs">
-                    <span className="text-purple-300 font-mono tabular-nums">{formatTime(currentTime)}</span>
-                    <div className="flex-1 h-[2px] bg-slate-700 rounded-full overflow-hidden min-w-[30px]">
-                      <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-150" style={{width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%`}} />
+                {/* Zone Contrôle Play */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <button 
+                    onClick={togglePlay} 
+                    className="
+                      group relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl 
+                      bg-gradient-to-br from-purple-600 to-pink-600 
+                      text-white flex items-center justify-center cursor-pointer 
+                      hover:scale-105 active:scale-95 transition-transform duration-200
+                      shadow-lg shadow-purple-600/40 ring-2 ring-white/10 shrink-0
+                    "
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-6 h-6 fill-white" />
+                    ) : (
+                      <Play className="w-6 h-6 ms-0.5 fill-white" />
+                    )}
+                    {isPlaying && (
+                      <span className="absolute inset-0 rounded-xl bg-white/20 animate-ping opacity-20" />
+                    )}
+                  </button>
+                  
+                  <div className="hidden sm:flex flex-col min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-bold text-white truncate max-w-[200px]">
+                        {currentVoice.name}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold whitespace-nowrap flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Ready
+                      </span>
                     </div>
-                    <span className="text-slate-400 font-mono tabular-nums">{formatTime(audioDuration)}</span>
+                    <div className="flex items-center gap-2 mt-1 text-xs font-mono">
+                      <span className="text-purple-300 tabular-nums">{formatTime(currentTime)}</span>
+                      <div className="flex-1 h-[2px] bg-slate-700 rounded-full overflow-hidden w-24 sm:w-32">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-150"
+                          style={{width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%`}} 
+                        />
+                      </div>
+                      <span className="text-slate-400 tabular-nums">{formatTime(audioDuration)}</span>
+                    </div>
+                  </div>
+
+                  {/* Temps sur mobile si expanded */}
+                  <div className="sm:hidden text-xs font-bold text-white font-mono min-w-[80px]">
+                    {formatTime(currentTime)} / {formatTime(audioDuration)}
                   </div>
                 </div>
 
-                <div className="sm:hidden text-xs font-bold text-white font-mono min-w-[80px]">
-                  {formatTime(currentTime)} / {formatTime(audioDuration)}
+                {/* Waveform Desktop */}
+                <div className="flex-1 min-w-0 hidden sm:flex items-center gap-3 
+                                bg-slate-800/60 px-4 py-2.5 rounded-xl 
+                                border border-slate-700/50 backdrop-blur-sm relative group">
+                  <WaveformPlayer 
+                    isPlaying={isPlaying}
+                    hasAudio={!!currentAudioUrl}
+                    currentTime={currentTime}
+                    duration={audioDuration}
+                  />
+                  {/* Overlay seek clickable */}
+                  <input 
+                    type="range" 
+                    min={0} max={audioDuration || 0} step={0.1} value={currentTime}
+                    onChange={(e) => { if(audioRef.current) { audioRef.current.currentTime = parseFloat(e.target.value); setCurrentTime(parseFloat(e.target.value)); }}}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                  />
+                  
+                  {/* Affichage temps au centre de la waveform au hover */}
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] px-2 py-1 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    {formatTime(currentTime)}
+                  </div>
+                </div>
+
+                {/* Actions Droite */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {mp3Url ? (
+                    <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} 
+                       className="
+                         group flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 
+                         bg-purple-600 hover:bg-purple-500 active:bg-purple-700 
+                         text-white rounded-xl text-xs sm:text-sm font-bold transition-all duration-200
+                         shadow-lg shadow-purple-900/40 border border-purple-500/30
+                         min-h-[40px] sm:min-h-[48px]
+                       "
+                    >
+                      <Download className="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-y-0.5 transition-transform" />
+                      <span className="hidden sm:inline">MP3</span>
+                    </a>
+                  ) : (
+                    <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`}
+                       className="
+                         group flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 
+                         bg-slate-800 hover:bg-slate-700 
+                         text-slate-300 hover:text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors
+                         border border-slate-700
+                         min-h-[40px] sm:min-h-[48px]
+                       "
+                    >
+                      <Download className="w-4 h-4 sm:w-5 sm:h-5 group-hover:text-white transition-colors" />
+                      <span className="hidden sm:inline">WAV</span>
+                    </a>
+                  )}
+
+                  <button 
+                    onClick={handleClosePlayer} 
+                    className="
+                      p-2.5 sm:p-3 text-slate-400 hover:text-red-400 
+                      hover:bg-red-500/10 rounded-xl 
+                      transition-colors duration-200
+                      border border-transparent hover:border-red-500/20
+                      min-h-[40px] sm:min-h-[48px] min-w-[40px] sm:min-w-[48px]
+                      flex items-center justify-center
+                    "
+                    title="Fermer le lecteur"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
+              
+              {/* Waveform simplifiée pour mobile quand expand */}
+              {isMobile && (
+                <div className="px-4 pb-3">
+                  <div className="h-12 bg-slate-800/80 rounded-lg overflow-hidden relative" onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    if(audioRef.current && audioDuration > 0) {
+                      audioRef.current.currentTime = percent * audioDuration;
+                      setCurrentTime(percent * audioDuration);
+                    }
+                  }}>
+                    {/* Barre de progression visuelle simplifiée */}
+                    <div className="absolute inset-0 flex items-center px-2">
+                      {[...Array(40)].map((_, i) => (
+                        <div 
+                          key={i} 
+                          className={`w-1 mx-[1px] rounded-full transition-all duration-100 ${
+                            (i / 40) <= (currentTime / audioDuration) 
+                              ? 'bg-purple-500 h-[60%]' 
+                              : 'bg-slate-600 h-[30%]'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {/* Overlay invisible pour seek */}
+                    <div className="absolute inset-0 z-10" />
+                  </div>
+                </div>
+              )}
 
-              {/* Waveform desktop */}
-              <div className="flex-1 min-w-0 hidden sm:flex items-center gap-3 bg-slate-800/60 px-4 py-2.5 rounded-xl border border-slate-700/50 relative group">
-                <WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} />
-                <input 
-                  type="range" min={0} max={audioDuration || 0} step={0.1} value={currentTime}
-                  onChange={(e) => { if(audioRef.current) { audioRef.current.currentTime = parseFloat(e.target.value); setCurrentTime(parseFloat(e.target.value)); }}}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                {mp3Url ? (
-                  <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="group flex items-center gap-2 px-3 py-2.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all duration-200 shadow-lg shadow-purple-900/40 border border-purple-400/30 cursor-pointer">
-                    <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" /><span className="hidden md:inline">MP3</span>
-                  </a>
-                ) : (
-                  <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="group flex items-center gap-2 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-colors border border-slate-600/50 cursor-pointer">
-                    <Download className="w-4 h-4 group-hover:text-white transition-colors" /><span className="hidden md:inline">WAV</span>
-                  </a>
-                )}
-                <button onClick={handleClosePlayer} className="p-2.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors duration-200 border border-transparent hover:border-red-500/20 cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <audio 
+                ref={audioRef} 
+                src={currentAudioUrl} 
+                onTimeUpdate={handleTimeUpdate} 
+                onEnded={() => setIsPlaying(false)} 
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                preload="auto"
+                className="hidden" 
+              />
             </div>
-
-            {/* Vue minimisée (visible seulement quand minimized) */}
-            {isPlayerMinimized && (
-              <div className="flex items-center justify-between w-full px-2">
-                <div className="flex items-center gap-3">
-                  <button onClick={togglePlay} className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center cursor-pointer hover:bg-purple-500 transition">
-                    {isPlaying ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 ms-0.5 fill-white" />}
-                  </button>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate max-w-[150px]">{currentVoice.name}</p>
-                    <p className="text-[10px] text-purple-300 font-mono">{formatTime(currentTime)} / {formatTime(audioDuration)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="hidden sm:block w-24 h-1 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 transition-all" style={{width: `${audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}%`}} />
-                  </div>
-                  <button onClick={handleClosePlayer} className="p-1.5 text-slate-400 hover:text-white transition cursor-pointer">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <audio ref={audioRef} src={currentAudioUrl} onTimeUpdate={handleTimeUpdate} onEnded={() => setIsPlaying(false)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} preload="auto" className="hidden" />
-          </div>
+          )}
         </div>
       )}
-
-      {/* Modal génération */}
-      {isGenerating && (
-        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/30 backdrop-blur-[2px]" aria-live="polite">
-          <div className="mx-5 w-full max-w-sm rounded-3xl border border-purple-200 bg-white/95 p-7 text-center shadow-2xl">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 shadow-lg shadow-purple-600/30">
-              <RefreshCw className="h-7 w-7 animate-spin text-white" />
-            </div>
-            <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération en cours…'}</h3>
-            <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة' : 'Ne ferme pas la page'}</p>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
-          </div>
-        </div>
-      )}
-    </div>
   );
 };
