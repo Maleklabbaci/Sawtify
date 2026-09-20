@@ -142,7 +142,7 @@ export const ReportWidget: React.FC = () => {
         type="button"
         onClick={() => { setCollapsed(false); setOpen(true); }}
         onMouseEnter={() => setCollapsed(false)}
-        className={`fixed z-40 bottom-[calc(1rem_+_env(safe-area-inset-bottom))] flex items-center justify-center bg-[#25D366] text-white shadow-lg shadow-[#25D366]/40 transition-all duration-300 cursor-pointer ${
+        className={`fixed z-[76] bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))] sm:bottom-[calc(1rem_+_env(safe-area-inset-bottom))] flex items-center justify-center bg-[#25D366] text-white shadow-lg shadow-[#25D366]/40 transition-all duration-300 cursor-pointer ${
           collapsed
             ? 'end-0 h-11 w-3 rounded-s-xl shadow-md hover:w-10'
             : 'end-4 h-11 w-11 rounded-full hover:bg-[#22c15e] hover:scale-105 active:scale-95'
@@ -153,7 +153,7 @@ export const ReportWidget: React.FC = () => {
         <MessageCircle className={`${collapsed ? 'h-3.5 w-3.5 opacity-80' : 'h-5 w-5'}`} />
         {collapsed && <span className="sr-only">{t.openBtn}</span>}
       </button>
-      {detectedIssue && !open && <button type="button" onClick={() => { setCollapsed(false); setOpen(true); }} className="fixed z-40 bottom-20 end-4 max-w-[240px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold text-amber-900 shadow-lg"><span className="block">Problème détecté</span><span className="mt-0.5 block truncate font-normal">{detectedIssue.detail} · ouvrir le rapport</span></button>}
+      {detectedIssue && !open && <button type="button" onClick={() => { setCollapsed(false); setOpen(true); }} className="fixed z-[76] bottom-[9.5rem] end-4 max-w-[240px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold text-amber-900 shadow-lg sm:bottom-20"><span className="block">Problème détecté</span><span className="mt-0.5 block truncate font-normal">{detectedIssue.detail} · ouvrir le rapport</span></button>}
 
       {open && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center bg-slate-950/50 backdrop-blur-sm">

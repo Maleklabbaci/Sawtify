@@ -326,7 +326,10 @@ function AppContent() {
     return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={() => { trackMarketingEvent('onboarding_completed'); return finishWelcome(); }} />;
   }
 
-  if (isBootstrapping || isCheckingSession) {
+  // Ne remplace jamais le formulaire d'inscription par le loader global :
+  // le chargement de session peut continuer en arrière-plan pendant que le
+  // visiteur remplit le formulaire.
+  if ((isBootstrapping || isCheckingSession) && !authModalMode) {
     return <ViewFallback />;
   }
 
@@ -393,7 +396,7 @@ function AppContent() {
         />
 
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-mono px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5">
+          <div className="fixed bottom-[5.5rem] right-4 z-[75] bg-slate-900 text-white text-xs font-mono px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 sm:bottom-6 sm:right-6">
             <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
             <span className="font-semibold">{toastMessage}</span>
           </div>
@@ -422,7 +425,7 @@ function AppContent() {
       {toastMessage && (
         <div 
           id="toast-notification"
-          className={`fixed bottom-6 ${isRTL ? 'left-6' : 'right-6'} z-50 bg-slate-900 text-white text-xs font-mono px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 animate-in slide-in-from-bottom-2`}
+          className={`fixed bottom-[5.5rem] ${isRTL ? 'left-4' : 'right-4'} z-[75] bg-slate-900 text-white text-xs font-mono px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 animate-in slide-in-from-bottom-2 sm:bottom-6 sm:${isRTL ? 'left-6' : 'right-6'}`}
         >
           <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
           <span className="font-semibold">{toastMessage}</span>

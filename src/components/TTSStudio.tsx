@@ -764,7 +764,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
 
             {/* BARRE DE STATUT (Feedback + Actions intégrées, plus de flottement) */}
-            <div className="sticky bottom-0 z-20 -mx-4 -mb-4 mt-2 shrink-0 border-t border-slate-100 bg-white/95 px-3 pb-3 pt-3 backdrop-blur-xl lg:static lg:mx-0 lg:mb-0 lg:bg-transparent lg:px-0 lg:pb-0">
+            <div className="fixed bottom-[5.25rem] inset-x-3 z-[68] mx-auto max-w-3xl shrink-0 rounded-2xl border border-slate-200 bg-white/95 px-3 pb-3 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl lg:static lg:mx-0 lg:mb-0 lg:max-w-none lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-2 lg:shadow-none">
               
               {/* Groupe gauche : Bouton Magique + Copie */}
               <div className="flex items-center gap-1.5">
@@ -989,7 +989,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
          PLAYER AUDIO FLOTTANT HAUT DE GAMME (Style ElevenLabs / Spotify)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="fixed bottom-[5.5rem] inset-x-3 z-[65] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 sm:bottom-4 sm:inset-x-4 sm:gap-5 sm:p-3.5">
+        <div className="fixed bottom-[10.5rem] inset-x-3 z-[67] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 sm:bottom-4 sm:inset-x-4 sm:gap-5 sm:p-3.5">
           
           {/* ZONE 1 : Bouton Play & Infos Voix */}
           <div className="flex items-center gap-3 shrink-0">
