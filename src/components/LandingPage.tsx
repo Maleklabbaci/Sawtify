@@ -30,6 +30,8 @@ import {
   SkipForward,
   Lock,
   Timer,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
 
@@ -40,25 +42,30 @@ export interface LandingPageProps {
   setLanguage: (lang: "fr" | "ar") => void;
 }
 
-/* ═══════════ PALETTE ÉDITORIALE (zéro look "IA") ═══════════ */
-const PAPER = "#FAF6EE"; // papier crème chaud
-const INK = "#201A12"; // noir chaud
-const GREEN = "#0E7A45"; // vert algérien
-const GREEN_DARK = "#0B5F36";
-const GREEN_SOFT = "#E8F3ED";
+/* ═══════════ PALETTE — VIOLET ALGÉRIEN (KSAR / OASIS MODERNE) ═══════════ */
+// Violet algérien profond : évocation du ksar, des tapis, du crépuscule
+const PAPER = "#FAF6EE"; // papier crème chaud (conservé — liant)
+const INK = "#1A0F2E"; // encre violet nuit
+const PURPLE = "#6B2DBC"; // violet principal (royal)
+const PURPLE_DARK = "#4A1E87"; // violet profond
+const PURPLE_SOFT = "#F0E8FA"; // violet papier
+const PURPLE_GLOW = "rgba(107, 45, 188, 0.45)";
+const GREEN = "#0E7A45"; // conservé en accent secondaire (algérien)
 const AMBER = "#E9A13B"; // ambre (tampons, étoiles, compte à rebours)
-const CLAY = "#C2452A"; // brique (ancien prix, erreurs)
+const CLAY = "#C2452A"; // brique
 const BORDER = "#E5DCCB";
-const LOGO =
-  "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
+const BG_VIDEO_URL =
+  "https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202509051613.mp4";
 const INTRO_AUDIO_URL =
   "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
+const LOGO =
+  "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 const MONO_STACK = "'JetBrains Mono', 'Cairo', monospace";
 const NUM_STACK = "'Space Grotesk', 'Cairo', sans-serif";
 const AR_STACK = "'Cairo', sans-serif";
 const FONTS_URL =
   "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap";
-const AVATAR_COLORS = ["#0E7A45", "#C13B5E", "#2C5E9E"];
+const AVATAR_COLORS = ["#6B2DBC", "#C13B5E", "#2C5E9E"];
 
 const GlobalStyles = () => (
   <style>{`
@@ -66,27 +73,106 @@ const GlobalStyles = () => (
     body { background: ${PAPER}; color: ${INK}; margin: 0; }
     #sawtify-landing { overflow-x: clip; }
     #sawtify-landing * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    #sawtify-landing ::selection { background: ${GREEN}; color: #fff; }
+    #sawtify-landing ::selection { background: ${PURPLE}; color: #fff; }
     #sawtify-landing ::-webkit-scrollbar { width: 10px; }
     #sawtify-landing ::-webkit-scrollbar-track { background: #F1EADB; }
-    #sawtify-landing ::-webkit-scrollbar-thumb { background: rgba(14,122,69,0.35); border-radius: 10px; }
+    #sawtify-landing ::-webkit-scrollbar-thumb { background: rgba(107,45,188,0.35); border-radius: 10px; }
     #sawtify-landing .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
     #sawtify-landing .scrollbar-none::-webkit-scrollbar { display: none; }
     @keyframes wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
     #sawtify-landing .wave-bar { animation: wave 1.3s ease-in-out infinite; transform-origin: bottom; }
-    #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${GREEN}; outline-offset: 3px; border-radius: 10px; }
-    /* Grain papier — donne un rendu "imprimé", pas "généré" */
+    #sawtify-landing .focus-ring:focus-visible { outline: 2px solid ${PURPLE}; outline-offset: 3px; border-radius: 10px; }
+    /* Grain papier */
     #sawtify-landing .grain { position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"); }
     @keyframes marquee { to { transform: translateX(-50%); } }
     #sawtify-landing .marquee-track { animation: marquee 28s linear infinite; }
     #sawtify-landing .marquee:hover .marquee-track { animation-play-state: paused; }
     #sawtify-landing .card-lift { transition: transform .35s cubic-bezier(0.16,1,0.3,1), box-shadow .35s, border-color .35s; }
-    @media (hover: hover) { #sawtify-landing .card-lift:hover { transform: translateY(-4px); box-shadow: 0 16px 36px -18px rgba(32,26,18,0.28); border-color: rgba(14,122,69,0.4); } }
-    #sawtify-landing .hov-ink:hover, #sawtify-landing .hov-ink:focus-visible { border-color: rgba(32,26,18,0.5); }
+    @media (hover: hover) { #sawtify-landing .card-lift:hover { transform: translateY(-4px); box-shadow: 0 16px 36px -18px rgba(26,15,46,0.32); border-color: rgba(107,45,188,0.4); } }
+    #sawtify-landing .hov-ink:hover, #sawtify-landing .hov-ink:focus-visible { border-color: rgba(26,15,46,0.5); }
+    /* Nouveaux effets : halo violet, brillance, parallaxe */
+    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 ${PURPLE_GLOW}; } 70% { box-shadow: 0 0 0 18px rgba(107,45,188,0); } }
+    #sawtify-landing .pulse-glow { animation: pulse-glow 2.4s infinite; }
+    @keyframes shine { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
+    #sawtify-landing .shine::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%); animation: shine 3.5s ease-in-out infinite; pointer-events: none; }
+    @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    #sawtify-landing .float { animation: float-y 4.5s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
   `}</style>
 );
+
+/* ═══════════ 🆕 COMPOSANT VIDÉO D'ARRIÈRE-PLAN ═══════════ */
+const BackgroundVideo = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [ready, setReady] = useState(false);
+  const { scrollY } = useScroll();
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    // Lecture automatique silencieuse, en boucle, sans contrôles
+    v.muted = true;
+    v.playsInline = true;
+    v.loop = true;
+    v.autoplay = true;
+    const onReady = () => setReady(true);
+    v.addEventListener("canplay", onReady, { once: true });
+    const playPromise = v.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => { /* autoplay bloqué : on ré-essaiera à l'interaction */ });
+    }
+    return () => v.removeEventListener("canplay", onReady);
+  }, []);
+
+  // Tente de relancer la vidéo si l'autoplay a été bloqué au chargement
+  useEffect(() => {
+    const onFirstInteract = () => {
+      if (videoRef.current && videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener("pointerdown", onFirstInteract, { once: true, capture: true });
+    return () => window.removeEventListener("pointerdown", onFirstInteract, { capture: true } as EventListenerOptions);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
+      <video
+        ref={videoRef}
+        src={BG_VIDEO_URL}
+        muted
+        loop
+        playsInline
+        autoPlay
+        preload="auto"
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+        style={{
+          opacity: ready ? 0.55 : 0,
+          // Légère parallaxe au scroll (effet "profondeur" subtil)
+          transform: `translate3d(0, ${Math.min(scrollY.get() * 0.08, 60)}px, 0) scale(${1 + Math.min(scrollY.get() * 0.00015, 0.04)})`,
+          willChange: "transform",
+        }}
+      />
+      {/* Overlay dégradé violet — assure lisibilité du texte + cohérence charte */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(26,15,46,0.35) 0%, rgba(26,15,46,0.55) 35%, rgba(26,15,46,0.85) 75%, rgba(26,15,46,0.95) 100%)",
+        }}
+      />
+      {/* Vignettage subtil pour focus central */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 35%, rgba(26,15,46,0.45) 100%)",
+        }}
+      />
+    </div>
+  );
+};
 
 const Logo = ({ size = 38 }: { size?: number }) => {
   const [imgError, setImgError] = useState(false);
@@ -94,7 +180,7 @@ const Logo = ({ size = 38 }: { size?: number }) => {
     <div className="flex items-center gap-2.5 select-none">
       <div
         className="rounded-xl overflow-hidden shrink-0"
-        style={{ width: size, height: size, boxShadow: "0 3px 12px rgba(32,26,18,0.18)" }}
+        style={{ width: size, height: size, boxShadow: "0 3px 12px rgba(107,45,188,0.35)" }}
       >
         {!imgError ? (
           <img
@@ -109,7 +195,7 @@ const Logo = ({ size = 38 }: { size?: number }) => {
         ) : (
           <div
             className="w-full h-full flex items-center justify-center font-bold text-white"
-            style={{ background: GREEN, fontSize: size * 0.5, fontFamily: NUM_STACK }}
+            style={{ background: PURPLE, fontSize: size * 0.5, fontFamily: NUM_STACK }}
           >
             S
           </div>
@@ -134,9 +220,6 @@ const Mono = ({ children, className = "", style, dir }: {
   <span dir={dir} className={className} style={{ fontFamily: MONO_STACK, ...style }}>{children}</span>
 );
 
-/* ═══════════ 🔑 FIX CRITIQUE : l'arabe est une écriture liée.
-   letter-spacing / uppercase DÉCONNECTENT les lettres → mots "cassés".
-   Ce composant désactive l'espacement en arabe, partout. ═══════════ */
 const Kicker = ({ ar, children, className = "", style }: {
   ar: boolean; children: React.ReactNode; className?: string; style?: React.CSSProperties;
 }) => (
@@ -153,14 +236,14 @@ const SectionHead = ({ eyebrow, title, sub, center = false, font, ar }: {
 }) => (
   <div className={center ? "text-center mx-auto max-w-2xl" : "max-w-2xl"}>
     {eyebrow && (
-      <Kicker ar={ar} className="block mb-3 text-[11.5px]" style={{ color: GREEN }}>
+      <Kicker ar={ar} className="block mb-3 text-[11.5px]" style={{ color: PURPLE }}>
         {eyebrow}
       </Kicker>
     )}
     <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.08] tracking-[-0.015em] font-extrabold" style={{ color: INK, fontFamily: font }}>
       {title}
     </h2>
-    {sub && <p className="mt-4 text-[14px] text-[#201A12]/65 leading-relaxed">{sub}</p>}
+    {sub && <p className="mt-4 text-[14px] text-[#1A0F2E]/65 leading-relaxed">{sub}</p>}
   </div>
 );
 
@@ -176,7 +259,7 @@ const Waveform = React.memo(function Waveform({ color, playing, bars = 30 }: {
           <span key={i} className={`flex-1 rounded-full origin-bottom ${playing ? "wave-bar" : ""}`}
             style={{
               height: `${h}%`, maxWidth: 4,
-              background: hot ? color : "rgba(32,26,18,0.14)",
+              background: hot ? color : "rgba(26,15,46,0.14)",
               opacity: playing ? 1 : 0.55,
               animationDelay: `${(i % 10) * 0.1}s`,
             }} />
@@ -235,7 +318,6 @@ function useScrolled() {
   return scrolled;
 }
 
-/* 🔥 Compte à rebours d'offre (48h glissantes, persistant) */
 function useOfferCountdown() {
   const [left, setLeft] = useState<{ h: string; m: string; s: string } | null>(null);
   useEffect(() => {
@@ -264,7 +346,6 @@ function useOfferCountdown() {
   return left;
 }
 
-/* 🔥 Exit intent (desktop, 1x par session) */
 function useExitIntent(onTrigger: () => void) {
   const triggered = useRef(false);
   const cbRef = useRef(onTrigger);
@@ -343,28 +424,28 @@ const AudioDock = ({ isPlaying, volume, onToggle, isRTL, hidden = false }: {
       initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", damping: 22, stiffness: 120, delay: 0.8 }}
       className={`fixed bottom-24 sm:bottom-6 end-3 sm:end-6 z-[80] transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none translate-y-3" : "opacity-100"}`}>
-      <div className="flex items-center gap-3 rounded-full border bg-white pl-4 pr-1.5 py-1.5 shadow-[0_10px_30px_rgba(32,26,18,0.16)]"
-        style={{ borderColor: "rgba(32,26,18,0.14)" }}>
-        {isPlaying ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: GREEN }} />
-          : <VolumeX className="w-4 h-4 shrink-0 text-[#201A12]/30" />}
+      <div className="flex items-center gap-3 rounded-full border bg-white pl-4 pr-1.5 py-1.5 shadow-[0_10px_30px_rgba(107,45,188,0.25)]"
+        style={{ borderColor: "rgba(107,45,188,0.25)" }}>
+        {isPlaying ? <Volume2 className="w-4 h-4 shrink-0" style={{ color: PURPLE }} />
+          : <VolumeX className="w-4 h-4 shrink-0 text-[#1A0F2E]/30" />}
         <div className="flex items-end gap-[2.5px] h-4 shrink-0" dir="ltr" aria-hidden>
           {F.map((f, i) => (
             <span key={i} className="w-[3px] rounded-full"
               style={{
                 height: isPlaying ? Math.max(4, 4 + volume * 14 * f) : 4,
-                background: isPlaying ? GREEN : "rgba(32,26,18,0.18)",
+                background: isPlaying ? PURPLE : "rgba(26,15,46,0.18)",
                 transition: "height 0.09s ease-out",
               }} />
           ))}
         </div>
         <Kicker ar={isRTL} className="hidden sm:block text-[11px] whitespace-nowrap"
-          style={{ color: isPlaying ? GREEN : "rgba(32,26,18,0.55)" }}>
+          style={{ color: isPlaying ? PURPLE : "rgba(26,15,46,0.55)" }}>
           {isPlaying ? (isRTL ? "بثّ مباشر" : "On air") : (isRTL ? "اسمع التقديم" : "Écouter l'intro")}
         </Kicker>
         <button type="button" onClick={onToggle} aria-pressed={isPlaying}
           aria-label={isPlaying ? (isRTL ? "إيقاف الصوت" : "Arrêter l'audio") : (isRTL ? "تشغيل التقديم" : "Lire l'intro")}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring"
-          style={{ background: GREEN, color: "#fff" }}>
+          className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105 focus-ring pulse-glow"
+          style={{ background: PURPLE, color: "#fff" }}>
           {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ms-0.5" />}
         </button>
       </div>
@@ -383,7 +464,7 @@ type VoiceCard = {
 const VOICES: VoiceCard[] = [
   {
     id: "amine", nameFr: "Amine", nameAr: "أمين", tagFr: "Voix commerciale", tagAr: "صوت تجاري",
-    location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#0E7A45",
+    location: "Alger, DZ", gender: "male", category: "commercial", rating: 4.9, reviews: 234, color: "#6B2DBC",
     sampleFr: "Salam 3likoum khawti! M3a Sawtify, nassek yewli sawt tabi3i, wadeh, wahli l i3lanat.",
     sampleAr: "سلام عليكم خاوتي! مع صوتيفي، نصوصكم تولي صوت طبيعي، واضح، جاهز للإعلانات.",
     audioUrl: "https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3",
@@ -509,8 +590,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const overlayRef = useRef(false);
   overlayRef.current = overlayOpen;
 
-  /* ═══════════ 🇩🇿 DÉFAUT : ARABE au premier chargement.
-     Choix mémorisé → l'utilisateur qui passe en FR garde FR. ═══════════ */
   const bootRef = useRef(false);
   useLayoutEffect(() => {
     if (bootRef.current) return;
@@ -585,7 +664,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   useEffect(() => {
     const audio = new Audio(INTRO_AUDIO_URL);
     audio.crossOrigin = "anonymous";
-    audio.preload = "metadata"; /* ⚡ la page charge d'abord, l'audio ensuite */
+    audio.preload = "metadata";
     introAudioRef.current = audio;
     audio.onended = () => { setIsIntroPlaying(false); setAudioVolume(0); };
     const tick = () => {
@@ -593,7 +672,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         const raw = readLevel();
         smoothRef.current = smoothRef.current * 0.5 + raw * 0.5;
         const next = smoothRef.current;
-        setAudioVolume((prev) => (Math.abs(next - prev) > 0.045 ? next : prev)); /* ⚡ throttle re-renders */
+        setAudioVolume((prev) => (Math.abs(next - prev) > 0.045 ? next : prev));
         animFrameRef.current = requestAnimationFrame(tick);
       } else setAudioVolume(0);
     };
@@ -894,7 +973,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setMenuOpen(false);
     const el = document.querySelector(href);
     if (!el) return;
-    /* offset = barre 44px + header 64px + marge */
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
   }, []);
   const navigatePublicSection = useCallback((path: string, target: string) => {
@@ -982,9 +1060,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       <a href="#home"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[90] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm text-white"
-        style={{ background: GREEN }}>{t.skip}</a>
+        style={{ background: PURPLE }}>{t.skip}</a>
 
-      {/* ═══════════ 📌 BARRE D'URGENCE — ÉLÉMENT SÉPARÉ, fixed, JAMAIS ne scrolle ═══════════ */}
+      {/* ═══════════ 📌 BARRE D'URGENCE ═══════════ */}
       <div className="fixed top-0 inset-x-0 z-[70] h-11 flex items-center justify-center gap-2.5 px-3"
         style={{ background: INK, color: PAPER }}>
         <Gift className="w-4 h-4 shrink-0" style={{ color: AMBER }} />
@@ -1002,7 +1080,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </button>
       </div>
 
-      {/* ═══════════ HEADER — fixé juste SOUS la barre (top-11 = 44px) ═══════════ */}
+      {/* ═══════════ HEADER ═══════════ */}
       <header className={`fixed top-11 inset-x-0 z-[60] transition-all duration-300 ${scrolled ? "border-b" : ""}`}
         style={{
           background: scrolled ? "rgba(250,246,238,0.93)" : "transparent",
@@ -1013,37 +1091,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
             <Logo size={38} />
           </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#201A12]/60">
+          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#1A0F2E]/60">
             {nav.map((l) => (
               <a key={`${l.href}-${l.target}`} href={l.href}
                 onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                className="hover:text-[#201A12] transition-colors focus-ring">{l.label}</a>
+                className="hover:text-[#6B2DBC] transition-colors focus-ring">{l.label}</a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button type="button" onClick={switchLang}
-              className="w-10 h-10 rounded-full text-[12px] font-bold text-[#201A12]/60 hover:bg-[#201A12]/5 transition focus-ring"
+              className="w-10 h-10 rounded-full text-[12px] font-bold text-[#1A0F2E]/60 hover:bg-[#1A0F2E]/5 transition focus-ring"
               aria-label={isRTL ? "التبديل إلى الفرنسية" : "Switch to Arabic"}>
               {t.switchLang}
             </button>
             <button type="button" onClick={onLoginClick}
-              className="hidden md:block text-[13px] font-semibold text-[#201A12]/60 hover:text-[#201A12] px-3 focus-ring">
+              className="hidden md:block text-[13px] font-semibold text-[#1A0F2E]/60 hover:text-[#1A0F2E] px-3 focus-ring">
               {t.signin}
             </button>
             <button type="button" onClick={goSignup}
               className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
-              style={{ background: GREEN }}>
+              style={{ background: PURPLE }}>
               {t.start}
             </button>
             <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open}
-              className="lg:hidden w-10 h-10 rounded-full hover:bg-[#201A12]/5 flex items-center justify-center focus-ring">
+              className="lg:hidden w-10 h-10 rounded-full hover:bg-[#1A0F2E]/5 flex items-center justify-center focus-ring">
               <Menu className="w-5 h-5" />
             </button>
           </div>
         </div>
-        {/* barre de progression — collée à la base du header */}
         <motion.div aria-hidden className="absolute bottom-0 inset-x-0 h-[2.5px]"
-          style={{ scaleX: scrollYProgress, background: GREEN, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
+          style={{ scaleX: scrollYProgress, background: PURPLE, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
       </header>
 
       <AnimatePresence>
@@ -1051,7 +1128,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setMenuOpen(false)}
-              className="fixed inset-0 z-[55] bg-[#201A12]/40 lg:hidden" />
+              className="fixed inset-0 z-[55] bg-[#1A0F2E]/40 lg:hidden" />
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
@@ -1060,7 +1137,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="flex items-center justify-between px-5 h-16" style={{ borderBottom: `1px solid ${BORDER}` }}>
                 <Logo size={34} />
                 <button type="button" onClick={() => setMenuOpen(false)}
-                  className="w-10 h-10 rounded-full hover:bg-[#201A12]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  className="w-10 h-10 rounded-full hover:bg-[#1A0F2E]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1073,11 +1150,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </a>
                 ))}
                 <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }}
-                  className="mt-4 py-3 text-start text-[16px] font-semibold text-[#201A12]/60">{t.signin}</button>
+                  className="mt-4 py-3 text-start text-[16px] font-semibold text-[#1A0F2E]/60">{t.signin}</button>
               </nav>
               <div className="p-5">
                 <button type="button" onClick={() => { setMenuOpen(false); goSignup(); }}
-                  className="w-full h-12 rounded-full font-bold text-white" style={{ background: GREEN }}>
+                  className="w-full h-12 rounded-full font-bold text-white" style={{ background: PURPLE }}>
                   {t.start}
                 </button>
               </div>
@@ -1087,24 +1164,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </AnimatePresence>
 
       <div className="relative z-[1]">
-        {/* ═══════════ HERO (padding = barre 44 + header 64 + marge) ═══════════ */}
-        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20"
-          style={{ background: "radial-gradient(900px 420px at 50% -60px, rgba(14,122,69,0.07), transparent 70%)" }}>
-          <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+        {/* ═══════════ HERO avec VIDÉO D'ARRIÈRE-PLAN ═══════════ */}
+        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate"
+          style={{ color: PAPER }}>
+          <BackgroundVideo />
+
+          <div className="relative z-[1] mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="max-w-3xl mx-auto text-center">
               <SlideUp>
-                <Kicker ar={isRTL} className="inline-block text-[12px] mb-4 px-3 py-1 rounded-full"
-                  style={{ color: GREEN, background: GREEN_SOFT }}>
-                  {"// "}{t.heroKicker}
+                <Kicker ar={isRTL} className="inline-flex items-center gap-1.5 text-[12px] mb-4 px-3 py-1 rounded-full"
+                  style={{ color: "#fff", background: "rgba(107,45,188,0.65)", backdropFilter: "blur(6px)" }}>
+                  <Sparkles className="w-3.5 h-3.5" /> {t.heroKicker}
                 </Kicker>
               </SlideUp>
               <SlideUp delay={0.06}>
                 <h1 className="text-[clamp(2.7rem,7vw,5.2rem)] leading-[1.02] tracking-[-0.02em] font-extrabold"
-                  style={{ color: INK, fontFamily: display }}>
+                  style={{ color: "#fff", fontFamily: display, textShadow: "0 2px 30px rgba(0,0,0,0.35)" }}>
                   {t.heroTitle1}{" "}
                   <span className="relative inline-block">
                     {t.heroTitle2}
-                    {/* soulignement dessiné à la main — touche humaine */}
                     <svg className="absolute -bottom-2 inset-x-0 w-full h-3" viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden>
                       <path d="M2 8 C 40 2, 80 11, 120 6 S 180 3, 198 7" fill="none" stroke={AMBER} strokeWidth="4.5" strokeLinecap="round" />
                     </svg>
@@ -1112,33 +1190,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </h1>
               </SlideUp>
               <SlideUp delay={0.14}>
-                <p className="mt-7 text-[15px] sm:text-[16px] text-[#201A12]/70 max-w-xl mx-auto leading-relaxed">
+                <p className="mt-7 text-[15px] sm:text-[16px] text-white/85 max-w-xl mx-auto leading-relaxed"
+                  style={{ textShadow: "0 1px 12px rgba(0,0,0,0.3)" }}>
                   {t.heroSub}
                 </p>
               </SlideUp>
               <SlideUp delay={0.22}>
                 <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
                   <button type="button" onClick={goSignup}
-                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
-                    style={{ background: GREEN, boxShadow: "0 10px 26px -10px rgba(14,122,69,0.55)" }}>
+                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine relative overflow-hidden"
+                    style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                     {t.tryFree}
                   </button>
                   <button type="button" onClick={handleToggleIntroAudio}
-                    className="h-12 px-5 rounded-full border-2 bg-white hov-ink text-[14px] font-semibold transition focus-ring flex items-center gap-2.5"
-                    style={{ borderColor: "rgba(32,26,18,0.2)" }}>
-                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: INK }}>
+                    className="h-12 px-5 rounded-full border-2 bg-white/10 backdrop-blur-md hover:bg-white/20 text-[14px] font-semibold transition focus-ring flex items-center gap-2.5"
+                    style={{ borderColor: "rgba(255,255,255,0.4)", color: "#fff" }}>
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: PAPER, color: PURPLE }}>
                       {isIntroPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current ms-0.5" />}
                     </span>
                     {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
                 </div>
-                <p className="mt-4 text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: GREEN }}>
+                <p className="mt-4 text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: AMBER }}>
                   <Gift className="w-4 h-4" /> {t.welcomeChip}
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-3 sm:gap-5 flex-wrap">
                   {heroChecks.map((c) => (
-                    <span key={c} className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[#201A12]/55">
-                      <Check className="w-3.5 h-3.5 shrink-0" style={{ color: GREEN }} /> {c}
+                    <span key={c} className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-white/80">
+                      <Check className="w-3.5 h-3.5 shrink-0" style={{ color: AMBER }} /> {c}
                     </span>
                   ))}
                 </div>
@@ -1148,12 +1227,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* ═══ LECTEUR STUDIO + TAMSON "50 نقطة" ═══ */}
             <SlideUp delay={0.34} className="mt-14 max-w-3xl mx-auto">
               <div className="relative">
-                {/* tampon incliné */}
                 <div className="absolute -top-6 end-5 sm:-end-7 z-10 rotate-[8deg]" aria-hidden>
                   <div className="w-[88px] h-[88px] rounded-full flex items-center justify-center text-center"
-                    style={{ background: AMBER, color: INK, boxShadow: "0 10px 24px rgba(32,26,18,0.22)" }}>
+                    style={{ background: AMBER, color: INK, boxShadow: "0 10px 24px rgba(233,161,59,0.5)" }}>
                     <div className="w-[76px] h-[76px] rounded-full border-2 border-dashed flex flex-col items-center justify-center px-1"
-                      style={{ borderColor: "rgba(32,26,18,0.45)" }}>
+                      style={{ borderColor: "rgba(26,15,46,0.45)" }}>
                       <Gift className="w-4 h-4 mb-0.5" />
                       <span className="text-[10px] font-extrabold leading-[1.2]">
                         {isRTL ? "50 نقطة هدية" : "50 pts offerts"}
@@ -1162,8 +1240,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_24px_60px_-34px_rgba(32,26,18,0.4)]"
-                  style={{ borderColor: BORDER }}
+                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]"
+                  style={{ borderColor: "rgba(107,45,188,0.25)" }}
                   onMouseEnter={() => setPauseRotate(true)} onMouseLeave={() => setPauseRotate(false)}
                   onFocusCapture={() => setPauseRotate(true)} onBlurCapture={() => setPauseRotate(false)}>
                   <div className="flex items-center gap-1.5 px-4 h-10" style={{ background: INK }}>
@@ -1189,18 +1267,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           <AnimatePresence mode="wait">
                             <motion.span key={featured.id + language}
                               initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                              transition={{ duration: 0.22 }} className="text-[17px] font-bold truncate">
+                              transition={{ duration: 0.22 }} className="text-[17px] font-bold truncate" style={{ color: INK }}>
                               {isRTL ? featured.nameAr : featured.nameFr}
                             </motion.span>
                           </AnimatePresence>
                         </div>
-                        <div className="text-[12px] text-[#201A12]/50 mt-1 truncate">
+                        <div className="text-[12px] text-[#1A0F2E]/50 mt-1 truncate">
                           {heroPlaying ? t.audioPreview : `${isRTL ? featured.tagAr : featured.tagFr} · ${featured.location}`}
                         </div>
                       </div>
                       <div className="text-end shrink-0">
-                        <Mono className="block text-[10px] tracking-[0.2em] uppercase text-[#201A12]/40">24 kHz</Mono>
-                        <div className="text-[13px] font-bold mt-0.5" style={{ color: GREEN }}>
+                        <Mono className="block text-[10px] tracking-[0.2em] uppercase text-[#1A0F2E]/40">24 kHz</Mono>
+                        <div className="text-[13px] font-bold mt-0.5" style={{ color: PURPLE }}>
                           <Num>20</Num> {t.pts}
                         </div>
                       </div>
@@ -1209,12 +1287,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <Waveform color={featured.color} playing={heroPlaying} bars={40} />
                     </div>
                     <div dir="ltr" className="mt-4 flex items-center gap-3">
-                      <Mono className="text-[11px] text-[#201A12]/50 w-10 shrink-0 tabular-nums">{fmtTime(dispElapsed)}</Mono>
+                      <Mono className="text-[11px] text-[#1A0F2E]/50 w-10 shrink-0 tabular-nums">{fmtTime(dispElapsed)}</Mono>
                       <div className="relative flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "#EFE8D8" }}>
                         <div className="absolute inset-y-0 start-0 rounded-full"
                           style={{ width: `${dispProgress * 100}%`, background: featured.color, transition: "width 0.2s linear" }} />
                       </div>
-                      <Mono className="text-[11px] text-[#201A12]/50 w-10 shrink-0 text-end tabular-nums">{fmtTime(dispTotal)}</Mono>
+                      <Mono className="text-[11px] text-[#1A0F2E]/50 w-10 shrink-0 text-end tabular-nums">{fmtTime(dispTotal)}</Mono>
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                       <div dir="ltr" className="flex items-center gap-2.5">
@@ -1228,8 +1306,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             else { stopIntroAudio(); playSample(featured.id, featured.audioUrl); }
                           }}
                           aria-label={heroSamplePlaying ? t.pause : t.listenInStudio} aria-pressed={heroSamplePlaying}
-                          className="w-14 h-14 rounded-full flex items-center justify-center text-white transition hover:scale-105 focus-ring"
-                          style={{ background: featured.color }}>
+                          className="w-14 h-14 rounded-full flex items-center justify-center text-white transition hover:scale-105 focus-ring shadow-lg"
+                          style={{ background: featured.color, boxShadow: `0 10px 26px -10px ${featured.color}` }}>
                           {heroSamplePlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ms-0.5" />}
                         </button>
                         <button type="button" onClick={() => stepVoice(1)} aria-label={isRTL ? "الصوت التالي" : "Voix suivante"}
@@ -1240,8 +1318,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div dir="ltr" className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: BORDER }}>
                         {SPEEDS.map((s) => (
                           <button key={s} type="button" onClick={() => applySpeed(s)} aria-pressed={speed === s}
-                            className={`px-2.5 py-1.5 text-[11px] font-semibold transition focus-ring ${speed === s ? "text-white" : "text-[#201A12]/55 hover:bg-[#201A12]/5"}`}
-                            style={speed === s ? { background: INK } : undefined}>
+                            className={`px-2.5 py-1.5 text-[11px] font-semibold transition focus-ring ${speed === s ? "text-white" : "text-[#1A0F2E]/55 hover:bg-[#1A0F2E]/5"}`}
+                            style={speed === s ? { background: PURPLE } : undefined}>
                             {s}x
                           </button>
                         ))}
@@ -1253,13 +1331,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </SlideUp>
 
             <SlideUp delay={0.44} className="mt-9">
-              <div className="flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-[#201A12]/50 flex-wrap">
+              <div className="flex items-center justify-center gap-4 sm:gap-5 text-[12px] text-white/85 flex-wrap"
+                style={{ textShadow: "0 1px 8px rgba(0,0,0,0.3)" }}>
                 <div className="flex -space-x-1.5" dir="ltr">
                   {AVATAR_COLORS.map((c) => (
                     <div key={c} className="w-7 h-7 rounded-full border-2 border-white" style={{ background: c }} />
                   ))}
                 </div>
-                <span className="font-bold text-[#201A12]/75"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
+                <span className="font-bold"><Num>9</Num> {isRTL ? "أصوات" : "voix"}</span>
                 <span>·</span>
                 <span><Num>1 200+</Num> {t.creators}</span>
                 <span>·</span>
@@ -1273,7 +1352,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ BANDE MARQUEE (encre) ═══ */}
-        <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: INK }} aria-hidden>
+        <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: PURPLE_DARK }} aria-hidden>
           <div dir="ltr" className="marquee-track flex w-max items-center">
             {[0, 1].map((copy) => (
               <div key={copy} className="flex items-center shrink-0">
@@ -1288,7 +1367,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ═══ BANDE CONFIANCE (journal) ═══ */}
+        {/* ═══ BANDE CONFIANCE ═══ */}
         <section className="py-6" aria-label={isRTL ? "وسائل الدفع والجودة" : "Paiement et qualité"}>
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
@@ -1296,7 +1375,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span key={p.k} className="flex items-center gap-7">
                   <span className="flex flex-col items-center">
                     <span className="text-[14px] font-extrabold tracking-tight">{p.k}</span>
-                    <Kicker ar={isRTL} className="text-[10.5px] text-[#201A12]/45 mt-0.5">{p.v}</Kicker>
+                    <Kicker ar={isRTL} className="text-[10.5px] text-[#1A0F2E]/45 mt-0.5">{p.v}</Kicker>
                   </span>
                   {i < trust.length - 1 && (
                     <span className="hidden sm:block w-px h-7" style={{ background: BORDER }} aria-hidden />
@@ -1307,7 +1386,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ═══ COMPARATIF — texte "توفّر حتى 15 000 دج" corrigé ═══ */}
+        {/* ═══ COMPARATIF ═══ */}
         <section className="py-16 sm:py-24">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
@@ -1315,27 +1394,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 title={t.compareTitle} sub={t.compareSub} center font={display} ar={isRTL} />
             </SlideUp>
             <SlideUp delay={0.1}>
-              <div className="mt-10 max-w-3xl mx-auto rounded-2xl border bg-white overflow-hidden shadow-[0_18px_44px_-30px_rgba(32,26,18,0.35)]"
+              <div className="mt-10 max-w-3xl mx-auto rounded-2xl border bg-white overflow-hidden shadow-[0_18px_44px_-30px_rgba(107,45,188,0.4)]"
                 style={{ borderColor: BORDER }}>
-                <div className="grid grid-cols-[1.1fr_1fr_1fr] text-center" style={{ background: "#F6F1E4", borderBottom: `1px solid ${BORDER}` }}>
+                <div className="grid grid-cols-[1.1fr_1fr_1fr] text-center" style={{ background: PURPLE_SOFT, borderBottom: `1px solid ${BORDER}` }}>
                   <span className="py-3.5" />
                   <span className="py-3.5 px-2">
-                    <Kicker ar={isRTL} className="text-[10.5px] text-[#201A12]/45">{t.compareOld}</Kicker>
+                    <Kicker ar={isRTL} className="text-[10.5px] text-[#1A0F2E]/45">{t.compareOld}</Kicker>
                   </span>
-                  <span className="py-3.5 px-2" style={{ background: GREEN_SOFT }}>
-                    <Kicker ar={isRTL} className="text-[10.5px]" style={{ color: GREEN }}>{t.compareNew}</Kicker>
+                  <span className="py-3.5 px-2" style={{ background: PURPLE_SOFT }}>
+                    <Kicker ar={isRTL} className="text-[10.5px]" style={{ color: PURPLE }}>{t.compareNew}</Kicker>
                   </span>
                 </div>
                 {compareRows.map((r, i) => (
                   <div key={r.label} className="grid grid-cols-[1.1fr_1fr_1fr] text-center items-stretch"
                     style={{ borderBottom: i < compareRows.length - 1 ? `1px solid ${BORDER}` : undefined }}>
-                    <span className="px-3 py-4 text-[12px] font-bold text-[#201A12]/70 flex items-center justify-start text-start">{r.label}</span>
-                    <span className="px-2 py-4 text-[12px] text-[#201A12]/45 flex items-center justify-center gap-1.5">
+                    <span className="px-3 py-4 text-[12px] font-bold text-[#1A0F2E]/70 flex items-center justify-start text-start">{r.label}</span>
+                    <span className="px-2 py-4 text-[12px] text-[#1A0F2E]/45 flex items-center justify-center gap-1.5">
                       <X className="w-3.5 h-3.5 shrink-0" style={{ color: CLAY }} />
                       <span>{r.old}</span>
                     </span>
-                    <span className="px-2 py-4 text-[12px] font-bold flex items-center justify-center gap-1.5" style={{ background: `${GREEN}0D` }}>
-                      <Check className="w-3.5 h-3.5 shrink-0" style={{ color: GREEN }} />
+                    <span className="px-2 py-4 text-[12px] font-bold flex items-center justify-center gap-1.5" style={{ background: `${PURPLE}0D` }}>
+                      <Check className="w-3.5 h-3.5 shrink-0" style={{ color: PURPLE }} />
                       <span>{r.now}</span>
                     </span>
                   </div>
@@ -1345,17 +1424,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <SlideUp delay={0.16}>
               <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-5">
                 <div className="text-center">
-                  <Kicker ar={isRTL} className="block text-[11.5px] mb-1" style={{ color: "rgba(32,26,18,0.5)" }}>{t.saveUp}</Kicker>
-                  {/* ✅ mots bien écrits : Kicker (pas d'espacement en AR) + دج + nombres isolés */}
+                  <Kicker ar={isRTL} className="block text-[11.5px] mb-1" style={{ color: "rgba(26,15,46,0.5)" }}>{t.saveUp}</Kicker>
                   <div className="text-[30px] leading-none font-extrabold flex items-baseline justify-center gap-1.5"
-                    style={{ color: GREEN, fontFamily: NUM_STACK }}>
+                    style={{ color: PURPLE, fontFamily: NUM_STACK }}>
                     <Num>15 000</Num>
                     <span className="text-[15px]">{t.savedUnit}</span>
                   </div>
                 </div>
                 <button type="button" onClick={goSignup}
-                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
-                  style={{ background: GREEN, boxShadow: "0 10px 26px -10px rgba(14,122,69,0.55)" }}>
+                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine relative overflow-hidden"
+                  style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                   {t.tryFree}
                 </button>
               </div>
@@ -1371,13 +1449,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 title={t.popularTitle} sub={t.popularSub} font={display} ar={isRTL} />
             </SlideUp>
             <SlideUp delay={0.1}>
-              <div className="mt-10 rounded-2xl border bg-white overflow-hidden shadow-[0_18px_44px_-30px_rgba(32,26,18,0.3)]" style={{ borderColor: BORDER }}>
-                <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3" style={{ background: "#F6F1E4", borderBottom: `1px solid ${BORDER}` }}>
+              <div className="mt-10 rounded-2xl border bg-white overflow-hidden shadow-[0_18px_44px_-30px_rgba(107,45,188,0.35)]" style={{ borderColor: BORDER }}>
+                <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3" style={{ background: PURPLE_SOFT, borderBottom: `1px solid ${BORDER}` }}>
                   <span className="w-8 shrink-0" />
-                  <Kicker ar={isRTL} className="flex-1 text-[10.5px] text-[#201A12]/45">
+                  <Kicker ar={isRTL} className="flex-1 text-[10.5px] text-[#1A0F2E]/45">
                     {isRTL ? "القائمة · 9 أصوات" : "Piste · 9 voix"}
                   </Kicker>
-                  <Kicker ar={isRTL} className="hidden sm:block w-16 text-end text-[10.5px] text-[#201A12]/45">
+                  <Kicker ar={isRTL} className="hidden sm:block w-16 text-end text-[10.5px] text-[#1A0F2E]/45">
                     {isRTL ? "المدة" : "Durée"}
                   </Kicker>
                   <span className="w-10 shrink-0" />
@@ -1390,11 +1468,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <button key={v.id} type="button"
                       onClick={() => (active ? stopSample() : openListen(v))}
                       aria-pressed={active}
-                      className={`group w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 text-start transition focus-ring ${active ? "" : "hover:bg-[#0E7A45]/[0.05]"}`}
+                      className={`group w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 text-start transition focus-ring ${active ? "" : "hover:bg-[#6B2DBC]/[0.05]"}`}
                       style={{ borderBottom: `1px solid ${BORDER}`, background: active ? `${v.color}0F` : undefined }}>
                       <span className="relative w-8 h-8 shrink-0 flex items-center justify-center">
                         <Mono className={`absolute text-[13px] transition-opacity ${active ? "opacity-0" : "group-hover:opacity-0"}`}
-                          style={{ color: "rgba(32,26,18,0.4)" }}>{no}</Mono>
+                          style={{ color: "rgba(26,15,46,0.4)" }}>{no}</Mono>
                         <span className="absolute inset-0 flex items-center justify-center transition-opacity" style={{ opacity: active ? 1 : 0 }}>
                           {active
                             ? <Pause className="w-4 h-4 fill-current" style={{ color: v.color }} />
@@ -1406,21 +1484,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         {name.charAt(0)}
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className={`block text-[15px] font-bold truncate transition-colors ${active ? "" : "group-hover:text-[#0E7A45]"}`}>{name}</span>
-                        <span className="block text-[12px] text-[#201A12]/50 truncate">
+                        <span className={`block text-[15px] font-bold truncate transition-colors ${active ? "" : "group-hover:text-[#6B2DBC]"}`}>{name}</span>
+                        <span className="block text-[12px] text-[#1A0F2E]/50 truncate">
                           {isRTL ? v.tagAr : v.tagFr} · {v.location}
                         </span>
                       </span>
-                      <span className="hidden md:flex items-center gap-1 text-[12px] font-bold text-[#201A12]/60 shrink-0">
+                      <span className="hidden md:flex items-center gap-1 text-[12px] font-bold text-[#1A0F2E]/60 shrink-0">
                         <Star className="w-3 h-3" style={{ color: AMBER, fill: AMBER }} />
                         <Num>{v.rating}</Num>
-                        <span className="text-[#201A12]/35 font-medium ms-1">(<Num>{v.reviews}</Num>)</span>
+                        <span className="text-[#1A0F2E]/35 font-medium ms-1">(<Num>{v.reviews}</Num>)</span>
                       </span>
-                      <Mono dir="ltr" className="hidden sm:block w-16 text-end text-[12px] text-[#201A12]/45 shrink-0">
+                      <Mono dir="ltr" className="hidden sm:block w-16 text-end text-[12px] text-[#1A0F2E]/45 shrink-0">
                         {durations[v.id] ? fmtTime(durations[v.id]) : fmtDur(v, language)}
                       </Mono>
                       <span className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition"
-                        style={{ background: active ? v.color : "rgba(32,26,18,0.8)" }}>
+                        style={{ background: active ? v.color : "rgba(26,15,46,0.8)" }}>
                         {active ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ms-0.5" />}
                       </span>
                     </button>
@@ -1431,9 +1509,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     const name = isRTL ? v.nameAr : v.nameFr;
                     return (
                       <button key={v.id} type="button" onClick={goSignup} aria-label={t.moreVoices}
-                        className="group w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 text-start transition focus-ring hover:bg-[#0E7A45]/[0.05]">
+                        className="group w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 text-start transition focus-ring hover:bg-[#6B2DBC]/[0.05]">
                         <span className="w-8 h-8 shrink-0 flex items-center justify-center">
-                          <Lock className="w-3.5 h-3.5 text-[#201A12]/30 transition-colors group-hover:text-[#0E7A45]" />
+                          <Lock className="w-3.5 h-3.5 text-[#1A0F2E]/30 transition-colors group-hover:text-[#6B2DBC]" />
                         </span>
                         <span className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[15px] shrink-0 select-none"
                           style={{ background: `${v.color}12`, color: v.color, filter: "blur(3px)", fontFamily: display }}>
@@ -1441,13 +1519,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         </span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-[15px] font-bold truncate select-none" style={{ filter: "blur(6px)" }}>{name}</span>
-                          <span className="block text-[12px] text-[#201A12]/40 truncate">
+                          <span className="block text-[12px] text-[#1A0F2E]/40 truncate">
                             {isRTL ? "مقفلة — اسمعها في الاستوديو" : "Verrouillée — dans le studio"}
                           </span>
                         </span>
-                        <Mono dir="ltr" className="hidden sm:block w-16 text-end text-[12px] text-[#201A12]/30 shrink-0">--:--</Mono>
+                        <Mono dir="ltr" className="hidden sm:block w-16 text-end text-[12px] text-[#1A0F2E]/30 shrink-0">--:--</Mono>
                         <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition group-hover:scale-105"
-                          style={{ background: GREEN_SOFT, color: GREEN }}>
+                          style={{ background: PURPLE_SOFT, color: PURPLE }}>
                           <ArrowIcon className="w-4 h-4" />
                         </span>
                       </button>
@@ -1469,12 +1547,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {journeySteps.map((s, i) => (
                 <SlideUp key={s.n} delay={i * 0.07}>
-                  <div className="rounded-2xl border bg-white p-6 sm:p-7 h-full min-h-[190px] flex flex-col justify-between card-lift" style={{ borderColor: BORDER }}>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[15px]"
-                      style={{ background: INK, color: AMBER, fontFamily: MONO_STACK }}>{s.n}</div>
-                    <div>
-                      <h3 className="text-[19px] font-extrabold mb-1.5" style={{ fontFamily: display }}>{s.t}</h3>
-                      <p className="text-[12.5px] text-[#201A12]/55 leading-relaxed">{s.d}</p>
+                  <div className="relative rounded-2xl border bg-white p-6 sm:p-7 h-full min-h-[190px] flex flex-col justify-between card-lift overflow-hidden" style={{ borderColor: BORDER }}>
+                    {/* coin violet décoratif */}
+                    <div className="absolute -top-12 -end-12 w-28 h-28 rounded-full opacity-10" style={{ background: PURPLE }} aria-hidden />
+                    <div className="relative w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[15px]"
+                      style={{ background: PURPLE, color: AMBER, fontFamily: MONO_STACK }}>{s.n}</div>
+                    <div className="relative">
+                      <h3 className="text-[19px] font-extrabold mb-1.5" style={{ fontFamily: display, color: INK }}>{s.t}</h3>
+                      <p className="text-[12.5px] text-[#1A0F2E]/55 leading-relaxed">{s.d}</p>
                     </div>
                   </div>
                 </SlideUp>
@@ -1493,11 +1573,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {uses.map((u, i) => (
                 <SlideUp key={u.t} delay={i * 0.06}>
                   <div className="rounded-2xl border bg-white p-6 h-full card-lift" style={{ borderColor: BORDER }}>
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: GREEN_SOFT, color: GREEN }}>
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: PURPLE_SOFT, color: PURPLE }}>
                       <u.icon className="w-5 h-5" />
                     </div>
                     <h3 className="text-[15px] font-bold mb-1">{u.t}</h3>
-                    <p className="text-[12.5px] text-[#201A12]/55 leading-relaxed">{u.d}</p>
+                    <p className="text-[12.5px] text-[#1A0F2E]/55 leading-relaxed">{u.d}</p>
                   </div>
                 </SlideUp>
               ))}
@@ -1511,14 +1591,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="lg:col-span-5">
               <SlideUp>
                 <SectionHead eyebrow={isRTL ? "التكلفة" : "Le coût"} title={t.costTitle} sub={t.costSub} font={display} ar={isRTL} />
-                <ul className="mt-6 space-y-2.5 text-[13px] text-[#201A12]/70">
+                <ul className="mt-6 space-y-2.5 text-[13px] text-[#1A0F2E]/70">
                   {[
                     isRTL ? "50 نقطة هدية وقت التسجيل." : "50 points offerts à l'inscription.",
                     isRTL ? "النقاط بلا تاريخ انتهاء." : "Points valables à vie.",
                     isRTL ? "الدفع بالدينار عبر SATIM." : "Paiement en DZD via SATIM.",
                   ].map((line) => (
                     <li key={line} className="flex items-start gap-2">
-                      <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: GREEN }} />
+                      <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: PURPLE }} />
                       <span>{line}</span>
                     </li>
                   ))}
@@ -1528,24 +1608,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="lg:col-span-7">
               <SlideUp delay={0.1}>
                 <div className="rounded-2xl border bg-white p-6 sm:p-8" style={{ borderColor: BORDER }}>
-                  <Kicker ar={isRTL} className="block text-[11px] mb-4 text-[#201A12]/45">
+                  <Kicker ar={isRTL} className="block text-[11px] mb-4 text-[#1A0F2E]/45">
                     {isRTL ? "احسب تكلفك" : "Estimateur"}
                   </Kicker>
                   <div className="grid grid-cols-4 gap-2 mb-6">
                     {COST_STEPS.map((s, i) => (
                       <button key={s.sec} type="button" onClick={() => setCostIdx(i)}
-                        className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "text-white" : "text-[#201A12]/60 border bg-white hov-ink"}`}
-                        style={costIdx === i ? { background: GREEN, borderColor: GREEN } : { borderColor: BORDER }}>
+                        className={`py-2.5 rounded-xl text-[12px] font-bold transition focus-ring ${costIdx === i ? "text-white" : "text-[#1A0F2E]/60 border bg-white hov-ink"}`}
+                        style={costIdx === i ? { background: PURPLE, borderColor: PURPLE } : { borderColor: BORDER }}>
                         {isRTL ? s.labelAr : s.labelFr}
                       </button>
                     ))}
                   </div>
                   <div className="flex items-end justify-between gap-4 flex-wrap">
                     <div>
-                      <Kicker ar={isRTL} className="block text-[11px] mb-1 text-[#201A12]/45">
+                      <Kicker ar={isRTL} className="block text-[11px] mb-1 text-[#1A0F2E]/45">
                         {isRTL ? "التكلفة" : "Coût"}
                       </Kicker>
-                      <div className="text-[52px] leading-none font-extrabold" style={{ fontFamily: NUM_STACK, color: GREEN }}>
+                      <div className="text-[52px] leading-none font-extrabold" style={{ fontFamily: NUM_STACK, color: PURPLE }}>
                         <AnimatePresence mode="wait">
                           <motion.span key={costIdx} className="inline-block"
                             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -1553,12 +1633,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             {COST_STEPS[costIdx].pts}
                           </motion.span>
                         </AnimatePresence>
-                        <span className="text-[15px] font-semibold text-[#201A12]/40 ms-2">{t.pts}</span>
+                        <span className="text-[15px] font-semibold text-[#1A0F2E]/40 ms-2">{t.pts}</span>
                       </div>
                     </div>
                     <button type="button" onClick={goSignup}
                       className="h-11 px-5 rounded-xl font-bold text-[13px] text-white focus-ring hover:brightness-110 transition"
-                      style={{ background: GREEN }}>
+                      style={{ background: PURPLE }}>
                       {t.tryFree}
                     </button>
                   </div>
@@ -1578,10 +1658,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {metrics.map((m, i) => (
                 <SlideUp key={m.l} delay={i * 0.06}>
                   <div className="rounded-2xl border bg-white p-8 text-center card-lift" style={{ borderColor: BORDER }}>
-                    <div className="text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-extrabold mb-2" style={{ color: GREEN, fontFamily: NUM_STACK }}>
+                    <div className="text-[clamp(2.2rem,4.2vw,3rem)] leading-none font-extrabold mb-2" style={{ color: PURPLE, fontFamily: NUM_STACK }}>
                       <Counter target={m.n} suffix={m.s} />
                     </div>
-                    <Kicker ar={isRTL} className="text-[11px] text-[#201A12]/45">{m.l}</Kicker>
+                    <Kicker ar={isRTL} className="text-[11px] text-[#1A0F2E]/45">{m.l}</Kicker>
                   </div>
                 </SlideUp>
               ))}
@@ -1610,12 +1690,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       "{testimonials[activeTesti].q}"
                     </blockquote>
                     <div className="mt-7 flex items-center justify-center gap-3">
-                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-extrabold text-white" style={{ background: CLAY }}>
+                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-extrabold text-white" style={{ background: PURPLE }}>
                         {testimonials[activeTesti].img}
                       </div>
                       <div className="text-start">
                         <div className="text-[13.5px] font-bold">{testimonials[activeTesti].n}</div>
-                        <div className="text-[12px] text-[#201A12]/50">{testimonials[activeTesti].r}</div>
+                        <div className="text-[12px] text-[#1A0F2E]/50">{testimonials[activeTesti].r}</div>
                       </div>
                     </div>
                   </motion.div>
@@ -1623,19 +1703,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="mt-8 flex items-center justify-center gap-4">
                   <button type="button"
                     onClick={() => setActiveTesti((p) => (p - 1 + testimonials.length) % testimonials.length)}
-                    className="w-10 h-10 rounded-full border bg-white hov-ink text-[#201A12]/60 flex items-center justify-center focus-ring"
+                    className="w-10 h-10 rounded-full border bg-white hov-ink text-[#1A0F2E]/60 flex items-center justify-center focus-ring"
                     style={{ borderColor: BORDER }} aria-label={isRTL ? "السابق" : "Précédent"}>
                     {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
                   </button>
                   <div className="flex items-center gap-2">
                     {testimonials.map((_, i) => (
                       <button key={i} type="button" onClick={() => setActiveTesti(i)} aria-label={`${i + 1}`}
-                        className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-[#201A12]/20 hover:bg-[#201A12]/40"}`}
-                        style={i === activeTesti ? { background: GREEN } : undefined} />
+                        className={`h-1.5 rounded-full transition-all ${i === activeTesti ? "w-6" : "w-1.5 bg-[#1A0F2E]/20 hover:bg-[#1A0F2E]/40"}`}
+                        style={i === activeTesti ? { background: PURPLE } : undefined} />
                     ))}
                   </div>
                   <button type="button" onClick={() => setActiveTesti((p) => (p + 1) % testimonials.length)}
-                    className="w-10 h-10 rounded-full border bg-white hov-ink text-[#201A12]/60 flex items-center justify-center focus-ring"
+                    className="w-10 h-10 rounded-full border bg-white hov-ink text-[#1A0F2E]/60 flex items-center justify-center focus-ring"
                     style={{ borderColor: BORDER }} aria-label={isRTL ? "التالي" : "Suivant"}>
                     {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                   </button>
@@ -1645,7 +1725,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ═══ TARIFS (tickets) ═══ */}
+        {/* ═══ TARIFS ═══ */}
         <section id="pricing" className="py-16 sm:py-24">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
@@ -1653,7 +1733,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 title={t.pricingTitle} sub={t.pricingSub} center font={display} ar={isRTL} />
             </SlideUp>
 
-            {/* bandeau cadeau — sobre, bordure pointillée */}
             <SlideUp delay={0.08}>
               <div className="mb-10 mt-10 max-w-2xl mx-auto">
                 <button type="button" onClick={goSignup}
@@ -1665,9 +1744,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-[14.5px] font-extrabold leading-snug" style={{ color: INK }}>{t.welcomeBanner}</span>
-                      <span className="block text-[12px] text-[#201A12]/60 mt-0.5">{t.bannerSub}</span>
+                      <span className="block text-[12px] text-[#1A0F2E]/60 mt-0.5">{t.bannerSub}</span>
                     </span>
-                    <span className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: GREEN }}>
+                    <span className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: PURPLE }}>
                       <ArrowIcon className="w-4 h-4" />
                     </span>
                   </span>
@@ -1680,9 +1759,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <SlideUp key={p.pts} delay={i * 0.06}>
                   <div className={`relative rounded-2xl border p-6 h-full flex flex-col card-lift ${p.featured ? "text-white" : "bg-white"}`}
                     style={p.featured ? {
-                      borderColor: GREEN,
-                      background: GREEN,
-                      boxShadow: "0 22px 46px -20px rgba(14,122,69,0.55)",
+                      borderColor: PURPLE,
+                      background: `linear-gradient(160deg, ${PURPLE} 0%, ${PURPLE_DARK} 100%)`,
+                      boxShadow: "0 22px 46px -20px rgba(107,45,188,0.6)",
                     } : { borderColor: BORDER }}>
                     {p.featured && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-extrabold whitespace-nowrap"
@@ -1694,25 +1773,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <Num>{p.ptsLabel}</Num>
                     </div>
                     <Kicker ar={isRTL} className="block text-[11px] mb-4"
-                      style={{ color: p.featured ? "rgba(255,255,255,0.8)" : "rgba(32,26,18,0.4)" }}>
+                      style={{ color: p.featured ? "rgba(255,255,255,0.8)" : "rgba(26,15,46,0.4)" }}>
                       {t.pts}
                     </Kicker>
-                    {/* séparation ticket avec encoches */}
                     <div className="relative my-4 border-t-2 border-dashed"
                       style={{ borderColor: p.featured ? "rgba(255,255,255,0.35)" : BORDER }}>
                       <span className="absolute -top-[10px] -start-[33px] w-[18px] h-[18px] rounded-full" style={{ background: PAPER }} aria-hidden />
                       <span className="absolute -top-[10px] -end-[33px] w-[18px] h-[18px] rounded-full" style={{ background: PAPER }} aria-hidden />
                     </div>
-                    <p className={`text-[12px] flex-1 leading-relaxed ${p.featured ? "text-white/85" : "text-[#201A12]/60"}`}>{p.desc}</p>
+                    <p className={`text-[12px] flex-1 leading-relaxed ${p.featured ? "text-white/85" : "text-[#1A0F2E]/60"}`}>{p.desc}</p>
                     <div className="flex items-baseline gap-1.5 mt-5">
                       <span className="text-[26px] font-extrabold"><Num>{p.price}</Num></span>
-                      <span className={`text-[11px] font-bold ${p.featured ? "text-white/70" : "text-[#201A12]/40"}`}>
+                      <span className={`text-[11px] font-bold ${p.featured ? "text-white/70" : "text-[#1A0F2E]/40"}`}>
                         {isRTL ? "دج" : "DZD"}
                       </span>
                     </div>
                     <button type="button" onClick={goSignup}
-                      className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring mt-4 ${p.featured ? "text-white hover:brightness-110" : "text-white hover:brightness-110"}`}
-                      style={p.featured ? { background: INK } : { background: GREEN }}>
+                      className={`h-11 rounded-xl text-[13px] font-bold transition focus-ring mt-4 text-white hover:brightness-110`}
+                      style={p.featured ? { background: INK } : { background: PURPLE }}>
                       {t.choose}
                     </button>
                   </div>
@@ -1720,16 +1798,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               ))}
             </div>
 
-            {/* garantie */}
             <SlideUp delay={0.15}>
               <div className="mt-8 max-w-3xl mx-auto rounded-2xl border-2 border-dashed p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-start"
-                style={{ borderColor: "rgba(14,122,69,0.4)", background: GREEN_SOFT }}>
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: GREEN }}>
+                style={{ borderColor: "rgba(107,45,188,0.4)", background: PURPLE_SOFT }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: PURPLE }}>
                   <ShieldCheck className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <div className="font-extrabold text-[15px]">{t.guaranteeTitle}</div>
-                  <p className="text-[13px] text-[#201A12]/65 mt-1 leading-relaxed">{t.guaranteeBody}</p>
+                  <p className="text-[13px] text-[#1A0F2E]/65 mt-1 leading-relaxed">{t.guaranteeBody}</p>
                 </div>
               </div>
             </SlideUp>
@@ -1754,9 +1831,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         <div key={f.q} style={{ borderBottom: i < faqs.length - 1 ? `1px solid ${BORDER}` : undefined }}>
                           <button type="button" onClick={() => setOpenFaq(open ? null : i)}
                             className="w-full py-5 px-5 sm:px-6 flex items-center gap-4 text-start focus-ring group" aria-expanded={open}>
-                            <span className="flex-1 text-[14.5px] font-bold group-hover:text-[#0E7A45] transition-colors">{f.q}</span>
-                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45 text-white" : "text-[#201A12]/60"}`}
-                              style={open ? { background: GREEN } : { background: GREEN_SOFT }}>
+                            <span className="flex-1 text-[14.5px] font-bold group-hover:text-[#6B2DBC] transition-colors">{f.q}</span>
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${open ? "rotate-45 text-white" : "text-[#1A0F2E]/60"}`}
+                              style={open ? { background: PURPLE } : { background: PURPLE_SOFT }}>
                               <Plus className="w-4 h-4" />
                             </span>
                           </button>
@@ -1764,7 +1841,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             {open && (
                               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
-                                <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-[#201A12]/65 leading-relaxed">{f.a}</p>
+                                <p className="pb-5 px-5 sm:px-6 pe-14 text-[13px] text-[#1A0F2E]/65 leading-relaxed">{f.a}</p>
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -1783,19 +1860,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <div className="relative rounded-[24px] overflow-hidden p-10 sm:p-16 text-center"
-                style={{ background: GREEN_DARK, color: PAPER, boxShadow: "0 26px 60px -28px rgba(11,95,54,0.6)" }}>
-                {/* barres d'onde décoratives */}
-                <div className="absolute bottom-0 start-0 flex items-end gap-1.5 p-7 opacity-20" dir="ltr" aria-hidden>
+                style={{
+                  background: `linear-gradient(135deg, ${PURPLE_DARK} 0%, ${PURPLE} 50%, ${PURPLE_DARK} 100%)`,
+                  color: PAPER,
+                  boxShadow: "0 26px 60px -28px rgba(74,30,135,0.7)",
+                }}>
+                <div className="absolute bottom-0 start-0 flex items-end gap-1.5 p-7 opacity-25" dir="ltr" aria-hidden>
                   {[12, 26, 16, 34, 20, 30, 14, 38, 22, 32, 18, 28, 12, 24].map((h, i) => (
                     <span key={i} className="w-1.5 rounded-full bg-white" style={{ height: h }} />
                   ))}
                 </div>
                 <div className="absolute top-7 end-7 w-2.5 h-2.5 rotate-45" style={{ background: AMBER }} aria-hidden />
+                {/* halo subtil */}
+                <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-30 blur-3xl" style={{ background: "radial-gradient(circle, #E9A13B 0%, transparent 70%)" }} aria-hidden />
                 <div className="relative">
                   <h2 className="text-[clamp(2rem,5vw,3.6rem)] leading-[1.06] font-extrabold" style={{ fontFamily: display }}>
                     {t.ctaTitle}
                   </h2>
-                  <p className="mt-4 text-[15px] text-white/75 max-w-md mx-auto">{t.ctaSub}</p>
+                  <p className="mt-4 text-[15px] text-white/80 max-w-md mx-auto">{t.ctaSub}</p>
                   {countdown && (
                     <div className="mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-extrabold"
                       style={{ background: AMBER, color: INK }}>
@@ -1806,7 +1888,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   )}
                   <button type="button" onClick={goSignup}
                     className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-extrabold text-[15px] transition focus-ring hover:scale-[1.02]"
-                    style={{ background: PAPER, color: INK }}>
+                    style={{ background: PAPER, color: PURPLE }}>
                     {t.tryFree}
                     <ArrowIcon className="w-4 h-4" />
                   </button>
@@ -1825,52 +1907,52 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
               <div className="lg:col-span-2">
                 <Logo size={38} />
-                <p className="mt-4 text-[13px] text-[#201A12]/55 max-w-sm leading-relaxed">
+                <p className="mt-4 text-[13px] text-[#1A0F2E]/55 max-w-sm leading-relaxed">
                   {isRTL
                     ? "استوديو صوتي جزائري. نصّك بالدارجة يولي صوت طبيعي، جاهز للإعلان."
                     : "Studio vocal algérien. Votre texte en darija devient une voix naturelle, prête pour la pub."}
                 </p>
-                <p className="mt-3 text-[12px] font-bold text-[#201A12]/70 flex items-center gap-2">
-                  <Headphones className="w-3.5 h-3.5" style={{ color: GREEN }} /> Alger, Algérie · {t.footTag}
+                <p className="mt-3 text-[12px] font-bold text-[#1A0F2E]/70 flex items-center gap-2">
+                  <Headphones className="w-3.5 h-3.5" style={{ color: PURPLE }} /> Alger, Algérie · {t.footTag}
                 </p>
               </div>
               <div>
-                <Kicker ar={isRTL} className="block text-[11px] text-[#201A12]/40 mb-3">
+                <Kicker ar={isRTL} className="block text-[11px] text-[#1A0F2E]/40 mb-3">
                   {isRTL ? "المنصة" : "Produit"}
                 </Kicker>
                 <div className="flex flex-col gap-2 text-[13px] font-medium">
                   {nav.map((l) => (
                     <a key={`f-${l.href}-${l.target}`} href={l.href}
                       onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                      className="text-[#201A12]/60 hover:text-[#0E7A45] transition-colors">{l.label}</a>
+                      className="text-[#1A0F2E]/60 hover:text-[#6B2DBC] transition-colors">{l.label}</a>
                   ))}
                 </div>
               </div>
               <div>
-                <Kicker ar={isRTL} className="block text-[11px] text-[#201A12]/40 mb-3">{t.contact}</Kicker>
+                <Kicker ar={isRTL} className="block text-[11px] text-[#1A0F2E]/40 mb-3">{t.contact}</Kicker>
                 <div className="flex flex-col gap-2 text-[13px] font-semibold">
-                  <a href="mailto:SAWTIFYSPACE@GMAIL.COM" className="text-[#201A12]/70 hover:text-[#0E7A45] transition-colors">SAWTIFYSPACE@GMAIL.COM</a>
-                  <a href="tel:+213697660969" className="text-[#201A12]/70 hover:text-[#0E7A45] transition-colors"><Num>+213 697 660 969</Num></a>
+                  <a href="mailto:SAWTIFYSPACE@GMAIL.COM" className="text-[#1A0F2E]/70 hover:text-[#6B2DBC] transition-colors">SAWTIFYSPACE@GMAIL.COM</a>
+                  <a href="tel:+213697660969" className="text-[#1A0F2E]/70 hover:text-[#6B2DBC] transition-colors"><Num>+213 697 660 969</Num></a>
                   <a href="https://www.instagram.com/sawtify.ai" target="_blank" rel="noreferrer"
-                    className="text-[#201A12]/70 hover:text-[#0E7A45] transition-colors">Instagram · @sawtify.ai</a>
+                    className="text-[#1A0F2E]/70 hover:text-[#6B2DBC] transition-colors">Instagram · @sawtify.ai</a>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {["Edahabia", "CIB", "SATIM"].map((p) => (
-                    <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border bg-white text-[#201A12]/60" style={{ borderColor: BORDER }}>{p}</span>
+                    <span key={p} className="text-[10px] font-bold px-2 py-1 rounded-full border bg-white text-[#1A0F2E]/60" style={{ borderColor: BORDER }}>{p}</span>
                   ))}
                 </div>
-                <div className="mt-4 flex items-center gap-1.5 text-[11px] text-[#201A12]/50">
-                  <ShieldCheck className="w-3.5 h-3.5" style={{ color: GREEN }} />
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] text-[#1A0F2E]/50">
+                  <ShieldCheck className="w-3.5 h-3.5" style={{ color: PURPLE }} />
                   {isRTL ? "دفع آمن، ما نخزّنوش رقم البطاقة." : "Paiement sécurisé, aucune carte stockée."}
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 text-[12px] text-[#201A12]/45"
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 text-[12px] text-[#1A0F2E]/45"
               style={{ borderTop: `1px solid ${BORDER}` }}>
               <span>© <Num>2026</Num> Sawtify · {t.footTag}</span>
               <div className="flex items-center gap-4">
-                <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#0E7A45] transition-colors">{t.cgu}</button>
-                <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#0E7A45] transition-colors">{t.privacy}</button>
+                <button type="button" onClick={() => setLegal("cgu")} className="hover:text-[#6B2DBC] transition-colors">{t.cgu}</button>
+                <button type="button" onClick={() => setLegal("privacy")} className="hover:text-[#6B2DBC] transition-colors">{t.privacy}</button>
               </div>
             </div>
           </div>
@@ -1882,7 +1964,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         style={{ borderTop: `1px solid ${BORDER}` }}>
         <button type="button" onClick={goSignup}
           className="w-full h-12 rounded-xl font-bold text-[13.5px] flex items-center justify-center gap-2.5 text-white"
-          style={{ background: GREEN }}>
+          style={{ background: PURPLE }}>
           <span className="truncate">{t.tryFree}</span>
           {countdown && (
             <Mono dir="ltr" className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md bg-black/20 tabular-nums">
@@ -1901,27 +1983,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-[150px] sm:bottom-6 start-3 sm:start-6 z-[45] max-w-[300px]"
             role="status" aria-live="polite">
-            <div className="flex items-center gap-3 rounded-2xl border bg-white px-3.5 py-3 shadow-[0_14px_36px_rgba(32,26,18,0.14)]"
+            <div className="flex items-center gap-3 rounded-2xl border bg-white px-3.5 py-3 shadow-[0_14px_36px_rgba(107,45,188,0.18)]"
               style={{ borderColor: BORDER }}>
-              <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-extrabold shrink-0" style={{ background: GREEN }}>
+              <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-extrabold shrink-0" style={{ background: PURPLE }}>
                 {toast.n.charAt(0)}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[12.5px] font-bold truncate">{toast.n} · {toast.c}</span>
-                <span className="block text-[11.5px] text-[#201A12]/55 truncate">{toast.a}</span>
+                <span className="block text-[11.5px] text-[#1A0F2E]/55 truncate">{toast.a}</span>
               </span>
-              <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: "#22C55E" }} />
+              <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: PURPLE }} />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ═══ MODALE ÉCOUTE — 🪟 FIX : centrage flex + max-h + scroll interne ═══ */}
+      {/* ═══ MODALE ÉCOUTE ═══ */}
       <AnimatePresence>
         {listenVoice && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70] bg-[#201A12]/45"
+              className="fixed inset-0 z-[70] bg-[#1A0F2E]/55"
               onClick={() => { setListenVoice(null); stopSample(); }} />
             <div className="fixed inset-0 z-[71] flex items-end sm:items-center justify-center overflow-y-auto scrollbar-none"
               onClick={(e) => { if (e.target === e.currentTarget) { setListenVoice(null); stopSample(); } }}>
@@ -1932,16 +2014,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 style={{ borderColor: BORDER }}>
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <Kicker ar={isRTL} className="block text-[11px] text-[#201A12]/40 mb-1">{t.listenInStudio}</Kicker>
+                    <Kicker ar={isRTL} className="block text-[11px] text-[#1A0F2E]/40 mb-1">{t.listenInStudio}</Kicker>
                     <h3 id="listen-title" className="text-[22px] font-extrabold" style={{ fontFamily: display }}>
                       {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
                     </h3>
-                    <p className="text-[12px] text-[#201A12]/50">
+                    <p className="text-[12px] text-[#1A0F2E]/50">
                       {isRTL ? listenVoice.tagAr : listenVoice.tagFr} · {listenVoice.location}
                     </p>
                   </div>
                   <button type="button" onClick={() => { setListenVoice(null); stopSample(); }}
-                    className="w-9 h-9 rounded-full hover:bg-[#201A12]/5 flex items-center justify-center focus-ring shrink-0" aria-label={t.close}>
+                    className="w-9 h-9 rounded-full hover:bg-[#1A0F2E]/5 flex items-center justify-center focus-ring shrink-0" aria-label={t.close}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -1957,15 +2039,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <><Play className="w-4 h-4 fill-current" />{t.listenInStudio}</>
                     )}
                   </button>
-                  <p className="mt-2 text-[11px] text-center text-[#201A12]/45">{t.studioNote}</p>
+                  <p className="mt-2 text-[11px] text-center text-[#1A0F2E]/45">{t.studioNote}</p>
                 </div>
-                <p className="text-[13px] leading-relaxed text-[#201A12]/70 mb-2" dir="auto">
+                <p className="text-[13px] leading-relaxed text-[#1A0F2E]/70 mb-2" dir="auto">
                   "{(isRTL ? listenVoice.sampleAr : listenVoice.sampleFr).slice(0, 52).trimEnd()}…"
                 </p>
-                <p className="text-[13px] text-[#201A12]/60 leading-relaxed mb-5">{t.listenBody}</p>
+                <p className="text-[13px] text-[#1A0F2E]/60 leading-relaxed mb-5">{t.listenBody}</p>
                 <button type="button" onClick={goSignup}
                   className="w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110"
-                  style={{ background: GREEN }}>
+                  style={{ background: PURPLE }}>
                   {t.moreVoices} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
                 </button>
               </motion.div>
@@ -1974,12 +2056,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ═══ 🪟 FIX : POP-UP EXIT — toujours centrée, jamais coupée ═══ */}
+      {/* ═══ POP-UP EXIT ═══ */}
       <AnimatePresence>
         {exitOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[75] bg-[#201A12]/55" onClick={() => setExitOpen(false)} />
+              className="fixed inset-0 z-[75] bg-[#1A0F2E]/65" onClick={() => setExitOpen(false)} />
             <div className="fixed inset-0 z-[76] flex items-center justify-center p-4 overflow-y-auto scrollbar-none"
               onClick={(e) => { if (e.target === e.currentTarget) setExitOpen(false); }}>
               <motion.div role="dialog" aria-modal="true"
@@ -1988,7 +2070,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="relative w-full max-w-md bg-white border rounded-2xl p-7 text-center shadow-2xl my-auto max-h-[88vh] overflow-y-auto scrollbar-none"
                 style={{ borderColor: BORDER }}>
                 <button type="button" onClick={() => setExitOpen(false)}
-                  className="absolute top-3 end-3 w-9 h-9 rounded-full hover:bg-[#201A12]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                  className="absolute top-3 end-3 w-9 h-9 rounded-full hover:bg-[#1A0F2E]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
                   <X className="w-4 h-4" />
                 </button>
                 <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 rotate-[-4deg]"
@@ -1996,22 +2078,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <Gift className="w-7 h-7" />
                 </div>
                 <h3 className="text-[24px] font-extrabold" style={{ fontFamily: display }}>{t.exitTitle}</h3>
-                <p className="mt-3 text-[13.5px] text-[#201A12]/65 leading-relaxed">{t.exitBody}</p>
+                <p className="mt-3 text-[13.5px] text-[#1A0F2E]/65 leading-relaxed">{t.exitBody}</p>
                 {countdown && (
                   <div className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-extrabold"
-                    style={{ background: GREEN_SOFT, color: GREEN }}>
+                    style={{ background: PURPLE_SOFT, color: PURPLE }}>
                     <Timer className="w-4 h-4" />
                     <span>{t.expiresIn}</span>
                     <Mono dir="ltr" className="tabular-nums">{countdown.h}:{countdown.m}:{countdown.s}</Mono>
                   </div>
                 )}
                 <button type="button" onClick={() => { setExitOpen(false); goSignup(); }}
-                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring"
-                  style={{ background: GREEN, boxShadow: "0 10px 26px -10px rgba(14,122,69,0.55)" }}>
+                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring shine relative overflow-hidden"
+                  style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
                   {t.exitCta}
                 </button>
                 <button type="button" onClick={() => setExitOpen(false)}
-                  className="mt-3 text-[12px] font-bold text-[#201A12]/45 hover:text-[#201A12]/70 transition-colors">
+                  className="mt-3 text-[12px] font-bold text-[#1A0F2E]/45 hover:text-[#1A0F2E]/70 transition-colors">
                   {t.exitNo}
                 </button>
               </motion.div>
@@ -2020,12 +2102,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ═══ MODALE LÉGALE — même pattern corrigé ═══ */}
+      {/* ═══ MODALE LÉGALE ═══ */}
       <AnimatePresence>
         {legal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70] bg-[#201A12]/45" onClick={() => setLegal(null)} />
+              className="fixed inset-0 z-[70] bg-[#1A0F2E]/45" onClick={() => setLegal(null)} />
             <div className="fixed inset-0 z-[71] flex items-center justify-center p-4 overflow-y-auto scrollbar-none"
               onClick={(e) => { if (e.target === e.currentTarget) setLegal(null); }}>
               <motion.div role="dialog" aria-modal="true"
@@ -2035,11 +2117,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-[18px] font-extrabold">{legal === "cgu" ? t.cgu : t.privacy}</h3>
                   <button type="button" onClick={() => setLegal(null)}
-                    className="w-9 h-9 rounded-full hover:bg-[#201A12]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
+                    className="w-9 h-9 rounded-full hover:bg-[#1A0F2E]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <p className="text-[13px] leading-relaxed text-[#201A12]/65">{legalCopy[legal]}</p>
+                <p className="text-[13px] leading-relaxed text-[#1A0F2E]/65">{legalCopy[legal]}</p>
               </motion.div>
             </div>
           </>
