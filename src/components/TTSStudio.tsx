@@ -15,12 +15,28 @@ import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils
 import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
 
+// ==========================================================================
+// UTILITAIRES (hors composant pour performance)
+// ==========================================================================
+
+/** Formatte les secondes en mm:ss */
+const formatTime = (seconds: number): string => {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
 interface TTSStudioProps {
   balance: number;
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
   onOpenRecharge: () => void;
   recentGenerations?: GenerationRecord[];
 }
+
+// ==========================================================================
+// COMPOSANT VOICE GLYPH
+// ==========================================================================
 
 const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female'; className?: string }> = ({ icon, gender, className = "w-4 h-4" }) => {
   switch (icon) {
@@ -41,6 +57,10 @@ type CategoryFilter = 'all' | 'commercial' | 'narrative' | 'social' | 'formal';
 type GenderFilter = 'all' | 'male' | 'female';
 type RegionId = 'general' | 'centre' | 'ouest' | 'est';
 
+// ==========================================================================
+// COMPOSANT PRINCIPAL
+// ==========================================================================
+
 export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, onOpenRecharge, recentGenerations = [] }) => {
   const { t, isRTL, language } = useLanguage();
   const voices = getVoices(language);
@@ -50,6 +70,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     ? '[excited] أسمع مليح خاوتي! مع la plateforme Sawtify جديدة ديالنا... [natural] نصوصكم تتحول لـ voix humaine طبيعية 100%.'
     : '[excited] Écoute bien ya khawti ! Avec notre nouvelle plateforme Sawtify... [natural] tes textes se transforment en voix humaine 100% naturelle.';
 
+  // ------------------------------------------------------------------
+  // STATE
+  // ------------------------------------------------------------------
   const [text, setText] = useState<string>(() => {
     try { return localStorage.getItem('sawtify_draft_text') || defaultStarterText; } catch { return defaultStarterText; }
   });
@@ -91,7 +114,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('general');
 
-  // Drawers mobiles (renommés par fonction, pas par position)
+  // Drawers mobiles
   const [isScriptMenuOpen, setIsScriptMenuOpen] = useState<boolean>(false);
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState<boolean>(false);
 
@@ -109,36 +132,29 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setTimeout(() => setNotification(null), 2800);
   }, []);
 
+  // Refs
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousAudioUrlRef = useRef<string | null>(null);
   const previousMp3UrlRef = useRef<string | null>(null);
   const previewRequestRef = useRef<string | null>(null);
   const generationRequestLockRef = useRef(false);
-  // FIX COST-2 : même protection anti-double-clic que la génération TTS et la preview,
-  // appliquée au bouton Magique et au générateur de script (deux clics rapprochés ne
-  // doivent jamais déclencher deux appels Gemini payants).
   const enhanceRequestLockRef = useRef(false);
   const scriptRequestLockRef = useRef(false);
 
-  // ------------------------------------------------------------------------
-  // FIX : résultat perdu quand on change d'onglet (Historique/Tarifs) puis
-  // revient sur le Studio, ou quand la page se recharge pendant/après une
-  // génération (écran de téléphone éteint, mise en veille...). La génération
-  // elle-même se termine toujours côté serveur quoi qu'il arrive côté
-  // navigateur — ce qui manquait, c'est de retrouver ce résultat au retour :
-  //  1. Au lancement d'une génération, on note "une génération est en cours"
-  //     dans le stockage local du navigateur.
-  //  2. Au montage du composant (retour sur l'onglet Studio, ou rechargement
-  //     de la page), si une génération était notée en cours, on va vérifier
-  //     dans l'historique si elle s'est terminée entretemps, et on l'affiche
-  //     directement — sans repayer, sans la relancer.
-  //  3. Sinon, on réaffiche simplement le tout dernier résultat généré, pour
-  //     ne pas perdre l'aperçu en changeant simplement d'onglet.
-  // ------------------------------------------------------------------------
+  // Constantes session
+  const POINTS_COST = 20;
   const PENDING_GEN_KEY = 'sawtify_pending_generation';
   const LAST_RESULT_KEY = 'sawtify_last_result';
+  
+  const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
+  const filteredVoices = voices
+    .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
+    .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
 
+  // ------------------------------------------------------------------
+  // EFFECTS : Restauration d'état après changement d'onglet/rechargement
+  // ------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
 
@@ -150,9 +166,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       } catch {}
 
       if (pending && Date.now() - pending.startedAt < 3 * 60 * 1000) {
-        // Une génération n'avait pas eu le temps de se terminer visuellement
-        // avant qu'on quitte/recharge la page : on la cherche pendant jusqu'à
-        // 30 secondes (le temps qu'elle finisse réellement côté serveur).
         setIsGenerating(true);
         for (let attempt = 0; attempt < 10 && !cancelled; attempt++) {
           try {
@@ -178,8 +191,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         return;
       }
 
-      // Pas de génération en attente : on réaffiche juste le dernier résultat
-      // connu (utile en revenant sur l'onglet Studio depuis Historique/Tarifs).
       try {
         const raw = localStorage.getItem(LAST_RESULT_KEY);
         if (raw) {
@@ -200,20 +211,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const POINTS_COST = 20;
-  const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
-  const filteredVoices = voices
-    .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
-    .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
-
-  const toggleFavoriteVoice = (voiceId: string) => {
-    setFavoriteVoiceIds((previous) => {
-      const next = previous.includes(voiceId) ? previous.filter((id) => id !== voiceId) : [...previous, voiceId];
-      try { localStorage.setItem('sawtify_favorite_voices', JSON.stringify(next)); } catch {}
-      return next;
-    });
-  };
-
+  // ------------------------------------------------------------------
+  // EFFECTS : Nettoyage blobs / localStorage / clicks extérieurs
+  // ------------------------------------------------------------------
+  
   // Fermer dropdown emotions au clic extérieur
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -225,7 +226,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Révocation automatique des blobs
+  // Révocation automatique des blobs pour éviter les fuites mémoire
   useEffect(() => {
     return () => {
       if (previousAudioUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousAudioUrlRef.current);
@@ -247,9 +248,22 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     previousMp3UrlRef.current = mp3Url;
   }, [mp3Url]);
 
+  // Auto-save draft
   useEffect(() => {
     try { localStorage.setItem('sawtify_draft_text', text); } catch {}
   }, [text]);
+
+  // ------------------------------------------------------------------
+  // HANDLERS
+  // ------------------------------------------------------------------
+
+  const toggleFavoriteVoice = (voiceId: string) => {
+    setFavoriteVoiceIds((previous) => {
+      const next = previous.includes(voiceId) ? previous.filter((id) => id !== voiceId) : [...previous, voiceId];
+      try { localStorage.setItem('sawtify_favorite_voices', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   const handleInsertTag = useCallback((tag: string) => {
     if (!textareaRef.current) return;
@@ -271,11 +285,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     previewRequestRef.current = voice.id;
     setPreviewingVoiceId(voice.id);
 
-    // Amine / Yasmine / Khalid ont un vrai extrait audio déjà enregistré
-    // (le même que sur la landing page) : on le joue directement, sans
-    // appeler l'API Gemini à chaque écoute — ça ne consomme rien et c'est
-    // instantané. Vitesse/tonalité ne s'appliquent pas à un enregistrement
-    // réel (ça déformerait la voix), on le joue tel quel.
+    // Extraits audio natifs (instantanés, gratuits)
     if (voice.sampleAudioUrl) {
       playNaturalAudio(voice.sampleAudioUrl, () => setPreviewingVoiceId(null), 1, 1);
       previewRequestRef.current = null;
@@ -303,6 +313,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       generationRequestLockRef.current = false;
       return; 
     }
+    
     setInsufficientAlert(false); 
     setIsGenerating(true); 
     setCurrentAudioUrl(null); 
@@ -315,6 +326,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (extractedTags.length === 0) {
         showNotif(language === 'ar' ? '💡 أضف وسم عاطفة لصوت أكثر تعبيرًا' : '💡 Ajoutez une balise d\'émotion pour un rendu plus expressif');
       }
+      
       const response = await requestTTSGeneration({ 
         text, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags 
       }, balance);
@@ -334,22 +346,15 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         setAudioDuration(response.duration_seconds || 0);
       });
 
-      // La génération est terminée dès que l'audio est reçu. On affiche donc
-      // immédiatement le résultat et on déverrouille le Studio; l'upload
-      // Supabase et la conversion MP3 continuent ensuite sans bloquer l'UI.
+      // Fin immédiate de l'UI génération, upload en arrière-plan
       setIsGenerating(false);
-
       const realCost = response.points_deducted || POINTS_COST;
       setLastGeneratedCost(realCost);
 
       if (response.degraded) {
-        // Aperçu de secours généré localement (serveur injoignable) :
-        // ce n'est PAS la vraie voix, donc on ne débite JAMAIS de points.
         try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
         showNotif(language === 'ar' ? '⚠️ الخادم غير متاح، معاينة محلية (بدون خصم نقاط)' : '⚠️ Serveur injoignable — aperçu local (non facturé)');
       } else {
-        // Upload de l'audio vers Supabase Storage pour qu'il reste lisible et
-        // téléchargeable dans l'historique après un rechargement de page.
         let storagePath: string | null = null;
         const { data: userData } = await supabase.auth.getUser();
         const generationId = response.generation_id || `gen_${Date.now()}`;
@@ -373,8 +378,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: generationId, createdAt: record.createdAt }));
         } catch {}
       }
+      
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
       
+      // Conversion MP3 en arrière-plan
       setIsConvertingMp3(true); 
       setConversionStatus(t.convertingStatus || 'Conversion...');
       try { 
@@ -417,7 +424,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
         setIsGenerating(false);
         generationRequestLockRef.current = false;
-        if (!errMsg) { /* déjà nettoyé plus haut en cas de succès/dégradé */ }
+        if (!errMsg) { /* déjà nettoyé plus haut */ }
         else { try { localStorage.removeItem(PENDING_GEN_KEY); } catch {} }
       }
     }
@@ -444,7 +451,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) { 
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
-      // FIX COST-1 : message de quota lisible plutôt qu'une erreur générique.
       else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي، عاود المحاولة غدًا' : 'Limite quotidienne atteinte, réessaie demain');
       else showNotif(language === 'ar' ? 'خطأ في التحسين' : 'Erreur d\'amélioration');
     } finally { 
@@ -485,7 +491,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   };
 
   const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
-  const [feedbackError, setFeedbackError] = useState<boolean>(false);
+  const [, setFeedbackError] = useState<boolean>(false);
 
   const handleSendFeedback = async (rating: number) => {
     if (!lastGenType || !lastGenOutput || feedbackSent) return;
@@ -526,21 +532,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     if (audioRef.current) setCurrentTime(audioRef.current.currentTime); 
   }, []);
 
-  const regionButtons: { id: RegionId; ar: string; fr: string }[] = [
-    { id: 'general', ar: 'عام', fr: 'Général' },
-    { id: 'centre', ar: 'الوسط', fr: 'Centre' },
-    { id: 'ouest', ar: 'الغرب', fr: 'Ouest' },
-    { id: 'est', ar: 'الشرق', fr: 'Est' },
-  ];
-
-  const categoryOptions: { id: CategoryFilter; label: string }[] = [
-    { id: 'all', label: t.categoryAll || 'Tous' },
-    { id: 'commercial', label: t.categoryCommercial || 'Commercial' },
-    { id: 'narrative', label: t.categoryNarrative || 'Narratif' },
-    { id: 'social', label: t.categorySocial || 'Social' },
-    { id: 'formal', label: t.categoryFormal || 'Formel' },
-  ];
-
   const handleClosePlayer = useCallback(() => {
     setIsPlaying(false);
     if (audioRef.current) {
@@ -562,9 +553,31 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     });
   }, [text, language, showNotif]);
 
+  // ------------------------------------------------------------------
+  // DATA : Config boutons région / catégories
+  // ------------------------------------------------------------------
+  const regionButtons: { id: RegionId; ar: string; fr: string }[] = [
+    { id: 'general', ar: 'عام', fr: 'Général' },
+    { id: 'centre', ar: 'الوسط', fr: 'Centre' },
+    { id: 'ouest', ar: 'الغرب', fr: 'Ouest' },
+    { id: 'est', ar: 'الشرق', fr: 'Est' },
+  ];
+
+  const categoryOptions: { id: CategoryFilter; label: string }[] = [
+    { id: 'all', label: t.categoryAll || 'Tous' },
+    { id: 'commercial', label: t.categoryCommercial || 'Commercial' },
+    { id: 'narrative', label: t.categoryNarrative || 'Narratif' },
+    { id: 'social', label: t.categorySocial || 'Social' },
+    { id: 'formal', label: t.categoryFormal || 'Formel' },
+  ];
+
+  // ------------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------------
   return (
     <div className="h-[calc(100dvh-64px)] w-full overflow-y-auto bg-slate-50/40 relative pb-28 lg:h-[calc(100vh-64px)] lg:overflow-hidden lg:pb-0">
       
+      {/* Notification toast */}
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
           <Zap className="w-4 h-4 text-yellow-300 fill-yellow-300" />
@@ -599,7 +612,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       <div className="flex-none lg:flex lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden relative">
         
-        {/* ============ PANNEAU SCRIPT (Gauche en LTR, Droite en RTL) ============ */}
+        {/* PANNEAU SCRIPT (Gauche/Droite selon RTL) */}
         {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
              <div className={`
           fixed lg:static inset-y-0 start-0 z-50 lg:z-0
@@ -609,7 +622,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             ? 'translate-x-0 opacity-100 pointer-events-auto' 
             : (isRTL ? 'translate-x-full' : '-translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
         `}>
-               
               
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
@@ -622,7 +634,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
 
           <div className="p-4 border-b border-slate-100">
-            {/* Lahdja - Segmented Control épuré */}
+            {/* Lahdja selector */}
             <div className="mb-3">
               <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">
                 {language === 'ar' ? 'اللهجة' : 'Lahdja'}
@@ -685,8 +697,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
         </div>
 
-        {/* ============ EDITEUR CENTRAL ============ */}
+        {/* EDITEUR CENTRAL */}
         <div className="w-full min-w-0 flex flex-col p-3 sm:p-4 lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+          
+          {/* Alerte solde insuffisant */}
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
               <div className="flex items-center gap-2">
@@ -703,10 +717,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           <div className="bg-white border border-slate-200/80 rounded-2xl min-h-[520px] flex-none flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative lg:h-full lg:flex-1 lg:min-h-0">
             
-            {/* HEADER : Dropdown Emotions + Compteur caractères */}
+            {/* Header éditeur */}
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
               
-              {/* Dropdown "Insérer une émotion" (Compact et propre) */}
+              {/* Dropdown Emotions */}
               <div className="relative" ref={emotionsMenuRef}>
                 <button 
                   onClick={() => setIsEmotionsMenuOpen(!isEmotionsMenuOpen)}
@@ -736,13 +750,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 )}
               </div>
               
-              {/* Compteur caractères (Info discrète) */}
+              {/* Compteur caractères */}
               <div className="text-[11px] text-slate-400 font-num">
                 <span className={`font-semibold ${text.length >= 4500 ? 'text-amber-600' : 'text-slate-600'}`}>{text.length}</span> / 5000 {t.charsCount}
               </div>
             </div>
 
-            {/* ZONE DE TEXTE */}
+            {/* Zone texte */}
             <div className="flex-1 min-h-0 relative">
               <textarea 
                 ref={textareaRef} 
@@ -767,80 +781,76 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               `}</style>
             </div>
 
-            {/* BARRE DE STATUT (Feedback + Actions intégrées, plus de flottement) */}
-            <div className="fixed bottom-[5.25rem] inset-x-3 z-[68] mx-auto max-w-3xl shrink-0 rounded-2xl border border-slate-200 bg-white/95 px-3 pb-3 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl lg:static lg:mx-0 lg:mb-0 lg:max-w-none lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-2 lg:shadow-none">
-              
-              {/* Groupe gauche : Bouton Magique + Copie */}
-              <div className="flex items-center gap-1.5">
-                <button 
-                  onClick={handleEnhanceText} 
-                  disabled={isEnhancing || !text.trim() || balance < 2}
-                  className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
-                  title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
-                  {isEnhancing ? (
-                    <><RefreshCw className="w-3 h-3 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
-                  ) : (
-                    <><Wand2 className="w-3 h-3 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
-                  )}
-                </button>
+            {/* Barre d'action inférieure */}
+            <div className="shrink-0 mt-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 
-                <button 
-                  onClick={handleCopyText} 
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200"
-                  title={language === 'ar' ? 'نسخ' : 'Copier'}>
-                  {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-
-                {/* Feedback discret intégré dans la barre */}
-                {lastGenType && lastGenOutput && (
-                  <div className="flex items-center gap-1 ms-2 ps-2 border-s border-slate-200">
-                    <span className="text-[9px] text-slate-400 me-1">
-                      {feedbackSent
-                        ? (language === 'ar' ? '✅' : '✅')
-                        : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
-                    </span>
-                    <button 
-                      onClick={() => handleSendFeedback(5)} 
-                      disabled={feedbackSent}
-                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
-                      title="👍">
-                      <ThumbsUp className={`w-3 h-3 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-slate-400 hover:text-green-600'}`} />
-                    </button>
-                    <button 
-                      onClick={() => handleSendFeedback(1)} 
-                      disabled={feedbackSent}
-                      className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
-                      title="👎">
-                      <ThumbsDown className={`w-3 h-3 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-slate-400 hover:text-red-500'}`} />
-                    </button>
-                    {feedbackError && (
-                      <span className="text-[9px] text-rose-500 ms-1">{language === 'ar' ? 'أعد' : 'Retry'}</span>
+                {/* Groupe gauche : Magique + Copie + Feedback */}
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={handleEnhanceText} 
+                    disabled={isEnhancing || !text.trim() || balance < 2}
+                    className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                    title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
+                    {isEnhancing ? (
+                      <><RefreshCw className="w-3 h-3 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
+                    ) : (
+                      <><Wand2 className="w-3 h-3 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
                     )}
-                  </div>
-                )}
-              </div>
+                  </button>
+                  
+                  <button 
+                    onClick={handleCopyText} 
+                    className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200"
+                    title={language === 'ar' ? 'نسخ' : 'Copier'}>
+                    {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
 
-              {/* Groupe droite : Coût + Générer */}
-              <div className="flex w-full items-center justify-between gap-2 lg:w-auto">
-                <span className="text-[10px] text-slate-500" title={language === 'ar' ? '20 نقطة لـ 0-60 ثانية' : '20 pts pour 0-60s'}>
-                  {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
-                </span>
-                <button 
-                  onClick={() => handleGenerate()} 
-                  disabled={isGenerating || !text.trim()} 
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-500 disabled:opacity-40 lg:flex-none lg:px-4 lg:py-2">
-                  {isGenerating ? (
-                    <><span className="sawtify-button-loader" aria-hidden="true"><span className="sawtify-button-loader-ring" /><span className="sawtify-button-loader-letters"><span>S</span><span>A</span><span>W</span></span></span><span>{t.generatingBtn}</span></>
-                  ) : (
-                    <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
+                  {lastGenType && lastGenOutput && (
+                    <div className="flex items-center gap-1 ms-2 ps-2 border-s border-slate-200">
+                      <span className="text-[9px] text-slate-400 me-1">
+                        {feedbackSent ? '✅' : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
+                      </span>
+                      <button 
+                        onClick={() => handleSendFeedback(5)} 
+                        disabled={feedbackSent}
+                        className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`}
+                        title="👍">
+                        <ThumbsUp className={`w-3 h-3 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-slate-400 hover:text-green-600'}`} />
+                      </button>
+                      <button 
+                        onClick={() => handleSendFeedback(1)} 
+                        disabled={feedbackSent}
+                        className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`}
+                        title="👎">
+                        <ThumbsDown className={`w-3 h-3 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-slate-400 hover:text-red-500'}`} />
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
+
+                {/* Groupe droite : Coût + Générer */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 hidden sm:inline">
+                    {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
+                  </span>
+                  <button 
+                    onClick={() => handleGenerate()} 
+                    disabled={isGenerating || !text.trim()} 
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-500 disabled:opacity-40 cursor-pointer">
+                    {isGenerating ? (
+                      <><span className="sawtify-button-loader" aria-hidden="true"><span className="sawtify-button-loader-ring" /><span className="sawtify-button-loader-letters"><span>S</span><span>A</span><span>W</span></span></span><span>{t.generatingBtn}</span></>
+                    ) : (
+                      <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ============ PANNEAU VOIX ============ */}
+        {/* PANNEAU VOIX (Droite/Gauche selon RTL) */}
         {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
                <div className={`
           fixed lg:static inset-y-0 end-0 z-50 lg:z-0
@@ -862,7 +872,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           <div className="flex-1 min-h-0 flex flex-col">
             
-            {/* Filtre Genre : Icônes + Texte pour clarté */}
+            {/* Filtre Genre */}
             <div className="shrink-0 flex bg-slate-100 p-0.5 rounded-lg text-[10px] mb-2">
               <button 
                 onClick={() => setGenderFilter('all')} 
@@ -883,7 +893,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </button>
             </div>
 
-            {/* Filtre Catégorie : Dropdown (Select) épuré */}
+            {/* Filtre Catégorie */}
             <div className="shrink-0 mb-2">
               <div className="relative">
                 <select 
@@ -898,7 +908,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
             </div>
 
-            {/* Liste des voix (scrollbar customisée) */}
+            {/* Liste voix scrollable */}
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1 pe-1">
               {filteredVoices.map((voice) => {
                 const isSelected = voice.id === selectedVoiceId;
@@ -922,7 +932,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                       onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }}
                       className={`p-1 rounded shrink-0 ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
                       title={favoriteVoiceIds.includes(voice.id) ? (language === 'ar' ? 'إزالة من المفضلة' : 'Retirer des favoris') : (language === 'ar' ? 'إضافة إلى المفضلة' : 'Ajouter aux favoris')}
-                      aria-label={favoriteVoiceIds.includes(voice.id) ? 'Favori actif' : 'Ajouter aux favoris'}
                     >
                       <Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} />
                     </button>
@@ -937,7 +946,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           </div>
 
-          {/* Voix sélectionnée + Sliders épais (tactile-friendly) */}
+          {/* Voix sélectionnée + Sliders */}
           <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3">
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
@@ -954,7 +963,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </button>
             </div>
             
-            {/* Sliders épais tactile-friendly */}
             <div className="space-y-2.5">
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px]">
@@ -991,56 +999,46 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
 
       </div>
+      </fieldset>
 
-      {
-        
-        // Remplace TOUT le bloc du PLAYER AUDIO FLOTTANT (vers la fin du fichier) par ceci :
-
-      {/* ==========================================================================
-         PLAYER AUDIO FLOTTANT — Version "Bottom Docked" (pas de décalage mid-screen)
-         ========================================================================== */}
+      {/* ==================================================================
+          PLAYER AUDIO FLOTTANT — VERSION BOTTOM DOCKED (Collé en bas)
+          ================================================================== */}
       {currentAudioUrl && (
         <div 
-          className={`
+          className="
             fixed inset-x-0 bottom-0 z-[70]
             bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900/95
             border-t border-purple-500/30 
-            shadow-[0_-8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl
+            shadow-[0_-8px_32px_rgba(0,0,0,0.6)] backdrop-blur-xl
             animate-in slide-in-from-bottom-2 duration-300 ease-out
-            pb-safe  /* padding-bottom env(safe-area-inset-bottom) pour iOS */
-          `}
-          style={{ 
-            // Évite que le player soit caché par la barre de navigation mobile (si elle existe)
-            paddingBottom: 'env(safe-area-inset-bottom, 16px)' 
-          }}
+          "
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}
         >
-          {/* Conteneur interne centré avec max-width */}
           <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6 sm:py-3.5 flex items-center gap-3 sm:gap-5">
             
-            {/* ZONE 1 : Contrôles Play/Pause + Infos */}
+            {/* Zone 1 : Contrôles Play/Pause */}
             <div className="flex items-center gap-3 shrink-0">
               <button 
                 onClick={togglePlay} 
                 className="group relative w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 
                            text-white flex items-center justify-center cursor-pointer 
                            hover:scale-105 active:scale-95 transition-transform duration-200
-                           shadow-lg shadow-purple-600/40
-                           ring-2 ring-white/10"
+                           shadow-lg shadow-purple-600/40 ring-2 ring-white/10"
               >
                 {isPlaying ? (
                   <Pause className="w-5 h-5 fill-white" />
                 ) : (
                   <Play className="w-5 h-5 ms-0.5 fill-white" />
                 )}
-                {/* Indicateur subtil de pulse quand playing */}
                 {isPlaying && (
                   <span className="absolute inset-0 rounded-xl bg-white/20 animate-ping opacity-20" />
                 )}
               </button>
               
-              <div className="flex flex-col min-w-0">
+              <div className="hidden sm:flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-white truncate max-w-[120px] sm:max-w-[200px]">
+                  <span className="text-sm font-bold text-white truncate max-w-[180px]">
                     {currentVoice.name}
                   </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full 
@@ -1049,31 +1047,30 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                     ✓ Ready
                   </span>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-purple-300 font-mono tabular-nums">
-                    {formatTime(currentTime)}
-                  </span>
-                  <div className="flex-1 h-[2px] bg-slate-700 rounded-full min-w-[20px]" />
-                  <span className="text-xs text-slate-400 font-mono tabular-nums">
-                    {formatTime(audioDuration)}
-                  </span>
+                <div className="flex items-center gap-2 mt-0.5 text-xs">
+                  <span className="text-purple-300 font-mono tabular-nums">{formatTime(currentTime)}</span>
+                  <div className="flex-1 h-[2px] bg-slate-700 rounded-full overflow-hidden min-w-[30px]">
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-150"
+                      style={{ width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }} 
+                    />
+                  </div>
+                  <span className="text-slate-400 font-mono tabular-nums">{formatTime(audioDuration)}</span>
                 </div>
               </div>
             </div>
 
-            {/* ZONE 2 : Waveform Centrale (Prend tout l'espace dispo) */}
+            {/* Zone 2 : Waveform Centrale (Desktop) + Temps Mobile */}
             <div className="flex-1 min-w-0 hidden sm:flex items-center gap-3 
                             bg-slate-800/60 px-4 py-2.5 rounded-xl 
-                            border border-slate-700/50 backdrop-blur-sm">
+                            border border-slate-700/50 backdrop-blur-sm relative group">
               <WaveformPlayer 
                 isPlaying={isPlaying}
                 hasAudio={!!currentAudioUrl}
                 currentTime={currentTime}
                 duration={audioDuration}
-                color="#a855f7" /* violet-500 */
               />
-              
-              {/* Progress click area optionnel (cliquer sur la barre pour seek) */}
+              {/* Overlay invisible pour seek */}
               <input 
                 type="range" 
                 min={0} 
@@ -1086,26 +1083,24 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                     setCurrentTime(parseFloat(e.target.value));
                   }
                 }}
-                className="absolute w-full h-full opacity-0 cursor-pointer"
-                style={{ top: 0, left: 0 }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
             </div>
 
-            {/* Mobile : Temps simple à droite du bouton play */}
-            <div className="sm:hidden flex flex-col items-end min-w-0">
-              <span className="text-xs font-bold text-purple-300 font-mono">
+            {/* Mobile : Affichage temps simple + mini barre */}
+            <div className="sm:hidden flex flex-col items-end min-w-0 gap-1">
+              <span className="text-xs font-bold text-purple-300 font-mono tabular-nums">
                 {formatTime(currentTime)} / {formatTime(audioDuration)}
               </span>
-              {/* Mini-barre de progression mobile */}
-              <div className="w-24 h-1 bg-slate-700 rounded-full mt-1 overflow-hidden">
+              <div className="w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
-                  style={{ width: `${audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}%` }}
+                  style={{ width: `${audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}%` }} 
                 />
               </div>
             </div>
 
-            {/* ZONE 3 : Actions Télécharger/Fermer */}
+            {/* Zone 3 : Télécharger / Fermer */}
             <div className="flex items-center gap-2 shrink-0">
               {mp3Url ? (
                 <a 
@@ -1118,11 +1113,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                     shadow-lg shadow-purple-900/40 
                     border border-purple-400/30
                   "
-                  title="Télécharger MP3 (compressé)"
+                  title="Download MP3"
                 >
-                  <Download className="w-4 h-4 group-hover:animate-bounce" />
+                  <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
                   <span className="hidden md:inline">MP3</span>
-                  <span className="hidden lg:inline text-[10px] bg-white/20 px-1.5 py-0.5 rounded">~1MB</span>
                 </a>
               ) : (
                 <a 
@@ -1131,10 +1125,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   className="
                     group flex items-center gap-2 px-3 py-2.5 
                     bg-slate-800 hover:bg-slate-700 
-                    text-slate-200 rounded-xl text-xs font-semibold transition-all
+                    text-slate-200 rounded-xl text-xs font-semibold transition-colors
                     border border-slate-600/50
                   "
-                  title="Télécharger WAV (perteless)"
+                  title="Download WAV"
                 >
                   <Download className="w-4 h-4 group-hover:text-white transition-colors" />
                   <span className="hidden md:inline">WAV</span>
@@ -1149,13 +1143,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   transition-colors duration-200
                   border border-transparent hover:border-red-500/20
                 "
-                title="Fermer le lecteur"
+                title={language === 'ar' ? 'إغلاق' : 'Fermer'}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Audio element caché */}
+            {/* Élément audio caché */}
             <audio 
               ref={audioRef} 
               src={currentAudioUrl} 
@@ -1166,6 +1160,22 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               preload="auto"
               className="hidden" 
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal overlay pendant génération */}
+      {isGenerating && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/30 backdrop-blur-[2px]" aria-live="polite" aria-busy="true">
+          <div className="mx-5 w-full max-w-sm rounded-3xl border border-purple-200 bg-white/95 p-7 text-center shadow-2xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 shadow-lg shadow-purple-600/30">
+              <RefreshCw className="h-7 w-7 animate-spin text-white" />
+            </div>
+            <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération de la voix en cours…'}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة ولا تغيّر الصوت حتى يكتمل الإنشاء.' : 'Ne ferme pas la page et ne modifie pas le script avant la fin.'}</p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" />
+            </div>
           </div>
         </div>
       )}
