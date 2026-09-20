@@ -696,7 +696,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         ) : (
           <>
             <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-            <span className={language === 'ar' ? 'إنشاء' : 'Générer'}<span className="text-[9px] font-bold text-yellow-200 ml-1">• 5 pts</span>
+            <span>{language === 'ar' ? 'إنشاء' : 'Générer'}</span>
+            <span className="text-[9px] font-bold text-yellow-200 ml-1">• 5 pts</span>
           </>
         )}
       </button>
