@@ -55,6 +55,37 @@ export async function signInWithEmailPassword(email: string, password: string) {
   if (error) throw error;
 }
 
+// Création de compte classique (Prénom, Nom, e-mail, mot de passe) — voie de
+// secours quand "S'inscrire avec Google" est bloqué (ex: navigateur intégré
+// de Facebook/Instagram qui refuse l'OAuth Google). Le mot de passe étant
+// déjà défini ici, on marque tout de suite password_set_at pour ne pas
+// re-proposer l'écran de création de mot de passe ensuite.
+// Retourne true si le compte est immédiatement connecté (session ouverte),
+// false si Supabase exige une confirmation par e-mail avant de se connecter.
+export async function signUpWithEmailPassword(
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string
+): Promise<boolean> {
+  sessionStorage.removeItem(SIGNUP_INTENT_KEY);
+  const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        password_set_at: new Date().toISOString(),
+      },
+    },
+  });
+  if (error) throw error;
+  return !!data.session;
+}
+
 // Définit le mot de passe du compte connecté (appelé juste après le tout premier
 // Google Sign-In pour permettre ensuite une connexion classique email + mot de passe).
 export async function setAccountPassword(password: string) {

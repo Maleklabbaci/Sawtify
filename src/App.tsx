@@ -5,7 +5,8 @@ import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
-import { trackMarketingEvent } from './services/marketingTracking';
+import { trackMarketingEvent, trackMetaCompleteRegistration } from './services/marketingTracking';
+import { isInAppBrowser } from './utils/inAppBrowser';
 
 // Chargées à la demande seulement : évite d'embarquer ffmpeg.wasm, Supabase, etc.
 // dans le bundle initial affiché avant même la connexion (page trop longue à charger).
@@ -53,6 +54,22 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin'>(() => routeToTab(window.location.pathname));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showInstagramNudge, setShowInstagramNudge] = useState(false);
+  // Bandeau affiché quand le site est ouvert depuis le navigateur intégré de
+  // Facebook/Instagram (où "S'inscrire avec Google" est bloqué par Google) —
+  // pour ne pas perdre ces visiteurs, on les oriente vers l'inscription par
+  // e-mail ou vers l'ouverture dans un vrai navigateur.
+  const [showInAppBrowserBanner, setShowInAppBrowserBanner] = useState(false);
+  React.useEffect(() => {
+    try {
+      const dismissed = sessionStorage.getItem('sawtify_inapp_banner_dismissed') === 'true';
+      if (!dismissed && !isLoggedIn && isInAppBrowser()) setShowInAppBrowserBanner(true);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+  const dismissInAppBrowserBanner = () => {
+    setShowInAppBrowserBanner(false);
+    try { sessionStorage.setItem('sawtify_inapp_banner_dismissed', 'true'); } catch {}
+  };
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   // Tant que la session Supabase n'a pas encore répondu au premier chargement,
   // on ne sait pas si l'utilisateur est connecté ou non. Avant, isLoggedIn valait
@@ -237,6 +254,10 @@ function AppContent() {
           }
 
           if (isBrandNewAccount) {
+            // Confirme à Meta qu'une inscription vient réellement d'aboutir
+            // (utilisé par la campagne Ads pour optimiser sur les vraies
+            // conversions au lieu du simple clic).
+            trackMetaCompleteRegistration();
             welcomeBonusPromiseRef.current = import('./services/supabaseClient').then(({ claimWelcomeBonus }) => claimWelcomeBonus());
             welcomeBonusPromiseRef.current.then((result) => {
               if (result === 'denied') showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP. لم يتم منح نقاط الترحيب.' : "⚠️ Tu as déjà un compte avec cette IP. Aucun point de bienvenue offert cette fois-ci.");
@@ -403,7 +424,31 @@ function AppContent() {
 
   return (
     <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
-      
+
+      {showInAppBrowserBanner && (
+        <div className={`shrink-0 w-full bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-3 text-amber-900 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
+          <span className="text-base leading-none shrink-0">⚠️</span>
+          <p className="text-[12px] leading-snug flex-1 min-w-0">
+            {language === 'ar'
+              ? 'أنت تتصفح عبر متصفح Facebook/Instagram المدمج، مما قد يمنع "المتابعة عبر Google". يمكنك إنشاء حساب بالبريد الإلكتروني بدلاً من ذلك، أو فتح الرابط في متصفحك (Chrome/Safari).'
+              : "Tu ouvres Sawtify depuis le navigateur intégré de Facebook/Instagram : \"Continuer avec Google\" peut ne pas fonctionner. Utilise l'inscription par e-mail ci-dessous, ou ouvre ce lien dans Chrome/Safari."}
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(window.location.href);
+                showToast(language === 'ar' ? 'تم نسخ الرابط' : 'Lien copié');
+              } catch {}
+            }}
+            className="shrink-0 rounded-lg bg-amber-900/90 hover:bg-amber-900 px-2.5 py-1.5 text-[10px] font-bold text-white whitespace-nowrap"
+          >
+            {language === 'ar' ? 'نسخ الرابط' : 'Copier le lien'}
+          </button>
+          <button type="button" onClick={dismissInAppBrowserBanner} className="shrink-0 text-amber-700 hover:text-amber-900" aria-label="Fermer">×</button>
+        </div>
+      )}
+
       {/* Header (64px) */}
       <Header
         balance={balance}

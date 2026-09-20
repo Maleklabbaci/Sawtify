@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, ShieldCheck, Gift, Zap, Mic, Volume2, AlertCircle } from 'lucide-react';
-import { signInWithGoogle } from '../services/supabaseClient';
+import { ArrowLeft, ShieldCheck, Gift, Zap, Mic, Volume2, AlertCircle, User, Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { signInWithGoogle, signUpWithEmailPassword } from '../services/supabaseClient';
 import { trackMarketingEvent } from '../services/marketingTracking';
 
 interface SigninModalProps {
@@ -42,6 +42,18 @@ export const SigninModal: React.FC<SigninModalProps> = ({
   const [authError, setAuthError] = useState<string | null>(null);
   const features = isRTL ? FEATURES_AR : FEATURES_FR;
 
+  // Inscription classique (Prénom, Nom, e-mail, mot de passe) — voie de
+  // secours quand "S'inscrire avec Google" est bloqué (navigateur intégré
+  // Facebook/Instagram, entre autres).
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
+
   const handleGoogleAuth = async () => {
     setAuthError(null);
     setIsLoading(true);
@@ -54,6 +66,44 @@ export const SigninModal: React.FC<SigninModalProps> = ({
         isRTL ? 'تعذر الاتصال عبر Google. حاول مجدداً.' : 'Connexion Google impossible. Réessaie dans un instant.'
       );
       setIsLoading(false);
+    }
+  };
+
+  const handleEmailSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) return;
+    if (password.length < 6) {
+      setAuthError(isRTL ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.' : 'Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAuthError(isRTL ? 'كلمتا المرور غير متطابقتين.' : 'Les deux mots de passe ne correspondent pas.');
+      return;
+    }
+    setIsEmailLoading(true);
+    trackMarketingEvent('email_signup_click');
+    try {
+      const hasSession = await signUpWithEmailPassword(firstName, lastName, email.trim(), password);
+      if (hasSession) {
+        // onAuthStateChange (App.tsx) prend le relais : compte détecté comme
+        // nouveau -> bonus de bienvenue, tracking Meta, etc.
+        onSigninSuccess();
+      } else {
+        // Confirmation par e-mail exigée côté projet Supabase.
+        setConfirmationSent(true);
+      }
+    } catch (err: any) {
+      console.error('Erreur d\'inscription e-mail:', err);
+      const message: string = err?.message || '';
+      const isDuplicate = /already registered|already exists|duplicate/i.test(message);
+      setAuthError(
+        isDuplicate
+          ? (isRTL ? 'يوجد حساب بهذا البريد الإلكتروني بالفعل.' : 'Un compte existe déjà avec cet e-mail.')
+          : (isRTL ? 'تعذر إنشاء الحساب. حاول مجدداً.' : 'Impossible de créer le compte. Réessaie dans un instant.')
+      );
+    } finally {
+      setIsEmailLoading(false);
     }
   };
 
@@ -165,6 +215,115 @@ export const SigninModal: React.FC<SigninModalProps> = ({
             <Volume2 className="w-3.5 h-3.5 shrink-0" />
             <span>{isRTL ? 'بدون بطاقة بنكية، بدون كلمة مرور — تجربة فورية' : 'Sans carte bancaire, sans mot de passe — accès immédiat'}</span>
           </div>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+              {isRTL ? 'أو' : 'ou'}
+            </span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          {/* Inscription classique — utile si "S'inscrire avec Google" est
+              bloqué (navigateur intégré Facebook/Instagram par exemple). */}
+          {confirmationSent ? (
+            <div className="space-y-4 text-center">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-green-50 border border-green-200 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-sm text-slate-600">
+                {isRTL
+                  ? `تم إرسال رابط التفعيل إلى ${email}. تحقق من بريدك لإكمال إنشاء الحساب.`
+                  : `Un lien de confirmation a été envoyé à ${email}. Vérifie ta boîte mail pour activer ton compte.`}
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleEmailSignup} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="relative">
+                  <User className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder={isRTL ? 'الاسم' : 'Prénom'}
+                    className="w-full ps-10 pe-3 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                  />
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder={isRTL ? 'اللقب' : 'Nom'}
+                    className="w-full px-3.5 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="relative">
+                <Mail className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={isRTL ? 'البريد الإلكتروني' : 'Adresse e-mail'}
+                  className="w-full ps-10 pe-4 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                />
+              </div>
+
+              <div className="relative">
+                <Lock className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={isRTL ? 'كلمة المرور' : 'Mot de passe'}
+                  className="w-full ps-10 pe-10 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute top-1/2 -translate-y-1/2 end-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <div className="relative">
+                <Lock className="absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder={isRTL ? 'تأكيد كلمة المرور' : 'Confirmer le mot de passe'}
+                  className="w-full ps-10 pe-4 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/60 focus:ring-4 focus:ring-purple-500/5 transition"
+                />
+              </div>
+
+              <button
+                type="submit"
+                id="btn-email-signup"
+                disabled={isEmailLoading || !firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmPassword}
+                className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isEmailLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>{isRTL ? 'جاري إنشاء الحساب...' : 'Création du compte...'}</span>
+                  </>
+                ) : (
+                  <span>{isRTL ? 'إنشاء الحساب' : 'Créer mon compte'}</span>
+                )}
+              </button>
+            </form>
+          )}
 
           <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
             <span>{isRTL ? 'لديك حساب بالفعل؟' : 'Déjà un compte ?'}</span>{' '}
