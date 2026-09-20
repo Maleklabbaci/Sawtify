@@ -4,6 +4,7 @@ import {
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
   AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown,
   Menu, Settings, ChevronDown, Star
+    ChevronUp   // <--- AJOUTE CECI
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
