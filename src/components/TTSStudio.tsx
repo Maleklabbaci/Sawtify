@@ -4,7 +4,6 @@ import {
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
   AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown,
   Menu, Settings, ChevronDown, Star
-    ChevronUp   // <--- AJOUTE CECI
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
@@ -58,7 +57,6 @@ type RegionId = 'general' | 'centre' | 'ouest' | 'est';
 // ==========================================================================
 // COMPOSANT PRINCIPAL
 // ==========================================================================
-
 export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, onOpenRecharge, recentGenerations = [] }) => {
   const { t, isRTL, language } = useLanguage();
   const voices = getVoices(language);
@@ -69,7 +67,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     : '[excited] Écoute bien ya khawti ! Avec notre nouvelle plateforme Sawtify... [natural] tes textes se transforment en voix humaine 100% naturelle.';
 
   // ------------------------------------------------------------------
-  // STATE (tout initialisé directement, pas d'attente)
+  // STATE
   // ------------------------------------------------------------------
   const [text, setText] = useState<string>(() => {
     try { return localStorage.getItem('sawtify_draft_text') || defaultStarterText; } catch { return defaultStarterText; }
@@ -89,7 +87,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [, setMp3Blob] = useState<Blob | null>(null);
   const [mp3Url, setMp3Url] = useState<string | null>(null);
   const [, setWavSize] = useState<number>(0);
-  const audioDurationRef = useRef<number>(0); // utiliser ref pour éviter re-renders inutiles
+  const audioDurationRef = useRef<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [copied, setCopied] = useState<boolean>(false);
@@ -97,17 +95,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
   const [, setLastGeneratedCost] = useState<number>(20);
-// Détecteur mobile (ajoute ceci près des autres useState)
-const [isMobile, setIsMobile] = useState(false);
-const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
 
-// Effet de détection responsive
-useEffect(() => {
-  const checkMobile = () => setIsMobile(window.innerWidth < 768);
-  checkMobile();
-  window.addEventListener('resize', checkMobile);
-  return () => window.removeEventListener('resize', checkMobile);
-}, []);
   // Menu emotions
   const [isEmotionsMenuOpen, setIsEmotionsMenuOpen] = useState<boolean>(false);
   const emotionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -145,7 +133,7 @@ useEffect(() => {
   const generationRequestLockRef = useRef(false);
   const enhanceRequestLockRef = useRef(false);
   const scriptRequestLockRef = useRef(false);
-  const isRestoringRef = useRef(false); // FLAG POUR ÉVITER BOUCLE
+  const isRestoringRef = useRef(false);
 
   // Constantes
   const POINTS_COST = 20;
@@ -158,11 +146,9 @@ useEffect(() => {
     .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
 
   // ------------------------------------------------------------------
-  // EFFECT : Restauration d'état (NON BLOQUANT)
-  // Ajout d'un timeout de sécurité : si après 3s c'est pas fini, on abandonne
+  // EFFECT : Restauration d'état
   // ------------------------------------------------------------------
   useEffect(() => {
-    // Protection contre double appel (ex: Strict Mode React)
     if (isRestoringRef.current) return;
     isRestoringRef.current = true;
 
@@ -179,10 +165,7 @@ useEffect(() => {
       }
 
       if (pending && Date.now() - pending.startedAt < 3 * 60 * 1000) {
-        // On essaie de restaurer, mais avec timeout
         setIsGenerating(true);
-        
-        // Timeout de sécurité : 4 secondes max pour attendre
         const timeoutPromise = new Promise((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error('RESTORE_TIMEOUT')), 4000);
         });
@@ -193,15 +176,12 @@ useEffect(() => {
             timeoutPromise
           ]) as any;
 
-          // Si c'est le timeout qui a gagné
           if (raceResult?.message === 'RESTORE_TIMEOUT') {
-            console.log('⏱️ Restore timeout, affichage direct');
             setIsGenerating(false);
             try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
             return;
           }
 
-          // Résultat normal
           const rows = raceResult;
           const found = rows.find((r: any) => new Date(r.createdAt).getTime() >= pending!.startedAt - 3000);
           
@@ -217,9 +197,7 @@ useEffect(() => {
             } catch {}
           }
         } catch (err: any) {
-          if (err.message !== 'RESTORE_TIMEOUT') {
-            console.warn('Erreur restauration:', err);
-          }
+          // ignore
         } finally {
           clearTimeout(timeoutId);
           if (!cancelled) setIsGenerating(false);
@@ -227,15 +205,13 @@ useEffect(() => {
         return;
       }
 
-      // Pas de pending : charger dernier résultat connu (sans bloquer)
       try {
         const raw = localStorage.getItem(LAST_RESULT_KEY);
         if (raw) {
           const last = JSON.parse(raw);
-          // Appel rapide avec timeout
           const rows = await Promise.race([
             fetchMyGenerations(5),
-            new Promise((res) => setTimeout(() => res([]), 2000)) // fallback vide après 2s
+            new Promise((res) => setTimeout(() => res([]), 2000))
           ]);
           const found = (rows as any[]).find(r => r.id === last.id);
           if (found && !cancelled) {
@@ -245,24 +221,16 @@ useEffect(() => {
             setLastGeneratedCost(found.pointsDeducted);
           }
         }
-      } catch (e) {
-        // Silencieux : l'affichage principal marche déjà
-      }
+      } catch (e) {}
     };
 
-    // Lancer en background, ne pas bloquer le render
     restorePreviousState();
     
     return () => { 
       cancelled = true; 
       isRestoringRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ------------------------------------------------------------------
-  // AUTRES EFFETS
-  // ------------------------------------------------------------------
 
   // Fermer dropdown emotions
   useEffect(() => {
@@ -305,7 +273,6 @@ useEffect(() => {
   // ------------------------------------------------------------------
   // HANDLERS
   // ------------------------------------------------------------------
-
   const toggleFavoriteVoice = (voiceId: string) => {
     setFavoriteVoiceIds((prev) => {
       const next = prev.includes(voiceId) ? prev.filter((id) => id !== voiceId) : [...prev, voiceId];
@@ -369,9 +336,7 @@ useEffect(() => {
     
     try { 
       localStorage.setItem(PENDING_GEN_KEY, JSON.stringify({ startedAt: Date.now(), voiceId: currentVoice.id })); 
-    } catch (e) {
-      console.warn('Erreur sauvegarde pending:', e);
-    }
+    } catch (e) {}
     
     let errMsg = '';
     try {
@@ -388,14 +353,13 @@ useEffect(() => {
       
       setCurrentAudioUrl(response.audio_url); 
       setCurrentBlob(audioBlob); 
+      setWavSize(audioBlob.size || 120000); 
       setCurrentTime(0);
       
-      // Calcul durée
       const dur = response.duration_seconds || 0;
       setAudioDuration(dur);
       audioDurationRef.current = dur;
 
-      // Fin immédiate UI
       setIsGenerating(false);
       const realCost = response.points_deducted || POINTS_COST;
       setLastGeneratedCost(realCost);
@@ -404,7 +368,6 @@ useEffect(() => {
         try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
         showNotif(language === 'ar' ? '⚠️ معاينة محلية (بدون خصم)' : '⚠️ Aperçu local (non facturé)');
       } else {
-        // Upload en arrière-plan (non bloquant)
         (async () => {
           try {
             let storagePath: string | null = null;
@@ -427,11 +390,11 @@ useEffect(() => {
             try {
               localStorage.removeItem(PENDING_GEN_KEY);
               localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: generationId, createdAt: record.createdAt }));
-            } catch (e2) { /* ignore */ }
+            } catch (e2) {}
             
             window.dispatchEvent(new CustomEvent('refresh-account-balance'));
           } catch (uploadErr) {
-            console.warn('Erreur upload post-génération:', uploadErr);
+            console.warn('Erreur upload:', uploadErr);
           }
         })();
 
@@ -439,7 +402,6 @@ useEffect(() => {
         playGenerationChime();
       }
       
-      // Conversion MP3 background
       try { 
         const r = await convertWavToMp3(audioBlob, () => {}); 
         setMp3Blob(r.mp3Blob); 
@@ -457,7 +419,7 @@ useEffect(() => {
         if (retryCount < 8) {
           showNotif(language === 'ar' ? `🎙️ جاري التوليد... (${retryCount + 1}/8)` : `🎙️ Génération... (${retryCount + 1}/8)`);
           setTimeout(() => handleGenerate(retryCount + 1), retryAfter * 1000);
-          return; // Ne pas reset le lock ici, on réessaie
+          return;
         } else {
           showNotif(language === 'ar' ? '⏱️ الخادم بطيء' : '⏱️ Serveur lent');
         }
@@ -539,12 +501,10 @@ useEffect(() => {
   };
 
   const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
-  const [, setFeedbackError] = useState<boolean>(false);
 
   const handleSendFeedback = async (rating: number) => {
     if (!lastGenType || !lastGenOutput || feedbackSent) return;
     setFeedbackGiven(rating >= 4 ? 'up' : 'down');
-    setFeedbackError(false);
     try {
       await sendAIFeedback({
         input_text: lastGenInput, output_text: lastGenOutput, rating,
@@ -555,9 +515,7 @@ useEffect(() => {
         ? (language === 'ar' ? '⭐ شكراً!' : '⭐ Merci!') 
         : (language === 'ar' ? '👍 شكراً' : '👍 Merci'));
     } catch (e) { 
-      console.warn('Feedback failed:', e); 
       setFeedbackGiven(null);
-      setFeedbackError(true);
     }
   };
 
@@ -601,7 +559,6 @@ useEffect(() => {
     });
   }, [text, language, showNotif]);
 
-  // Data config
   const regionButtons: { id: RegionId; ar: string; fr: string }[] = [
     { id: 'general', ar: 'عام', fr: 'Général' },
     { id: 'centre', ar: 'الوسط', fr: 'Centre' },
@@ -617,16 +574,13 @@ useEffect(() => {
     { id: 'formal', label: t.categoryFormal || 'Formel' },
   ];
 
-  // Player minimizable state
-  const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
-
   // ------------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------------
   return (
-    <div className={`h-[calc(100dvh-64px)] w-full overflow-y-auto bg-slate-50/40 relative transition-all duration-300 lg:h-[calc(100vh-64px)] lg:overflow-hidden ${currentAudioUrl ? 'pb-[100px] lg:pb-0' : 'pb-28 lg:pb-0'}`}>
+    <div className={`h-[calc(100dvh-64px)] w-full overflow-y-auto bg-slate-50/40 relative transition-all duration-300 lg:h-[calc(100vh-64px)] lg:overflow-hidden ${currentAudioUrl ? 'pb-44 lg:pb-0' : 'pb-24 lg:pb-0'}`}>
       
-      {/* Notification */}
+      {/* Notification Toast */}
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
           <Zap className="w-4 h-4 text-yellow-300 fill-yellow-300" />
@@ -661,9 +615,9 @@ useEffect(() => {
 
       <div className="flex-none lg:flex lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden relative">
         
-        {/* PANNEAU SCRIPT */}
+        {/* ============ PANNEAU SCRIPT ============ */}
         {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
-             <div className={`
+        <div className={`
           fixed lg:static inset-y-0 start-0 z-50 lg:z-0
           w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col lg:h-full lg:min-h-0
           transition-all duration-300 transform
@@ -671,7 +625,6 @@ useEffect(() => {
             ? 'translate-x-0 opacity-100 pointer-events-auto' 
             : (isRTL ? 'translate-x-full' : '-translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
         `}>
-              
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Video className="w-4 h-4 text-purple-600" /> 
@@ -745,7 +698,7 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* EDITEUR CENTRAL */}
+        {/* ============ EDITEUR CENTRAL ============ */}
         <div className="w-full min-w-0 flex flex-col p-3 sm:p-4 lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden">
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
@@ -824,7 +777,7 @@ useEffect(() => {
               `}</style>
             </div>
 
-            {/* Barre actions */}
+            {/* Barre actions (Magique + Copier + Coût + Générer) */}
             <div className="shrink-0 mt-3 pt-3 border-t border-slate-100">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 
@@ -883,16 +836,15 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* PANNEAU VOIX */}
+        {/* ============ PANNEAU VOIX ============ */}
         {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
-               <div className={`
+        <div className={`
           fixed lg:static inset-y-0 end-0 z-50 lg:z-0
           w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-all duration-300 transform lg:h-full lg:min-h-0
           ${isVoiceMenuOpen 
             ? 'translate-x-0 opacity-100 pointer-events-auto' 
             : (isRTL ? '-translate-x-full' : 'translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
         `}>
-                 
           <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
               <Layers className="w-3.5 h-3.5 text-purple-600" />
@@ -982,269 +934,149 @@ useEffect(() => {
       </div>
       </fieldset>
 
-         {/* ==================================================================
-          PLAYER AUDIO : VERSION ADAPTATIVE 
-          - PC : Grand, fixe en bas, waveform visible
-          - Mobile : Compact par défaut, expansible au tap, ne cache RIEN
+      {/* ==================================================================
+          LECTEUR AUDIO : VERSION ADAPTATIVE CORRIGÉE
+          - Sur mobile : Se place à bottom-[4.5rem] (PILE AU-DESSUS DE LA BARRE DE TÂCHES)
+          - Sur PC : Flotte au centre à bottom-4 sans être coupé
           ================================================================== */}
       {currentAudioUrl && (
         <div 
-          className={`
-            fixed left-0 right-0 z-[70] transition-all duration-300 ease-out
-            ${isMobile ? 'bottom-0 safe-area-bottom' : 'bottom-0'}
-            bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900/98
-            border-t border-purple-500/30 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] backdrop-blur-xl
-          `}
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          className="
+            fixed z-[65]
+            bottom-[4.5rem] inset-x-2
+            lg:bottom-4 lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2 lg:w-[calc(100%-2rem)] lg:max-w-3xl
+            bg-slate-900/95 border border-purple-500/40 rounded-2xl
+            shadow-[0_-8px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl
+            animate-in slide-in-from-bottom-3 duration-200
+          "
         >
-          
-          {/* ========== VERSION MOBILE (Compacte) ========== */}
-          {isMobile && !isPlayerExpanded ? (
-            <div className="px-3 py-2.5 flex items-center gap-3">
-              {/* Bouton Play/Pause grand et accessible */}
-              <button 
-                onClick={togglePlay} 
-                className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer active:scale-95 transition-transform shrink-0 shadow-lg"
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
-              </button>
-
-              {/* Infos essentielles */}
-              <div className="flex-1 min-w-0" onClick={() => setIsPlayerExpanded(true)}>
-                <p className="text-sm font-bold text-white truncate">{currentVoice.name}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-purple-300 font-mono tabular-nums">{formatTime(currentTime)}</span>
-                  {/* Mini progress bar tactile */}
-                  <div 
-                    className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden cursor-pointer"
-                    onClick={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const percent = (e.clientX - rect.left) / rect.width;
-                      if(audioRef.current && audioDuration > 0) {
-                        audioRef.current.currentTime = percent * audioDuration;
-                        setCurrentTime(percent * audioDuration);
-                      }
-                    }}
-                  >
-                    <div 
-                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
-                      style={{width: `${audioDuration > 0 ? Math.min(100, (currentTime/audioDuration)*100) : 0}%`}}
-                    />
-                  </div>
-                  <span className="text-xs text-slate-400 font-mono tabular-nums">{formatTime(audioDuration)}</span>
-                </div>
+          {/* Version Desktop (> lg) */}
+          <div className="hidden lg:flex items-center gap-4 px-5 py-3">
+            {/* Play/Pause */}
+            <button 
+              onClick={togglePlay} 
+              className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform shrink-0 shadow-lg shadow-purple-600/30"
+            >
+              {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
+            </button>
+            
+            {/* Infos voix */}
+            <div className="flex flex-col min-w-0 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white truncate max-w-[130px]">{currentVoice.name}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">Prêt ✓</span>
               </div>
-
-              {/* Bouton Télécharger (toujours visible) */}
-              {mp3Url ? (
-                <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="shrink-0 p-2.5 bg-purple-600 rounded-lg text-white">
-                  <Download className="w-5 h-5" />
-                </a>
-              ) : (
-                <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="shrink-0 p-2.5 bg-slate-700 rounded-lg text-slate-300">
-                  <Download className="w-5 h-5" />
-                </a>
-              )}
-
-              {/* Bouton Fermer (petit mais tactile) */}
-              <button 
-                onClick={handleClosePlayer} 
-                className="shrink-0 p-2.5 text-slate-400 hover:text-red-400 rounded-lg active:bg-slate-800 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                aria-label="Fermer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              {/* Bouton Expand (flèche vers le haut) */}
-              <button 
-                onClick={() => setIsPlayerExpanded(true)} 
-                className="shrink-0 p-2 text-purple-400 hover:text-purple-300 rounded-lg active:bg-slate-800/50 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                aria-label="Agrandir le lecteur"
-              >
-                <ChevronUp className="w-5 h-5" />
-              </button>
+              <span className="text-[10px] text-purple-300 font-mono mt-0.5">
+                {formatTime(currentTime)} / {formatTime(audioDuration)}
+              </span>
             </div>
-          ) : (
-            /* ========== VERSION PC OU MOBILE ÉTENDU (Complète) ========== */
-            <div className="relative">
-              {/* Header avec bouton minimise (seulement si mobile) */}
-              {isMobile && (
-                <div className="flex justify-center pb-1">
-                  <button 
-                    onClick={() => setIsPlayerExpanded(false)} 
-                    className="w-10 h-1 rounded-full bg-slate-600 hover:bg-slate-500 cursor-pointer transition-colors"
-                    aria-label="Réduire le lecteur"
-                  />
-                </div>
-              )}
 
-              <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-5 relative z-10">
-                
-                {/* Zone Contrôle Play */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <button 
-                    onClick={togglePlay} 
-                    className="
-                      group relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl 
-                      bg-gradient-to-br from-purple-600 to-pink-600 
-                      text-white flex items-center justify-center cursor-pointer 
-                      hover:scale-105 active:scale-95 transition-transform duration-200
-                      shadow-lg shadow-purple-600/40 ring-2 ring-white/10 shrink-0
-                    "
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-6 h-6 fill-white" />
-                    ) : (
-                      <Play className="w-6 h-6 ms-0.5 fill-white" />
-                    )}
-                    {isPlaying && (
-                      <span className="absolute inset-0 rounded-xl bg-white/20 animate-ping opacity-20" />
-                    )}
-                  </button>
-                  
-                  <div className="hidden sm:flex flex-col min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-bold text-white truncate max-w-[200px]">
-                        {currentVoice.name}
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold whitespace-nowrap flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        Ready
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-xs font-mono">
-                      <span className="text-purple-300 tabular-nums">{formatTime(currentTime)}</span>
-                      <div className="flex-1 h-[2px] bg-slate-700 rounded-full overflow-hidden w-24 sm:w-32">
-                        <div 
-                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-150"
-                          style={{width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%`}} 
-                        />
-                      </div>
-                      <span className="text-slate-400 tabular-nums">{formatTime(audioDuration)}</span>
-                    </div>
-                  </div>
-
-                  {/* Temps sur mobile si expanded */}
-                  <div className="sm:hidden text-xs font-bold text-white font-mono min-w-[80px]">
-                    {formatTime(currentTime)} / {formatTime(audioDuration)}
-                  </div>
-                </div>
-
-                {/* Waveform Desktop */}
-                <div className="flex-1 min-w-0 hidden sm:flex items-center gap-3 
-                                bg-slate-800/60 px-4 py-2.5 rounded-xl 
-                                border border-slate-700/50 backdrop-blur-sm relative group">
-                  <WaveformPlayer 
-                    isPlaying={isPlaying}
-                    hasAudio={!!currentAudioUrl}
-                    currentTime={currentTime}
-                    duration={audioDuration}
-                  />
-                  {/* Overlay seek clickable */}
-                  <input 
-                    type="range" 
-                    min={0} max={audioDuration || 0} step={0.1} value={currentTime}
-                    onChange={(e) => { if(audioRef.current) { audioRef.current.currentTime = parseFloat(e.target.value); setCurrentTime(parseFloat(e.target.value)); }}}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                  />
-                  
-                  {/* Affichage temps au centre de la waveform au hover */}
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] px-2 py-1 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    {formatTime(currentTime)}
-                  </div>
-                </div>
-
-                {/* Actions Droite */}
-                <div className="flex items-center gap-2 shrink-0">
-                  {mp3Url ? (
-                    <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} 
-                       className="
-                         group flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 
-                         bg-purple-600 hover:bg-purple-500 active:bg-purple-700 
-                         text-white rounded-xl text-xs sm:text-sm font-bold transition-all duration-200
-                         shadow-lg shadow-purple-900/40 border border-purple-500/30
-                         min-h-[40px] sm:min-h-[48px]
-                       "
-                    >
-                      <Download className="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-y-0.5 transition-transform" />
-                      <span className="hidden sm:inline">MP3</span>
-                    </a>
-                  ) : (
-                    <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`}
-                       className="
-                         group flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 
-                         bg-slate-800 hover:bg-slate-700 
-                         text-slate-300 hover:text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors
-                         border border-slate-700
-                         min-h-[40px] sm:min-h-[48px]
-                       "
-                    >
-                      <Download className="w-4 h-4 sm:w-5 sm:h-5 group-hover:text-white transition-colors" />
-                      <span className="hidden sm:inline">WAV</span>
-                    </a>
-                  )}
-
-                  <button 
-                    onClick={handleClosePlayer} 
-                    className="
-                      p-2.5 sm:p-3 text-slate-400 hover:text-red-400 
-                      hover:bg-red-500/10 rounded-xl 
-                      transition-colors duration-200
-                      border border-transparent hover:border-red-500/20
-                      min-h-[40px] sm:min-h-[48px] min-w-[40px] sm:min-w-[48px]
-                      flex items-center justify-center
-                    "
-                    title="Fermer le lecteur"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Waveform simplifiée pour mobile quand expand */}
-              {isMobile && (
-                <div className="px-4 pb-3">
-                  <div className="h-12 bg-slate-800/80 rounded-lg overflow-hidden relative" onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    if(audioRef.current && audioDuration > 0) {
-                      audioRef.current.currentTime = percent * audioDuration;
-                      setCurrentTime(percent * audioDuration);
-                    }
-                  }}>
-                    {/* Barre de progression visuelle simplifiée */}
-                    <div className="absolute inset-0 flex items-center px-2">
-                      {[...Array(40)].map((_, i) => (
-                        <div 
-                          key={i} 
-                          className={`w-1 mx-[1px] rounded-full transition-all duration-100 ${
-                            (i / 40) <= (currentTime / audioDuration) 
-                              ? 'bg-purple-500 h-[60%]' 
-                              : 'bg-slate-600 h-[30%]'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    {/* Overlay invisible pour seek */}
-                    <div className="absolute inset-0 z-10" />
-                  </div>
-                </div>
-              )}
-
-              <audio 
-                ref={audioRef} 
-                src={currentAudioUrl} 
-                onTimeUpdate={handleTimeUpdate} 
-                onEnded={() => setIsPlaying(false)} 
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                preload="auto"
-                className="hidden" 
+            {/* Waveform Desktop */}
+            <div className="flex-1 min-w-0 flex items-center bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700/50 relative group">
+              <WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} />
+              <input 
+                type="range" min={0} max={audioDuration || 0} step={0.1} value={currentTime}
+                onChange={(e) => { if(audioRef.current) { audioRef.current.currentTime = parseFloat(e.target.value); setCurrentTime(parseFloat(e.target.value)); }}}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
             </div>
-          )}
+
+            {/* Actions Desktop */}
+            <div className="flex items-center gap-2 shrink-0">
+              {mp3Url ? (
+                <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md">
+                  <Download className="w-4 h-4" /><span>MP3</span>
+                </a>
+              ) : (
+                <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700">
+                  <Download className="w-4 h-4" /><span>WAV</span>
+                </a>
+              )}
+              <button onClick={handleClosePlayer} className="p-2 text-slate-400 hover:text-white rounded-xl transition cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Version Mobile (lg:hidden) — Compacte, ne cache rien, pile au-dessus du menu */}
+          <div className="lg:hidden flex items-center gap-2.5 px-3 py-2.5">
+            {/* Play/Pause */}
+            <button 
+              onClick={togglePlay} 
+              className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer active:scale-95 transition-transform shrink-0 shadow-md"
+            >
+              {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 ms-0.5 fill-white" />}
+            </button>
+
+            {/* Nom + Progress bar tactile */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-white truncate">{currentVoice.name}</span>
+                <span className="text-[10px] text-purple-300 font-mono">
+                  {formatTime(currentTime)} / {formatTime(audioDuration)}
+                </span>
+              </div>
+              <div 
+                className="h-1.5 bg-slate-700 rounded-full overflow-hidden cursor-pointer relative"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const percent = (e.clientX - rect.left) / rect.width;
+                  if (audioRef.current && audioDuration > 0) {
+                    audioRef.current.currentTime = percent * audioDuration;
+                    setCurrentTime(percent * audioDuration);
+                  }
+                }}
+              >
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
+                  style={{ width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Bouton Téléchargement rapide */}
+            {mp3Url ? (
+              <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="shrink-0 p-2 bg-purple-600 rounded-xl text-white">
+                <Download className="w-4 h-4" />
+              </a>
+            ) : (
+              <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="shrink-0 p-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200">
+                <Download className="w-4 h-4" />
+              </a>
+            )}
+
+            {/* Bouton Fermer */}
+            <button onClick={handleClosePlayer} className="shrink-0 p-1.5 text-slate-400 hover:text-white rounded-lg">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <audio 
+            ref={audioRef} 
+            src={currentAudioUrl} 
+            onTimeUpdate={handleTimeUpdate} 
+            onEnded={() => setIsPlaying(false)} 
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            preload="auto"
+            className="hidden" 
+          />
         </div>
       )}
+
+      {/* Modal génération */}
+      {isGenerating && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/30 backdrop-blur-[2px]" aria-live="polite">
+          <div className="mx-5 w-full max-w-sm rounded-3xl border border-purple-200 bg-white/95 p-7 text-center shadow-2xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 shadow-lg shadow-purple-600/30">
+              <RefreshCw className="h-7 w-7 animate-spin text-white" />
+            </div>
+            <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération en cours…'}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة' : 'Ne ferme pas la page'}</p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
