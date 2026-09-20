@@ -563,7 +563,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, [text, language, showNotif]);
 
   return (
-    <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-slate-50/40 relative pb-20 lg:pb-0">
+    <div className="h-[calc(100dvh-64px)] w-full overflow-y-auto bg-slate-50/40 relative pb-28 lg:h-[calc(100vh-64px)] lg:overflow-hidden lg:pb-0">
       
       {notification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]">
@@ -575,7 +575,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       <fieldset disabled={isGenerating} className="contents">
 
       {/* TOP BAR MOBILE */}
-      <div className="lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2.5 z-30">
+      <div className="sticky top-0 lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-3 py-2.5 z-30 shadow-sm">
         <button 
           onClick={() => setIsScriptMenuOpen(true)} 
           className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
@@ -597,7 +597,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-none lg:flex-1 lg:flex lg:overflow-hidden relative">
         
         {/* ============ PANNEAU SCRIPT (Gauche en LTR, Droite en RTL) ============ */}
         {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
@@ -682,7 +682,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
 
         {/* ============ EDITEUR CENTRAL ============ */}
-        <div className="flex-1 min-w-0 flex flex-col p-3 sm:p-4">
+        <div className="w-full min-w-0 flex flex-col p-3 sm:p-4 lg:flex-1 lg:overflow-hidden">
           {insufficientAlert && (
             <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
               <div className="flex items-center gap-2">
@@ -697,7 +697,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           )}
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl flex-1 min-h-0 flex flex-col p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative">
+          <div className="bg-white border border-slate-200/80 rounded-2xl min-h-[520px] flex-none flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative lg:flex-1 lg:min-h-0">
             
             {/* HEADER : Dropdown Emotions + Compteur caractères */}
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
@@ -746,7 +746,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 onChange={(e) => setText(e.target.value)} 
                 maxLength={5000}
                 placeholder={t.textPlaceholder || 'Écrivez...'} 
-                className={`w-full h-full p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto custom-scrollbar transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
+                className={`w-full min-h-[270px] lg:h-full lg:min-h-0 p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto custom-scrollbar transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }}
                 dir="auto" 
               />
