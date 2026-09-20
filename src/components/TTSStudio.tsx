@@ -601,12 +601,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         
         {/* ============ PANNEAU SCRIPT (Gauche en LTR, Droite en RTL) ============ */}
         {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
-        <div className={`
+             <div className={`
           fixed lg:static inset-y-0 start-0 z-50 lg:z-0
           w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col
-          transition-transform duration-300 transform
-          ${isScriptMenuOpen ? 'translate-x-0' : (isRTL ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0')}
+          transition-all duration-300 transform
+          ${isScriptMenuOpen 
+            ? 'translate-x-0 opacity-100 pointer-events-auto' 
+            : (isRTL ? 'translate-x-full' : '-translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
         `}>
+               
+              
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Video className="w-4 h-4 text-purple-600" /> 
@@ -838,11 +842,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
         {/* ============ PANNEAU VOIX ============ */}
         {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
-        <div className={`
+               <div className={`
           fixed lg:static inset-y-0 end-0 z-50 lg:z-0
-          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-transform duration-300 transform
-          ${isVoiceMenuOpen ? 'translate-x-0' : (isRTL ? '-translate-x-full lg:translate-x-0' : 'translate-x-full lg:translate-x-0')}
+          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-all duration-300 transform
+          ${isVoiceMenuOpen 
+            ? 'translate-x-0 opacity-100 pointer-events-auto' 
+            : (isRTL ? '-translate-x-full' : 'translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
         `}>
+                 
           <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
               <Layers className="w-3.5 h-3.5 text-purple-600" />
