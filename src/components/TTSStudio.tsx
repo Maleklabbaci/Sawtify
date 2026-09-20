@@ -992,98 +992,180 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       </div>
 
+      {
+        
+        // Remplace TOUT le bloc du PLAYER AUDIO FLOTTANT (vers la fin du fichier) par ceci :
+
       {/* ==========================================================================
-         PLAYER AUDIO FLOTTANT HAUT DE GAMME (Style ElevenLabs / Spotify)
+         PLAYER AUDIO FLOTTANT — Version "Bottom Docked" (pas de décalage mid-screen)
          ========================================================================== */}
       {currentAudioUrl && (
-        <div className="fixed bottom-[10.5rem] inset-x-3 z-[67] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 sm:bottom-4 sm:inset-x-4 sm:gap-5 sm:p-3.5 lg:bottom-24">
-          
-          {/* ZONE 1 : Bouton Play & Infos Voix */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button 
-              onClick={togglePlay} 
-              className="w-11 h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg shadow-purple-500/25 shrink-0">
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
-            </button>
+        <div 
+          className={`
+            fixed inset-x-0 bottom-0 z-[70]
+            bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900/95
+            border-t border-purple-500/30 
+            shadow-[0_-8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl
+            animate-in slide-in-from-bottom-2 duration-300 ease-out
+            pb-safe  /* padding-bottom env(safe-area-inset-bottom) pour iOS */
+          `}
+          style={{ 
+            // Évite que le player soit caché par la barre de navigation mobile (si elle existe)
+            paddingBottom: 'env(safe-area-inset-bottom, 16px)' 
+          }}
+        >
+          {/* Conteneur interne centré avec max-width */}
+          <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6 sm:py-3.5 flex items-center gap-3 sm:gap-5">
             
-            <div className="hidden sm:flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white truncate">{currentVoice.name}</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold shrink-0">
-                  {language === 'ar' ? 'جاهز ✓' : 'Prêt ✓'}
-                </span>
+            {/* ZONE 1 : Contrôles Play/Pause + Infos */}
+            <div className="flex items-center gap-3 shrink-0">
+              <button 
+                onClick={togglePlay} 
+                className="group relative w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 
+                           text-white flex items-center justify-center cursor-pointer 
+                           hover:scale-105 active:scale-95 transition-transform duration-200
+                           shadow-lg shadow-purple-600/40
+                           ring-2 ring-white/10"
+              >
+                {isPlaying ? (
+                  <Pause className="w-5 h-5 fill-white" />
+                ) : (
+                  <Play className="w-5 h-5 ms-0.5 fill-white" />
+                )}
+                {/* Indicateur subtil de pulse quand playing */}
+                {isPlaying && (
+                  <span className="absolute inset-0 rounded-xl bg-white/20 animate-ping opacity-20" />
+                )}
+              </button>
+              
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white truncate max-w-[120px] sm:max-w-[200px]">
+                    {currentVoice.name}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full 
+                                 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 
+                                 font-semibold shrink-0 whitespace-nowrap">
+                    ✓ Ready
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-purple-300 font-mono tabular-nums">
+                    {formatTime(currentTime)}
+                  </span>
+                  <div className="flex-1 h-[2px] bg-slate-700 rounded-full min-w-[20px]" />
+                  <span className="text-xs text-slate-400 font-mono tabular-nums">
+                    {formatTime(audioDuration)}
+                  </span>
+                </div>
               </div>
-              <span className="text-[10px] text-slate-400 font-num">
-                {currentTime.toFixed(1)}s / {audioDuration.toFixed(1)}s
-              </span>
             </div>
-          </div>
 
-          {/* ZONE 2 : Waveform dynamique au centre */}
-          <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-800/50 px-3 py-2 rounded-xl border border-slate-700/40">
-            <div className="flex-1 min-w-0">
+            {/* ZONE 2 : Waveform Centrale (Prend tout l'espace dispo) */}
+            <div className="flex-1 min-w-0 hidden sm:flex items-center gap-3 
+                            bg-slate-800/60 px-4 py-2.5 rounded-xl 
+                            border border-slate-700/50 backdrop-blur-sm">
               <WaveformPlayer 
                 isPlaying={isPlaying}
                 hasAudio={!!currentAudioUrl}
                 currentTime={currentTime}
                 duration={audioDuration}
+                color="#a855f7" /* violet-500 */
+              />
+              
+              {/* Progress click area optionnel (cliquer sur la barre pour seek) */}
+              <input 
+                type="range" 
+                min={0} 
+                max={audioDuration || 0} 
+                step={0.1} 
+                value={currentTime}
+                onChange={(e) => {
+                  if(audioRef.current) {
+                    audioRef.current.currentTime = parseFloat(e.target.value);
+                    setCurrentTime(parseFloat(e.target.value));
+                  }
+                }}
+                className="absolute w-full h-full opacity-0 cursor-pointer"
+                style={{ top: 0, left: 0 }}
               />
             </div>
-            {/* Temps affiché sur mobile si les infos voix sont cachées */}
-            <span className="sm:hidden text-[10px] text-purple-300 font-num font-bold shrink-0">
-              {currentTime.toFixed(1)}s
-            </span>
-          </div>
 
-          {/* ZONE 3 : Téléchargement et Fermeture */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {mp3Url ? (
-              <a 
-                href={mp3Url} 
-                download="sawtify-audio.mp3" 
-                className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-900/30"
-                title="Download MP3">
-                <Download className="w-4 h-4" />
-                <span className="hidden md:inline">MP3</span>
-              </a>
-            ) : (
-              <a 
-                href={currentAudioUrl} 
-                download="sawtify-audio.wav" 
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer border border-slate-700"
-                title="Download WAV">
-                <Download className="w-4 h-4" />
-                <span className="hidden md:inline">WAV</span>
-              </a>
-            )}
-
-            <button 
-              onClick={handleClosePlayer} 
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
-              title={language === 'ar' ? 'إغلاق' : 'Fermer'}>
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <audio 
-            ref={audioRef} 
-            src={currentAudioUrl} 
-            onTimeUpdate={handleTimeUpdate} 
-            onEnded={() => setIsPlaying(false)} 
-            className="hidden" 
-          />
-        </div>
-      )}
-      </fieldset>
-      {isGenerating && (
-        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/20 backdrop-blur-[2px]" aria-live="polite" aria-busy="true">
-          <div className="mx-5 w-full max-w-sm rounded-3xl border border-purple-200 bg-white/95 p-7 text-center shadow-2xl">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 shadow-lg shadow-purple-600/30">
-              <RefreshCw className="h-7 w-7 animate-spin text-white" />
+            {/* Mobile : Temps simple à droite du bouton play */}
+            <div className="sm:hidden flex flex-col items-end min-w-0">
+              <span className="text-xs font-bold text-purple-300 font-mono">
+                {formatTime(currentTime)} / {formatTime(audioDuration)}
+              </span>
+              {/* Mini-barre de progression mobile */}
+              <div className="w-24 h-1 bg-slate-700 rounded-full mt-1 overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
+                  style={{ width: `${audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}%` }}
+                />
+              </div>
             </div>
-            <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération de la voix en cours…'}</h3>
-            <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة ولا تغيّر الصوت حتى يكتمل الإنشاء.' : 'Ne ferme pas la page et ne modifie pas le script avant la fin de la génération.'}</p>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
+
+            {/* ZONE 3 : Actions Télécharger/Fermer */}
+            <div className="flex items-center gap-2 shrink-0">
+              {mp3Url ? (
+                <a 
+                  href={mp3Url} 
+                  download={`sawtify-${selectedVoiceId}-${Date.now()}.mp3`} 
+                  className="
+                    group flex items-center gap-2 px-3 py-2.5 
+                    bg-purple-600 hover:bg-purple-500 active:bg-purple-700 
+                    text-white rounded-xl text-xs font-bold transition-all duration-200
+                    shadow-lg shadow-purple-900/40 
+                    border border-purple-400/30
+                  "
+                  title="Télécharger MP3 (compressé)"
+                >
+                  <Download className="w-4 h-4 group-hover:animate-bounce" />
+                  <span className="hidden md:inline">MP3</span>
+                  <span className="hidden lg:inline text-[10px] bg-white/20 px-1.5 py-0.5 rounded">~1MB</span>
+                </a>
+              ) : (
+                <a 
+                  href={currentAudioUrl} 
+                  download={`sawtify-${selectedVoiceId}-${Date.now()}.wav`}
+                  className="
+                    group flex items-center gap-2 px-3 py-2.5 
+                    bg-slate-800 hover:bg-slate-700 
+                    text-slate-200 rounded-xl text-xs font-semibold transition-all
+                    border border-slate-600/50
+                  "
+                  title="Télécharger WAV (perteless)"
+                >
+                  <Download className="w-4 h-4 group-hover:text-white transition-colors" />
+                  <span className="hidden md:inline">WAV</span>
+                </a>
+              )}
+
+              <button 
+                onClick={handleClosePlayer} 
+                className="
+                  p-2.5 text-slate-400 hover:text-red-400 
+                  hover:bg-red-500/10 rounded-xl 
+                  transition-colors duration-200
+                  border border-transparent hover:border-red-500/20
+                "
+                title="Fermer le lecteur"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Audio element caché */}
+            <audio 
+              ref={audioRef} 
+              src={currentAudioUrl} 
+              onTimeUpdate={handleTimeUpdate} 
+              onEnded={() => setIsPlaying(false)} 
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              preload="auto"
+              className="hidden" 
+            />
           </div>
         </div>
       )}
