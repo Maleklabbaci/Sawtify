@@ -217,7 +217,7 @@ const Logo = ({ size = 38 }: { size?: number }) => {
           </div>
         )}
       </div>
-      <span className="font-bold text-[19px] tracking-tight" style={{ color: INK, fontFamily: NUM_STACK }}>
+      <span className="font-bold text-[19px] tracking-tight text-white" style={{ fontFamily: NUM_STACK }}>
         Sawtify
       </span>
     </div>
@@ -503,7 +503,7 @@ const VOICES: VoiceCard[] = [
     id: "yasmine", nameFr: "Yasmine", nameAr: "ياسمين", tagFr: "Voix publicitaire", tagAr: "صوت إعلاني",
     location: "Oran, DZ", gender: "female", category: "commercial", rating: 4.8, reviews: 189, color: "#C13B5E",
     sampleFr: "Marhba bikom kamlin! Tawsil 58 wilaya, payment 3and l istlam. Tleb dorka.",
-    sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب درك.",
+    sampleAr: "مرحبا بيكم كاملين! التوصيل لـ 58 ولاية والدفع عند الاستلام. اطلب دوك.",
     audioUrl: "https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3",
   },
   {
@@ -557,13 +557,13 @@ const HIDDEN_VOICES = VOICES.filter((v) => !(LANDING_VOICE_IDS as readonly strin
 
 const PROOF_POOL = [
   { ar: { n: "سفيان", c: "وهران", a: "سجّل توّا في صوتيفي" }, fr: { n: "Sofiane", c: "Oran", a: "vient de s'inscrire" } },
-  { ar: { n: "أمينة", c: "الجزائر", a: "ولّدت صوتها درك" }, fr: { n: "Amina", c: "Alger", a: "vient de générer une voix" } },
+  { ar: { n: "أمينة", c: "الجزائر", a: "ولّدت صوتها دوك" }, fr: { n: "Amina", c: "Alger", a: "vient de générer une voix" } },
   { ar: { n: "ياسين", c: "سطيف", a: "سجّل توّا في صوتيفي" }, fr: { n: "Yacine", c: "Sétif", a: "vient de s'inscrire" } },
-  { ar: { n: "مريم", c: "قسنطينة", a: "ولّدت صوتها درك" }, fr: { n: "Meriem", c: "Constantine", a: "vient de générer une voix" } },
+  { ar: { n: "مريم", c: "قسنطينة", a: "ولّدت صوتها دوك" }, fr: { n: "Meriem", c: "Constantine", a: "vient de générer une voix" } },
   { ar: { n: "بلال", c: "عنابة", a: "سجّل توّا في صوتيفي" }, fr: { n: "Bilal", c: "Annaba", a: "vient de s'inscrire" } },
-  { ar: { n: "ليندة", c: "تلمسان", a: "ولّدت صوتها درك" }, fr: { n: "Lynda", c: "Tlemcen", a: "vient de générer une voix" } },
+  { ar: { n: "ليندة", c: "تلمسان", a: "ولّدت صوتها دوك" }, fr: { n: "Lynda", c: "Tlemcen", a: "vient de générer une voix" } },
   { ar: { n: "رضا", c: "البليدة", a: "سجّل توّا في صوتيفي" }, fr: { n: "Reda", c: "Blida", a: "vient de s'inscrire" } },
-  { ar: { n: "نور", c: "بجاية", a: "ولّدت صوتها درك" }, fr: { n: "Nour", c: "Béjaïa", a: "vient de générer une voix" } },
+  { ar: { n: "نور", c: "بجاية", a: "ولّدت صوتها دوك" }, fr: { n: "Nour", c: "Béjaïa", a: "vient de générer une voix" } },
 ];
 
 const COST_STEPS = [
@@ -782,8 +782,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     navFaq: isRTL ? "أسئلة" : "FAQ",
     navContact: isRTL ? "تواصل" : "Contact",
     signin: isRTL ? "دخول" : "Connexion",
-    start: isRTL ? "ابدأ درك" : "Commencer",
-    tryFree: isRTL ? "جرّب درك — بالمجان" : "Essayer gratuitement",
+    start: isRTL ? "ابدأ دوك" : "Commencer",
+    tryFree: isRTL ? "جرّب دوك — بالمجان" : "Essayer gratuitement",
     pause: isRTL ? "إيقاف" : "Pause",
     audioPreview: isRTL ? "معاينة صوتية" : "Aperçu audio",
     heroKicker: isRTL ? "استوديو الدارجة الجزائرية" : "Studio darija algérienne",
@@ -798,11 +798,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     check2: isRTL ? "بلا علامة مائية" : "Sans filigrane",
     check3: isRTL ? "النقاط ما تنتهيش" : "Points à vie",
     urgency: isRTL ? "عرض التدشين — 50 نقطة هدية لكل حساب جديد" : "Offre de lancement — 50 points offerts à l'inscription",
-    urgencyCta: isRTL ? "استافد درك" : "En profiter",
+    urgencyCta: isRTL ? "استافد دوك" : "En profiter",
     expiresIn: isRTL ? "ينتهي بعد" : "Expire dans",
     compareTitle: isRTL ? "الستوديو ضد صوتيفي. شوف الفرق بعينيك." : "Studio classique vs Sawtify. Le match.",
     compareSub: isRTL
-      ? "علاش تدفع 20 000 دج وتسنّى أسبوع، والصوت يخرجلك درك بـ 500 دج؟"
+      ? "علاش تدفع 20 000 دج وتسنّى أسبوع، والصوت يخرجلك دوك بـ 500 دج؟"
       : "Pourquoi payer 20 000 DZD et attendre une semaine, quand la voix sort maintenant pour 500 DZD ?",
     compareOld: isRTL ? "الطريقة القديمة" : "Ancienne méthode",
     compareNew: "Sawtify",
@@ -847,7 +847,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     faqTitle: isRTL ? "أسئلة شائعة" : "Questions fréquentes",
     ctaTitle: isRTL ? "واش راك تنتضر؟" : "Alors, on commence ?",
     ctaSub: isRTL
-      ? "50 نقطة بالمجان. 9 أصوات. غي 3 هنا. بلا بطاقة — والصوت يخرجلك درك."
+      ? "50 نقطة بالمجان. 9 أصوات. غي 3 هنا. بلا بطاقة — والصوت يخرجلك دوك."
       : "50 points offerts. 9 voix. 3 seulement ici. Sans carte — la voix sort maintenant.",
     footTag: isRTL ? "صُنع في الجزائر" : "Fait en Algérie",
     switchLang: isRTL ? "FR" : "ع",
@@ -1111,40 +1111,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
 
       {/* ═══════════ HEADER ═══════════ */}
-      <header className="fixed top-11 inset-x-0 z-[60] border-b border-slate-200/80 bg-white/95 shadow-[0_8px_24px_rgba(26,15,46,0.10)] backdrop-blur-xl transition-all duration-300"
-        style={{
-          borderColor: BORDER,
-        }}>
+      <header className={`fixed top-11 inset-x-0 z-[60] border-b border-white/10 bg-[#1A0F2E]/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl transition-all duration-300 ${
+          scrolled ? "py-3 shadow-xl" : ""
+        }`}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }}
             className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
             <Logo size={38} />
           </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-[#1A0F2E]/60">
+          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-white/80">
             {nav.map((l) => (
               <a key={`${l.href}-${l.target}`} href={l.href}
                 onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                className="hover:text-[#6B2DBC] transition-colors focus-ring">{l.label}</a>
+                className="hover:text-white transition-colors focus-ring">{l.label}</a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
-              <button type="button" onClick={switchLang}
-              className="w-10 h-10 rounded-full text-[12px] font-bold text-[#1A0F2E]/70 hover:bg-[#F3EEFF] transition focus-ring"
+            <button type="button" onClick={switchLang}
+              className="w-10 h-10 rounded-full text-[12px] font-bold text-white/80 hover:bg-white/10 hover:text-white transition focus-ring"
               aria-label={isRTL ? "التبديل إلى الفرنسية" : "Switch to Arabic"}>
               {t.switchLang}
             </button>
             <button type="button" onClick={onLoginClick}
-              className="hidden md:block text-[13px] font-semibold text-[#1A0F2E]/60 hover:text-[#1A0F2E] px-3 focus-ring">
+              className="hidden md:block text-[13px] font-semibold text-white/80 hover:text-white px-3 focus-ring">
               {t.signin}
             </button>
             <button type="button" onClick={goSignup}
-              className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
-              style={{ background: PURPLE }}>
+              className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold bg-white text-[#6B2DBC] focus-ring transition hover:bg-white/90 active:scale-95 shadow-md">
               {t.start}
             </button>
             <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open}
-              className="lg:hidden w-10 h-10 rounded-full hover:bg-[#F3EEFF] flex items-center justify-center focus-ring">
-              <Menu className="w-5 h-5" />
+              className="lg:hidden w-10 h-10 rounded-full text-white hover:bg-white/10 flex items-center justify-center focus-ring">
+              <Menu className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
@@ -1161,29 +1159,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed top-11 bottom-0 end-0 z-[60] w-[85%] max-w-sm bg-white lg:hidden flex flex-col shadow-2xl"
-              style={{ borderInlineStart: `1px solid ${BORDER}` }}>
-              <div className="flex items-center justify-between px-5 h-16" style={{ borderBottom: `1px solid ${BORDER}` }}>
+              className="fixed top-11 bottom-0 end-0 z-[60] w-[85%] max-w-sm bg-[#6B2DBC] text-white lg:hidden flex flex-col shadow-2xl border-s border-white/20">
+              <div className="flex items-center justify-between px-5 h-16 border-b border-white/20">
                 <Logo size={34} />
                 <button type="button" onClick={() => setMenuOpen(false)}
-                  className="w-10 h-10 rounded-full hover:bg-[#1A0F2E]/5 flex items-center justify-center focus-ring" aria-label={t.close}>
-                  <X className="w-5 h-5" />
+                  className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center focus-ring text-white" aria-label={t.close}>
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
               <nav className="flex-1 px-5 py-6 flex flex-col">
                 {nav.map((l) => (
                   <a key={`${l.href}-${l.target}`} href={l.href}
                     onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                    className="py-4 text-[18px] font-bold focus-ring" style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    className="py-4 text-[18px] font-bold text-white hover:text-white/80 border-b border-white/15 focus-ring">
                     {l.label}
                   </a>
                 ))}
                 <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }}
-                  className="mt-4 py-3 text-start text-[16px] font-semibold text-[#1A0F2E]/60">{t.signin}</button>
+                  className="mt-4 py-3 text-start text-[16px] font-semibold text-white/90 hover:text-white">{t.signin}</button>
               </nav>
               <div className="p-5">
                 <button type="button" onClick={() => { setMenuOpen(false); goSignup(); }}
-                  className="w-full h-12 rounded-full font-bold text-white" style={{ background: PURPLE }}>
+                  className="w-full h-12 rounded-full font-bold bg-white text-[#6B2DBC] hover:bg-white/90 transition shadow-lg">
                   {t.start}
                 </button>
               </div>
@@ -1191,7 +1188,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </>
         )}
       </AnimatePresence>
-
+      
       <div className="relative z-[1]">
         {/* ═══════════ HERO avec VIDÉO D'ARRIÈRE-PLAN ═══════════ */}
         <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate overflow-hidden"
