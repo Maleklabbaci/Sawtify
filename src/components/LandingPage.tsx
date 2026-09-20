@@ -32,7 +32,7 @@ import {
   Timer,
   Sparkles,
 } from "lucide-react";
-import { motion, AnimatePresence, useScroll, useInView } from "motion/react";
+import { motion, AnimatePresence, useInView } from "motion/react";
 
 export interface LandingPageProps {
   onLoginClick: () => void;
@@ -601,7 +601,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [toastVisible, setToastVisible] = useState(false);
   const countdown = useOfferCountdown();
 
-  const { scrollYProgress } = useScroll();
   const scrolled = useScrolled();
   const {
     playingId, sampleProgress, sampleElapsed, sampleTotal, durations,
@@ -1001,13 +1000,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const smoothTo = useCallback((href: string) => {
     setMenuOpen(false);
-    const el = document.querySelector(href);
-    if (!el) return;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
+    requestAnimationFrame(() => {
+      const el = document.querySelector(href) as HTMLElement | null;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 120;
+      window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" });
+    });
   }, []);
   const navigatePublicSection = useCallback((path: string, target: string) => {
-    window.history.pushState({}, "", path);
     smoothTo(target);
+    if (window.location.pathname !== path) window.history.replaceState({}, "", path);
   }, [smoothTo]);
 
   useEffect(() => {
@@ -1146,8 +1148,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
           </div>
         </div>
-        <motion.div aria-hidden className="absolute bottom-0 inset-x-0 h-[2.5px]"
-          style={{ scaleX: scrollYProgress, background: PURPLE, transformOrigin: isRTL ? "100% 50%" : "0% 50%" }} />
       </header>
 
       <AnimatePresence>
