@@ -16,8 +16,8 @@ import {
   Phone,
   User,
   MapPin,
-  Mail,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getCreditPacks } from '../data/voices';
@@ -105,6 +105,24 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     onRechargeSuccess(selectedPack, paymentMethod, newRecord);
   };
 
+  // FIX MOBILE : Gestionnaire d'ouverture de lien robuste
+  const openPaymentUrl = (url: string) => {
+    // Sur mobile, window.open peut être bloqué si non synchrone avec user gesture
+    // On force la navigation directe pour éviter les popups bloqués
+    try {
+      // Essai 1 : Nouvel onglet (desktop)
+      const newWindow = window.open(url, '_blank', 'noopener,noreferrer,width=600,height=800');
+      if (newWindow && !newWindow.closed && typeof newWindow.closed !== 'undefined') {
+        return; // Succès desktop
+      }
+      // Si popup bloqué ou mobile : même fenêtre
+      window.location.href = url;
+    } catch (e) {
+      // Fallback ultime
+      window.location.href = url;
+    }
+  };
+
   const handleInitiatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -141,20 +159,19 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       if (data.success && data.paymentUrl) {
         setInvoiceId(data.invoiceId);
         setPaymentUrl(data.paymentUrl);
-        if (data.paymentUrl.startsWith('http')) {
-          try {
-            window.open(data.paymentUrl, '_blank');
-          } catch (e) {}
-        }
+        
+        // Ouvrir immédiatement après création invoice (dans le contexte du clic utilisateur)
+        setTimeout(() => {
+          openPaymentUrl(data.paymentUrl);
+        }, 100); // Petit délai pour que le state soit mis à jour
+        
       } else {
-        const message = `${data.error || data.message || (language === 'ar' ? 'حدث خطأ أثناء إنشاء الفاتورة' : 'Erreur lors de la création de la facture')}${data.error_id ? ` [${data.error_id}]` : ''}${data.diagnostics ? ` — ${data.diagnostics}` : ''}`;
+        const message = `${data.error || data.message || (language === 'ar' ? 'حدث خطأ أثناء إنشاء الفاتورة' : 'Erreur lors de la création de la facture')}${data.error_id ? ` [${data.error_id}]` : ''}`;
         setStatusMessage(message);
-        window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: data.error || 'Erreur lors de la création de la facture', description: `Diagnostic automatique : ${message}\nÉtape : création de la facture SlickPay\nURL : ${window.location.pathname}` } }));
       }
     } catch (err) {
       console.warn('[Pricing Checkout Error]:', err);
       setStatusMessage(language === 'ar' ? 'تعذر الاتصال بخادم الدفع' : 'Erreur de communication avec le serveur');
-      window.dispatchEvent(new CustomEvent('sawtify:report-error', { detail: { detail: 'Erreur de communication avec le serveur de paiement', description: `Diagnostic automatique : ${err instanceof Error ? err.message : 'Erreur réseau'}\nÉtape : création de la facture SlickPay\nURL : ${window.location.pathname}` } }));
     } finally {
       setIsProcessing(false);
     }
@@ -164,15 +181,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     if (!invoiceId) return;
     setIsProcessing(true);
     try {
-          const { getMyAccessToken } = await import('../services/supabaseClient');
-          const token = await getMyAccessToken();
-          const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const { getMyAccessToken } = await import('../services/supabaseClient');
+      const token = await getMyAccessToken();
+      const res = await fetch(`${API_BASE_URL}/api/slickpay/check-status/${invoiceId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const statusData = await res.json();
       if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
         handlePaymentSuccess();
       } else {
         setStatusMessage(language === 'ar' ? 'لم يتم استلام الدفع بعد عبر SATIM' : 'Paiement non encore validé par SATIM.');
-        setTimeout(() => setStatusMessage(''), 3000);
+        setTimeout(() => setStatusMessage(''), 4000);
       }
     } catch (e) {
       console.warn('[Manual Status Check]:', e);
@@ -182,64 +199,51 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 pb-24 lg:pb-6">
       
-      {/* Page Header */}
-      <div className="text-center max-w-3xl mx-auto space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold">
-          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-          <span>{language === 'ar' ? 'هدية الترحيب: 50 نقطة مجانية (توليدين صوتيين + 10 نقاط متبقية)' : 'Offre de bienvenue : 50 points offerts (2 générations + 10 points restants)'}</span>
+      {/* Header */}
+      <div className="text-center max-w-2xl mx-auto space-y-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-semibold">
+          <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+          <span>{language === 'ar' ? '50 نقطة هدية لكل جديد' : '50 points offerts à chaque nouveau compte'}</span>
         </div>
-        <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-          {language === 'ar' ? 'شحن رصيد النقاط (DZD)' : 'Recharge de Points Sawtify'}
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          {language === 'ar' ? 'شحن رصيد نقاطي' : 'Recharge tes points'}
         </h1>
-        <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+        <p className="text-sm text-slate-500 leading-relaxed">
           {language === 'ar' 
-            ? 'كل مستخدم جديد يستفيد من 50 نقطة مجانية للبدء. لشحن رصيد إضافي بالدينار الجزائري (DZD)، اختر عدد النقاط المراد شحنها عبر البطاقة الذهبية أو CIB.' 
-            : 'Tout nouvel utilisateur démarre avec 50 points offerts (2 générations complètes + 10 points restants). Choisissez votre recharge en Dinars Algériens (DZD) via Edahabia ou CIB.'}
+            ? 'اختر باقتك وادفع ببطاقة Edahabia أو CIB مباشرة عبر SATIM.'
+            : 'Choisis ton pack et paie par carte Edahabia/CIB via SATIM sécurisé.'}
         </p>
       </div>
 
-      {/* Free bonus status disappears once the account is above the free balance. */}
-      {balance <= 50 && <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-        <div className="flex items-center gap-4 text-left">
-          <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-800 bg-purple-100/80 px-2.5 py-0.5 rounded-full">
-                {language === 'ar' ? 'الخطة المجانية الترحيبية' : 'Plan Gratuit Inclus'}
-              </span>
-              <span className="text-xs font-num font-bold text-slate-900">
-                {balance} {t.pointsLabel}
-              </span>
+      {/* Free Bonus Card — Lighter version */}
+      {balance <= 50 && (
+        <div className="
+          max-w-xl mx-auto p-4 sm:p-5 
+          bg-white border border-emerald-200 
+          rounded-2xl shadow-sm flex items-center justify-between gap-4
+        ">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 mt-1">
-                {balance <= 50
-                  ? (language === 'ar' ? 'رصيد الترحيب المجاني : 50 نقطة (20 نقطة / توليد)' : 'Bonus gratuit initial : 50 points (20 points / génération vocale)')
-                  : (language === 'ar' ? 'الدفع حسب الاستهلاك — رصيدك الحالي' : 'Pay-as-you-go — votre solde actuel')}
-            </h3>
-            <p className="text-xs text-slate-600 mt-0.5">
-              {language === 'ar' 
-                ? (balance <= 50 ? 'يمكنك استعمال نقاط الترحيب المجانية ثم تعبئة رصيدك عند الحاجة.' : 'اشحن النقاط عند الحاجة، ولا يوجد اشتراك شهري.')
-                : (balance <= 50 ? 'Les points gratuits sont utilisés en premier. Recharge uniquement quand tu en as besoin.' : 'Aucun abonnement mensuel : tu paies uniquement les points que tu recharges.')}
-            </p>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">Gratuit inclus</p>
+              <p className="text-xs text-slate-500 truncate">{balance} pts disponibles maintenant</p>
+            </div>
           </div>
+          <button
+            onClick={onNavigateToStudio}
+            className="shrink-0 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition active:scale-[0.98] min-h-[40px]"
+          >
+            {language === 'ar' ? 'استخدمهم' : 'Utiliser'}
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={onNavigateToStudio}
-          className="shrink-0 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 transition cursor-pointer shadow-xs"
-        >
-          <span>{language === 'ar' ? 'جرب في الاستوديو' : 'Essayer au Studio'}</span>
-          <ArrowRight className={`w-3.5 h-3.5 ${isRTL ? 'rotate-180' : ''}`} />
-        </button>
-      </div>}
+      )}
 
       {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {creditPacks.map((pack: CreditPack) => {
           const isSelected = selectedPack.id === pack.id;
           const isPopular = pack.isPopular;
@@ -247,453 +251,491 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           return (
             <div
               key={pack.id}
-              id={`pricing-card-${pack.id}`}
               onClick={() => {
                 setSelectedPackId(pack.id);
                 setPaymentUrl(null);
                 setInvoiceId(null);
                 setIsSuccess(false);
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
               }}
-              className={`relative rounded-3xl p-6 transition-all duration-200 cursor-pointer flex flex-col justify-between border ${
-                isSelected
-                  ? 'bg-white border-purple-600 ring-2 ring-purple-600/20 shadow-lg'
-                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-md'
-              }`}
+              className={`
+                relative p-5 sm:p-6 transition-all duration-200 cursor-pointer 
+                rounded-2xl border flex flex-col justify-between
+                ${isSelected
+                  ? 'bg-white border-purple-600 ring-1 ring-purple-600/30 shadow-md scale-[1.02]'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'}
+              `}
             >
-              {/* Popular Badge */}
               {isPopular && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <span className="bg-purple-600 text-white text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                    <Zap className="w-3 h-3 fill-current" />
-                    {language === 'ar' ? 'الأكثر طلباً' : 'Plus Populaire'}
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                    Populaire
                   </span>
                 </div>
               )}
 
               <div>
-                {/* Pack Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                    isPopular ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                    isSelected ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {pack.points >= 1000 ? <Building2 className="w-5 h-5" /> : pack.points >= 500 ? <Layers className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                    {pack.points >= 1000 ? <Building2 className="w-4 h-4" /> : pack.points >= 500 ? <Layers className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
                   </div>
                   {pack.bonusPercent && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-num">
-                      +{pack.bonusPercent}% Bonus
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                      +{pack.bonusPercent}%
                     </span>
                   )}
                 </div>
 
-                <h3 className="text-lg font-bold text-slate-900">{pack.name}</h3>
-                <p className="text-xs text-slate-500 mt-1 min-h-[32px]">{pack.tagline}</p>
+                <h3 className="text-base font-bold text-slate-900">{pack.name}</h3>
+                <p className="text-xs text-slate-400 mt-1 line-clamp-2 min-h-[32px]">{pack.tagline}</p>
 
-                {/* Price Display */}
-                <div className="mt-5 pb-5 border-b border-slate-100">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-3xl font-extrabold font-num text-slate-900 tracking-tight">
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
                       {pack.priceDZD.toLocaleString()}
                     </span>
-                    <span className="text-sm font-bold text-slate-500">DZD</span>
+                    <span className="text-xs font-bold text-slate-400">DZD</span>
                   </div>
-                  <div className="text-xs font-semibold text-purple-700 mt-1">
-                    <span className="font-num font-bold">+{pack.points}</span> {t.pointsLabel} <span className="text-slate-400 font-normal">(~<span className="font-num">{Math.floor(pack.points / 20)}</span> {language === 'ar' ? 'تسجيل صوتي' : 'générations'})</span>
+                  <div className="text-xs font-medium text-purple-600 mt-1">
+                    +{pack.points} pts ({Math.floor(pack.points / 20)} gén.)
                   </div>
                 </div>
-
-                {/* Features List */}
-                <ul className="mt-5 space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
-                    <span>{language === 'ar' ? 'توليد صوتي استوديو 24 kHz' : 'Qualité studio 24 kHz'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
-                    <span>{language === 'ar' ? 'تصدير MP3 و WAV فوري' : 'Téléchargement MP3 & WAV'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
-                    <span>{language === 'ar' ? 'استخدام تجاري غير محدود' : 'Usage commercial complet'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
-                    <span>{language === 'ar' ? 'صلاحية غير محدودة للنقاط' : 'Crédits valables à vie'}</span>
-                  </li>
-                </ul>
               </div>
 
-              {/* Action Selector Button */}
               <button
                 type="button"
-                className={`mt-6 w-full py-2.5 rounded-2xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`mt-4 w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 min-h-[44px] touch-manipulation ${
                   isSelected
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                    ? 'bg-slate-900 text-white shadow-md hover:bg-slate-800'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                {isSelected ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>{language === 'ar' ? 'النقاط المختارة' : 'Points sélectionnés'}</span>
-                  </>
-                ) : (
-                  <span>{language === 'ar' ? `شحن ${pack.points} نقطة` : `Choisir ${pack.points} points`}</span>
-                )}
+                {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <ArrowRight className="w-4 h-4" />}
+                <span>{isSelected ? (language === 'ar' ? 'محدد' : 'Sélectionné') : (language === 'ar' ? 'اختر' : 'Choisir')}</span>
               </button>
             </div>
           );
         })}
       </div>
 
-      {/* Embedded Checkout / Payment Section */}
-      <div className="bg-slate-900 rounded-3xl text-white p-6 sm:p-10 shadow-xl border border-slate-800">
+      {/* ==================================================================
+          CHECKOUT SECTION — VERSION PRO BLANCHE (Pas de_dark_theme_I_A_vibe)
+          ================================================================== */}
+      <div className="
+        bg-white border border-slate-200 
+        rounded-3xl overflow-hidden shadow-sm
+        max-w-5xl mx-auto
+      ">
         
-        {isSuccess ? (
-          /* Payment Success Confirmation */
-          <div className="text-center py-10 max-w-xl mx-auto space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-purple-500/20 border border-purple-500/40 text-purple-400 rounded-full flex items-center justify-center mx-auto shadow-lg">
-              <Check className="w-8 h-8 stroke-[3]" />
+        {/* Header Checkout */}
+        <div className="p-6 sm:p-8 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5" />
             </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-white">
-                {language === 'ar' ? 'تمت عملية الدفع بنجاح!' : 'Paiement effectué avec succès !'}
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                {language === 'ar' ? 'إتمام عملية الدفع' : 'Finaliser le paiement'}
               </h2>
-              <p className="text-slate-300 text-sm">
-                {language === 'ar'
-                  ? `تمت إضافة +${selectedPack.points} نقطة إلى رصيدك. رصيدك الإجمالي الآن: ${balance} نقطة.`
-                  : `Vos +${selectedPack.points} points ont été crédités sur votre compte. Votre solde actuel est de ${balance} points.`}
+              <p className="text-xs text-slate-500 mt-0.5">
+                {selectedPack.name} • {totalToPay.toLocaleString()} DZD
               </p>
             </div>
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                type="button"
-                id="btn-return-studio-after-payment"
-                onClick={onNavigateToStudio}
-                className="w-full sm:w-auto px-6 py-3 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer text-sm shadow-md"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{language === 'ar' ? 'الانتقال إلى استوديو الصوت' : 'Aller au Studio Vocal'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSuccess(false);
-                  setPaymentUrl(null);
-                  setInvoiceId(null);
-                }}
-                className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-2xl transition cursor-pointer text-sm"
-              >
-                <span>{language === 'ar' ? 'شحن رصيد إضافي' : 'Recharger à nouveau'}</span>
-              </button>
+            
+            {/* Badge méthode de paiement */}
+            <div className="ml-auto hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span className="text-xs font-semibold text-slate-600">
+                {paymentMethod === 'edahabia' ? 'Edahabia Poste' : 'CIB Banques DZ'}
+              </span>
             </div>
+          </div>
+        </div>
+
+        {isSuccess ? (
+          /* Success State */
+          <div className="p-8 sm:p-12 text-center animate-in fade-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <Check className="w-8 h-8 stroke-[3]" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">
+              {language === 'ar' ? 'تم بنجاح!' : 'Paiement validé!'}
+            </h3>
+            <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
+              +{selectedPack.points} points crédités sur ton compte Sawtify.
+            </p>
+            <button
+              onClick={onNavigateToStudio}
+              className="w-full sm:w-auto px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition min-h-[48px] touch-manipulation"
+            >
+              <Zap className="w-4 h-4 inline mr-2" />
+              {language === 'ar' ? 'الذهاب للاستوديو' : 'Aller au Studio →'}
+            </button>
           </div>
         ) : (
-          /* Active Checkout Workflow */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          /* Checkout Grid */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 p-6 sm:p-8">
             
-            {/* Left Column: Summary of Selected Points */}
-            <div className="lg:col-span-5 space-y-6">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-purple-400">
-                  {language === 'ar' ? 'تفاصيل الشحن' : 'Détails de la recharge'}
-                </span>
-                <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
-                  {selectedPack.name}
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  {selectedPack.tagline}
-                </p>
-              </div>
-
-              {/* Price & Points Card */}
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-3">
-                <div className="flex justify-between items-center text-xs text-slate-300">
-                  <span>{language === 'ar' ? 'النقاط المكتسبة :' : 'Points crédités :'}</span>
-                  <span className="font-num font-bold text-purple-400 text-sm">+{selectedPack.points} {t.pointsLabel}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs text-slate-300">
-                  <span>{language === 'ar' ? 'المعادل التقديري :' : 'Volume estimé :'}</span>
-                  <span className="text-slate-200"><span className="font-num">~{Math.floor(selectedPack.points / 20)}</span> {language === 'ar' ? 'تسجيل صوتي' : 'audios'}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span>{language === 'ar' ? 'رسوم الدفع (3٪) :' : 'Frais de paiement (3 %) :'}</span>
-                  <span className="font-num">+{paymentFee.toLocaleString()} DZD</span>
-                </div>
-                <div className="pt-3 border-t border-slate-700 flex justify-between items-baseline">
-                  <span className="text-sm font-bold text-white">{language === 'ar' ? 'المبلغ الإجمالي :' : 'Total à payer :'}</span>
-                  <div className="text-right">
-                    <span className="text-2xl font-num font-extrabold text-white tracking-tight">
-                      {totalToPay.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-slate-400 ml-1">DZD</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Method Selector */}
-              <div className="space-y-2.5">
-                <label className="text-xs font-bold text-slate-300">
-                  {language === 'ar' ? 'طريقة الدفع في الجزائر :' : 'Moyen de paiement sécurisé :'}
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('edahabia')}
-                    className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                      paymentMethod === 'edahabia'
-                        ? 'bg-amber-500/10 border-amber-500 text-white ring-1 ring-amber-500'
-                        : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 font-bold text-xs">
-                      E
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold">{language === 'ar' ? 'البطاقة الذهبية' : 'Edahabia'}</div>
-                      <div className="text-[10px] text-slate-400">{language === 'ar' ? 'بريد الجزائر' : 'Algérie Poste'}</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('cib')}
-                    className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                      paymentMethod === 'cib'
-                        ? 'bg-blue-500/10 border-blue-500 text-white ring-1 ring-blue-500'
-                        : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 font-bold text-xs">
-                      CIB
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold">{language === 'ar' ? 'بطاقة CIB' : 'Carte CIB'}</div>
-                      <div className="text-[10px] text-slate-400">{language === 'ar' ? 'البنوك الجزائرية' : 'Banques DZ'}</div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Guarantees */}
-              <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
-                <span>{language === 'ar' ? 'معتمد من SATIM و GIE Monétique بشهادة SSL مشفرة 256-bit.' : 'Certifié SATIM & GIE Monétique avec cryptage SSL 256-bit.'}</span>
-              </div>
-            </div>
-
-            {/* Right Column: Checkout Form & SATIM Gateway Trigger */}
-            <div className="lg:col-span-7 bg-slate-950/60 rounded-2xl p-6 border border-slate-800 space-y-5">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-purple-400" />
-                  <span>{language === 'ar' ? 'معلومات الفاتورة والدفع' : 'Informations de facturation & Paiement'}</span>
+            {/* Col Gauche : Résumé */}
+            <div className="lg:col-span-5 order-2 lg:order-1 border-t lg:border-t-0 lg:border-r border-slate-100 pr-0 lg:pr-8 pt-6 lg:pt-0">
+              
+              {/* Récapitulatif financier */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+                  {language === 'ar' ? 'ملخص الطلب' : 'Résumé de la commande'}
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  {language === 'ar' 
-                    ? 'سيتم توجيهك مباشرة إلى صفحة SATIM الرسمية لإدخال رمز التحقق وكلمة السر المؤقتة.' 
-                    : 'Vous serez redirigé directement vers la passerelle officielle SATIM pour finaliser.'}
-                </p>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">{language === 'ar' ? 'الباقة' : 'Pack'}</span>
+                    <span className="font-semibold text-slate-900">{selectedPack.name}</span>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
+                    <span className="font-bold text-purple-600">+{selectedPack.points}</span>
+                  </div>
+
+                  <div className="flex justify-between text-sm text-slate-500">
+                    <span>{language === 'ar' ? 'الكمية المتوقعة' : 'Estimation'}</span>
+                    <span>~{Math.floor(selectedPack.points / 20)} {language === 'ar' ? 'صوت' : 'audios'}</span>
+                  </div>
+
+                  <div className="border-t border-dashed border-slate-200 my-3"></div>
+
+                  <div className="flex justify-between text-sm text-slate-500">
+                    <span>{language === 'ar' ? 'رسوم المعاملة' : 'Frais transaction'}</span>
+                    <span>{paymentFee.toLocaleString()} DZD</span>
+                  </div>
+
+                  <div className="flex justify-between items-baseline text-base font-bold border-t border-slate-200 pt-3 mt-2">
+                    <span className="text-slate-900">{language === 'ar' ? 'المجموع' : 'Total'}</span>
+                    <span className="text-xl text-slate-900">
+                      {totalToPay.toLocaleString()} <span className="text-sm text-slate-400 ml-1">DZD</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sélecteur Méthode de paiement */}
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-600 block mb-3">
+                    {language === 'ar' ? 'طريقة الدفع' : 'Moyen de paiement'}
+                  </label>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('edahabia')}
+                      className={`
+                        relative p-3 rounded-xl border-2 text-left transition-all cursor-pointer
+                        min-h-[56px] touch-manipulation
+                        ${paymentMethod === 'edahabia'
+                          ? 'border-amber-400 bg-amber-50/50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'}
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold 
+                          ${paymentMethod === 'edahabia' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}>
+                          E
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-slate-800">Edahabia</div>
+                          <div className="text-[10px] text-slate-400">{language === 'ar' ? 'بريد الجزائر' : 'Algérie Poste'}</div>
+                        </div>
+                        
+                        {/* Indicateur sélection */}
+                        {paymentMethod === 'edahabia' && (
+                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cib')}
+                      className={`
+                        relative p-3 rounded-xl border-2 text-left transition-all cursor-pointer
+                        min-h-[56px] touch-manipulation
+                        ${paymentMethod === 'cib'
+                          ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'}
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold
+                          ${paymentMethod === 'cib' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}>
+                          CIB
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-slate-800">CIB</div>
+                          <div className="text-[10px] text-slate-400">{language === 'ar' ? 'بنوك جزائرية' : 'Banques DZ'}</div>
+                        </div>
+                        
+                        {paymentMethod === 'cib' && (
+                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Guarantees discret */}
+                <div className="mt-4 flex items-start gap-2 text-[11px] text-slate-400 bg-slate-50 rounded-lg p-3">
+                  <Lock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>Paiement sécurisé via SATIM • Cryptage SSL 256-bit</span>
+                </div>
               </div>
-
-              {statusMessage && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                  <Info className="w-4 h-4 shrink-0" />
-                  <span>{statusMessage}</span>
-                </div>
-              )}
-
-              {paymentUrl ? (
-                /* Active SATIM Link Container */
-                <div className="space-y-4 p-5 rounded-2xl bg-slate-900 border border-purple-500/40">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-ping" />
-                      <span className="text-xs font-bold text-purple-300">
-                        {language === 'ar' ? 'صفحة الدفع SATIM جاهزة ومفتوحة' : 'Session de paiement SATIM active'}
-                      </span>
-                    </div>
-                    {invoiceId && (
-                      <span className="text-[10px] font-mono text-slate-400">#{invoiceId}</span>
-                    )}
-                  </div>
-
-                  <a
-                    href={paymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    id="btn-pricing-open-satim"
-                    className="w-full py-3.5 bg-purple-500 hover:bg-purple-400 active:bg-purple-600 text-slate-950 font-bold rounded-2xl flex items-center justify-center gap-2 transition text-sm text-center shadow-lg shadow-purple-500/10 cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    <span>{language === 'ar' ? 'فتح صفحة SATIM الرسمية (الذهبية / CIB)' : 'Ouvrir la page de paiement SATIM (Edahabia / CIB)'}</span>
-                  </a>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      type="button"
-                      id="btn-pricing-check-status"
-                      onClick={checkStatusManually}
-                      disabled={isProcessing}
-                      className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-                      <span>{language === 'ar' ? 'تحديث حالة الدفع' : 'Vérifier le statut du paiement'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPaymentUrl(null);
-                        setInvoiceId(null);
-                      }}
-                      className="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer"
-                    >
-                      {language === 'ar' ? 'تغيير المعلومات' : 'Modifier les infos'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Billing Details Inputs */
-                <form onSubmit={handleInitiatePayment} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-medium">
-                        {language === 'ar' ? 'الاسم الأول' : 'Prénom'}
-                      </label>
-                      <div className="relative">
-                        <User className={`w-4 h-4 text-slate-400 absolute top-3 ${isRTL ? 'right-3' : 'left-3'}`} />
-                        <input
-                          type="text"
-                          required
-                          value={firstname}
-                          onChange={(e) => setFirstname(e.target.value)}
-                          className={`w-full bg-slate-900 border border-slate-700 rounded-xl py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 ${isRTL ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
-                          placeholder="Mohamed"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-medium">
-                        {language === 'ar' ? 'اللقب' : 'Nom'}
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={lastname}
-                        onChange={(e) => setLastname(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                        placeholder="Benali"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-medium">
-                        {language === 'ar' ? 'رقم الهاتف (05/06/07)' : 'Numéro de téléphone'}
-                      </label>
-                      <div className="relative">
-                        <Phone className={`w-4 h-4 text-slate-400 absolute top-3 ${isRTL ? 'right-3' : 'left-3'}`} />
-                        <input
-                          type="tel"
-                          required
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          className={`w-full bg-slate-900 border border-slate-700 rounded-xl py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-num ${isRTL ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
-                          placeholder="0550123456"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-medium">
-                        {language === 'ar' ? 'الولاية / المدينة' : 'Wilaya / Ville'}
-                      </label>
-                      <div className="relative">
-                        <MapPin className={`w-4 h-4 text-slate-400 absolute top-3 ${isRTL ? 'right-3' : 'left-3'}`} />
-                        <input
-                          type="text"
-                          required
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          className={`w-full bg-slate-900 border border-slate-700 rounded-xl py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 ${isRTL ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
-                          placeholder="Alger, Oran, Constantine..."
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    id="btn-submit-pricing-checkout"
-                    disabled={isProcessing}
-                    className="w-full mt-2 py-3.5 bg-purple-500 hover:bg-purple-400 active:bg-purple-600 text-slate-950 font-bold rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer text-sm shadow-md disabled:opacity-50"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>{language === 'ar' ? 'جاري الاتصال بـ SATIM...' : 'Connexion à SATIM en cours...'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4" />
-                        <span>
-                          {language === 'ar'
-                            ? `دفع ${totalToPay.toLocaleString()} دج والتوجه إلى SATIM`
-                            : `Payer ${totalToPay.toLocaleString()} DZD via SATIM`}
-                        </span>
-                        <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
-
             </div>
 
+            {/* Col Droite : Formulaire */}
+            <div className="lg:col-span-7 order-1 lg:order-2 pl-0 lg:pl-4">
+              
+              <div className="space-y-5">
+                
+                {/* Info banner */}
+                <div className="flex items-start gap-2 text-xs text-slate-500 bg-blue-50 rounded-lg p-3 border border-blue-100">
+                  <Info className="w-4 h-4 mt-0.5 shrink-0 text-blue-500" />
+                  <span>
+                    {language === 'ar' 
+                      ? 'بعد الضغط sur "payer", tu seras redirigé vers la page officielle SATIM pour entrer ton code OTP.'
+                      : 'Après avoir cliqué sur payer, tu seras redirigé vers SATIM pour confirmer le paiement.'}
+                  </span>
+                </div>
+
+                {/* Erreur */}
+                {statusMessage && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{statusMessage}</span>
+                  </div>
+                )}
+
+                {/* Lien SATIM si déjà créé */}
+                {paymentUrl ? (
+                  <div className="space-y-4 p-5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-sm font-bold text-emerald-800">
+                          {language === 'ar' ? 'جاهز للدفع' : 'Prêt à payer'}
+                        </span>
+                      </div>
+                      {invoiceId && (
+                        <span className="text-[10px] font-mono text-slate-400 bg-white px-2 py-1 rounded border">
+                          #{invoiceId}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* BOUTON PRINCIPAL MOBILE FIXE — Taille et comportement optimisés */}
+                    <a
+                      href={paymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        // Sur mobile : on préfère souvent window.location pour éviter les bloqueurs de popup
+                        if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                          e.preventDefault();
+                          window.location.href = paymentUrl;
+                        }
+                      }}
+                      id="btn-pricing-open-satim"
+                      className="
+                        w-full py-4 bg-emerald-600 hover:bg-emerald-700 
+                        text-white font-bold rounded-xl flex items-center justify-center 
+                        gap-2 text-base transition-all duration-150
+                        shadow-lg shadow-emerald-600/20 
+                        active:scale-[0.99]
+                        min-h-[52px] /* Touch target confortable */
+                        touch-manipulation
+                        select-none
+                      "
+                    >
+                      <ExternalLink className="w-5 h-5" />
+                      <span className="tracking-wide">
+                        {language === 'ar' 
+                          ? `دفع ${totalToPay.toLocaleString()} دج via SATIM →`
+                          : `Payer ${totalToPay.toLocaleString()} DZD via SATIM →`}
+                      </span>
+                    </a>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-emerald-200">
+                      <button
+                        onClick={checkStatusManually}
+                        disabled={isProcessing}
+                        className="py-2 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center gap-2 hover:bg-slate-50 transition min-h-[40px] disabled:opacity-60"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                        {isProcessing 
+                          ? (language === 'ar' ? 'جاري...' : 'Vérification...')
+                          : (language === 'ar' ? 'تأكيد الاستلام' : 'J\'ai payé')
+                        }
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setPaymentUrl(null);
+                          setInvoiceId(null);
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline py-2 min-h-[36px]"
+                      >
+                        {language === 'ar' ? 'تعديل البيانات' : 'Modifier'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Formulaire initial */
+                  <form onSubmit={handleInitiatePayment} className="space-y-4" id="pricing-form">
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      
+                      {/* Prénom */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700">
+                          {language === 'ar' ? 'الاسم الأول' : 'Prénom'} *
+                        </label>
+                        <div className="relative">
+                          <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            required
+                            value={firstname}
+                            onChange={(e) => setFirstname(e.target.value)}
+                            placeholder="Mohamed"
+                            className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 
+                                       placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500
+                                       transition-colors min-h-[48px]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Nom */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700">
+                          {language === 'ar' ? 'اللقب' : 'Nom'} *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={lastname}
+                          onChange={(e) => setLastname(e.target.value)}
+                          placeholder="Benali"
+                          className="w-full px-3 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 
+                                     placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500
+                                     transition-colors min-h-[48px]"
+                        />
+                      </div>
+
+                      {/* Téléphone */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700">
+                          {language === 'ar' ? 'الهاتف (05/06/07)' : 'Téléphone'} *
+                        </label>
+                        <div className="relative">
+                          <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="tel"
+                            required
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="0550123456"
+                            dir="ltr"
+                            className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 
+                                       placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500
+                                       font-num min-h-[48px]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Ville */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700">
+                          {language === 'ar' ? 'الولاية' : 'Wilaya'} *
+                        </label>
+                        <div className="relative">
+                          <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            required
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="Alger, Oran..."
+                            className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 
+                                       placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500
+                                       transition-colors min-h-[48px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      id="btn-submit-pricing-checkout"
+                      disabled={isProcessing}
+                      className="
+                        w-full mt-2 py-4 bg-slate-900 hover:bg-slate-800 
+                        disabled:bg-slate-300 disabled:cursor-not-allowed
+                        text-white font-bold rounded-xl flex items-center justify-center 
+                        gap-2 text-base transition-all duration-150
+                        shadow-lg shadow-slate-900/20 active:scale-[0.99]
+                        min-h-[56px] /* Très grand target tactile */
+                        touch-manipulation select-none
+                      "
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          <span className="animate-pulse opacity-80">
+                            {language === 'ar' ? 'جاري الاتصال...' : 'Connexion au paiement...'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-5 h-5" />
+                          <span className="tracking-wide">
+                            {language === 'ar'
+                              ? `دفع ${totalToPay.toLocaleString()} دج الآن`
+                              : `Payer ${totalToPay.toLocaleString()} DZD maintenant`}
+                          </span>
+                          <ArrowRight className="w-5 h-5 ml-auto" />
+                        </>
+                      )}
+                    </button>
+
+                    <p className="text-[10px] text-center text-slate-400 px-4">
+                      {language === 'ar' 
+                        ? 'Tu seras redirigé vers la page bancaire SATIM sécurisée.'
+                        : 'Redirection vers la page de paiement SATIM sécurisée.'}
+                    </p>
+                  </form>
+                )}
+              </div>
+            </div>
           </div>
         )}
-
       </div>
 
-      {/* FAQ & Information Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-200">
-        <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-          <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-            <Zap className="w-4 h-4 text-purple-600" />
-            <span>{language === 'ar' ? 'كيف يتم احتساب النقاط؟' : 'Comment sont décomptés les points ?'}</span>
-          </h4>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            {language === 'ar'
-              ? 'كل توليد صوتي عالي الدقة (24 kHz) يستهلك 20 نقطة فقط، مهما كان طول النص أو نوع المؤثرات الصوتية المختارة.'
-              : 'Chaque génération vocale haute fidélité (24 kHz) consomme 20 points, quelle que soit l\'émotion ou la voix.'}
-          </p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-          <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-purple-600" />
-            <span>{language === 'ar' ? 'هل الدفع آمن؟' : 'Le paiement est-il sécurisé ?'}</span>
-          </h4>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            {language === 'ar'
-              ? 'نعم، جميع المعاملات تمر مباشرة عبر خوادم SATIM المشفرة لبريد الجزائر والبنوك الوطنية مع التحقق عبر رمز OTP.'
-              : 'Absolument, toutes les transactions transitent par les serveurs bancaires sécurisés SATIM avec code de confirmation SMS.'}
-          </p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-          <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-            <HelpCircle className="w-4 h-4 text-purple-600" />
-            <span>{language === 'ar' ? 'هل تنتهي صلاحية النقاط؟' : 'Mes points ont-ils une date limite ?'}</span>
-          </h4>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            {language === 'ar'
-              ? 'لا، نقاط رصيدك دائمة ومحفوظة في حسابك دون أي انتهاء للصلاحية، ويمكنك استخدامها في أي وقت.'
-              : 'Non, vos crédits n\'expirent jamais et restent disponibles dans votre compte sans aucune limite de durée.'}
-          </p>
-        </div>
+      {/* FAQ Section — Style discret */}
+      <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 pt-8 border-t border-slate-100">
+        {[
+          { icon: Zap, q: language === 'ar' ? 'أستخدم النقاط كيف؟' : 'Comment utiliser?', a: '20 pts/génération vocale. Valables à vie.' },
+          { icon: ShieldCheck, q: language === 'ar' ? 'هل هو آمن?' : 'Sécurisé?', a: 'SATIM certifié, cryptage SSL 256-bit, OTP SMS.' },
+          { icon: HelpCircle, q: language === 'ar' ? 'انتهاء الصلاحية?' : 'Expiration?', a: 'Aucune expiration. Tes points restent toujours dispo.' }
+        ].map(({ icon: Icon, q, a }) => (
+          <div key={q} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+            <Icon className="w-4 h-4 text-purple-600" />
+            <h4 className="text-xs font-bold text-slate-800">{q}</h4>
+            <p className="text-[11px] text-slate-500 leading-relaxed">{a}</p>
+          </div>
+        ))}
       </div>
 
     </div>
