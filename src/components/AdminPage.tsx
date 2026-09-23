@@ -20,23 +20,41 @@ type UserDetail = {
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
+function buildWaZero(name: string) {
+  return 'Bienvenue ' + name + ' sur Sawtify. Nous avons remarque que vous n\'avez pas encore teste la generation vocale, n\'hesitez pas a l\'essayer et a nous dire ce que vous en pensez.';
+}
+function buildWaZero2(name: string) {
+  return 'Bonjour ' + name + ', bienvenue parmi nous. Nous vous invitons a essayer votre premiere generation vocale, votre avis nous interesse beaucoup.';
+}
+function buildWaZero3(name: string) {
+  return 'Bonjour ' + name + ', merci de votre inscription sur Sawtify. Vous n\'avez pas encore effectue de generation, n\'hesitez pas a tester, notre equipe reste disponible en cas de besoin.';
+}
+function buildWaZero4(name: string) {
+  return 'Bonjour ' + name + ', bienvenue chez nous. Vous pouvez tester la generation vocale des maintenant, nous restons a votre disposition pour toute question.';
+}
+function buildWaOne(name: string) {
+  return 'Bonjour ' + name + ', merci pour votre premier essai de generation. Nous serions ravis de connaitre votre avis sur la qualite du resultat.';
+}
+function buildWaOne2(name: string) {
+  return 'Bonjour ' + name + ', nous avons vu que vous avez realise votre premiere generation. Comment s\'est passee votre experience ? Vos retours nous aident a ameliorer le service.';
+}
+function buildWaOne3(name: string) {
+  return 'Bonjour ' + name + ', merci d\'avoir utilise la plateforme. Quel est votre avis sur le resultat de votre premiere generation ?';
+}
+function buildWaMany(name: string, n: number) {
+  return 'Bonjour ' + name + ', nous avons remarque ' + n + ' generations realisees. Merci pour votre confiance, votre avis sur la qualite du service nous interesse.';
+}
+function buildWaMany2(name: string, n: number) {
+  return 'Bonjour ' + name + ', vous avez atteint ' + n + ' generations vocales. Nous serions heureux d\'avoir votre retour sur votre experience.';
+}
+function buildWaMany3(name: string, n: number) {
+  return 'Bonjour ' + name + ', merci pour votre activite reguliere (' + n + ' generations). Avez-vous des suggestions d\'amelioration ?';
+}
+
 const waTemplates: Record<'zero' | 'one' | 'many', Array<(name: string, n: number) => string>> = {
-  zero: [
-    (name) => `مرحبا بك ${name} في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن، وأخبرنا برأيك في النتيجة.`,
-    (name) => `أهلا وسهلا ${name}، مرحبا بك من جديد في المنصة. ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.`,
-    (name) => `مرحبا ${name}، شكرا على تسجيلك في Sawtify. لم تقم بعد بأي عملية توليد، فلا تتردد في التجربة، ونحن هنا لأي مساعدة تحتاجها.`,
-    (name) => `سلام ${name}، مرحبا بك معنا. ندعوك لتجربة خدمة توليد الصوت متى شئت، وإذا واجهتك أي صعوبة فريقنا مستعد لمساعدتك.`,
-  ],
-  one: [
-    (name) => `سلام ${name}، شكرا لتجربتك الأولى لخدمة التوليد. يسعدنا معرفة رأيك في جودة النتيجة.`,
-    (name) => `مرحبا ${name}، لاحظنا أنك أنجزت أول عملية توليد. كيف كانت تجربتك؟ ملاحظاتك تهمنا لتحسين الخدمة.`,
-    (name) => `أهلا ${name}، شكرا على استعمالك للمنصة. نحب نعرفو رأيك في نتيجة أول توليد قمت به.`,
-  ],
-  many: [
-    (name, n) => `سلام ${name}، لاحظنا أنك أنجزت ${n} عملية توليد. نشكرك على ثقتك، ونود معرفة رأيك في جودة الخدمة لحد الآن.`,
-    (name, n) => `مرحبا ${name}، وصلت إلى ${n} عملية توليد صوت. يسعدنا الاستماع لملاحظاتك حول تجربتك معنا.`,
-    (name, n) => `أهلا ${name}، نشكرك على نشاطك المستمر (${n} عملية توليد). هل هناك أي تحسينات تودون اقتراحها؟`,
-  ],
+  zero: [buildWaZero, buildWaZero2, buildWaZero3, buildWaZero4],
+  one: [buildWaOne, buildWaOne2, buildWaOne3],
+  many: [buildWaMany, buildWaMany2, buildWaMany3],
 };
 
 const waCategory = (n: number): 'zero' | 'one' | 'many' => n === 0 ? 'zero' : n === 1 ? 'one' : 'many';
@@ -47,8 +65,8 @@ const waPhrases = (u: { full_name: string | null; total_generated_audios: number
   return waTemplates[waCategory(n)].map((tpl) => tpl(name, n));
 };
 
-const waAppLink = (phone: string, text: string) => `https://wa.me/213${phone.replace(/^0/, '')}?text=${encodeURIComponent(text)}`;
-const waWebLink = (phone: string, text: string) => `https://web.whatsapp.com/send?phone=213${phone.replace(/^0/, '')}&text=${encodeURIComponent(text)}`;
+const waAppLink = (phone: string, text: string) => 'https://wa.me/213' + phone.replace(/^0/, '') + '?text=' + encodeURIComponent(text);
+const waWebLink = (phone: string, text: string) => 'https://web.whatsapp.com/send?phone=213' + phone.replace(/^0/, '') + '&text=' + encodeURIComponent(text);
 
 export const AdminPage: React.FC = () => {
   const [data, setData] = useState<AdminData | null>(null);
@@ -92,6 +110,20 @@ export const AdminPage: React.FC = () => {
   const openWaPicker = (u: AdminData['recent_users'][number]) => {
     setWaUser(u);
     setWaSelectedIndex(0);
+  };
+
+  const openWhatsappApp = () => {
+    if (!waUser || !waUser.phone) return;
+    const url = waAppLink(waUser.phone, waSelectedText);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setWaUser(null);
+  };
+
+  const openWhatsappWeb = () => {
+    if (!waUser || !waUser.phone) return;
+    const url = waWebLink(waUser.phone, waSelectedText);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setWaUser(null);
   };
 
   useEffect(() => {
@@ -279,8 +311,11 @@ export const AdminPage: React.FC = () => {
                 <button
                   key={i}
                   onClick={() => setWaSelectedIndex(i)}
-                  dir="rtl"
-                  className={`w-full rounded-xl border p-3 text-right text-sm leading-relaxed transition ${i === waSelectedIndex ? 'border-emerald-500 bg-emerald-50 text-slate-900' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+                  className={
+                    i === waSelectedIndex
+                      ? 'w-full rounded-xl border border-emerald-500 bg-emerald-50 p-3 text-left text-sm leading-relaxed text-slate-900 transition'
+                      : 'w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-sm leading-relaxed text-slate-600 transition hover:border-slate-300'
+                  }
                 >
                   {phrase}
                 </button>
@@ -288,26 +323,20 @@ export const AdminPage: React.FC = () => {
             </div>
 
             <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200 p-5 sm:flex-row">
-              
-                href={waUser.phone ? waAppLink(waUser.phone, waSelectedText) : undefined}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => setWaUser(null)}
+              <button
+                onClick={openWhatsappApp}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600"
               >
                 <Send className="h-4 w-4" />
                 WhatsApp
-              </a>
-              
-                href={waUser.phone ? waWebLink(waUser.phone, waSelectedText) : undefined}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => setWaUser(null)}
+              </button>
+              <button
+                onClick={openWhatsappWeb}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500 px-4 py-2 text-sm font-bold text-emerald-600 hover:bg-emerald-50"
               >
                 <Send className="h-4 w-4" />
                 WhatsApp Web
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -343,60 +372,4 @@ export const AdminPage: React.FC = () => {
 
               <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 sm:grid-cols-3">
                 <p><CalendarDays className="mr-2 inline h-4 w-4 text-purple-600" />Créé : <b>{dateTime(selectedUser.profile.created_at)}</b></p>
-                <p><Clock3 className="mr-2 inline h-4 w-4 text-purple-600" />Dernière connexion : <b>{dateTime(selectedUser.profile.last_sign_in_at)}</b></p>
-                <p>Onboarding : <b>{dateTime(selectedUser.profile.onboarding_completed_at)}</b></p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="font-black text-slate-900">Générations vocales ({selectedUser.generations.length})</h3>
-                <div className="mt-3 space-y-3">
-                  {selectedUser.generations.length === 0 && <p className="text-sm text-slate-500">Aucune génération enregistrée.</p>}
-                  {selectedUser.generations.map((generation) => (
-                    <div key={generation.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-black text-slate-900">{generation.voice_name || generation.voice_id}</p>
-                          <p className="mt-1 text-xs text-slate-500">{dateTime(generation.created_at)} · {generation.status} · {generation.generation_source || 'legacy'}</p>
-                        </div>
-                        <div className="shrink-0 text-right text-xs text-slate-500">
-                          <p>{Number(generation.audio_duration_seconds || 0).toFixed(2)} s</p>
-                          <p>{generation.points_deducted || 0} points</p>
-                        </div>
-                      </div>
-                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-slate-600">{generation.text_prompt}</p>
-                      {generation.audio_url ? (
-                        <audio className="mt-3 h-10 w-full" controls preload="none" src={generation.audio_url}>Ton navigateur ne supporte pas la lecture audio.</audio>
-                      ) : (
-                        <p className="mt-3 text-xs font-bold text-amber-700">Audio non disponible dans Storage pour cette génération.</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <h3 className="font-black text-slate-900">Transactions</h3>
-                  <div className="mt-3 space-y-2 text-sm">
-                    {selectedUser.transactions.length === 0 && <p className="text-slate-500">Aucune transaction.</p>}
-                    {selectedUser.transactions.map((tx) => (
-                      <div key={tx.id} className="flex justify-between gap-3 border-b py-2 last:border-0">
-                        <span>{dateTime(tx.created_at)} · {tx.status}</span>
-                        <b>{money(Number(tx.amount_dzd || 0))} · +{tx.points_credited || 0} pts</b>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <h3 className="font-black text-slate-900">Activité Gemini</h3>
-                  <p className="mt-2 text-sm text-slate-500">{selectedUser.usage_logs.length} appels enregistrés</p>
-                  <p className="mt-1 text-sm text-slate-500">{selectedUser.usage_logs.reduce((sum, log) => sum + Number(log.characters || 0), 0).toLocaleString('fr-FR')} caractères traités</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+                <p><Clock3 className="mr-2 inline h-4 w-4 text-purple-600" />Dernière connexion
