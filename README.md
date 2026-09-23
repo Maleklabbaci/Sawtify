@@ -1,73 +1,33 @@
 # Sawtify
 
-Plateforme Text-to-Speech ultra-rapide Pay-as-you-go avec paiement CIB & Edahabia pour l'Algérie.
+## Présentation
 
-## Architecture
+Sawtify est une plateforme algérienne de synthèse vocale (Text-to-Speech) nouvelle génération, pensée pour transformer instantanément du texte en voix naturelle et expressive. Conçue pour répondre aux besoins du marché local, elle propose un système de paiement à l'usage (Pay-as-you-go) intégrant les moyens de paiement algériens CIB et Edahabia.
 
-- **Frontend** : Vite + React + Tailwind (SPA dans `src/`).
-- **Backend** : Express dans `server.ts`.
-- **Bases de données / Auth** : Supabase.
-- **IA** : Google Gemini (TTS + text generation).
-- **Paiement** : SlickPay.
+## Pourquoi Sawtify
 
-## Variables d'environnement
+- **Rapidité** : génération de voix quasi instantanée, sans configuration complexe.
+- **Qualité naturelle** : des voix expressives, proches d'une élocution humaine, adaptées à différents contextes d'usage.
+- **Accessibilité locale** : paiement simple et sécurisé via CIB et Edahabia, sans besoin de carte internationale.
+- **Simplicité d'utilisation** : une interface claire, pensée pour être utilisée sans compétence technique.
 
-Copie `.env.example` en `.env.local` et remplis les valeurs.
+## À qui s'adresse Sawtify
 
-### Côté serveur (Render / Cloudflare Functions)
+- Créateurs de contenu et influenceurs souhaitant produire des voix off rapidement.
+- Entreprises et agences ayant besoin de contenus audio pour leurs publicités ou réseaux sociaux.
+- Enseignants et formateurs souhaitant vocaliser des supports pédagogiques.
+- Toute personne ou structure ayant besoin de convertir du texte en voix, sans matériel ni compétence en enregistrement audio.
 
-| Variable | Description |
-|---|---|
-| `GEMINI_API_KEY` | Clé API Google Gemini |
-| `SUPABASE_URL` | URL projet Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clé service_role (secrète) |
-| `SLICKPAY_API_KEY` | Clé API SlickPay (secrète) |
-| `SLICKPAY_SANDBOX_KEY` | Clé sandbox SlickPay |
-| `SLICKPAY_BASE_URL` | URL de base API SlickPay |
-| `FRONTEND_URL` | URL du frontend (ex: Cloudflare Pages) |
-| `NODE_ENV` | `production` en prod |
-| `PORT` | Port d'écoute (Render fournit automatiquement) |
+## Fonctionnement
 
-### Côté frontend (build Vite)
+1. L'utilisateur crée un compte sur la plateforme.
+2. Il saisit ou colle le texte à transformer en voix.
+3. Il choisit la voix souhaitée.
+4. La génération se fait en quelques secondes.
+5. L'audio est disponible en écoute et en téléchargement.
 
-| Variable | Description |
-|---|---|
-| `VITE_API_URL` | URL du backend. Laisser vide si le backend sert aussi le frontend. |
-| `VITE_SUPABASE_URL` | URL Supabase publique |
-| `VITE_SUPABASE_ANON_KEY` | Clé anon Supabase |
+Le système fonctionne sur un modèle de crédits : chaque utilisateur dispose d'un solde qu'il peut recharger selon ses besoins, sans abonnement obligatoire.
 
-## Déploiement
+## Contact
 
-### Render (backend)
-
-1. Créer un Web Service.
-2. Build command : `npm install && npm run build`
-3. Start command : `npm start`
-4. Ajouter les variables d'environnement serveur dans le dashboard.
-
-### Cloudflare Pages (frontend)
-
-1. Build command : `npm install && npx vite build`
-2. Output directory : `dist`
-3. Ajouter les variables `VITE_*` dans Settings > Variables (elles sont injectées au build).
-4. Pointer `VITE_API_URL` vers l'URL Render.
-
-## Migrations Supabase
-
-Appliquer dans l'ordre :
-
-1. `supabase/schema.sql`
-2. `supabase/fix_credits_security.sql`
-3. `supabase/fix_welcome_credit_and_recharge.sql`
-4. `supabase/fix_feedback_storage_atomic.sql`
-5. `supabase/fix_deploy_and_security.sql`
-
-## Commandes utiles
-
-```bash
-npm install
-npm run dev       # dev local
-npm run build     # build production
-npm run lint      # vérification TypeScript
-npm start         # démarrer le serveur de production
-```
+Pour toute question, démonstration ou partenariat concernant Sawtify, n'hésitez pas à nous contacter directement.
