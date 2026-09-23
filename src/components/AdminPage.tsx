@@ -20,19 +20,18 @@ type UserDetail = {
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-const AR_ZERO_1 = String.fromCharCode(0x0645, 0x0631, 0x062D, 0x0628, 0x0627, 0x0020, 0x0628, 0x0643);
-const waZero1 = (name: string) => AR_ZERO_1 + ' ' + name + ' ' + 'في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن وأخبرنا برأيك في النتيجة.';
-const waZero2 = (name: string) => 'أهلا وسهلا ' + name + '، مرحبا بك من جديد في المنصة. ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.';
-const waZero3 = (name: string) => 'مرحبا ' + name + '، شكرا على تسجيلك في Sawtify. لم تقم بعد بأي عملية توليد، فلا تتردد في التجربة، ونحن هنا لأي مساعدة تحتاجها.';
-const waZero4 = (name: string) => 'سلام ' + name + '، مرحبا بك معنا. ندعوك لتجربة خدمة توليد الصوت متى شئت، وإذا واجهتك أي صعوبة فريقنا مستعد لمساعدتك.';
+const waZero1 = (name: string) => 'مرحبا بك ' + name + ' في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن وأخبرنا برأيك في النتيجة.';
+const waZero2 = (name: string) => 'أهلا وسهلا ' + name + '، معك فريق Sawtify. مرحبا بك من جديد في المنصة، ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.';
+const waZero3 = (name: string) => 'مرحبا ' + name + '، معك فريق Sawtify. شكرا على تسجيلك، لم تقم بعد بأي عملية توليد، فلا تتردد في التجربة، ونحن هنا لأي مساعدة تحتاجها.';
+const waZero4 = (name: string) => 'سلام ' + name + '، هذه رسالة من فريق Sawtify. ندعوك لتجربة خدمة توليد الصوت متى شئت، وإذا واجهتك أي صعوبة فريقنا مستعد لمساعدتك.';
 
-const waOne1 = (name: string) => 'سلام ' + name + '، شكرا لتجربتك الأولى لخدمة التوليد. يسعدنا معرفة رأيك في جودة النتيجة.';
-const waOne2 = (name: string) => 'مرحبا ' + name + '، لاحظنا أنك أنجزت أول عملية توليد. كيف كانت تجربتك؟ ملاحظاتك تهمنا لتحسين الخدمة.';
-const waOne3 = (name: string) => 'أهلا ' + name + '، شكرا على استعمالك للمنصة. نحب نعرفو رأيك في نتيجة أول توليد قمت به.';
+const waOne1 = (name: string) => 'سلام ' + name + '، معك فريق Sawtify. شكرا لتجربتك الأولى لخدمة التوليد، يسعدنا معرفة رأيك في جودة النتيجة.';
+const waOne2 = (name: string) => 'مرحبا ' + name + '، هذه رسالة من فريق Sawtify. لاحظنا أنك أنجزت أول عملية توليد، كيف كانت تجربتك؟ ملاحظاتك تهمنا لتحسين الخدمة.';
+const waOne3 = (name: string) => 'أهلا ' + name + '، معك فريق Sawtify. شكرا على استعمالك للمنصة، نحب نعرفو رأيك في نتيجة أول توليد قمت به.';
 
-const waMany1 = (name: string, n: number) => 'سلام ' + name + '، لاحظنا أنك أنجزت ' + n + ' عملية توليد. نشكرك على ثقتك، ونود معرفة رأيك في جودة الخدمة لحد الآن.';
-const waMany2 = (name: string, n: number) => 'مرحبا ' + name + '، وصلت إلى ' + n + ' عملية توليد صوت. يسعدنا الاستماع لملاحظاتك حول تجربتك معنا.';
-const waMany3 = (name: string, n: number) => 'أهلا ' + name + '، نشكرك على نشاطك المستمر (' + n + ' عملية توليد). هل هناك أي تحسينات تودون اقتراحها؟';
+const waMany1 = (name: string, n: number) => 'سلام ' + name + '، معك فريق Sawtify. لاحظنا أنك أنجزت ' + n + ' عملية توليد، نشكرك على ثقتك، ونود معرفة رأيك في جودة الخدمة لحد الآن.';
+const waMany2 = (name: string, n: number) => 'مرحبا ' + name + '، هذه رسالة من فريق Sawtify. وصلت إلى ' + n + ' عملية توليد صوت، يسعدنا الاستماع لملاحظاتك حول تجربتك معنا.';
+const waMany3 = (name: string, n: number) => 'أهلا ' + name + '، معك فريق Sawtify. نشكرك على نشاطك المستمر (' + n + ' عملية توليد)، هل هناك أي تحسينات تودون اقتراحها؟';
 
 const waTemplates: Record<'zero' | 'one' | 'many', Array<(name: string, n: number) => string>> = {
   zero: [waZero1, waZero2, waZero3, waZero4],
