@@ -20,23 +20,24 @@ type UserDetail = {
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
+const AR_ZERO_1 = String.fromCharCode(0x0645, 0x0631, 0x062D, 0x0628, 0x0627, 0x0020, 0x0628, 0x0643);
+const waZero1 = (name: string) => AR_ZERO_1 + ' ' + name + ' ' + 'في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن وأخبرنا برأيك في النتيجة.';
+const waZero2 = (name: string) => 'أهلا وسهلا ' + name + '، مرحبا بك من جديد في المنصة. ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.';
+const waZero3 = (name: string) => 'مرحبا ' + name + '، شكرا على تسجيلك في Sawtify. لم تقم بعد بأي عملية توليد، فلا تتردد في التجربة، ونحن هنا لأي مساعدة تحتاجها.';
+const waZero4 = (name: string) => 'سلام ' + name + '، مرحبا بك معنا. ندعوك لتجربة خدمة توليد الصوت متى شئت، وإذا واجهتك أي صعوبة فريقنا مستعد لمساعدتك.';
+
+const waOne1 = (name: string) => 'سلام ' + name + '، شكرا لتجربتك الأولى لخدمة التوليد. يسعدنا معرفة رأيك في جودة النتيجة.';
+const waOne2 = (name: string) => 'مرحبا ' + name + '، لاحظنا أنك أنجزت أول عملية توليد. كيف كانت تجربتك؟ ملاحظاتك تهمنا لتحسين الخدمة.';
+const waOne3 = (name: string) => 'أهلا ' + name + '، شكرا على استعمالك للمنصة. نحب نعرفو رأيك في نتيجة أول توليد قمت به.';
+
+const waMany1 = (name: string, n: number) => 'سلام ' + name + '، لاحظنا أنك أنجزت ' + n + ' عملية توليد. نشكرك على ثقتك، ونود معرفة رأيك في جودة الخدمة لحد الآن.';
+const waMany2 = (name: string, n: number) => 'مرحبا ' + name + '، وصلت إلى ' + n + ' عملية توليد صوت. يسعدنا الاستماع لملاحظاتك حول تجربتك معنا.';
+const waMany3 = (name: string, n: number) => 'أهلا ' + name + '، نشكرك على نشاطك المستمر (' + n + ' عملية توليد). هل هناك أي تحسينات تودون اقتراحها؟';
+
 const waTemplates: Record<'zero' | 'one' | 'many', Array<(name: string, n: number) => string>> = {
-  zero: [
-    (name) => 'Bienvenue ' + name + ' sur Sawtify. Nous avons remarque que vous n\'avez pas encore teste la generation vocale, n\'hesitez pas a l\'essayer et a nous dire ce que vous en pensez.',
-    (name) => 'Bonjour ' + name + ', bienvenue parmi nous. Nous vous invitons a essayer votre premiere generation vocale, votre avis nous interesse beaucoup.',
-    (name) => 'Bonjour ' + name + ', merci de votre inscription sur Sawtify. Vous n\'avez pas encore effectue de generation, n\'hesitez pas a tester, notre equipe reste disponible en cas de besoin.',
-    (name) => 'Bonjour ' + name + ', bienvenue chez nous. Vous pouvez tester la generation vocale des maintenant, nous restons a votre disposition pour toute question.',
-  ],
-  one: [
-    (name) => 'Bonjour ' + name + ', merci pour votre premier essai de generation. Nous serions ravis de connaitre votre avis sur la qualite du resultat.',
-    (name) => 'Bonjour ' + name + ', nous avons vu que vous avez realise votre premiere generation. Comment s\'est passee votre experience ? Vos retours nous aident a ameliorer le service.',
-    (name) => 'Bonjour ' + name + ', merci d\'avoir utilise la plateforme. Quel est votre avis sur le resultat de votre premiere generation ?',
-  ],
-  many: [
-    (name, n) => 'Bonjour ' + name + ', nous avons remarque ' + n + ' generations realisees. Merci pour votre confiance, votre avis sur la qualite du service nous interesse.',
-    (name, n) => 'Bonjour ' + name + ', vous avez atteint ' + n + ' generations vocales. Nous serions heureux d\'avoir votre retour sur votre experience.',
-    (name, n) => 'Bonjour ' + name + ', merci pour votre activite reguliere (' + n + ' generations). Avez-vous des suggestions d\'amelioration ?',
-  ],
+  zero: [waZero1, waZero2, waZero3, waZero4],
+  one: [waOne1, waOne2, waOne3],
+  many: [waMany1, waMany2, waMany3],
 };
 
 const waCategory = (n: number): 'zero' | 'one' | 'many' => n === 0 ? 'zero' : n === 1 ? 'one' : 'many';
@@ -288,15 +289,15 @@ export const AdminPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 space-y-2 overflow-y-auto p-5">
+            <div className="flex-1 space-y-2 overflow-y-auto p-5" dir="rtl">
               {waPhraseList.map((phrase, i) => (
                 <button
                   key={i}
                   onClick={() => setWaSelectedIndex(i)}
                   className={
                     i === waSelectedIndex
-                      ? 'w-full rounded-xl border border-emerald-500 bg-emerald-50 p-3 text-left text-sm leading-relaxed text-slate-900 transition'
-                      : 'w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-sm leading-relaxed text-slate-600 transition hover:border-slate-300'
+                      ? 'w-full rounded-xl border border-emerald-500 bg-emerald-50 p-3 text-right text-sm leading-relaxed text-slate-900 transition'
+                      : 'w-full rounded-xl border border-slate-200 bg-white p-3 text-right text-sm leading-relaxed text-slate-600 transition hover:border-slate-300'
                   }
                 >
                   {phrase}
