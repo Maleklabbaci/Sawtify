@@ -20,15 +20,37 @@ type UserDetail = {
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-const waMessage = (u: { full_name: string | null; total_generated_audios: number }) => {
-  const n = u.total_generated_audios;
-  const name = u.full_name || '';
-  if (n === 0) return `سلام ${name}، شفت بلي مزال ما درت ولا génération.. نشالله المانع خير؟ قول لي إذا كاش حاجة حبستك ولا خصتك معاونة، راني هنا نعاونك بكل سرور!`;
-  if (n === 1) return `سلام ${name}، راك درت génération وحدة وفرحت كي شفت تفاعلك! قولي كيفاش جاتك النتيجة؟ عجباتك التجربة؟`;
-  return `سلام ${name}، راك درت ${n} générations أصوات! كيفاش كانت التجربة تاعك والنتيجة؟ راني نستنى رايك.`;
+const waTemplates: Record<'zero' | 'one' | 'many', Array<(name: string, n: number) => string>> = {
+  zero: [
+    (name) => `مرحبا بك ${name} في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن، وأخبرنا برأيك في النتيجة.`,
+    (name) => `أهلا وسهلا ${name}، مرحبا بك من جديد في المنصة. ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.`,
+    (name) => `مرحبا ${name}، شكرا على تسجيلك في Sawtify. لم تقم بعد بأي عملية توليد، فلا تتردد في التجربة، ونحن هنا لأي مساعدة تحتاجها.`,
+    (name) => `سلام ${name}، مرحبا بك معنا. ندعوك لتجربة خدمة توليد الصوت متى شئت، وإذا واجهتك أي صعوبة فريقنا مستعد لمساعدتك.`,
+  ],
+  one: [
+    (name) => `سلام ${name}، شكرا لتجربتك الأولى لخدمة التوليد. يسعدنا معرفة رأيك في جودة النتيجة.`,
+    (name) => `مرحبا ${name}، لاحظنا أنك أنجزت أول عملية توليد. كيف كانت تجربتك؟ ملاحظاتك تهمنا لتحسين الخدمة.`,
+    (name) => `أهلا ${name}، شكرا على استعمالك للمنصة. نحب نعرفو رأيك في نتيجة أول توليد قمت به.`,
+  ],
+  many: [
+    (name, n) => `سلام ${name}، لاحظنا أنك أنجزت ${n} عملية توليد. نشكرك على ثقتك، ونود معرفة رأيك في جودة الخدمة لحد الآن.`,
+    (name, n) => `مرحبا ${name}، وصلت إلى ${n} عملية توليد صوت. يسعدنا الاستماع لملاحظاتك حول تجربتك معنا.`,
+    (name, n) => `أهلا ${name}، نشكرك على نشاطك المستمر (${n} عملية توليد). هل هناك أي تحسينات تودون اقتراحها؟`,
+  ],
 };
 
-const waLink = (u: { phone: string | null; full_name: string | null; total_generated_audios: number }) =>
+const hashId = (id: string) => id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+
+const waMessage = (u: { id: string; full_name: string | null; total_generated_audios: number }) => {
+  const n = u.total_generated_audios;
+  const name = u.full_name || '';
+  const key: 'zero' | 'one' | 'many' = n === 0 ? 'zero' : n === 1 ? 'one' : 'many';
+  const list = waTemplates[key];
+  const tpl = list[hashId(u.id) % list.length];
+  return tpl(name, n);
+};
+
+const waLink = (u: { id: string; phone: string | null; full_name: string | null; total_generated_audios: number }) =>
   `https://wa.me/213${(u.phone || '').replace(/^0/, '')}?text=${encodeURIComponent(waMessage(u))}`;
 
 export const AdminPage: React.FC = () => {
