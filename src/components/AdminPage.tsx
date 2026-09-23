@@ -20,41 +20,23 @@ type UserDetail = {
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-function buildWaZero(name: string) {
-  return 'Bienvenue ' + name + ' sur Sawtify. Nous avons remarque que vous n\'avez pas encore teste la generation vocale, n\'hesitez pas a l\'essayer et a nous dire ce que vous en pensez.';
-}
-function buildWaZero2(name: string) {
-  return 'Bonjour ' + name + ', bienvenue parmi nous. Nous vous invitons a essayer votre premiere generation vocale, votre avis nous interesse beaucoup.';
-}
-function buildWaZero3(name: string) {
-  return 'Bonjour ' + name + ', merci de votre inscription sur Sawtify. Vous n\'avez pas encore effectue de generation, n\'hesitez pas a tester, notre equipe reste disponible en cas de besoin.';
-}
-function buildWaZero4(name: string) {
-  return 'Bonjour ' + name + ', bienvenue chez nous. Vous pouvez tester la generation vocale des maintenant, nous restons a votre disposition pour toute question.';
-}
-function buildWaOne(name: string) {
-  return 'Bonjour ' + name + ', merci pour votre premier essai de generation. Nous serions ravis de connaitre votre avis sur la qualite du resultat.';
-}
-function buildWaOne2(name: string) {
-  return 'Bonjour ' + name + ', nous avons vu que vous avez realise votre premiere generation. Comment s\'est passee votre experience ? Vos retours nous aident a ameliorer le service.';
-}
-function buildWaOne3(name: string) {
-  return 'Bonjour ' + name + ', merci d\'avoir utilise la plateforme. Quel est votre avis sur le resultat de votre premiere generation ?';
-}
-function buildWaMany(name: string, n: number) {
-  return 'Bonjour ' + name + ', nous avons remarque ' + n + ' generations realisees. Merci pour votre confiance, votre avis sur la qualite du service nous interesse.';
-}
-function buildWaMany2(name: string, n: number) {
-  return 'Bonjour ' + name + ', vous avez atteint ' + n + ' generations vocales. Nous serions heureux d\'avoir votre retour sur votre experience.';
-}
-function buildWaMany3(name: string, n: number) {
-  return 'Bonjour ' + name + ', merci pour votre activite reguliere (' + n + ' generations). Avez-vous des suggestions d\'amelioration ?';
-}
-
 const waTemplates: Record<'zero' | 'one' | 'many', Array<(name: string, n: number) => string>> = {
-  zero: [buildWaZero, buildWaZero2, buildWaZero3, buildWaZero4],
-  one: [buildWaOne, buildWaOne2, buildWaOne3],
-  many: [buildWaMany, buildWaMany2, buildWaMany3],
+  zero: [
+    (name) => 'Bienvenue ' + name + ' sur Sawtify. Nous avons remarque que vous n\'avez pas encore teste la generation vocale, n\'hesitez pas a l\'essayer et a nous dire ce que vous en pensez.',
+    (name) => 'Bonjour ' + name + ', bienvenue parmi nous. Nous vous invitons a essayer votre premiere generation vocale, votre avis nous interesse beaucoup.',
+    (name) => 'Bonjour ' + name + ', merci de votre inscription sur Sawtify. Vous n\'avez pas encore effectue de generation, n\'hesitez pas a tester, notre equipe reste disponible en cas de besoin.',
+    (name) => 'Bonjour ' + name + ', bienvenue chez nous. Vous pouvez tester la generation vocale des maintenant, nous restons a votre disposition pour toute question.',
+  ],
+  one: [
+    (name) => 'Bonjour ' + name + ', merci pour votre premier essai de generation. Nous serions ravis de connaitre votre avis sur la qualite du resultat.',
+    (name) => 'Bonjour ' + name + ', nous avons vu que vous avez realise votre premiere generation. Comment s\'est passee votre experience ? Vos retours nous aident a ameliorer le service.',
+    (name) => 'Bonjour ' + name + ', merci d\'avoir utilise la plateforme. Quel est votre avis sur le resultat de votre premiere generation ?',
+  ],
+  many: [
+    (name, n) => 'Bonjour ' + name + ', nous avons remarque ' + n + ' generations realisees. Merci pour votre confiance, votre avis sur la qualite du service nous interesse.',
+    (name, n) => 'Bonjour ' + name + ', vous avez atteint ' + n + ' generations vocales. Nous serions heureux d\'avoir votre retour sur votre experience.',
+    (name, n) => 'Bonjour ' + name + ', merci pour votre activite reguliere (' + n + ' generations). Avez-vous des suggestions d\'amelioration ?',
+  ],
 };
 
 const waCategory = (n: number): 'zero' | 'one' | 'many' => n === 0 ? 'zero' : n === 1 ? 'one' : 'many';
@@ -372,4 +354,60 @@ export const AdminPage: React.FC = () => {
 
               <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 sm:grid-cols-3">
                 <p><CalendarDays className="mr-2 inline h-4 w-4 text-purple-600" />Créé : <b>{dateTime(selectedUser.profile.created_at)}</b></p>
-                <p><Clock3 className="mr-2 inline h-4 w-4 text-purple-600" />Dernière connexion
+                <p><Clock3 className="mr-2 inline h-4 w-4 text-purple-600" />Dernière connexion : <b>{dateTime(selectedUser.profile.last_sign_in_at)}</b></p>
+                <p>Onboarding : <b>{dateTime(selectedUser.profile.onboarding_completed_at)}</b></p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="font-black text-slate-900">Générations vocales ({selectedUser.generations.length})</h3>
+                <div className="mt-3 space-y-3">
+                  {selectedUser.generations.length === 0 && <p className="text-sm text-slate-500">Aucune génération enregistrée.</p>}
+                  {selectedUser.generations.map((generation) => (
+                    <div key={generation.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-900">{generation.voice_name || generation.voice_id}</p>
+                          <p className="mt-1 text-xs text-slate-500">{dateTime(generation.created_at)} · {generation.status} · {generation.generation_source || 'legacy'}</p>
+                        </div>
+                        <div className="shrink-0 text-right text-xs text-slate-500">
+                          <p>{Number(generation.audio_duration_seconds || 0).toFixed(2)} s</p>
+                          <p>{generation.points_deducted || 0} points</p>
+                        </div>
+                      </div>
+                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-slate-600">{generation.text_prompt}</p>
+                      {generation.audio_url ? (
+                        <audio className="mt-3 h-10 w-full" controls preload="none" src={generation.audio_url}>Ton navigateur ne supporte pas la lecture audio.</audio>
+                      ) : (
+                        <p className="mt-3 text-xs font-bold text-amber-700">Audio non disponible dans Storage pour cette génération.</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <h3 className="font-black text-slate-900">Transactions</h3>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {selectedUser.transactions.length === 0 && <p className="text-slate-500">Aucune transaction.</p>}
+                    {selectedUser.transactions.map((tx) => (
+                      <div key={tx.id} className="flex justify-between gap-3 border-b py-2 last:border-0">
+                        <span>{dateTime(tx.created_at)} · {tx.status}</span>
+                        <b>{money(Number(tx.amount_dzd || 0))} · +{tx.points_credited || 0} pts</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <h3 className="font-black text-slate-900">Activité Gemini</h3>
+                  <p className="mt-2 text-sm text-slate-500">{selectedUser.usage_logs.length} appels enregistrés</p>
+                  <p className="mt-1 text-sm text-slate-500">{selectedUser.usage_logs.reduce((sum, log) => sum + Number(log.characters || 0), 0).toLocaleString('fr-FR')} caractères traités</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
