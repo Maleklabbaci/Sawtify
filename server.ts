@@ -173,7 +173,7 @@ const TTS_CHARS_PER_SECOND_ESTIMATE = 14;  // darija parlée ≈ 14 chars/second
 
 const SLICKPAY_CONTACT_CACHE = new Map<string, string>();
 
-const LLM_RESPONSE_CACHE = new Map<string, { result: string; ts: number }>();
+const LLM_RESPONSE_CACHE = new Map<string, { result: GeminiTextResult; ts: number }>();
 const LLM_CACHE_MAX_SIZE = 200;
 const LLM_CACHE_TTL_MS = 1000 * 60 * 30;
 const DAILY_TTS_LIMIT = Number(process.env.DAILY_TTS_LIMIT) || 20;
@@ -334,18 +334,21 @@ async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
 async function logGeminiCall(params: {
   userId: string | null; callType: "preview" | "tts" | "enhance" | "script";
   billable: boolean; pointsCost: number; charCount?: number; success: boolean; latencyMs?: number;
+  model?: string; inputTokens?: number; outputTokens?: number; totalCostUsd?: number;
 }): Promise<void> {
-  const { userId, callType, billable, pointsCost, charCount, success, latencyMs } = params;
+  const { userId, callType, billable, pointsCost, charCount, success, latencyMs, model, inputTokens, outputTokens, totalCostUsd } = params;
   // Toujours en console (survit même si Supabase est indisponible).
   console.log(JSON.stringify({
     event: "gemini_call", type: callType, userId, billable, points_cost: pointsCost,
-    chars: charCount ?? null, success, latency_ms: latencyMs ?? null, ts: new Date().toISOString(),
+    chars: charCount ?? null, success, latency_ms: latencyMs ?? null, model: model ?? null,
+    input_tokens: inputTokens ?? null, output_tokens: outputTokens ?? null, cost_usd: totalCostUsd ?? null, ts: new Date().toISOString(),
   }));
   if (!supabaseClient || !userId) return;
   try {
     await supabaseClient.from("gemini_call_log").insert({
       user_id: userId, call_type: callType, billable, points_cost: pointsCost,
-      char_count: charCount ?? null, success, latency_ms: latencyMs ?? null,
+      char_count: charCount ?? null, success, latency_ms: latencyMs ?? null, model: model ?? null,
+      input_tokens: inputTokens ?? null, output_tokens: outputTokens ?? null, total_cost_usd: totalCostUsd ?? null,
     });
   } catch { /* la journalisation ne doit jamais casser la réponse utilisateur */ }
   // Vérification du seuil d'alerte : asynchrone, jamais bloquante pour la requête en cours.
@@ -934,13 +937,26 @@ async function synthesizeWithRetry(
 
 /* ===================================================================   LLM CALLER HELPER
    ========================================================================== */
+type GeminiTextResult = {
+  text: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+};
+
+const GEMINI_TEXT_MODEL = "gemini-3.1-flash-lite";
+const GEMINI_TEXT_INPUT_USD_PER_1M = 0.25;
+const GEMINI_TEXT_OUTPUT_USD_PER_1M = 1.50;
+
 function simpleHash(str: string): string {
   let h = 5381;
   for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
   return (h >>> 0).toString(36);
 }
 
-async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<string> {
+async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<GeminiTextResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Clé GEMINI_API_KEY manquante sur Render");
 
@@ -948,7 +964,7 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
   const cached = LLM_RESPONSE_CACHE.get(cacheKey);
   if (cached && Date.now() - cached.ts < LLM_CACHE_TTL_MS) return cached.result;
 
-  const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+  const models = [GEMINI_TEXT_MODEL];
   let allErrors: string[] = [];
 
   for (const model of models) {
@@ -959,10 +975,16 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
         const data = await response.json();
         let result = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         result = result.replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/^["«»']|["«»']$/g, "").trim();
+        const usage = data.usageMetadata || {};
+        const inputTokens = Number(usage.promptTokenCount || 0);
+        const outputTokens = Number(usage.candidatesTokenCount || 0) + Number(usage.thoughtsTokenCount || 0);
+        const totalTokens = Number(usage.totalTokenCount || inputTokens + outputTokens);
+        const costUsd = (inputTokens / 1_000_000) * GEMINI_TEXT_INPUT_USD_PER_1M + (outputTokens / 1_000_000) * GEMINI_TEXT_OUTPUT_USD_PER_1M;
         if (result) {
-          LLM_RESPONSE_CACHE.set(cacheKey, { result, ts: Date.now() });
+          const response: GeminiTextResult = { text: result, model, inputTokens, outputTokens, totalTokens, costUsd };
+          LLM_RESPONSE_CACHE.set(cacheKey, { result: response, ts: Date.now() });
           if (LLM_RESPONSE_CACHE.size > LLM_CACHE_MAX_SIZE) { const oldestKey = LLM_RESPONSE_CACHE.keys().next().value; if (oldestKey) LLM_RESPONSE_CACHE.delete(oldestKey); }
-          return result;
+          return response;
         }
         allErrors.push(`${model}: réponse vide`);
       } else {
@@ -1292,7 +1314,7 @@ async function startServer() {
         job.status = "processing";
         try {
           const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${script.slice(0, 5000)}`;
-          const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
+          const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35).then((result) => result.text), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
           console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
           await writeFile(captionPath, buildCaptionsAss(script, durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold"), Number(req.body?.captionSize)), "utf8");
           const segmentDuration = durationSeconds / videoPaths.length;
@@ -1403,7 +1425,7 @@ async function startServer() {
         supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
         supabaseClient.from("transactions").select("user_id, amount_dzd, points_credited, status, gateway, created_at").limit(10000),
         supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, created_at").limit(20000),
-        supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, created_at").limit(20000),
+        supabaseClient.from("gemini_usage_logs").select("user_id, operation, model, characters, success, metadata, created_at").limit(20000),
       ]);
       const { data: authUsersData, error: authUsersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const realAuthIds = authUsersError ? null : new Set((authUsersData?.users || []).map((user: any) => user.id));
@@ -1422,29 +1444,54 @@ async function startServer() {
       const pointValueDzd = paidPointsIssued > 0 ? revenueDzd / paidPointsIssued : 0;
       const logs = usageLogs || [];
       let geminiUsd = 0;
+      let geminiInputTokens = 0;
+      let geminiOutputTokens = 0;
+      const geminiByUser = new Map<string, { costUsd: number; calls: number; characters: number; inputTokens: number; outputTokens: number }>();
       let freeGeminiUsd = 0;
       let paidGeminiUsd = 0;
       for (const log of logs) {
         const chars = Number(log.characters || 0);
-        const inputTokens = chars / 4;
+        const metadata = log.metadata && typeof log.metadata === "object" ? log.metadata : {};
+        const metadataCost = Number((metadata as any).cost_usd);
+        const inputTokens = Number((metadata as any).input_tokens || 0);
+        const outputTokens = Number((metadata as any).output_tokens || 0);
+        geminiInputTokens += inputTokens;
+        geminiOutputTokens += outputTokens;
+        const estimatedInputTokens = chars / 4;
         let logCost = 0;
-        if (log.operation === "tts" || log.operation === "preview") {
+        if (Number.isFinite(metadataCost) && metadataCost >= 0) {
+          logCost = metadataCost;
+        } else if (log.operation === "tts" || log.operation === "preview") {
           const seconds = log.operation === "preview" ? 2.5 : chars / TTS_CHARS_PER_SECOND_ESTIMATE;
-          logCost = (inputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
+          logCost = (estimatedInputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
         } else {
           // Conservative estimate for text features; exact billing remains visible in Google Cloud.
-          logCost = (inputTokens / 1_000_000) * 0.30 + (Math.max(inputTokens, 1) / 1_000_000) * 1.50;
+          logCost = (estimatedInputTokens / 1_000_000) * 0.30 + (Math.max(estimatedInputTokens, 1) / 1_000_000) * 1.50;
         }
         geminiUsd += logCost;
+        const userKey = String(log.user_id || "unknown");
+        const userCost = geminiByUser.get(userKey) || { costUsd: 0, calls: 0, characters: 0, inputTokens: 0, outputTokens: 0 };
+        userCost.costUsd += logCost;
+        userCost.calls += 1;
+        userCost.characters += chars;
+        userCost.inputTokens += inputTokens;
+        userCost.outputTokens += outputTokens;
+        geminiByUser.set(userKey, userCost);
         if (paidUserIds.has(log.user_id)) paidGeminiUsd += logCost; else freeGeminiUsd += logCost;
       }
       const geminiCostDzd = geminiUsd * USD_TO_DZD;
       const grossMarginDzd = revenueDzd - geminiCostDzd;
       const activeUsers30d = users.filter((row: any) => String(row.updated_at || row.created_at) >= since30).length;
-      const recentUsers = users.slice(0, 20);
+      const recentUsers = users.slice(0, 20).map((user: any) => ({
+        ...user,
+        gemini_calls: geminiByUser.get(user.id)?.calls || 0,
+        gemini_characters: geminiByUser.get(user.id)?.characters || 0,
+        gemini_cost_usd: geminiByUser.get(user.id)?.costUsd || 0,
+        gemini_cost_dzd: (geminiByUser.get(user.id)?.costUsd || 0) * USD_TO_DZD,
+      }));
       const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
-      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
@@ -1460,7 +1507,7 @@ async function startServer() {
       const [{ data: generations, error: generationsError }, { data: transactions }, { data: usageLogs }] = await Promise.all([
         supabaseClient.from("voice_generations").select("id, voice_id, voice_name, text_prompt, char_count, points_deducted, audio_storage_path, audio_duration_seconds, latency_ms, status, generation_source, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
         supabaseClient.from("transactions").select("id, amount_dzd, points_credited, status, gateway, gateway_reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-        supabaseClient.from("gemini_usage_logs").select("operation, characters, success, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+        supabaseClient.from("gemini_usage_logs").select("operation, model, characters, success, metadata, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       ]);
       if (generationsError) return res.status(500).json({ error: "Impossible de lire les générations de cet utilisateur.", detail: generationsError.message });
       const signedGenerations = await Promise.all((generations || []).map(async (generation: any) => {
@@ -1471,9 +1518,13 @@ async function startServer() {
         }
         return { ...generation, audio_url: audioUrl };
       }));
+      const userUsageLogs = usageLogs || [];
+      const userGeminiCostUsd = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.cost_usd || 0)), 0);
+      const userInputTokens = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.input_tokens || 0)), 0);
+      const userOutputTokens = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.output_tokens || 0)), 0);
       const { data: authUser } = await supabaseClient.auth.admin.getUserById(userId);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_user_detail", metadata: { viewed_user_id: userId, role: admin.role } });
-      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null, onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null, acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: usageLogs || [] });
+      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null, onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null, acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: userUsageLogs, usage_summary: { calls: userUsageLogs.length, input_tokens: userInputTokens, output_tokens: userOutputTokens, cost_usd: userGeminiCostUsd, cost_dzd: userGeminiCostUsd * USD_TO_DZD, model: GEMINI_TEXT_MODEL } });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le détail utilisateur.", detail: error?.message }); }
   });
 
@@ -1831,9 +1882,10 @@ ${text}
 Génère maintenant la version optimisée :`;
 
       const enhanceCallStart = Date.now();
-      let enhancedText = await callGeminiTextAPI(buildEnhancePrompt(false), 0.6);
-      logGeminiCall({ userId, callType: "enhance", billable: true, pointsCost, charCount: text.length, success: Boolean(enhancedText), latencyMs: Date.now() - enhanceCallStart });
-      await recordGeminiUsage({ userId, operation: "enhance", characters: text.length, success: Boolean(enhancedText), metadata: { region } });
+      const enhancedResult = await callGeminiTextAPI(buildEnhancePrompt(false), 0.6);
+      let enhancedText = enhancedResult.text;
+      logGeminiCall({ userId, callType: "enhance", billable: true, pointsCost, charCount: text.length, success: Boolean(enhancedText), latencyMs: Date.now() - enhanceCallStart, model: enhancedResult.model, inputTokens: enhancedResult.inputTokens, outputTokens: enhancedResult.outputTokens, totalCostUsd: enhancedResult.costUsd });
+      await recordGeminiUsage({ userId, operation: "enhance", characters: text.length, success: Boolean(enhancedText), model: enhancedResult.model, metadata: { region, input_tokens: enhancedResult.inputTokens, output_tokens: enhancedResult.outputTokens, total_tokens: enhancedResult.totalTokens, cost_usd: enhancedResult.costUsd } });
       enhancedText = enhancedText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Voici|Texte\s*amélioré|Version\s*optimisée)\s*:?/gi, "").replace(/^["«»']|["«»']$/g, "").replace(/```[a-z]*/g, "").replace(/```/g, "").replace(/\n{3,}/g, "\n\n").trim();
 
       const tagCount = countEmotionTags(enhancedText);
@@ -1929,9 +1981,10 @@ DEMANDE DU CLIENT (à suivre au mot près si elle contient des instructions pré
 Style vocal souhaité : ${style || "excited"}`;
 
       const scriptCallStart = Date.now();
-      let scriptText = await callGeminiTextAPI(scriptPrompt, 0.95);
-      logGeminiCall({ userId, callType: "script", billable: true, pointsCost, charCount: product.length, success: Boolean(scriptText), latencyMs: Date.now() - scriptCallStart });
-      await recordGeminiUsage({ userId, operation: "script", characters: product.length, success: Boolean(scriptText), metadata: { region } });
+      const scriptResult = await callGeminiTextAPI(scriptPrompt, 0.95);
+      let scriptText = scriptResult.text;
+      logGeminiCall({ userId, callType: "script", billable: true, pointsCost, charCount: product.length, success: Boolean(scriptText), latencyMs: Date.now() - scriptCallStart, model: scriptResult.model, inputTokens: scriptResult.inputTokens, outputTokens: scriptResult.outputTokens, totalCostUsd: scriptResult.costUsd });
+      await recordGeminiUsage({ userId, operation: "script", characters: product.length, success: Boolean(scriptText), model: scriptResult.model, metadata: { region, input_tokens: scriptResult.inputTokens, output_tokens: scriptResult.outputTokens, total_tokens: scriptResult.totalTokens, cost_usd: scriptResult.costUsd } });
       // Filet de sécurité : si le modèle traduit quand même les balises en arabe
       // malgré la consigne, on les reconvertit en anglais (le moteur TTS ne
       // reconnaît que [excited]/[natural]/[calm] en anglais).

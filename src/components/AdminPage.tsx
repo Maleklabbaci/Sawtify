@@ -4,8 +4,8 @@ import { API_BASE_URL } from '../config/apiBase';
 import { getMyAccessToken } from '../services/supabaseClient';
 
 type AdminData = {
-  summary: { total_users: number; free_trial_users: number; paid_users: number; active_users_30d: number; generations_total: number; free_generations: number; paid_generations: number; api_generations: number; revenue_dzd: number; points_consumed: number; paid_points_issued: number; point_value_dzd: number; gemini_cost_usd: number; gemini_cost_dzd: number; free_gemini_cost_dzd: number; paid_gemini_cost_dzd: number; average_cost_per_generation_dzd: number; gross_margin_dzd: number; gross_margin_percent: number; usd_to_dzd: number };
-  recent_users: Array<{ id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string }>;
+  summary: { total_users: number; free_trial_users: number; paid_users: number; active_users_30d: number; generations_total: number; free_generations: number; paid_generations: number; api_generations: number; revenue_dzd: number; points_consumed: number; paid_points_issued: number; point_value_dzd: number; gemini_calls: number; gemini_input_tokens: number; gemini_output_tokens: number; gemini_cost_usd: number; gemini_cost_dzd: number; free_gemini_cost_dzd: number; paid_gemini_cost_dzd: number; text_input_usd_per_1m: number; text_output_usd_per_1m: number; average_cost_per_generation_dzd: number; gross_margin_dzd: number; gross_margin_percent: number; usd_to_dzd: number };
+  recent_users: Array<{ id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; gemini_calls: number; gemini_characters: number; gemini_cost_usd: number; gemini_cost_dzd: number }>;
   recent_payments: Array<{ amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
   cost_model: Record<string, number>;
 };
@@ -14,11 +14,14 @@ type UserDetail = {
   profile: { id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; updated_at: string; onboarding_completed_at: string | null; acquisition_source: string | null; last_sign_in_at: string | null };
   generations: Array<{ id: string; voice_id: string; voice_name: string; text_prompt: string; char_count: number; points_deducted: number; audio_storage_path: string | null; audio_duration_seconds: number | null; latency_ms: number | null; status: string; generation_source: string | null; created_at: string; audio_url: string | null }>;
   transactions: Array<{ id: string; amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
-  usage_logs: Array<{ operation: string; characters: number; success: boolean; created_at: string }>;
+  usage_logs: Array<{ operation: string; model?: string | null; characters: number; success: boolean; metadata?: { cost_usd?: number; input_tokens?: number; output_tokens?: number; total_tokens?: number }; created_at: string }>;
+  usage_summary?: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number; cost_dzd: number; model: string };
 };
 
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const usd = (n: number) => `$${Number(n || 0).toFixed(6)}`;
+const integer = (n: number) => Number(n || 0).toLocaleString('fr-FR');
 
 const waZero1 = (name: string) => 'مرحبا بك ' + name + ' في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن وأخبرنا برأيك في النتيجة.';
 const waZero2 = (name: string) => 'أهلا وسهلا ' + name + '، معك فريق Sawtify. مرحبا بك من جديد في المنصة، ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.';
@@ -161,6 +164,31 @@ export const AdminPage: React.FC = () => {
         ))}
       </section>
 
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Coûts Gemini — suivi précis</h2>
+            <p className="mt-1 text-sm text-slate-600">Calcul basé sur les tokens réellement renvoyés par Gemini pour chaque appel texte.</p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-800">{s.gemini_calls} appels</span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            ['Coût total', usd(s.gemini_cost_usd), money(s.gemini_cost_dzd)],
+            ['Entrée', integer(s.gemini_input_tokens), `$${s.text_input_usd_per_1m}/M tokens`],
+            ['Sortie', integer(s.gemini_output_tokens), `$${s.text_output_usd_per_1m}/M tokens`],
+            ['Coût / génération', money(s.average_cost_per_generation_dzd), 'moyenne'],
+            ['Modèle texte', 'gemini-3.1-flash-lite', 'actif'],
+          ].map(([label, value, detail]) => (
+            <div key={label} className="rounded-2xl border border-amber-100 bg-white p-4">
+              <p className="text-[11px] font-bold text-slate-500">{label}</p>
+              <p className="mt-2 truncate text-lg font-black text-slate-900">{value}</p>
+              <p className="mt-1 text-xs text-slate-500">{detail}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {funnel && (
         <section className="rounded-3xl border border-purple-200 bg-purple-50 p-5 sm:p-6">
           <h2 className="text-xl font-black text-slate-900">Funnel publicitaire live</h2>
@@ -217,6 +245,7 @@ export const AdminPage: React.FC = () => {
                 <th className="p-2">Inscription</th>
                 <th className="p-2">Solde</th>
                 <th className="p-2">Voix générées</th>
+                <th className="p-2">Coût Gemini</th>
                 <th className="p-2"></th>
                 <th className="p-2"></th>
               </tr>
@@ -239,6 +268,7 @@ export const AdminPage: React.FC = () => {
                   <td className="p-2 text-slate-500">{new Date(u.created_at).toLocaleDateString('fr-FR')}</td>
                   <td className="p-2 font-bold">{u.credits_balance}</td>
                   <td className="p-2">{u.total_generated_audios}</td>
+                  <td className="p-2"><b>{money(u.gemini_cost_dzd)}</b><br /><span className="text-xs text-slate-500">{u.gemini_calls} appels · {integer(u.gemini_characters)} car.</span></td>
                   <td className="p-2">
                     {u.phone && (
                       <button
@@ -326,10 +356,13 @@ export const AdminPage: React.FC = () => {
 
       {selectedUser && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:p-8"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Détail utilisateur"
           onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedUser(null); }}
         >
-          <div className="flex w-full max-w-5xl max-h-[90vh] flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl">
+          <div className="flex min-h-0 w-full max-w-5xl max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl sm:max-h-[calc(100vh-3rem)]">
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white p-5 sm:p-6">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[.18em] text-purple-600">Détail session utilisateur</p>
@@ -341,7 +374,7 @@ export const AdminPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {[[Mail, 'Email', selectedUser.profile.email], [Phone, 'Téléphone', selectedUser.profile.phone || '—'], [Coins, 'Points', selectedUser.profile.credits_balance], [AudioLines, 'Générations', selectedUser.generations.length]].map(([Icon, label, value]: any) => (
                   <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -402,6 +435,11 @@ export const AdminPage: React.FC = () => {
                   <h3 className="font-black text-slate-900">Activité Gemini</h3>
                   <p className="mt-2 text-sm text-slate-500">{selectedUser.usage_logs.length} appels enregistrés</p>
                   <p className="mt-1 text-sm text-slate-500">{selectedUser.usage_logs.reduce((sum, log) => sum + Number(log.characters || 0), 0).toLocaleString('fr-FR')} caractères traités</p>
+                  {selectedUser.usage_summary && <>
+                    <p className="mt-1 text-sm font-black text-amber-700">{money(selectedUser.usage_summary.cost_dzd)} · {usd(selectedUser.usage_summary.cost_usd)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{integer(selectedUser.usage_summary.input_tokens)} tokens entrée · {integer(selectedUser.usage_summary.output_tokens)} tokens sortie</p>
+                    <p className="mt-1 text-xs text-slate-400">Modèle texte : {selectedUser.usage_summary.model}</p>
+                  </>}
                 </div>
               </div>
             </div>
