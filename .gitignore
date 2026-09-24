@@ -1,0 +1,23 @@
+# Dépendances
+node_modules/
+
+# Secrets — ne JAMAIS committer :
+#   .env contient GEMINI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET,
+#   SLICKPAY_API_KEY... Ces clés donnent un accès complet au backend et aux paiements.
+.env
+.env.*
+!.env.example
+
+# Build
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache / divers
+.cache/
+.DS_Store
+*.tsbuildinfo
+.vite/
