@@ -13,6 +13,7 @@ import ffmpegPath from "ffmpeg-static";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { createServer as createHttpServer } from "node:http";
 
 dotenv.config();
 
@@ -2194,8 +2195,28 @@ Style vocal souhaité : ${style || "excited"}`;
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
   });
 
+  // Le serveur HTTP est créé explicitement (au lieu de app.listen) pour que
+  // Vite puisse brancher son websocket HMR SUR LE MÊME PORT que l'app.
+  // En middlewareMode avec un port HMR séparé (24678 par défaut), le
+  // navigateur tentait un ws://<domaine>:24678 qui n'existe pas derrière un
+  // proxy d'aperçu / tunnel → HMR mort + erreurs websocket en boucle.
+  const httpServer = createHttpServer(app);
+
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+    // allowedHosts: true — l'app doit rester accessible derrière les domaines
+    // d'aperçu / tunnel (Render, ngrok, E2B…) qui ne sont pas connus à
+    // l'avance. Sans ce réglage, Vite renvoie
+    // 403 "Blocked request. This host is not allowed." et la page ne s'affiche
+    // jamais. Ce réglage ne concerne QUE le serveur de dev : en production,
+    // Vite n'est pas chargé du tout (fichiers statiques de dist/).
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+        ...(process.env.DISABLE_HMR === "true" ? {} : { hmr: { server: httpServer } }),
+      },
+      appType: "spa",
+    });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
@@ -2213,7 +2234,7 @@ Style vocal souhaité : ${style || "excited"}`;
     res.status(error?.status || 500).json({ error: error?.message || "Erreur interne du serveur." });
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     void cleanupExpiredGenerations();
     setInterval(() => void cleanupExpiredGenerations(), 24 * 60 * 60 * 1000).unref();

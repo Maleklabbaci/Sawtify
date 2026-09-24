@@ -8,13 +8,112 @@ import { VOICES_FR } from '../data/voices';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// Vrai si les deux variables sont présentes. Sert à choisir entre le vrai
+// client Supabase et le client inerte ci-dessous.
+const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+const CONFIG_ERROR_MESSAGE =
+  "Supabase n'est pas configuré : renseigne VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans un fichier .env à la racine du projet.";
+
+if (!isSupabaseConfigured) {
+  // AVANT : on appelait createClient('', '') malgré ce warning. Or
+  // supabase-js lève "supabaseUrl is required." dès l'évaluation du module.
+  // Comme TTSStudio (importé en dur dans App.tsx) importe ce fichier de façon
+  // statique, l'exception remontait toute la chaîne
+  // main.tsx → App.tsx → TTSStudio.tsx → supabaseClient.ts et tuait le bundle
+  // ENTIER : page blanche, pas même la landing page, aucune erreur visible à
+  // l'écran. C'est ce qui se passait sur tout déploiement où le .env manquait
+  // (aperçu, poste de dev fraîchement cloné, variables non renseignées).
+  // Désormais on renvoie un client inerte : l'app s'affiche et fonctionne en
+  // mode déconnecté, et les actions qui exigent Supabase échouent proprement.
   console.warn(
-    '[Sawtify] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY manquants. Ajoute-les dans un fichier .env à la racine.'
+    '[Sawtify] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY manquants. ' +
+      "L'application démarre en mode déconnecté (données Supabase indisponibles). " +
+      'Ajoute-les dans un fichier .env à la racine pour activer comptes, crédits et historique.'
   );
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+/**
+ * Un "query builder" inerte, utilisé uniquement quand Supabase n'est pas
+ * configuré. Toutes les méthodes chaînables de l'API Supabase
+ * (.select, .eq, .order, .limit, .single, .upload, .createSignedUrl...) sont
+ * disponibles et renvoient le même objet, qui est "awaitable" : `await` donne
+ * `{ data: null, error }`, exactement la forme d'un appel qui aurait échoué.
+ * Les appelants existants testent déjà `error` — ils dégradent donc
+ * normalement (solde null, historique vide...) au lieu de planter sur un
+ * "supabase.from is not a function".
+ */
+function createInertQueryBuilder(): any {
+  const errorResult = { data: null, error: new Error(CONFIG_ERROR_MESSAGE) };
+  // Attention : les méthodes chaînables doivent renvoyer le PROXY, jamais
+  // l'objet cible sous-jacent — sinon le maillon suivant d'une chaîne
+  // (.select().eq().single()...) tomberait sur un objet sans méthodes.
+  let proxy: any;
+  const target: any = {
+    then: (resolve: (value: unknown) => unknown) => resolve(errorResult),
+    catch: () => proxy,
+    finally: (onFinally?: () => void) => {
+      onFinally?.();
+      return proxy;
+    },
+  };
+  proxy = new Proxy(target, {
+    get(t: any, prop: string | symbol) {
+      if (prop in t) return t[prop];
+      // Toute autre propriété (nom de méthode chaînable) renvoie une fonction
+      // qui renvoie le builder lui-même, pour supporter les chaînes d'appels.
+      return () => proxy;
+    },
+  });
+  return proxy;
+}
+
+/** Client Supabase inerte : même surface, mais aucune requête réseau possible. */
+function createInertSupabaseClient(): any {
+  const errorResult = { data: { user: null, session: null }, error: new Error(CONFIG_ERROR_MESSAGE) };
+  const auth: any = new Proxy(
+    {
+      // getSession / getUser renvoient "pas de session" SANS erreur : c'est un
+      // état parfaitement valide pour l'app (visiteur non connecté), alors
+      // qu'une erreur déclencherait des toasts d'alerte au chargement.
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      signOut: async () => ({ error: null }),
+      // On prévient immédiatement l'appelant qu'aucune session n'existe, sinon
+      // App.tsx resterait bloqué sur son écran d'initialisation.
+      onAuthStateChange: (callback?: (event: string, session: null) => void) => {
+        try {
+          callback?.('SIGNED_OUT', null);
+        } catch (e) {
+          console.warn('[Sawtify] onAuthStateChange (mode déconnecté) :', e);
+        }
+        return { data: { subscription: { unsubscribe: () => {} } } };
+      },
+    },
+    {
+      get(target: any, prop: string | symbol) {
+        if (prop in target) return target[prop];
+        return async () => errorResult;
+      },
+    }
+  );
+
+  return {
+    auth,
+    from: () => createInertQueryBuilder(),
+    rpc: () => createInertQueryBuilder(),
+    storage: { from: () => createInertQueryBuilder() },
+  };
+}
+
+// Le vrai client est créé exactement comme avant (mêmes types inférés pour
+// tous les appelants) ; le client inerte n'est qu'un dernier recours quand le
+// .env est absent.
+const realSupabaseClient = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
+export const supabase = (realSupabaseClient ?? createInertSupabaseClient()) as NonNullable<typeof realSupabaseClient>;
 
 const SIGNUP_INTENT_KEY = 'sawtify_signup_intent';
 
