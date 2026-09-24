@@ -22,8 +22,11 @@ export const Header: React.FC<HeaderProps> = ({
   const canUseDeveloperApi = balance > 1000;
 
   return (
-    <header className="sticky top-0 z-50 w-full h-16 bg-white/85 backdrop-blur-md border-b border-slate-200/80 transition-all">
-      <div className="h-full px-4 sm:px-6 lg:px-8">
+    <header
+      className="sticky top-0 z-50 w-full bg-white/85 backdrop-blur-md border-b border-slate-200/80 transition-all"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
+      <div className="h-16 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-full gap-4">
           
           {/* Left: Branding */}

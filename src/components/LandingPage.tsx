@@ -33,6 +33,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView } from "motion/react";
+import TestimonialsWidget from "./TestimonialsWidget";
 
 export interface LandingPageProps {
   onLoginClick: () => void;
@@ -1100,10 +1101,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         style={{ background: PURPLE }}>{t.skip}</a>
 
       {/* ═══════════ 📌 BARRE D'URGENCE ═══════════ */}
-      <div className="fixed top-0 inset-x-0 z-[70] h-11 flex items-center justify-center gap-2.5 px-3"
-        style={{ background: INK, color: PAPER }}>
+      {/* ✅ FIX MOBILE : padding-top dynamique pour ne pas passer sous l'encoche / l'heure du téléphone */}
+      <div className="fixed top-0 inset-x-0 z-[70] flex items-center justify-center gap-2.5 px-3 min-h-11"
+        style={{ background: INK, color: PAPER, paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "border-box" }}>
         <Gift className="w-4 h-4 shrink-0" style={{ color: AMBER }} />
-        <span className="text-[11.5px] sm:text-[12.5px] font-bold truncate">{t.urgency}</span>
+        <span className="text-[11px] sm:text-[12.5px] font-bold truncate">{t.urgency}</span>
         {countdown && (
           <Mono dir="ltr" className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md tabular-nums"
             style={{ background: "rgba(255,255,255,0.12)", color: AMBER }}>
@@ -1118,9 +1120,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
 
       {/* ═══════════ HEADER ═══════════ */}
-      <header className={`fixed top-11 inset-x-0 z-[60] border-b border-white/10 bg-[#1A0F2E]/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl transition-all duration-300 ${
+      {/* ✅ FIX MOBILE : top recalculé pour tenir compte de la hauteur réelle (variable) de la barre d'urgence sur iPhone à encoche */}
+      <header className={`fixed inset-x-0 z-[60] border-b border-white/10 bg-[#1A0F2E]/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl transition-all duration-300 ${
           scrolled ? "py-3 shadow-xl" : ""
-        }`}>
+        }`}
+        style={{ top: "calc(2.75rem + env(safe-area-inset-top, 0px))" }}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }}
             className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
@@ -1164,7 +1168,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed top-11 bottom-0 end-0 z-[60] w-[85%] max-w-sm bg-[#6B2DBC] text-white lg:hidden flex flex-col shadow-2xl border-s border-white/20">
+              className="fixed bottom-0 end-0 z-[60] w-[85%] max-w-sm bg-[#6B2DBC] text-white lg:hidden flex flex-col shadow-2xl border-s border-white/20"
+              style={{ top: "calc(2.75rem + env(safe-area-inset-top, 0px))" }}>
               <div className="flex items-center justify-between px-5 h-16 border-b border-white/20">
                 <Logo size={34} />
                 <button type="button" onClick={() => setMenuOpen(false)}
@@ -1183,7 +1188,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button type="button" onClick={() => { setMenuOpen(false); onLoginClick(); }}
                   className="mt-4 py-3 text-start text-[16px] font-semibold text-white/90 hover:text-white">{t.signin}</button>
               </nav>
-              <div className="p-5">
+              {/* ✅ FIX MOBILE : espace pour la barre gestuelle (home indicator) en bas de l'iPhone */}
+              <div className="p-5" style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}>
                 <button type="button" onClick={() => { setMenuOpen(false); goSignup(); }}
                   className="w-full h-12 rounded-full font-bold bg-white text-[#6B2DBC] hover:bg-white/90 transition shadow-lg">
                   {t.start}
@@ -1196,8 +1202,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       
       <div className="relative z-[1]">
         {/* ═══════════ HERO avec VIDÉO D'ARRIÈRE-PLAN ═══════════ */}
-        <section id="home" className="relative pt-[172px] pb-14 sm:pb-20 isolate overflow-hidden scroll-mt-[130px]"
-          style={{ color: PAPER }}>
+        {/* ✅ FIX MOBILE : compense l'encoche pour que le titre ne soit jamais coupé/caché par les 2 barres fixes */}
+        <section id="home" className="relative pb-14 sm:pb-20 isolate overflow-hidden scroll-mt-[130px]"
+          style={{ color: PAPER, paddingTop: "calc(172px + env(safe-area-inset-top, 0px))" }}>
           <BackgroundVideo />
 
           <div className="relative z-[1] mx-auto max-w-[1280px] px-5 sm:px-6">
@@ -1392,6 +1399,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </SlideUp>
           </div>
         </section>
+
+        {/* ═══ TÉMOIGNAGES DARIJA (nouveau — juste après le Hero) ═══ */}
+        <SlideUp>
+          <TestimonialsWidget isRTL={isRTL} onSignIn={onLoginClick} />
+        </SlideUp>
 
         {/* ═══ BANDE MARQUEE (encre) ═══ */}
         <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: PURPLE_DARK }} aria-hidden>

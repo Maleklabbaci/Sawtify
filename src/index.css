@@ -25,8 +25,30 @@
     letter-spacing: -0.02em;
   }
 
+  /* ✅ FIX MOBILE : empêche tout débordement horizontal (scroll latéral parasite)
+     causé par des éléments décoratifs positionnés en absolute/negative sur petit écran. */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  #sawtify-landing {
+    overflow-x: clip;
+  }
+
   body {
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* ✅ FIX MOBILE : les cartes/éléments qui utilisent .card-lift ne doivent pas
+   déclencher de hover "collé" sur tactile (l'effet restait actif après un tap). */
+@media (hover: none) {
+  .card-lift:hover,
+  .hov-ink:hover {
+    transform: none !important;
   }
 }
 

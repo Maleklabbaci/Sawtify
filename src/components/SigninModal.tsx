@@ -108,7 +108,11 @@ export const SigninModal: React.FC<SigninModalProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2 bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div
+      className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2 bg-white"
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
 
       {/* LEFT/BRAND PANEL — masqué sur mobile */}
       <div className="hidden lg:flex relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-purple-950 via-purple-900 to-purple-700">
