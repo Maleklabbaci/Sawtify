@@ -95,6 +95,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
   const [, setLastGeneratedCost] = useState<number>(20);
+  // Popup "ton de départ" : demandé avant chaque génération pour contrôler
+  // explicitement si la voix démarre calme, neutre ou excitée.
+  const [showStartToneModal, setShowStartToneModal] = useState<boolean>(false);
+  const startToneRef = useRef<'calm' | 'natural' | 'excited' | null>(null);
+
 
   // Menu emotions
   const [isEmotionsMenuOpen, setIsEmotionsMenuOpen] = useState<boolean>(false);
@@ -350,10 +355,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (extractedTags.length === 0) {
         showNotif(language === 'ar' ? '💡 أضف وسم عاطفة لصوت أكثر تعبيرًا' : '💡 Ajoutez une balise d\'émotion');
       }
-      
+
+      // Le ton de départ choisi dans la popup est injecté automatiquement en
+      // tête du texte envoyé (balise native [calm]/[natural]/[excited]) pour
+      // devenir le tag dominant côté serveur, sans modifier le texte affiché
+      // dans le champ de saisie.
+      const startTone = startToneRef.current;
+      const startToneTag = startTone === 'calm' ? '[calm]' : startTone === 'excited' ? '[excited]' : startTone === 'natural' ? '[natural]' : '';
+      const textToSend = startToneTag ? `${startToneTag} ${text.trim()}` : text;
+
       const response = await requestTTSGeneration({ 
-        text, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags 
+        text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags 
       }, balance);
+
 
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
       
@@ -439,12 +453,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     } finally { 
       if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
         generationRequestLockRef.current = false;
+        startToneRef.current = null;
         if (errMsg && !errMsg.includes('[QUEUE_BUSY]')) {
           try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
         }
       }
     }
   }
+
+  const confirmStartTone = (tone: 'calm' | 'natural' | 'excited') => {
+    startToneRef.current = tone;
+    setShowStartToneModal(false);
+    handleGenerate();
+  };
 
   const handleEnhanceText = async () => {
     if (!text.trim() || isEnhancing || enhanceRequestLockRef.current) return;
@@ -833,7 +854,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                     {t.costLabel}: <span className="font-num font-bold text-slate-900">{POINTS_COST}</span> {t.pointsLabel}
                   </span>
                   <button 
-                    onClick={() => handleGenerate()} 
+                    onClick={() => {
+                      if (!text.trim() || balance < POINTS_COST) { setInsufficientAlert(true); return; }
+                      if (isGenerating) return;
+                      setShowStartToneModal(true);
+                    }} 
                     disabled={isGenerating || !text.trim()} 
                     className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-500 disabled:opacity-40 cursor-pointer">
                     {isGenerating ? (
@@ -1086,6 +1111,75 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération en cours…'}</h3>
             <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة' : 'Ne ferme pas la page'}</p>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup ton de départ — s'affiche au-dessus de tout, avant chaque génération */}
+      {showStartToneModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'ar' ? 'اختر طريقة بدء الصوت' : 'Ton de départ de la voix'}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setShowStartToneModal(false); }}
+        >
+          <div className="w-full max-w-sm rounded-3xl border border-purple-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[.14em] text-purple-600">
+                  {language === 'ar' ? 'قبل التوليد' : 'Avant de générer'}
+                </p>
+                <h3 className="mt-1 text-base font-extrabold text-slate-900">
+                  {language === 'ar' ? 'كيف يبدأ الصوت؟' : 'Comment la voix doit-elle commencer ?'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowStartToneModal(false)}
+                className="shrink-0 rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              {language === 'ar'
+                ? 'أحيانًا يبدأ الصوت بحماس مباشرة وأحيانًا لا. اختر النبرة المطلوبة في أول كلمة.'
+                : 'La voix démarre parfois direct excitée, parfois non. Choisis le ton pour le tout premier mot.'}
+            </p>
+
+            <div className="mt-4 grid gap-2">
+              <button
+                onClick={() => confirmStartTone('calm')}
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+              >
+                <span className="text-xl">😌</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'هادئ' : 'Calme'}</span>
+                  <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'بداية هادئة ومريحة' : 'Démarrage posé et apaisé'}</span>
+                </span>
+              </button>
+              <button
+                onClick={() => confirmStartTone('natural')}
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+              >
+                <span className="text-xl">🙂</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'عادي' : 'Simple'}</span>
+                  <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'نبرة طبيعية وعفوية' : 'Ton neutre et spontané'}</span>
+                </span>
+              </button>
+              <button
+                onClick={() => confirmStartTone('excited')}
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+              >
+                <span className="text-xl">🤩</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'متحمس' : 'Excité'}</span>
+                  <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'طاقة عالية من أول كلمة' : 'Énergie haute dès le premier mot'}</span>
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
