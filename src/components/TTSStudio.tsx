@@ -139,6 +139,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const POINTS_COST = 20;
   const PENDING_GEN_KEY = 'sawtify_pending_generation';
   const LAST_RESULT_KEY = 'sawtify_last_result';
+  // FIX COST-5 : 1200 caractères par défaut, débloqué à 5000 dès que le solde
+  // garde au moins 1000 points (reflète la limite appliquée côté serveur).
+  const TTS_UNLOCK_BALANCE_THRESHOLD = 1000;
+  const TTS_MAX_CHARS_DEFAULT = 1200;
+  const TTS_MAX_CHARS_UNLOCKED = 5000;
+  const maxChars = balance >= TTS_UNLOCK_BALANCE_THRESHOLD ? TTS_MAX_CHARS_UNLOCKED : TTS_MAX_CHARS_DEFAULT;
   
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const filteredVoices = voices
@@ -751,7 +757,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
               
               <div className="text-[11px] text-slate-400 font-num">
-                <span className={`font-semibold ${text.length >= 4500 ? 'text-amber-600' : 'text-slate-600'}`}>{text.length}</span> / 5000
+                <span className={`font-semibold ${text.length >= maxChars * 0.9 ? 'text-amber-600' : 'text-slate-600'}`}>{text.length}</span> / {maxChars}
+                {balance < TTS_UNLOCK_BALANCE_THRESHOLD && (
+                  <span className="ml-1 text-slate-400">(débloquez {TTS_MAX_CHARS_UNLOCKED} à {TTS_UNLOCK_BALANCE_THRESHOLD}+ points)</span>
+                )}
               </div>
             </div>
 
@@ -761,7 +770,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 ref={textareaRef} 
                 value={text} 
                 onChange={(e) => setText(e.target.value)} 
-                maxLength={5000}
+                maxLength={maxChars}
                 placeholder={t.textPlaceholder || 'Écrivez votre texte ici...'} 
                 className={`w-full min-h-[200px] lg:h-full lg:min-h-0 p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto custom-scrollbar transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }}
