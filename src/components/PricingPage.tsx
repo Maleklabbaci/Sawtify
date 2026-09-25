@@ -36,6 +36,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
 
   const selectedPack = creditPacks.find(p => p.id === selectedPackId) || creditPacks[1];
   const paymentFee = Math.round(selectedPack.priceDZD * 0.03);
@@ -218,6 +219,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 setPaymentUrl(null);
                 setInvoiceId(null);
                 setIsSuccess(false);
+                setIsCheckoutOpen(true);
               }}
               className={`
                 relative rounded-2xl p-6 transition-all duration-300 cursor-pointer
@@ -284,8 +286,22 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         })}
       </div>
 
-      {/* Checkout Section */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm max-w-5xl mx-auto overflow-hidden">
+      {/* Checkout Popup — s'ouvre directement au clic sur un pack */}
+      {isCheckoutOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setIsCheckoutOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full my-8 overflow-hidden relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsCheckoutOpen(false)}
+              className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10 w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
         <div className="p-6 sm:p-8 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
@@ -595,6 +611,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           </div>
         )}
       </div>
+        </div>
+        </div>
+      )}
 
       {/* FAQ Section */}
       <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6 pt-8 border-t border-slate-100">
