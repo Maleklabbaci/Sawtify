@@ -197,7 +197,23 @@ const ADMIN_EMAILS = new Set([
 ]);
 const GEMINI_TTS_INPUT_USD_PER_1M = 1;
 const GEMINI_TTS_AUDIO_USD_PER_1M = 20;
-const GEMINI_AUDIO_TOKENS_PER_SECOND = 25;
+// FIX COST-4 : valeur réelle observée (~32 tokens/s en sortie audio Gemini TTS),
+// pas 25. Sert uniquement au calcul de coût/marge admin (analytics) — n'affecte
+// PAS computePointsCost, qui reste un barème points indépendant du coût réel.
+const GEMINI_AUDIO_TOKENS_PER_SECOND = Number(process.env.GEMINI_AUDIO_TOKENS_PER_SECOND) || 32;
+
+// FIX COST-5 : plafond de caractères par génération. Par défaut 1200 (au lieu de
+// 5000) pour couper le coût max d'une génération — un compte peut débloquer
+// jusqu'à TTS_MAX_CHARS_UNLOCKED en gardant un solde ≥ TTS_UNLOCK_BALANCE_THRESHOLD
+// points (signal qu'il a déjà payé / a de la marge dessus).
+const TTS_MAX_CHARS_DEFAULT = Number(process.env.TTS_MAX_CHARS_DEFAULT) || 1200;
+const TTS_MAX_CHARS_UNLOCKED = Number(process.env.TTS_MAX_CHARS_UNLOCKED) || 5000;
+const TTS_UNLOCK_BALANCE_THRESHOLD = Number(process.env.TTS_UNLOCK_BALANCE_THRESHOLD) || 1000;
+
+// FIX COST-6 : plafonne la durée audio générable par les comptes free_trial
+// (jamais eu de transaction complétée) à ~30-40s, pour couper le coût max
+// d'une génération 100% gratuite. N'affecte pas les comptes ayant déjà payé.
+const FREE_TRIAL_MAX_DURATION_SECONDS = Number(process.env.FREE_TRIAL_MAX_DURATION_SECONDS) || 35;
 
 function hashApiKey(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -1588,7 +1604,7 @@ async function startServer() {
     if (!key || !supabaseClient) return res.status(401).json({ error: "Clé API Beta invalide ou absente." });
     const { text, voice_id = "voice_amin", speed = 1, pitch = 1, format = "wav" } = req.body || {};
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "text est obligatoire." });
-    if (text.length > 5000) return res.status(400).json({ error: "text dépasse 5000 caractères." });
+    if (text.length > TTS_MAX_CHARS_UNLOCKED) return res.status(400).json({ error: `text dépasse ${TTS_MAX_CHARS_UNLOCKED} caractères.` });
     if (format !== "wav" && format !== "json") return res.status(400).json({ error: "format doit être wav ou json." });
     const balance = await getUserBalance(key.userId);
     if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
@@ -1724,16 +1740,45 @@ async function startServer() {
       if (!text || typeof text !== "string" || !text.trim()) {
         return res.status(400).json({ detail: "Le texte fourni ne contient aucun caractère vocalement synthétisable." });
       }
-      if (text.length > 5000) {
-        return res.status(400).json({ error: "Texte trop long (maximum 5000 caractères)." });
-      }
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
-      const balanceBeforeGeneration = await getUserBalance(userId);
+
+      const [balanceBeforeGeneration, paidTxCountResult] = await Promise.all([
+        getUserBalance(userId),
+        supabaseClient.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed"),
+      ]);
+      const paidTransactionCount = paidTxCountResult.count || 0;
+      const isPaidUser = paidTransactionCount > 0;
+
       if (balanceBeforeGeneration === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (balanceBeforeGeneration !== null && balanceBeforeGeneration < BASE_POINTS_COST) {
         return res.status(402).json({ error: `Solde de points insuffisant (${BASE_POINTS_COST} points minimum requis).` });
       }
+
+      // FIX COST-5 : 1200 caractères par défaut, débloqué jusqu'à 5000 pour les
+      // comptes qui gardent un solde ≥ TTS_UNLOCK_BALANCE_THRESHOLD points.
+      const unlocked = balanceBeforeGeneration >= TTS_UNLOCK_BALANCE_THRESHOLD;
+      const maxChars = unlocked ? TTS_MAX_CHARS_UNLOCKED : TTS_MAX_CHARS_DEFAULT;
+      if (text.length > maxChars) {
+        return res.status(400).json({
+          error: unlocked
+            ? `Texte trop long (maximum ${maxChars} caractères).`
+            : `Texte trop long (maximum ${maxChars} caractères). Gardez un solde d'au moins ${TTS_UNLOCK_BALANCE_THRESHOLD} points pour débloquer jusqu'à ${TTS_MAX_CHARS_UNLOCKED} caractères.`,
+          max_chars: maxChars, unlock_threshold: TTS_UNLOCK_BALANCE_THRESHOLD, unlock_max_chars: TTS_MAX_CHARS_UNLOCKED, unlocked,
+        });
+      }
+
+      // FIX COST-6 : plafonne la durée pour les comptes free_trial (aucune transaction payée).
+      if (!isPaidUser) {
+        const freeTrialMaxChars = FREE_TRIAL_MAX_DURATION_SECONDS * TTS_CHARS_PER_SECOND_ESTIMATE;
+        if (text.trim().length > freeTrialMaxChars) {
+          return res.status(400).json({
+            error: `Version d'essai gratuite limitée à ${FREE_TRIAL_MAX_DURATION_SECONDS}s d'audio (~${freeTrialMaxChars} caractères). Achetez des points pour générer plus long.`,
+            max_duration_seconds: FREE_TRIAL_MAX_DURATION_SECONDS, max_chars: freeTrialMaxChars, free_trial: true,
+          });
+        }
+      }
+
       const estimatedDuration = Math.ceil(text.trim().length / TTS_CHARS_PER_SECOND_ESTIMATE);
       const estimatedCost = computePointsCost(estimatedDuration);
       if (balanceBeforeGeneration < estimatedCost) {
@@ -1766,7 +1811,6 @@ async function startServer() {
       const durationSeconds = Math.round((pcmBuffer.length / 48000) * 10) / 10;
 
       const finalPointsCost = computePointsCost(durationSeconds);
-      const { count: paidTransactionCount } = await supabaseClient.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed");
 
       let generationId: string | null = null;
       let remainingBalance: number | null = null;
