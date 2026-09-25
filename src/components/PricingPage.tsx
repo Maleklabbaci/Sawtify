@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
   ExternalLink, RefreshCw, Building2, Layers, CheckCircle2,
-  Lock, Info, Phone, User, MapPin, HelpCircle
+  Lock, Info, Phone, User, MapPin, HelpCircle, X
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getCreditPacks } from '../data/voices';
@@ -35,6 +35,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const [invoiceId, setInvoiceId] = useState<string | number | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
 
   const selectedPack = creditPacks.find(p => p.id === selectedPackId) || creditPacks[1];
   const paymentFee = Math.round(selectedPack.priceDZD * 0.03);
@@ -125,7 +126,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       if (data.success && data.paymentUrl) {
         setInvoiceId(data.invoiceId);
         setPaymentUrl(data.paymentUrl);
-        setTimeout(() => openPaymentUrl(data.paymentUrl), 100);
+        setShowConfirmModal(true);
       } else {
         const message = data.error || data.message ||
           (language === 'ar' ? 'خطأ في إنشاء الفاتورة' : 'Erreur de création de facture');
@@ -639,6 +640,95 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Confirmation Popup — affiché AVANT d'ouvrir la page de paiement SATIM */}
+      {showConfirmModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setShowConfirmModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {language === 'ar' ? 'تأكيد الطلب' : 'Confirmer votre commande'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  {language === 'ar' ? 'تحقق من التفاصيل قبل الدفع' : 'Vérifiez les détails avant de payer'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">{language === 'ar' ? 'الباقة' : 'Pack'}</span>
+                <span className="font-semibold text-slate-900">{selectedPack.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
+                <span className="font-bold text-purple-600">+{selectedPack.points}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">{language === 'ar' ? 'الاسم' : 'Nom'}</span>
+                <span className="font-semibold text-slate-900">{firstname} {lastname}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">{language === 'ar' ? 'الهاتف' : 'Téléphone'}</span>
+                <span className="font-semibold text-slate-900">{phone}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">{language === 'ar' ? 'الولاية' : 'Wilaya'}</span>
+                <span className="font-semibold text-slate-900">{address}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">{language === 'ar' ? 'طريقة الدفع' : 'Paiement'}</span>
+                <span className="font-semibold text-slate-900 uppercase">{paymentMethod}</span>
+              </div>
+
+              <div className="border-t border-dashed border-slate-200 my-2"></div>
+
+              <div className="flex justify-between items-center text-sm text-slate-500">
+                <span>{language === 'ar' ? 'رسوم المعاملة' : 'Frais transaction'}</span>
+                <span>{paymentFee.toLocaleString()} DZD</span>
+              </div>
+              <div className="flex justify-between items-center text-lg font-bold pt-2">
+                <span className="text-slate-900">{language === 'ar' ? 'المجموع' : 'Total'}</span>
+                <span className="text-purple-600">{totalToPay.toLocaleString()} DZD</span>
+              </div>
+            </div>
+
+            <div className="p-6 pt-0 space-y-3">
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  if (paymentUrl) openPaymentUrl(paymentUrl);
+                }}
+                className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
+              >
+                <Lock className="w-4 h-4" />
+                {language === 'ar'
+                  ? `دفع ${totalToPay.toLocaleString()} دج الآن`
+                  : `Payer ${totalToPay.toLocaleString()} DZD maintenant`}
+              </button>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="w-full py-2 text-sm text-slate-500 hover:text-slate-700 transition"
+              >
+                {language === 'ar' ? 'إلغاء' : 'Annuler'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
