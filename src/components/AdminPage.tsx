@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Phone, CalendarDays, Clock3, Coins, AudioLines, Loader2, MessageCircle, Send } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Phone, CalendarDays, Clock3, Coins, AudioLines, Loader2, MessageCircle, Send, ChevronLeft, ChevronRight } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { getMyAccessToken } from '../services/supabaseClient';
 
@@ -64,6 +64,10 @@ export const AdminPage: React.FC = () => {
   const [detailError, setDetailError] = useState('');
   const [waUser, setWaUser] = useState<AdminData['recent_users'][number] | null>(null);
   const [waSelectedIndex, setWaSelectedIndex] = useState(0);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -81,7 +85,8 @@ export const AdminPage: React.FC = () => {
   };
 
   const openUserDetail = async (userId: string) => {
-    setDetailLoading(true); setDetailError(''); setSelectedUser(null);
+    setDetailLoading(true); setDetailError(''); setSelectedUser(null); setSelectedUserId(userId);
+    window.requestAnimationFrame(() => detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     try {
       const token = await getMyAccessToken();
       const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -91,6 +96,9 @@ export const AdminPage: React.FC = () => {
     } catch (e: any) { setDetailError(e?.message || 'Impossible de charger le détail utilisateur.'); }
     finally { setDetailLoading(false); }
   };
+
+  const closeUserDetail = () => { setSelectedUser(null); setSelectedUserId(null); setDetailError(''); };
+
 
   const openWaPicker = (u: AdminData['recent_users'][number]) => {
     setWaUser(u);
@@ -120,7 +128,6 @@ export const AdminPage: React.FC = () => {
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      setSelectedUser(null);
       setWaUser(null);
     };
     window.addEventListener('keydown', onEsc);
@@ -131,6 +138,9 @@ export const AdminPage: React.FC = () => {
   if (error) return <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-700"><ShieldAlert className="mx-auto mb-3 h-8 w-8" /><p className="font-bold">{error}</p><button onClick={load} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Réessayer</button></div>;
   if (!data) return null;
   const s = data.summary;
+  const totalPages = Math.max(1, Math.ceil(data.recent_users.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedUsers = data.recent_users.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const funnelLabels: Record<string, string> = { landing_view: 'Visiteurs landing', landing_90_percent: 'Landing 90%', signup_open: 'Inscription ouverte', google_signup_click: 'Clic Google', oauth_return: 'Retour Google', account_created: 'Compte créé', onboarding_completed: 'Onboarding terminé' };
   const cards = [['Comptes', s.total_users, 'Tous les inscrits', Users], ['Free trial', s.free_trial_users, 'Aucun paiement confirmé', BarChart3], ['Clients payants', s.paid_users, 'Au moins une recharge', CreditCard], ['Générations', s.generations_total, 'Toutes origines', Mic2]];
   const waPhraseList = waUser ? waPhrases(waUser) : [];
@@ -251,13 +261,13 @@ export const AdminPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {data.recent_users.map(u => (
+              {pagedUsers.map(u => (
                 <tr
                   key={u.id}
                   tabIndex={0}
                   onClick={() => void openUserDetail(u.id)}
                   onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') void openUserDetail(u.id); }}
-                  className="cursor-pointer border-b transition hover:bg-purple-50 focus:bg-purple-50 last:border-0"
+                  className={`cursor-pointer border-b transition hover:bg-purple-50 focus:bg-purple-50 last:border-0 ${selectedUserId === u.id ? 'bg-purple-50' : ''}`}
                 >
                   <td className="p-2">
                     <b>{u.full_name || 'Sans nom'}</b>
@@ -286,19 +296,149 @@ export const AdminPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {data.recent_users.length > PAGE_SIZE && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">
+              {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, data.recent_users.length)} sur {data.recent_users.length} comptes
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Précédent
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(n => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
+                .reduce<number[]>((acc, n) => {
+                  if (acc.length && n - acc[acc.length - 1] > 1) acc.push(-1);
+                  acc.push(n);
+                  return acc;
+                }, [])
+                .map((n, i) => n === -1 ? (
+                  <span key={`gap-${i}`} className="px-1 text-xs text-slate-400">…</span>
+                ) : (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n)}
+                    className={`min-w-[2rem] rounded-xl px-2.5 py-1.5 text-xs font-bold ${n === safePage ? 'bg-purple-600 text-white' : 'border border-slate-200 text-slate-700 hover:bg-purple-50'}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Suivant
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
-      {detailLoading && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30">
-          <div className="rounded-2xl bg-white px-6 py-5 text-sm font-bold text-slate-700 shadow-xl">
-            <Loader2 className="mr-2 inline h-5 w-5 animate-spin text-purple-600" />
-            Chargement de la session…
-          </div>
-        </div>
-      )}
+      {selectedUserId && (
+        <section ref={detailPanelRef} className="scroll-mt-4 rounded-2xl border border-purple-200 bg-white p-5 sm:p-6">
+          {detailLoading && (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm font-bold text-slate-700">
+              <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+              Chargement de la session…
+            </div>
+          )}
 
-      {detailError && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{detailError}</div>
+          {!detailLoading && detailError && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{detailError}</div>
+          )}
+
+      {selectedUser && !detailLoading && (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[.18em] text-purple-600">Détail session utilisateur</p>
+              <h2 className="mt-1 truncate text-2xl font-black text-slate-900">{selectedUser.profile.full_name || 'Sans nom'}</h2>
+              <p className="truncate text-sm text-slate-500">{selectedUser.profile.email}</p>
+            </div>
+            <button onClick={closeUserDetail} className="shrink-0 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Fermer">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[[Mail, 'Email', selectedUser.profile.email], [Phone, 'Téléphone', selectedUser.profile.phone || '—'], [Coins, 'Points', selectedUser.profile.credits_balance], [AudioLines, 'Générations', selectedUser.generations.length]].map(([Icon, label, value]: any) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <Icon className="h-4 w-4 text-purple-600" />
+                  <p className="mt-3 text-xs font-bold text-slate-500">{label}</p>
+                  <p className="mt-1 truncate font-black text-slate-900">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 sm:grid-cols-3">
+              <p><CalendarDays className="mr-2 inline h-4 w-4 text-purple-600" />Créé : <b>{dateTime(selectedUser.profile.created_at)}</b></p>
+              <p><Clock3 className="mr-2 inline h-4 w-4 text-purple-600" />Dernière connexion : <b>{dateTime(selectedUser.profile.last_sign_in_at)}</b></p>
+              <p>Onboarding : <b>{dateTime(selectedUser.profile.onboarding_completed_at)}</b></p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="font-black text-slate-900">Générations vocales ({selectedUser.generations.length})</h3>
+              <div className="mt-3 space-y-3">
+                {selectedUser.generations.length === 0 && <p className="text-sm text-slate-500">Aucune génération enregistrée.</p>}
+                {selectedUser.generations.map((generation) => (
+                  <div key={generation.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900">{generation.voice_name || generation.voice_id}</p>
+                        <p className="mt-1 text-xs text-slate-500">{dateTime(generation.created_at)} · {generation.status} · {generation.generation_source || 'legacy'}</p>
+                      </div>
+                      <div className="shrink-0 text-right text-xs text-slate-500">
+                        <p>{Number(generation.audio_duration_seconds || 0).toFixed(2)} s</p>
+                        <p>{generation.points_deducted || 0} points</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-slate-600">{generation.text_prompt}</p>
+                    {generation.audio_url ? (
+                      <audio className="mt-3 h-10 w-full" controls preload="none" src={generation.audio_url}>Ton navigateur ne supporte pas la lecture audio.</audio>
+                    ) : (
+                      <p className="mt-3 text-xs font-bold text-amber-700">Audio non disponible dans Storage pour cette génération.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="font-black text-slate-900">Transactions</h3>
+                <div className="mt-3 space-y-2 text-sm">
+                  {selectedUser.transactions.length === 0 && <p className="text-slate-500">Aucune transaction.</p>}
+                  {selectedUser.transactions.map((tx) => (
+                    <div key={tx.id} className="flex justify-between gap-3 border-b py-2 last:border-0">
+                      <span>{dateTime(tx.created_at)} · {tx.status}</span>
+                      <b>{money(Number(tx.amount_dzd || 0))} · +{tx.points_credited || 0} pts</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="font-black text-slate-900">Activité Gemini</h3>
+                <p className="mt-2 text-sm text-slate-500">{selectedUser.usage_logs.length} appels enregistrés</p>
+                <p className="mt-1 text-sm text-slate-500">{selectedUser.usage_logs.reduce((sum, log) => sum + Number(log.characters || 0), 0).toLocaleString('fr-FR')} caractères traités</p>
+                {selectedUser.usage_summary && <>
+                  <p className="mt-1 text-sm font-black text-amber-700">{money(selectedUser.usage_summary.cost_dzd)} · {usd(selectedUser.usage_summary.cost_usd)}</p>
+                  <p className="mt-1 text-xs text-slate-500">{integer(selectedUser.usage_summary.input_tokens)} tokens entrée · {integer(selectedUser.usage_summary.output_tokens)} tokens sortie</p>
+                  <p className="mt-1 text-xs text-slate-400">Modèle texte : {selectedUser.usage_summary.model}</p>
+                </>}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+        </section>
       )}
 
       {waUser && (
@@ -349,99 +489,6 @@ export const AdminPage: React.FC = () => {
                 <Send className="h-4 w-4" />
                 WhatsApp Web
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedUser && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Détail utilisateur"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedUser(null); }}
-        >
-          <div className="flex min-h-0 w-full max-w-5xl max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl sm:max-h-[calc(100vh-3rem)]">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white p-5 sm:p-6">
-              <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[.18em] text-purple-600">Détail session utilisateur</p>
-                <h2 className="mt-1 truncate text-2xl font-black text-slate-900">{selectedUser.profile.full_name || 'Sans nom'}</h2>
-                <p className="truncate text-sm text-slate-500">{selectedUser.profile.email}</p>
-              </div>
-              <button onClick={() => setSelectedUser(null)} className="shrink-0 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Fermer">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {[[Mail, 'Email', selectedUser.profile.email], [Phone, 'Téléphone', selectedUser.profile.phone || '—'], [Coins, 'Points', selectedUser.profile.credits_balance], [AudioLines, 'Générations', selectedUser.generations.length]].map(([Icon, label, value]: any) => (
-                  <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <Icon className="h-4 w-4 text-purple-600" />
-                    <p className="mt-3 text-xs font-bold text-slate-500">{label}</p>
-                    <p className="mt-1 truncate font-black text-slate-900">{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 sm:grid-cols-3">
-                <p><CalendarDays className="mr-2 inline h-4 w-4 text-purple-600" />Créé : <b>{dateTime(selectedUser.profile.created_at)}</b></p>
-                <p><Clock3 className="mr-2 inline h-4 w-4 text-purple-600" />Dernière connexion : <b>{dateTime(selectedUser.profile.last_sign_in_at)}</b></p>
-                <p>Onboarding : <b>{dateTime(selectedUser.profile.onboarding_completed_at)}</b></p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="font-black text-slate-900">Générations vocales ({selectedUser.generations.length})</h3>
-                <div className="mt-3 space-y-3">
-                  {selectedUser.generations.length === 0 && <p className="text-sm text-slate-500">Aucune génération enregistrée.</p>}
-                  {selectedUser.generations.map((generation) => (
-                    <div key={generation.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-black text-slate-900">{generation.voice_name || generation.voice_id}</p>
-                          <p className="mt-1 text-xs text-slate-500">{dateTime(generation.created_at)} · {generation.status} · {generation.generation_source || 'legacy'}</p>
-                        </div>
-                        <div className="shrink-0 text-right text-xs text-slate-500">
-                          <p>{Number(generation.audio_duration_seconds || 0).toFixed(2)} s</p>
-                          <p>{generation.points_deducted || 0} points</p>
-                        </div>
-                      </div>
-                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-slate-600">{generation.text_prompt}</p>
-                      {generation.audio_url ? (
-                        <audio className="mt-3 h-10 w-full" controls preload="none" src={generation.audio_url}>Ton navigateur ne supporte pas la lecture audio.</audio>
-                      ) : (
-                        <p className="mt-3 text-xs font-bold text-amber-700">Audio non disponible dans Storage pour cette génération.</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <h3 className="font-black text-slate-900">Transactions</h3>
-                  <div className="mt-3 space-y-2 text-sm">
-                    {selectedUser.transactions.length === 0 && <p className="text-slate-500">Aucune transaction.</p>}
-                    {selectedUser.transactions.map((tx) => (
-                      <div key={tx.id} className="flex justify-between gap-3 border-b py-2 last:border-0">
-                        <span>{dateTime(tx.created_at)} · {tx.status}</span>
-                        <b>{money(Number(tx.amount_dzd || 0))} · +{tx.points_credited || 0} pts</b>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <h3 className="font-black text-slate-900">Activité Gemini</h3>
-                  <p className="mt-2 text-sm text-slate-500">{selectedUser.usage_logs.length} appels enregistrés</p>
-                  <p className="mt-1 text-sm text-slate-500">{selectedUser.usage_logs.reduce((sum, log) => sum + Number(log.characters || 0), 0).toLocaleString('fr-FR')} caractères traités</p>
-                  {selectedUser.usage_summary && <>
-                    <p className="mt-1 text-sm font-black text-amber-700">{money(selectedUser.usage_summary.cost_dzd)} · {usd(selectedUser.usage_summary.cost_usd)}</p>
-                    <p className="mt-1 text-xs text-slate-500">{integer(selectedUser.usage_summary.input_tokens)} tokens entrée · {integer(selectedUser.usage_summary.output_tokens)} tokens sortie</p>
-                    <p className="mt-1 text-xs text-slate-400">Modèle texte : {selectedUser.usage_summary.model}</p>
-                  </>}
-                </div>
-              </div>
             </div>
           </div>
         </div>
