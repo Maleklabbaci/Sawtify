@@ -1498,7 +1498,10 @@ async function startServer() {
       const geminiCostDzd = geminiUsd * USD_TO_DZD;
       const grossMarginDzd = revenueDzd - geminiCostDzd;
       const activeUsers30d = users.filter((row: any) => String(row.updated_at || row.created_at) >= since30).length;
-      const recentUsers = users.slice(0, 20).map((user: any) => ({
+      // FIX ADMIN-PAGINATION : on renvoie tous les comptes (jusqu'à la limite déjà
+      // appliquée sur la requête `users`, 5000) au lieu de les tronquer à 20 ici —
+      // la pagination (20/page) est désormais gérée côté front (AdminPage.tsx).
+      const recentUsers = users.map((user: any) => ({
         ...user,
         gemini_calls: geminiByUser.get(user.id)?.calls || 0,
         gemini_characters: geminiByUser.get(user.id)?.characters || 0,
