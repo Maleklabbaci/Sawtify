@@ -31,6 +31,9 @@ import {
   Lock,
   Timer,
   Sparkles,
+  Wallet,
+  Infinity as InfinityIcon,
+  Crown,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView } from "motion/react";
 import TestimonialsWidget from "./TestimonialsWidget";
@@ -43,18 +46,20 @@ export interface LandingPageProps {
 }
 
 /* ═══════════ PALETTE — VIOLET ALGÉRIEN (KSAR / OASIS MODERNE) ═══════════ */
-const PAPER = "#FAF6EE";
+const PAPER = "#FFFFFF";
 const INK = "#1A0F2E";
 const PURPLE = "#6B2DBC";
 const PURPLE_DARK = "#4A1E87";
 const PURPLE_SOFT = "#F0E8FA";
-const PURPLE_GLOW = "rgba(107, 45, 188, 0.45)";
+const PURPLE_GLOW = "rgba(107, 45, 188, 0.26)";
 const GREEN = "#0E7A45";
-const AMBER = "#E9A13B";
+/* Accent clair pour les fonds sombres (photo, noir) : le violet de marque y
+   serait trop sourd. C'est LE détail violet du hero. */
+const PURPLE_LIGHT = "#B79BEA";
 const CLAY = "#C2452A";
-const BORDER = "#E5DCCB";
-const BG_VIDEO_URL =
-  "https://res.cloudinary.com/gz65ybug/video/upload/v1788621700/Robot_looking_with_microphone_1080p_202509051613.mp4";
+const BORDER = "#E8E6EC";
+const HERO_PHOTO_URL = "/hero-luxe.jpg";
+const HERO_BLACK = "#0B0713";
 const INTRO_AUDIO_URL =
   "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
 const LOGO =
@@ -91,41 +96,18 @@ const GlobalStyles = () => (
     #sawtify-landing .hov-ink:hover, #sawtify-landing .hov-ink:focus-visible { border-color: rgba(26,15,46,0.5); }
     @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 ${PURPLE_GLOW}; } 70% { box-shadow: 0 0 0 18px rgba(107,45,188,0); } }
     #sawtify-landing .pulse-glow { animation: pulse-glow 2.4s infinite; }
-    @keyframes shine { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
-    #sawtify-landing .shine { position: relative; overflow: hidden; }
-    #sawtify-landing .shine::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%); animation: shine 3.5s ease-in-out infinite; pointer-events: none; }
     @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     #sawtify-landing .float { animation: float-y 4.5s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
   `}</style>
 );
 
-/* ═══════════ 🎬 COMPOSANT VIDÉO D'ARRIÈRE-PLAN (corrigé) ═══════════ */
-const BackgroundVideo = () => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+/* ═══════════ 🖼️ FOND DU HÉROS — PHOTO N&B (luxe) ═══════════ */
+const BackgroundPhoto = () => {
   const [ready, setReady] = useState(false);
   const [parallaxY, setParallaxY] = useState(0);
 
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = true;
-    v.playsInline = true;
-    v.loop = true;
-    v.autoplay = true;
-    v.setAttribute("muted", "");
-    v.setAttribute("playsinline", "");
-    v.setAttribute("loop", "");
-    const onReady = () => setReady(true);
-    v.addEventListener("canplay", onReady, { once: true });
-    const playPromise = v.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => { /* autoplay bloqué : on ré-essaiera */ });
-    }
-    return () => v.removeEventListener("canplay", onReady);
-  }, []);
-
-  // Parallaxe via listener (évite le bug du MotionValue non réactif en style inline)
+  // Parallaxe douce : la photo glisse moins vite que la page.
   useEffect(() => {
     let raf = 0;
     const onScroll = () => {
@@ -142,50 +124,34 @@ const BackgroundVideo = () => {
     };
   }, []);
 
-  // Relance l'autoplay si bloqué au chargement
-  useEffect(() => {
-    const onFirstInteract = () => {
-      const v = videoRef.current;
-      if (v && v.paused) v.play().catch(() => {});
-    };
-    window.addEventListener("pointerdown", onFirstInteract, { once: true, capture: true });
-    return () => window.removeEventListener("pointerdown", onFirstInteract, { capture: true } as EventListenerOptions);
-  }, []);
-
   return (
-    <div className="absolute inset-0 z-0 overflow-hidden bg-[#1A0F2E]" aria-hidden>
-      <video
-        ref={videoRef}
-        src={BG_VIDEO_URL}
-        muted
-        loop
-        playsInline
-        autoPlay
-        preload="auto"
-        controls={false}
-        disablePictureInPicture
+    <div className="absolute inset-0 z-0 overflow-hidden" style={{ background: HERO_BLACK }} aria-hidden>
+      <img
+        src={HERO_PHOTO_URL}
+        alt=""
+        fetchPriority="high"
+        decoding="async"
+        onLoad={() => setReady(true)}
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
         style={{
           opacity: ready ? 1 : 0,
           minWidth: "100%",
           minHeight: "100%",
-          transform: `translate3d(0, ${parallaxY}px, 0)`,
+          transform: `translate3d(0, ${parallaxY}px, 0) scale(1.05)`,
           willChange: "transform",
+          filter: "grayscale(1) contrast(1.06) brightness(0.92)",
         }}
       />
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "linear-gradient(180deg, rgba(26,15,46,0.55) 0%, rgba(26,15,46,0.7) 35%, rgba(26,15,46,0.88) 75%, rgba(26,15,46,0.96) 100%)",
+            `linear-gradient(180deg, rgba(11,7,19,0.66) 0%, rgba(11,7,19,0.74) 35%, rgba(11,7,19,0.88) 75%, rgba(11,7,19,0.97) 100%)`,
         }}
       />
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 35%, rgba(26,15,46,0.45) 100%)",
-        }}
+        style={{ background: "radial-gradient(ellipse at center, transparent 30%, rgba(11,7,19,0.5) 100%)" }}
       />
     </div>
   );
@@ -253,14 +219,18 @@ const SectionHead = ({ eyebrow, title, sub, center = false, font, ar }: {
 }) => (
   <div className={center ? "text-center mx-auto max-w-2xl" : "max-w-2xl"}>
     {eyebrow && (
-      <Kicker ar={ar} className="block mb-3 text-[11.5px]" style={{ color: PURPLE }}>
-        {eyebrow}
-      </Kicker>
+      <span className={`flex items-center gap-2.5 mb-3.5 ${center ? "justify-center" : ""}`}>
+        <span className="h-[1.5px] w-7 rounded-full" style={{ background: "rgba(26,15,46,0.25)" }} aria-hidden />
+        <Kicker ar={ar} className="text-[11.5px]" style={{ color: "rgba(26,15,46,0.55)" }}>
+          {eyebrow}
+        </Kicker>
+        {center && <span className="h-[1.5px] w-7 rounded-full" style={{ background: "rgba(26,15,46,0.25)" }} aria-hidden />}
+      </span>
     )}
-    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.08] tracking-[-0.015em] font-extrabold" style={{ color: INK, fontFamily: font }}>
+    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.08] tracking-[-0.02em] font-extrabold" style={{ color: INK, fontFamily: font }}>
       {title}
     </h2>
-    {sub && <p className="mt-4 text-[14px] text-[#1A0F2E]/65 leading-relaxed">{sub}</p>}
+    {sub && <p className="mt-5 text-[14px] text-[#1A0F2E]/65 leading-relaxed">{sub}</p>}
   </div>
 );
 
@@ -603,6 +573,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const countdown = useOfferCountdown();
 
   const scrolled = useScrolled();
+  /* Header « sans background » : transparent sur la photo (texte blanc), puis
+     un simple dégradé qui se dissout — pas de barre, pas de bordure, pas
+     d'ombre. Le texte passe en noir pour rester lisible sur les sections
+     blanches. */
+  const navFg = scrolled ? INK : "#FFFFFF";
+  const navFgSoft = scrolled ? "rgba(26,15,46,0.62)" : "rgba(255,255,255,0.82)";
   const {
     playingId, sampleProgress, sampleElapsed, sampleTotal, durations,
     playSample, stopSample, setSampleRate,
@@ -792,6 +768,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     heroSub: isRTL
       ? "نصّك بالدارجة يولي صوت طبيعي في 30 ثانية — بلا ستوديو، بلا ميكرو، بلا انتظار. 50 نقطة هدية وقت التسجيل، بلا بطاقة وبلا التزام."
       : "Votre texte en darija devient une voix naturelle en 30 secondes — sans studio, sans micro, sans attente. 50 points offerts à l'inscription, sans carte, sans engagement.",
+    /* Ancrage de prix : le repère du marché (1 500–3 000 DZD la minute en
+       studio) face au prix réel. Les deux montants viennent du comparatif. */
+    studioPrice: isRTL ? "في الستوديو" : "En studio",
+    priceOld: isRTL ? "8 000 – 20 000 دج" : "8 000 à 20 000 DZD",
+    priceNow: isRTL ? "من 500 دج" : "dès 500 DZD",
     welcomeChip: isRTL ? "50 نقطة هدية — بلا بطاقة، بلا التزام" : "50 points offerts — sans carte, sans engagement",
     creators: isRTL ? "مستخدم" : "créateurs",
     check1: isRTL ? "الدفع بالذهبية أو CIB" : "Paiement Edahabia / CIB",
@@ -1100,60 +1081,54 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[90] focus:px-4 focus:py-2 focus:rounded-full focus:font-bold focus:text-sm text-white"
         style={{ background: PURPLE }}>{t.skip}</a>
 
-      {/* ═══════════ 📌 BARRE D'URGENCE ═══════════ */}
-      {/* ✅ FIX MOBILE : padding-top dynamique pour ne pas passer sous l'encoche / l'heure du téléphone */}
-      <div className="fixed top-0 inset-x-0 z-[70] flex items-center justify-center gap-2.5 px-3 min-h-11"
-        style={{ background: INK, color: PAPER, paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "border-box" }}>
-        <Gift className="w-4 h-4 shrink-0" style={{ color: AMBER }} />
-        <span className="text-[11px] sm:text-[12.5px] font-bold truncate">{t.urgency}</span>
-        {countdown && (
-          <Mono dir="ltr" className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md tabular-nums"
-            style={{ background: "rgba(255,255,255,0.12)", color: AMBER }}>
-            {countdown.h}:{countdown.m}:{countdown.s}
-          </Mono>
-        )}
-        <button type="button" onClick={goSignup}
-          className="hidden sm:inline-block shrink-0 text-[11.5px] font-bold underline underline-offset-4 decoration-amber hover:opacity-80 transition focus-ring"
-          style={{ textDecorationColor: AMBER }}>
-          {t.urgencyCta} ↖
-        </button>
-      </div>
-
       {/* ═══════════ HEADER ═══════════ */}
       {/* ✅ FIX MOBILE : top recalculé pour tenir compte de la hauteur réelle (variable) de la barre d'urgence sur iPhone à encoche */}
-      <header className={`fixed inset-x-0 z-[60] border-b border-white/10 bg-[#1A0F2E]/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl transition-all duration-300 ${
-          scrolled ? "py-3 shadow-xl" : ""
-        }`}
-        style={{ top: "calc(2.75rem + env(safe-area-inset-top, 0px))" }}>
+      <header
+        className={`fixed inset-x-0 z-[60] transition-all duration-300 ${scrolled ? "py-2" : "py-1"}`}
+        style={{
+          top: 0,
+          background: scrolled
+            ? "linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.8) 55%, rgba(255,255,255,0) 100%)"
+            : "transparent",
+        }}>
         <div className="mx-auto max-w-[1280px] px-5 sm:px-6 h-16 flex items-center justify-between">
           <a href="#home" onClick={(e) => { e.preventDefault(); smoothTo("#home"); }}
             className="focus-ring flex items-center gap-2.5" aria-label="Sawtify">
             <Logo size={38} />
           </a>
-          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold text-white/80">
+          <nav className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-[13px] font-semibold"
+            style={{ color: navFgSoft }}>
             {nav.map((l) => (
               <a key={`${l.href}-${l.target}`} href={l.href}
                 onClick={(e) => { e.preventDefault(); navigatePublicSection(l.href, l.target); }}
-                className="hover:text-white transition-colors focus-ring">{l.label}</a>
+                className="transition-opacity hover:opacity-55 focus-ring">{l.label}</a>
             ))}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button type="button" onClick={switchLang}
-              className="w-10 h-10 rounded-full text-[12px] font-bold text-white/80 hover:bg-white/10 hover:text-white transition focus-ring"
+              className="w-10 h-10 rounded-full text-[12px] font-bold transition hover:opacity-60 focus-ring"
+              style={{ color: navFgSoft }}
               aria-label={isRTL ? "التبديل إلى الفرنسية" : "Switch to Arabic"}>
               {t.switchLang}
             </button>
             <button type="button" onClick={onLoginClick}
-              className="hidden md:block text-[13px] font-semibold text-white/80 hover:text-white px-3 focus-ring">
+              className="hidden md:block text-[13px] font-semibold px-3 transition hover:opacity-60 focus-ring"
+              style={{ color: navFgSoft }}>
               {t.signin}
             </button>
             <button type="button" onClick={goSignup}
-              className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold bg-white text-[#6B2DBC] focus-ring transition hover:bg-white/90 active:scale-95 shadow-md">
+              className="h-10 px-4 sm:px-5 rounded-full text-[13px] sm:text-[14px] font-bold focus-ring transition active:scale-95"
+              style={{
+                background: scrolled ? INK : "#FFFFFF",
+                color: scrolled ? "#FFFFFF" : PURPLE,
+                boxShadow: scrolled ? "none" : "0 10px 26px -14px rgba(0,0,0,0.65)",
+              }}>
               {t.start}
             </button>
             <button type="button" onClick={() => setMenuOpen(true)} aria-label={t.open}
-              className="lg:hidden w-10 h-10 rounded-full text-white hover:bg-white/10 flex items-center justify-center focus-ring">
-              <Menu className="w-5 h-5 text-white" />
+              className="lg:hidden w-10 h-10 rounded-full flex items-center justify-center transition hover:opacity-70 focus-ring"
+              style={{ color: navFg }}>
+              <Menu className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -1168,8 +1143,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed bottom-0 end-0 z-[60] w-[85%] max-w-sm bg-[#6B2DBC] text-white lg:hidden flex flex-col shadow-2xl border-s border-white/20"
-              style={{ top: "calc(2.75rem + env(safe-area-inset-top, 0px))" }}>
+              className="fixed bottom-0 end-0 z-[60] w-[85%] max-w-sm bg-[#1A0F2E] text-white lg:hidden flex flex-col shadow-2xl border-s border-white/15"
+              style={{ top: 0 }}>
               <div className="flex items-center justify-between px-5 h-16 border-b border-white/20">
                 <Logo size={34} />
                 <button type="button" onClick={() => setMenuOpen(false)}
@@ -1203,15 +1178,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <div className="relative z-[1]">
         {/* ═══════════ HERO avec VIDÉO D'ARRIÈRE-PLAN ═══════════ */}
         {/* ✅ FIX MOBILE : compense l'encoche pour que le titre ne soit jamais coupé/caché par les 2 barres fixes */}
-        <section id="home" className="relative pb-14 sm:pb-20 isolate overflow-hidden scroll-mt-[130px]"
-          style={{ color: PAPER, paddingTop: "calc(172px + env(safe-area-inset-top, 0px))" }}>
-          <BackgroundVideo />
+        <section id="home" className="relative pb-14 sm:pb-20 isolate overflow-hidden scroll-mt-[92px]"
+          style={{ color: PAPER, paddingTop: "calc(124px + env(safe-area-inset-top, 0px))" }}>
+          <BackgroundPhoto />
 
           <div className="relative z-[1] mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="max-w-3xl mx-auto text-center">
               <SlideUp>
                 <Kicker ar={isRTL} className="inline-flex items-center gap-1.5 text-[12px] mb-4 px-3 py-1 rounded-full"
-                  style={{ color: "#fff", background: "rgba(107,45,188,0.65)", backdropFilter: "blur(6px)" }}>
+                  style={{ color: "#fff", background: "rgba(16,7,34,0.55)", border: "1px solid rgba(183,155,234,0.55)", backdropFilter: "blur(8px)", boxShadow: "0 8px 24px -14px rgba(0,0,0,0.7)" }}>
                   <Sparkles className="w-3.5 h-3.5" /> {t.heroKicker}
                 </Kicker>
               </SlideUp>
@@ -1230,7 +1205,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       preserveAspectRatio="none"
                       aria-hidden
                     >
-                      <path d="M2 8 C 40 2, 80 11, 120 6 S 180 3, 198 7" fill="none" stroke={AMBER} strokeWidth="4.5" strokeLinecap="round" />
+                      <path d="M2 8 C 40 2, 80 11, 120 6 S 180 3, 198 7" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" />
                     </svg>
                   </span>
                 </h1>
@@ -1244,8 +1219,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <SlideUp delay={0.22}>
                 <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
                   <button type="button" onClick={goSignup}
-                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
-                    style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
+                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
+                    style={{ background: INK, boxShadow: "0 14px 32px -14px rgba(11,7,19,0.8)" }}>
                     {t.tryFree}
                   </button>
                   {/* ✅ CORRECTION : Play recentré via translate-x-[1px] */}
@@ -1260,13 +1235,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
                 </div>
-                <p className="mt-4 text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: AMBER }}>
+                {/* Ancrage de prix — le premier chiffre lu est celui du
+                    studio, donc « 500 DZD » paraît léger, pas cher. */}
+                <div className="mt-6 inline-flex items-center justify-center gap-2.5 flex-wrap rounded-full px-4 py-2"
+                  style={{ background: "rgba(11,7,19,0.5)", border: "1px solid rgba(183,155,234,0.55)", backdropFilter: "blur(8px)" }}>
+                  <span className="text-[11.5px] font-semibold text-white/65">{t.studioPrice}</span>
+                  <span className="text-[12.5px] font-bold line-through" style={{ color: "rgba(255,255,255,0.5)" }}>{t.priceOld}</span>
+                  <ArrowIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[13px] font-extrabold" style={{ color: "#FFFFFF" }}>{t.priceNow}</span>
+                </div>
+                <p className="mt-4 text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: "rgba(255,255,255,0.78)" }}>
                   <Gift className="w-4 h-4" /> {t.welcomeChip}
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-3 sm:gap-5 flex-wrap">
                   {heroChecks.map((c) => (
                     <span key={c} className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-white/80">
-                      <Check className="w-3.5 h-3.5 shrink-0" style={{ color: AMBER }} /> {c}
+                      <Check className="w-3.5 h-3.5 shrink-0" style={{ color: PURPLE_LIGHT }} /> {c}
                     </span>
                   ))}
                 </div>
@@ -1278,7 +1262,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="relative">
                 <div className="absolute -top-6 end-5 sm:-end-7 z-10 rotate-[8deg]" aria-hidden>
                   <div className="w-[88px] h-[88px] rounded-full flex items-center justify-center text-center"
-                    style={{ background: AMBER, color: INK, boxShadow: "0 10px 24px rgba(233,161,59,0.5)" }}>
+                    style={{ background: "#FFFFFF", color: INK, boxShadow: "0 20px 44px -16px rgba(0,0,0,0.8)" }}>
                     <div className="w-[76px] h-[76px] rounded-full border-2 border-dashed flex flex-col items-center justify-center px-1"
                       style={{ borderColor: "rgba(26,15,46,0.45)" }}>
                       <Gift className="w-4 h-4 mb-0.5" />
@@ -1289,8 +1273,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]"
-                  style={{ borderColor: "rgba(107,45,188,0.25)" }}
+                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_34px_80px_-26px_rgba(0,0,0,0.75)]"
+                  style={{ borderColor: "rgba(201,162,39,0.45)", boxShadow: "0 0 0 1px rgba(201,162,39,0.18), 0 34px 80px -26px rgba(0,0,0,0.75)" }}
                   onMouseEnter={() => setPauseRotate(true)} onMouseLeave={() => setPauseRotate(false)}
                   onFocusCapture={() => setPauseRotate(true)} onBlurCapture={() => setPauseRotate(false)}>
                   <div className="flex items-center gap-1.5 px-4 h-10" style={{ background: INK }}>
@@ -1298,8 +1282,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]/90" />
                     <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]/90" />
                     <Mono className="ms-3 text-[10px] tracking-[0.18em] uppercase text-white/40">sawtify · studio</Mono>
-                    <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? AMBER : "rgba(255,255,255,0.35)" }}>
-                      {heroPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: AMBER }} />}
+                    <span className="ms-auto flex items-center gap-1.5" style={{ color: heroPlaying ? PURPLE_LIGHT : "rgba(255,255,255,0.35)" }}>
+                      {heroPlaying && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: PURPLE_LIGHT }} />}
                       <Kicker ar={isRTL} className="text-[10px]">
                         {heroPlaying ? (isRTL ? "على الهواء" : "On air") : (isRTL ? "جاهز" : "Ready")}
                       </Kicker>
@@ -1392,7 +1376,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span><Num>1 200+</Num> {t.creators}</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
-                  <Star className="w-3 h-3" style={{ color: AMBER, fill: AMBER }} />
+                  <Star className="w-3 h-3" style={{ color: INK, fill: INK }} />
                   <Num>4.9</Num> / <Num>5</Num>
                 </span>
               </div>
@@ -1406,14 +1390,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </SlideUp>
 
         {/* ═══ BANDE MARQUEE (encre) ═══ */}
-        <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: PURPLE_DARK }} aria-hidden>
+        <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: "rgba(201,162,39,0.45)" }} aria-hidden>
           <div dir="ltr" className="marquee-track flex w-max items-center">
             {[0, 1].map((copy) => (
               <div key={copy} className="flex items-center shrink-0">
                 {marqueeItems.map((m, i) => (
                   <span key={i} className="flex items-center px-4 sm:px-6">
                     <span className="text-[13px] font-bold whitespace-nowrap" style={{ color: PAPER }}>{m}</span>
-                    <span className="ms-4 sm:ms-6 w-1.5 h-1.5 rotate-45 shrink-0" style={{ background: AMBER }} />
+                    <span className="ms-4 sm:ms-6 w-1.5 h-1.5 rotate-45 shrink-0" style={{ background: PURPLE_LIGHT }} />
                   </span>
                 ))}
               </div>
@@ -1486,8 +1470,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
                 <button type="button" onClick={goSignup}
-                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
-                  style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
+                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
+                  style={{ background: INK, boxShadow: "0 14px 32px -14px rgba(11,7,19,0.8)" }}>
                   {t.tryFree}
                 </button>
               </div>
@@ -1496,7 +1480,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ VOIX ═══ */}
-        <section id="voices" className="py-16 sm:py-24 scroll-mt-[130px]">
+        <section id="voices" className="py-16 sm:py-24 scroll-mt-[92px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <SectionHead eyebrow={isRTL ? "المكتبة الصوتية" : "La voixothèque"}
@@ -1544,7 +1528,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         </span>
                       </span>
                       <span className="hidden md:flex items-center gap-1 text-[12px] font-bold text-[#1A0F2E]/60 shrink-0">
-                        <Star className="w-3 h-3" style={{ color: AMBER, fill: AMBER }} />
+                        <Star className="w-3 h-3" style={{ color: INK, fill: INK }} />
                         <Num>{v.rating}</Num>
                         <span className="text-[#1A0F2E]/35 font-medium ms-1">(<Num>{v.reviews}</Num>)</span>
                       </span>
@@ -1592,7 +1576,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ PROCESSUS ═══ */}
-        <section id="process" className="py-16 sm:py-24 scroll-mt-[130px]">
+        <section id="process" className="py-16 sm:py-24 scroll-mt-[92px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <SectionHead eyebrow={isRTL ? "الطريقة" : "La méthode"}
@@ -1604,7 +1588,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="relative rounded-2xl border bg-white p-6 sm:p-7 h-full min-h-[190px] flex flex-col justify-between card-lift overflow-hidden" style={{ borderColor: BORDER }}>
                     <div className="absolute -top-12 -end-12 w-28 h-28 rounded-full opacity-10" style={{ background: PURPLE }} aria-hidden />
                     <div className="relative w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[15px]"
-                      style={{ background: PURPLE, color: AMBER, fontFamily: MONO_STACK }}>{s.n}</div>
+                      style={{ background: PURPLE, color: "#FFFFFF", fontFamily: MONO_STACK }}>{s.n}</div>
                     <div className="relative">
                       <h3 className="text-[19px] font-extrabold mb-1.5" style={{ fontFamily: display, color: INK }}>{s.t}</h3>
                       <p className="text-[12.5px] text-[#1A0F2E]/55 leading-relaxed">{s.d}</p>
@@ -1690,8 +1674,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
                     </div>
                     <button type="button" onClick={goSignup}
-                      className="h-11 px-5 rounded-xl font-bold text-[13px] text-white focus-ring hover:brightness-110 transition"
-                      style={{ background: PURPLE }}>
+                      className="h-11 px-5 rounded-xl font-bold text-[13px] text-white focus-ring hover:brightness-125 transition"
+                      style={{ background: INK }}>
                       {t.tryFree}
                     </button>
                   </div>
@@ -1736,7 +1720,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     transition={{ duration: 0.4 }} className="text-center">
                     <div className="flex justify-center gap-1 mb-5">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className="w-4 h-4" style={{ color: AMBER, fill: AMBER }} />
+                        <Star key={i} className="w-4 h-4" style={{ color: INK, fill: INK }} />
                       ))}
                     </div>
                     <blockquote className="text-[clamp(1.25rem,2.6vw,1.8rem)] leading-[1.4] font-bold" style={{ fontFamily: display }}>
@@ -1779,7 +1763,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ TARIFS ═══ */}
-        <section id="pricing" className="py-16 sm:py-24 scroll-mt-[130px]">
+        {/* ═══ RÉASSURANCE — les 4 promesses qui lèvent le frein d'achat ═══
+            Toutes vérifiables : aucun point débité en cas d'échec (le serveur
+            ne débite qu'après une génération réussie), points sans expiration,
+            paiement en dinars via SATIM, aucun abonnement. */}
+        <section className="pt-4 pb-14 sm:pb-20" aria-label={isRTL ? "ضمانات" : "Nos garanties"}>
+          <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+            <SlideUp>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { icon: ShieldCheck, fr: "Aucun point débité si la génération échoue", ar: "ما تنقصش النقاط إذا فشل التوليد" },
+                  { icon: InfinityIcon, fr: "Points sans date d'expiration", ar: "النقاط ما تنتهيش، تبقى عندك" },
+                  { icon: Wallet, fr: "Paiement en dinars — SATIM (CIB & Edahabia)", ar: "الدفع بالدينار عبر SATIM (CIB و الذهبية)" },
+                  { icon: Check, fr: "Sans abonnement — vous payez seulement vos audios", ar: "بلا اشتراك — تخلّص غير على واش تولّد" },
+                ].map((item, i) => {
+                  const Icone = item.icon;
+                  return (
+                    <div key={i} className="relative rounded-2xl bg-white p-5 h-full card-lift overflow-hidden"
+                      style={{ border: `1px solid ${BORDER}`, boxShadow: "0 14px 34px -26px rgba(26,15,46,0.45)" }}>
+                      <span className="absolute inset-x-6 top-0 h-[2px]" aria-hidden
+                        style={{ background: "linear-gradient(90deg, transparent, rgba(26,15,46,0.35), transparent)" }} />
+                      <span className="w-10 h-10 rounded-xl flex items-center justify-center mb-3.5"
+                        style={{ background: "#F5F4F8", color: INK, border: "1px solid rgba(26,15,46,0.10)" }}>
+                        <Icone className="w-5 h-5" />
+                      </span>
+                      <p className="text-[13.5px] font-semibold leading-snug" style={{ color: INK }}>
+                        {isRTL ? item.ar : item.fr}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </SlideUp>
+          </div>
+        </section>
+
+        <section id="pricing" className="py-16 sm:py-24 scroll-mt-[92px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
               <SectionHead eyebrow={isRTL ? "الباقات" : "Les packs"}
@@ -1789,10 +1808,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <SlideUp delay={0.08}>
               <div className="mb-10 mt-10 max-w-2xl mx-auto">
                 <button type="button" onClick={goSignup}
-                  className="relative w-full rounded-2xl border-2 border-dashed text-start focus-ring transition hover:bg-[#FDF6E3]"
-                  style={{ borderColor: AMBER, background: "#FCF4E0" }}>
+                  className="relative w-full rounded-2xl border-2 border-dashed text-start focus-ring transition hover:bg-[#F7F5FB]"
+                  style={{ borderColor: "rgba(107,45,188,0.4)", background: "#FFFFFF" }}>
                   <span className="flex items-center gap-4 px-4 sm:px-5 py-4">
-                    <span className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: AMBER, color: INK }}>
+                    <span className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: INK, color: "#FFFFFF" }}>
                       <Gift className="w-5 h-5" />
                     </span>
                     <span className="flex-1 min-w-0">
@@ -1812,13 +1831,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <SlideUp key={p.pts} delay={i * 0.06}>
                   <div className={`relative rounded-2xl border p-6 h-full flex flex-col card-lift ${p.featured ? "text-white" : "bg-white"}`}
                     style={p.featured ? {
-                      borderColor: PURPLE,
-                      background: `linear-gradient(160deg, ${PURPLE} 0%, ${PURPLE_DARK} 100%)`,
-                      boxShadow: "0 22px 46px -20px rgba(107,45,188,0.6)",
+                      borderColor: "rgba(107,45,188,0.85)",
+                      background: `linear-gradient(160deg, #241736 0%, ${INK} 60%, #0E0718 100%)`,
+                      boxShadow: "0 0 0 1px rgba(107,45,188,0.3), 0 30px 60px -26px rgba(11,7,19,0.85)",
                     } : { borderColor: BORDER }}>
                     {p.featured && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-extrabold whitespace-nowrap"
-                        style={{ background: AMBER, color: INK }}>
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full text-[10px] font-extrabold whitespace-nowrap flex items-center gap-1.5"
+                        style={{ background: PURPLE, color: "#FFFFFF", boxShadow: "0 10px 26px -10px rgba(107,45,188,0.9)" }}>
+                        <Crown className="w-3 h-3 shrink-0" />
                         <Kicker ar={isRTL} className="text-[10px]">{t.popular}</Kicker>
                       </div>
                     )}
@@ -1843,7 +1863,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
                     <button type="button" onClick={goSignup}
                       className="h-11 rounded-xl text-[13px] font-bold transition focus-ring mt-4 text-white hover:brightness-110"
-                      style={p.featured ? { background: INK } : { background: PURPLE }}>
+                      style={p.featured
+                        ? { background: "#FFFFFF", color: INK }
+                        : { background: PURPLE }}>
                       {t.choose}
                     </button>
                   </div>
@@ -1867,7 +1889,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ FAQ ═══ */}
-        <section id="faq" className="py-16 sm:py-24 scroll-mt-[130px]">
+        <section id="faq" className="py-16 sm:py-24 scroll-mt-[92px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <div className="grid lg:grid-cols-12 gap-10">
               <div className="lg:col-span-4">
@@ -1914,17 +1936,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <SlideUp>
               <div className="relative rounded-[24px] overflow-hidden p-10 sm:p-16 text-center"
                 style={{
-                  background: `linear-gradient(135deg, ${PURPLE_DARK} 0%, ${PURPLE} 50%, ${PURPLE_DARK} 100%)`,
+                  background: `linear-gradient(150deg, #241736 0%, ${INK} 55%, #0B0713 100%)`,
                   color: PAPER,
-                  boxShadow: "0 26px 60px -28px rgba(74,30,135,0.7)",
+                  boxShadow: "0 34px 70px -30px rgba(11,7,19,0.85)",
                 }}>
                 <div className="absolute bottom-0 start-0 flex items-end gap-1.5 p-7 opacity-25" dir="ltr" aria-hidden>
                   {[12, 26, 16, 34, 20, 30, 14, 38, 22, 32, 18, 28, 12, 24].map((h, i) => (
                     <span key={i} className="w-1.5 rounded-full bg-white" style={{ height: h }} />
                   ))}
                 </div>
-                <div className="absolute top-7 end-7 w-2.5 h-2.5 rotate-45" style={{ background: AMBER }} aria-hidden />
-                <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-30 blur-3xl" style={{ background: "radial-gradient(circle, #E9A13B 0%, transparent 70%)" }} aria-hidden />
+                <div className="absolute top-7 end-7 w-2.5 h-2.5 rotate-45" style={{ background: PURPLE_LIGHT }} aria-hidden />
+                <div className="absolute inset-x-10 top-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent)" }} aria-hidden />
+                <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-30 blur-3xl" style={{ background: "radial-gradient(circle, #6B2DBC 0%, transparent 70%)" }} aria-hidden />
                 <div className="relative">
                   <h2 className="text-[clamp(2rem,5vw,3.6rem)] leading-[1.06] font-extrabold" style={{ fontFamily: display }}>
                     {t.ctaTitle}
@@ -1932,7 +1955,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <p className="mt-4 text-[15px] text-white/80 max-w-md mx-auto">{t.ctaSub}</p>
                   {countdown && (
                     <div className="mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-extrabold"
-                      style={{ background: AMBER, color: INK }}>
+                      style={{ background: "rgba(255,255,255,0.10)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.25)" }}>
                       <Timer className="w-4 h-4" />
                       <span>{t.expiresIn}</span>
                       <Mono dir="ltr" className="tabular-nums">{countdown.h}:{countdown.m}:{countdown.s}</Mono>
@@ -1940,7 +1963,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   )}
                   <button type="button" onClick={goSignup}
                     className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-extrabold text-[15px] transition focus-ring hover:scale-[1.02]"
-                    style={{ background: PAPER, color: PURPLE }}>
+                    style={{ background: "#FFFFFF", color: INK, boxShadow: "0 26px 54px -22px rgba(0,0,0,0.85)" }}>
                     {t.tryFree}
                     <ArrowIcon className="w-4 h-4" />
                   </button>
@@ -2016,10 +2039,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         style={{ borderTop: `1px solid ${BORDER}` }}>
         <button type="button" onClick={goSignup}
           className="w-full h-12 rounded-xl font-bold text-[13.5px] flex items-center justify-center gap-2.5 text-white"
-          style={{ background: PURPLE }}>
+          style={{ background: INK }}>
           <span className="truncate">{t.tryFree}</span>
           {countdown && (
-            <Mono dir="ltr" className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md bg-black/20 tabular-nums">
+            <Mono dir="ltr" className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md bg-white/15 tabular-nums">
               {countdown.h}:{countdown.m}:{countdown.s}
             </Mono>
           )}
@@ -2098,8 +2121,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
                 <p className="text-[13px] text-[#1A0F2E]/60 leading-relaxed mb-5">{t.listenBody}</p>
                 <button type="button" onClick={goSignup}
-                  className="w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110"
-                  style={{ background: PURPLE }}>
+                  className="w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-125"
+                  style={{ background: INK }}>
                   {t.moreVoices} — {isRTL ? listenVoice.nameAr : listenVoice.nameFr}
                 </button>
               </motion.div>
@@ -2126,7 +2149,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <X className="w-4 h-4" />
                 </button>
                 <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 rotate-[-4deg]"
-                  style={{ background: AMBER, color: INK, boxShadow: "0 12px 28px -10px rgba(233,161,59,0.6)" }}>
+                  style={{ background: PURPLE, color: "#FFFFFF" }}>
                   <Gift className="w-7 h-7" />
                 </div>
                 <h3 className="text-[24px] font-extrabold" style={{ fontFamily: display }}>{t.exitTitle}</h3>
@@ -2140,8 +2163,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 )}
                 <button type="button" onClick={() => { setExitOpen(false); goSignup(); }}
-                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring shine"
-                  style={{ background: PURPLE, boxShadow: "0 10px 26px -10px rgba(107,45,188,0.7)" }}>
+                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring"
+                  style={{ background: INK, boxShadow: "0 14px 32px -14px rgba(11,7,19,0.8)" }}>
                   {t.exitCta}
                 </button>
                 <button type="button" onClick={() => setExitOpen(false)}
