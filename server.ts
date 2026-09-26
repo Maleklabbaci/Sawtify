@@ -1094,6 +1094,26 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 // bufferisait toute la réponse avant de parser (aucun gain de latence) et
 // était la source principale des blocages et coupures aléatoires.
 // ===================================================================
+// ══════════════════════════════════════════════════════════════════════════
+//  LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — 26/09/2026
+// --------------------------------------------------------------------------
+//  Demande du propriétaire : « ce que ça prononce, c'est exactement les mêmes
+//  lettres et les mêmes mots écrits ; il n'ajoute rien de lui-même, rien. »
+//
+//  Cette phrase unique part avec TOUTES les générations (studio, aperçus de
+//  voix, API développeur) :
+//    • en 3.8 → première consigne de `speech_metadata.style` ;
+//    • en 3.1 → première ligne des DIRECTOR'S NOTES.
+//  Elle n'est JAMAIS écrite dans le texte à lire — sinon Gemini la
+//  prononcerait. C'est `buildTtsRequest()` qui s'en charge (voir tts/engine.ts).
+//
+//  Pour la retirer sans redéployer :  TTS_STRICT_VERBATIM=0
+// ══════════════════════════════════════════════════════════════════════════
+const VERBATIM_INSTRUCTION =
+  process.env.TTS_STRICT_VERBATIM === "0"
+    ? null
+    : "Read the transcript exactly as written, the same letters and the same words: add nothing, change nothing, repeat nothing, skip nothing.";
+
 async function synthesizeWithRetry(
   rawText: string,
   selectedVoiceName: string,
@@ -1193,6 +1213,8 @@ async function synthesizeWithRetry(
         pitchNote ? `Pitch: ${pitchNote}` : "",
         emotionNote ? `Tone: ${emotionNote}` : "",
       ],
+      // « Lis exactement ce qui est écrit » — voir VERBATIM_INSTRUCTION.
+      verbatimInstruction: VERBATIM_INSTRUCTION,
       output: "pcm",
     });
 

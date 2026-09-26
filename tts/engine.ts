@@ -160,6 +160,20 @@ export type BuildTtsRequestOptions = {
    * dériverait au lieu d'obéir.
    */
   character?: string | null;
+  /**
+   * LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — demande du propriétaire
+   * (26/09/2026) : « ce que ça prononce = exactement les mêmes lettres, les
+   * mêmes mots écrits ; il n'ajoute rien de lui-même. »
+   *
+   * Une phrase COURTE, placée EN TÊTE des consignes :
+   *   • mode modern (3.8) → 1re consigne de `speech_metadata.style` ;
+   *   • mode legacy (3.1) → 1re ligne des DIRECTOR'S NOTES.
+   *
+   * `null` / absent → aucun ajout : le comportement d'avant, à l'identique.
+   * (La doc Google prévient que « extra prompt text increases drift » : c'est
+   *  pour ça qu'on n'envoie QU'UNE phrase, et jamais dans le transcript.)
+   */
+  verbatimInstruction?: string | null;
   /** Persona legacy (mode 3.1 uniquement) — ex. "Amin, a young friendly…". */
   legacyPersona?: string | null;
   /** Notes legacy additionnelles (mode 3.1) — pace, pitch, ton. */
@@ -305,7 +319,11 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   //    « calme et posé » + « énergique et punchy » dans le même style, c'est
   //    deux ordres contradictoires — la voix dériverait au lieu d'obéir.
   const caractere = styleDemande ? "" : (opts.character || "").trim();
+  // ⓪ LECTURE CONFORME — toujours EN PREMIER : c'est la consigne qui prime
+  //    sur toutes les autres (« lis exactement ce qui est écrit »).
+  const verbatim = (opts.verbatimInstruction || "").trim();
   const effectiveStyle = [
+    verbatim,
     languageInstruction(parsed.text),
     styleDemande || caractere,
     styleExplicite,
@@ -366,6 +384,10 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       : "";
 
     const noteLines: string[] = [];
+    // En premier, la règle de lecture : c'est elle qui décide de ce qui est
+    // prononcé. Elle ne doit JAMAIS se retrouver dans le TRANSCRIPT ci-dessous
+    // (sinon Gemini la lirait à voix haute).
+    if (verbatim) noteLines.push(verbatim);
     if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
     noteLines.push("Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.");
     for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);

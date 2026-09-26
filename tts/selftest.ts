@@ -633,7 +633,41 @@ await (async () => {
   ok(enorme.ok && enorme.results.join(",") === "2,4,6", "concurrence 999 : bornée au nombre de morceaux");
 })();
 
-section("15. RÉSUMÉ");
+section("15. LECTURE CONFORME AU TEXTE ÉCRIT — « exactement les mêmes mots »");
+{
+  const PHRASE = "Read the transcript exactly as written, the same letters and the same words: add nothing, change nothing, repeat nothing, skip nothing.";
+  const TEXTE_AR = "سلام خاوتي، اليوم عندنا عرض خاص";
+
+  // ① MODE 3.8 : la consigne part dans le style, et EN PREMIER.
+  const m = buildTtsRequest({ model: "gemini-3.8-flash-tts", rawText: TEXTE_AR, voiceName: "Puck", style: null, verbatimInstruction: PHRASE });
+  const styleM: string = (m.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(styleM.startsWith(PHRASE), "★ 3.8 : la consigne « lis exactement ce qui est écrit » part en PREMIER", styleM.slice(0, 55) + "…");
+  ok(styleM.includes("Algerian Darija"), "…et la consigne de langue n'est pas perdue en chemin");
+  ok((m.body as any).contents[0].parts[0].text === TEXTE_AR, "★ la consigne n'est JAMAIS écrite dans le texte à lire (sinon elle serait prononcée)");
+
+  // ② Elle ne casse aucune règle existante.
+  const mTon = buildTtsRequest({ model: "gemini-3.8-flash-tts", rawText: "[calm] " + TEXTE_AR, voiceName: "Puck", style: null, character: "upbeat", verbatimInstruction: PHRASE });
+  const styleTon: string = (mTon.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(styleTon.startsWith(PHRASE) && /calm and composed/.test(styleTon), "★ la règle de lecture n'annule pas le ton demandé par l'utilisateur");
+  ok(!/upbeat/.test(styleTon), "…et la règle « un seul ton » tient toujours (le caractère reste écarté)");
+
+  // ③ MODE 3.1 : la consigne part dans les DIRECTOR'S NOTES, jamais dans le transcript.
+  const l = buildTtsRequest({ model: "gemini-3.1-flash-tts-preview", rawText: TEXTE_AR, voiceName: "Puck", style: null, legacyPersona: "Amin, friendly.", verbatimInstruction: PHRASE });
+  const bloc: string = (l.body as any).contents[0].parts[0].text;
+  const transcript = bloc.split("TRANSCRIPT:")[1] || "";
+  ok(bloc.includes(PHRASE), "★ 3.1 : la consigne part dans les DIRECTOR'S NOTES");
+  ok(!transcript.includes(PHRASE), "★ 3.1 : elle n'est PAS dans le transcript (elle serait lue à voix haute)");
+  ok(transcript.includes("سلام خاوتي"), "…et le texte de l'utilisateur est transmis tel quel");
+  ok(bloc.includes("Do not read these notes aloud"), "le rappel « ne pas lire les notes » est toujours là");
+
+  // ④ Sans la consigne : comportement d'avant, au caractère près.
+  const avant = buildTtsRequest({ model: "gemini-3.8-flash-tts", rawText: TEXTE_AR, voiceName: "Puck", style: null });
+  const styleAvant: string = (avant.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(!/exactly as written/i.test(styleAvant), "sans la consigne, le style reste exactement celui d'avant");
+  ok(styleAvant === languageInstruction(TEXTE_AR), "…au caractère près (aucun effet de bord)");
+}
+
+section("16. RÉSUMÉ");
 console.log(`\n  Tests réussis : ${pass}   |   Échecs : ${fail}`);
 if (fail === 0) console.log("\n  ✅ LE DOUBLE MOTEUR FONCTIONNE — les deux modes sont opérationnels.\n");
 else console.log("\n  ❌ Corriger les échecs ci-dessus.\n");
