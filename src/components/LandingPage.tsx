@@ -61,6 +61,9 @@ const GOLD = "#C9A227";
 const GOLD_LIGHT = "#EBD79A";
 const GOLD_DEEP = "#8A6A14";
 const GOLD_GRAD = "linear-gradient(180deg, #EFDDA8 0%, #C9A227 55%, #A6811B 100%)";
+/* Le sceau : or métallique (lumière en haut à gauche, ombre en bas à droite) —
+   c'est ce dégradé qui donne l'impression de métal plutôt que d'aplat jaune. */
+const GOLD_SEAL = "radial-gradient(circle at 34% 28%, #F6EBC4 0%, #D9B94A 40%, #B08D1C 72%, #8A6A14 100%)";
 const CLAY = "#C2452A";
 const BORDER = "#E5DCCB";
 const BG_VIDEO_URL =
@@ -1306,7 +1309,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="relative">
                 <div className="absolute -top-6 end-5 sm:-end-7 z-10 rotate-[8deg]" aria-hidden>
                   <div className="w-[88px] h-[88px] rounded-full flex items-center justify-center text-center"
-                    style={{ background: AMBER, color: INK, boxShadow: "0 10px 24px rgba(233,161,59,0.5)" }}>
+                    style={{ background: GOLD_SEAL, color: INK, boxShadow: "0 12px 26px -8px rgba(166,129,27,0.75), inset 0 1px 0 rgba(255,255,255,0.55)" }}>
                     <div className="w-[76px] h-[76px] rounded-full border-2 border-dashed flex flex-col items-center justify-center px-1"
                       style={{ borderColor: "rgba(26,15,46,0.45)" }}>
                       <Gift className="w-4 h-4 mb-0.5" />
