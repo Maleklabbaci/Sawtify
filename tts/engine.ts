@@ -183,25 +183,45 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       `Sons non humains retirés (déconseillés par Google) : ${parsed.forbiddenSfx.join(", ")}`
     );
   }
-  if (parsed.legacyTagsFound.length && mode === "modern") {
-    warnings.push(
-      `Anciennes balises converties : ${parsed.legacyTagsFound.map((t) => `[${t}]`).join(", ")}`
-    );
-  }
+    if (parsed.legacyTagsFound.length && mode === "modern") {
+      warnings.push(
+        `Anciennes balises converties : ${parsed.legacyTagsFound.map((t) => `[${t}]`).join(", ")}`
+      );
+    }
+    // Un ton dure toute la réplique : impossible d'en changer en plein milieu
+    // comme le permettait la syntaxe 3.1. On le dit au lieu de l'ignorer en silence.
+    if (parsed.droppedTones.length) {
+      warnings.push(
+        `Un seul ton par lecture : ${parsed.droppedTones.map((t) => `[${t}]`).join(", ")} ignoré(s). ` +
+        `Le ton de toute la lecture reste « ${(parsed.requestedStyle || "").split(",")[0]} ».`
+      );
+    }
 
   // ── Style effectif ──────────────────────────────────────────────────────
-  // Par défaut : UNIQUEMENT ce que l'utilisateur a réglé explicitement
-  // (sa vitesse, sa hauteur). On n'invente plus rien à partir des balises.
+  // Trois sources, par ordre de priorité :
   //
-  // Pourquoi : `style` est SOUTENU (toute la réplique) alors qu'une balise est
-  // PONCTUELLE. Un seul <laugh> au milieu d'un texte grave suffisait à faire
-  // livrer tout le texte sur un ton joyeux. Et la doc Google recommande de
-  // synthétiser sans style d'abord : « most requests need no style instruction ».
+  //   1. `opts.style`      — la vitesse / la hauteur réglées par l'utilisateur.
+  //   2. `requestedStyle`  — un TON que l'utilisateur a DEMANDÉ explicitement
+  //                          (balise à crochets carrés : `[calm]`, `[excited]`…).
+  //                          On ne l'invente pas, on le transmet : il est donc
+  //                          TOUJOURS honoré, même quand `autoStyle` est false.
+  //                          Sans ça, 5 des 9 effets du menu « Insérer effet »
+  //                          ne faisaient STRICTEMENT RIEN (l'app parlait encore
+  //                          la langue 3.1, où `[calm]` était un mot-clé natif).
+  //   3. `suggestedStyle`  — DÉDUIT d'une balise entendue dans le texte
+  //                          (« il y a un <laugh>, donc ton joyeux »). C'est une
+  //                          invention : désactivée par défaut (décision du 26/09).
+  //                          À réactiver avec `autoStyle: true` / `TTS_AUTO_STYLE=1`.
   //
-  // `autoStyle: true` restaure l'ancien comportement (déduction depuis le
-  // premier tag porteur d'émotion).
+  // Pourquoi l'invention est éteinte : `style` est SOUTENU (toute la réplique)
+  // alors qu'une balise est PONCTUELLE. Un seul `<laugh>` au milieu d'un texte
+  // grave suffisait à faire livrer tout le texte sur un ton joyeux. Et la doc
+  // Google recommande de synthétiser sans style d'abord : « most requests need
+  // no style instruction ».
   const styleExplicite = (opts.style || "").trim();
-  const effectiveStyle = styleExplicite || (opts.autoStyle ? parsed.suggestedStyle || "" : "");
+  const styleDemande = (parsed.requestedStyle || "").trim();
+  const styleDeduit = opts.autoStyle ? parsed.suggestedStyle || "" : "";
+  const effectiveStyle = styleExplicite || styleDemande || styleDeduit;
 
   if (mode === "modern") {
     // ======================================================================
@@ -244,21 +264,29 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   //  Les instructions de jeu sont préfixées au texte, les balises passent
   //  en crochets carrés, et le nom de voix utilise l'ancien champ.
   // ======================================================================
-  const legacyBody = toLegacyTranscript(parsed.text);
+    const legacyBody = toLegacyTranscript(parsed.text);
 
-  const noteLines: string[] = [];
-  if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
-  noteLines.push("Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.");
-  for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);
+    // 3.1 comprend NATIVEMENT les crochets carrés — c'est même écrit dans ses
+    // DIRECTOR'S NOTES ci-dessous. On lui rend donc le ton demandé tel quel,
+    // sinon les effets du menu resteraient perdus dans le mode de secours.
+    // (En 3.8, le même ton passe par `speech_metadata.style`.)
+    const tonLegacy = parsed.honoredLegacyTags.length
+      ? `${parsed.honoredLegacyTags.map((t) => `[${t}]`).join(" ")} `
+      : "";
 
-  const noteBlock = `TTS the following transcript. Do not read these notes aloud.
+    const noteLines: string[] = [];
+    if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
+    noteLines.push("Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.");
+    for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);
+
+    const noteBlock = `TTS the following transcript. Do not read these notes aloud.
 
 DIRECTOR'S NOTES
 ${noteLines.join("\n")}
-The transcript may contain audio tags in brackets such as [excited], [calm], [whispers] or [very fast]: follow them for delivery, never pronounce them. A leading "..." is just a short silent beat before starting.
+The transcript may contain audio tags in brackets such as [calm], [excited], [dramatic], [articulated], [fast], [whispers] or [laughter]: follow them for delivery, never pronounce them. A leading "..." is just a short silent beat before starting.
 
 TRANSCRIPT:
-${legacyBody}`;
+${tonLegacy}${legacyBody}`;
 
   const body: Record<string, unknown> = {
     contents: [{ parts: [{ text: noteBlock }] }],

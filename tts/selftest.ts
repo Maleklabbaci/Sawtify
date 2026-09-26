@@ -2,7 +2,7 @@
  * Test de validation du double moteur TTS (3.1 legacy / 3.8 modern).
  * Vérifie que le pipeline audio reste compatible dans les deux modes.
  */
-import { VOCAL_TAGS, parseTranscript, validateTagsOnly, tagsByCategory, allAcceptedTagStrings, officialTagStrings, aliasCounts } from "./vocalTags";
+import { VOCAL_TAGS, parseTranscript, validateTagsOnly, tagsByCategory, allAcceptedTagStrings, officialTagStrings, aliasCounts, LEGACY_SQUARE_TAGS } from "./vocalTags";
 import {
   resolveEngineMode, buildTtsRequest, stripWavHeader, extractAudioFromResponse,
   toLegacyTranscript, describeEngine, pcmDurationSeconds, legacyFidelityReport,
@@ -47,7 +47,15 @@ ok(!/<bogus tag>/.test(parsed.text), "balise inconnue <bogus tag> retirée");
 ok(parsed.unknownTags.includes("<bogus tag>"), "balise inconnue signalée");
 ok(parsed.forbiddenSfx.includes("applause"), "bruitage non humain [applause] détecté");
 ok(!/applause/i.test(parsed.text), "bruitage non humain retiré");
-ok(parsed.suggestedStyle === "celebratory and energetic", `style déduit du 1er tag dans l'ORDRE DU TEXTE ([excited] avant <laugh>) : "${parsed.suggestedStyle}"`);
+    // L'ORDRE DU TEXTE doit être respecté : <gasp> apparaît avant <laugh>,
+    // donc c'est son styleHint qui doit être retenu.
+    const ordre = parseTranscript("أولاً <gasp> ثم <laugh> في الأخير");
+    ok(ordre.suggestedStyle === "surprised and breathless", `style déduit du 1er tag dans l'ORDRE DU TEXTE (<gasp> avant <laugh>) : "${ordre.suggestedStyle}"`);
+
+    // [excited] est un TON : il ne doit PLUS produire la balise <cheer>
+    // (un bruit de foule qui acclame), mais une instruction de ton.
+    ok(!parsed.text.includes("<cheer>"), "★ [excited] ne déclenche PLUS le bruit de foule <cheer>");
+    ok(parsed.requestedStyle !== null && /excited/i.test(parsed.requestedStyle), `[excited] produit un TON demandé : "${parsed.requestedStyle}"`);
 
 const arabicBracket = parseTranscript("هذا عرض [مهتم] خاص");
 ok(arabicBracket.text.includes("[مهتم]"), "crochets non-anglais « [مهتم] » PRÉSERVÉS (doit être prononcé)");
@@ -326,9 +334,108 @@ const force = buildTtsRequest({
   voiceName: "Puck",
   style: "muttering, then reassuring",
 });
-ok(((force.body as any).contents[0].parts[0].speech_metadata?.style) === "muttering, then reassuring", "un style explicite est transmis tel quel");
+  ok(((force.body as any).contents[0].parts[0].speech_metadata?.style) === "muttering, then reassuring", "un style explicite est transmis tel quel");
 
-// ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  section("13bis. LES EFFETS DU MENU FONT TOUS QUELQUE CHOSE (correctif du 26/09)");
+
+  // RÉGRESSION HISTORIQUE : l'app parlait encore la langue 3.1, où `[calm]`
+  // était un mot-clé natif de Google. En 3.8 ce mot-clé n'existe plus, et le
+  // mapping le transformait en « rien » : l'utilisateur choisissait « Calme »
+  // et le texte partait À L'IDENTIQUE. 5 des 9 effets du menu étaient morts,
+  // et `[excited]` déclenchait un bruit de foule qui acclame (<cheer>).
+  //
+  // Ce test est un GARDE-FOU : il parcourt TOUT le dictionnaire et exige que
+  // chaque ancienne balise produise un effet réel — soit une balise officielle,
+  // soit un ton transmis. Seul « natural » a le droit de ne rien faire, car il
+  // décrit déjà le comportement par défaut.
+  const effetDe = (cle: string) => {
+    const r = parseTranscript(`[${cle}] نص تجريبي`);
+    return { tag: r.tags.length > 0, style: Boolean(r.requestedStyle), texte: r.text };
+  };
+  const clesMortes: string[] = [];
+  for (const cle of Object.keys(LEGACY_SQUARE_TAGS)) {
+    const e = effetDe(cle);
+    if (!e.tag && !e.style && cle !== "natural") clesMortes.push(cle);
+  }
+  ok(
+    clesMortes.length === 0,
+    `★ AUCUN effet mort : les ${Object.keys(LEGACY_SQUARE_TAGS).length} anciennes balises agissent (mortes : ${clesMortes.join(", ") || "aucune"})`,
+  );
+
+  // Chaque ton du menu de l'app doit arriver jusqu'à `speech_metadata.style`.
+  const tonesDuMenu = ["calm", "excited", "dramatic", "articulated", "fast", "serious"];
+  for (const cle of tonesDuMenu) {
+    const e = effetDe(cle);
+    ok(e.style && !e.tag, `[${cle}] → un TON transmis (et aucun bruit parasite)`);
+    ok(!/\[/.test(e.texte), `[${cle}] est bien retiré du texte lu par Gemini`);
+  }
+
+  // Le cas exact de la pop-up « Comment la voix doit-elle commencer ? ».
+  for (const [ton, attendu] of [["calm", /calm/i], ["excited", /excited/i]] as const) {
+    const r = buildTtsRequest({
+      model: "gemini-3.8-flash-tts",
+      rawText: `[${ton}] واش راك يا خويا؟`,
+      voiceName: "Puck",
+      style: null,
+    });
+    const part: any = (r.body as any).contents[0].parts[0];
+    ok(
+      Boolean(part.speech_metadata?.style && attendu.test(part.speech_metadata.style)),
+      `★ pop-up « ${ton} » → ton réellement envoyé : "${part.speech_metadata?.style}"`,
+    );
+    ok(part.text === "واش راك يا خويا؟", `★ pop-up « ${ton} » → le crochet ne part jamais vers Gemini`);
+  }
+
+  // Et surtout : cela marche SANS autoStyle (la demande est explicite).
+  const demandeExplicite = buildTtsRequest({
+    model: "gemini-3.8-flash-tts",
+    rawText: "[excited] [articulated] عرض اليوم",
+    voiceName: "Puck",
+    style: null,
+  });
+  const dPart: any = (demandeExplicite.body as any).contents[0].parts[0];
+  ok(/excited/i.test(dPart.speech_metadata?.style || ""), "deux effets cumulés : l'énergie est transmise");
+  ok(/articulation/i.test(dPart.speech_metadata?.style || ""), "deux effets cumulés : la diction nette aussi");
+
+  // [natural] = comportement par défaut → aucun style imposé, et aucun bruit.
+  const naturel = parseTranscript("[natural] [articulated] Bonjour à tous");
+  ok(naturel.requestedStyle !== null && /articulation/i.test(naturel.requestedStyle), "[natural] seul n'ajoute rien, mais n'annule pas [articulated]");
+
+  // TON CONTRADICTOIRE (l'exemple « Excité … Calme » livré avec l'app) :
+  // en 3.1 on changeait de ton en plein milieu du texte, en 3.8 c'est impossible.
+  // Le 1er ton gagne, et l'autre est SIGNALÉ — jamais ignoré en silence.
+  const deuxTons = parseTranscript("[excited] [articulated] عرض اليوم [calm] والتوصيل مجاني");
+  ok(/excited/i.test(deuxTons.requestedStyle || ""), "★ ton contradictoire : le 1er ton choisi gagne");
+  ok(!/calm/i.test(deuxTons.requestedStyle || ""), "★ ton contradictoire : « calme » n'est PAS envoyé en même temps");
+  ok(/articulation/i.test(deuxTons.requestedStyle || ""), "★ la diction nette reste transmise (elle est cumulable)");
+  ok(deuxTons.droppedTones.includes("calm"), "★ l'utilisateur est prévenu que [calm] a été ignoré");
+  { 
+    const w = buildTtsRequest({ model: "gemini-3.8-flash-tts", rawText: "[excited] عرض [calm] توصيل", voiceName: "Puck", style: null });
+    ok(w.warnings.some((x) => /un seul ton/i.test(x)), `avertissement remonté au client : "${(w.warnings.find((x) => /un seul ton/i.test(x)) || "").slice(0, 70)}…"`);
+  }
+  // Un même ton répété n'est pas une contradiction : c'est juste un doublon.
+  const doublon = parseTranscript("[calm] البداية [calm] والنهاية");
+  ok(doublon.droppedTones.length === 0, "répéter le MÊME ton n'est pas signalé comme un conflit");
+  ok((doublon.requestedStyle || "").split("calm").length === 2, "un ton répété n'est envoyé qu'UNE fois");
+
+  // ── LE MODE DE SECOURS (3.1) NE DOIT PAS PERDRE LE TON ──
+  // 3.1 comprend nativement les crochets carrés : on les lui rend tels quels.
+  // Sans ce test, réparer 3.8 avait cassé le mode de repli sans que personne
+  // ne s'en aperçoive — l'utilisateur n'aurait plus eu AUCUN ton nulle part.
+  const legacyTone = buildTtsRequest({ model: "gemini-3.1-flash-tts-preview", rawText: "[calm] واش راك", voiceName: "Puck" });
+  const legacyText: string = (legacyTone.body as any).contents[0].parts[0].text;
+  ok(legacyText.includes("[calm]"), "★ mode 3.1 : le ton demandé [calm] est bien TRANSMIS (syntaxe native)");
+  ok(/TRANSCRIPT:\s*\n\s*\[calm\]/.test(legacyText), "★ mode 3.1 : le ton est placé juste avant le transcript");
+  const modernTone = buildTtsRequest({ model: "gemini-3.8-flash-tts", rawText: "[calm] واش راك", voiceName: "Puck", style: null });
+  ok(!JSON.stringify(modernTone.body).includes("[calm]"), "★ mode 3.8 : le crochet n'est JAMAIS envoyé (ton passé par le style)");
+  ok(legacyTone.mode === "legacy" && modernTone.mode === "modern", "★ les deux modes restent bien distingués");
+
+  // Le silence des pauses ne doit pas être confondu avec un ton.
+  const pause = parseTranscript("نص <short pause> نص آخر");
+  ok(pause.requestedStyle === null, "une pause officielle ne fabrique aucun ton");
+
+  // ─────────────────────────────────────────────────────────────────────────────
 section("14. RÉSUMÉ");
 console.log(`\n  Tests réussis : ${pass}   |   Échecs : ${fail}`);
 if (fail === 0) console.log("\n  ✅ LE DOUBLE MOTEUR FONCTIONNE — les deux modes sont opérationnels.\n");

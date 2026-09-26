@@ -254,9 +254,28 @@ traduites vers la forme officielle avant l'envoi. Google ne les prononce jamais.
 Les **bruits non humains** (`<applause>`, `<music>`, `<bang>`, `<door>`, `<bell>`, `<siren>`…)
 sont refusés et **retirés automatiquement** : ils seraient lus tels quels.
 
-Les **crochets** `[like_this]` sont l'**ancienne syntaxe** Sawtify. Elle reste supportée pour les
-clients existants (`[excited]`, `[whispers]`, `[fast]`…), mais **la nouvelle syntaxe à chevrons est
-recommandée** : elle est plus riche (40 sons contre 11) et conforme à la documentation Google.
+### L'ancienne syntaxe à crochets `[like_this]`
+
+Elle reste supportée pour les clients existants, mais elle **ne se comporte pas comme les chevrons** :
+un crochet ne décrit pas un son, il décrit un **TON** (une couleur qui dure toute la lecture).
+
+| Crochet | Devient |
+|---|---|
+| `[whispers]` · `[laughter]` · `[breathing]` | une **balise** officielle (`<whispers>`, `<laugh>`, `<breath>`) |
+| `[calm]` · `[excited]` · `[dramatic]` · `[serious]` | un **ton**, transmis dans `speech_metadata.style` |
+| `[articulated]` · `[fast]` | une **façon de dire**, cumulable avec un ton |
+| `[natural]` | rien : c'est déjà le comportement par défaut |
+| un mot inconnu, ex. `[promo]` | rien non plus — mais il est **prononcé** (ce n'est pas une balise) |
+
+> ⚠️ **Un seul ton par lecture.** `[calm]` puis `[dramatic]` dans le même texte : seul le premier
+> est appliqué. Le second est signalé dans `warnings` — impossible de changer de ton en plein
+> milieu d'une réplique, car `speech_metadata.style` dure tout le tour.
+>
+> Conséquence directe : `[excited]` **ne produit plus** la balise `<cheer>`, qui déclenchait un bruit
+> de foule au lieu d'une voix énergique (corrigé le 26/09/2026).
+
+**La syntaxe à chevrons reste recommandée** : elle est plus riche (40 sons contre 11 écritures) et
+conforme à la documentation Google.
 
 ---
 
@@ -572,7 +591,9 @@ données, aucune clé n'est lisible. En contrepartie, **une clé perdue est déf
 ### Garanties de compatibilité
 
 - Les **9 `voice_*` historiques** fonctionnent toujours, à l'identique.
-- L'ancienne syntaxe à **crochets** `[excited]` est toujours comprise.
+- L'ancienne syntaxe à **crochets** est toujours comprise, et **agit vraiment** : les tons
+  (`[calm]`, `[excited]`, `[dramatic]`…) passent par `speech_metadata.style` (ils ne faisaient
+  rien avant le 26/09/2026). Un seul ton par lecture — le premier gagne.
 - La sortie reste **WAV PCM mono 24 kHz**.
 - L'ancien identifiant jamais résolu retombait déjà sur Amine : ce comportement est conservé.
 

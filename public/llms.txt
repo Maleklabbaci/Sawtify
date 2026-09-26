@@ -38,6 +38,19 @@ automatisation (n8n, Make, Zapier) ou une application mobile.
   `403` solde ≤ 1 000 · `405` mauvaise méthode · `410` URL média expirée · `429` quota atteint ·
   `503` service temporairement indisponible (aucun débit).
 
+### Balises et tons — ce qu'il faut savoir
+
+- Deux syntaxes sont acceptées : les **chevrons** `<rire>`, `<laugh>`, `<ضحكة>` (40 sons officiels,
+  recommandé) et les **crochets** `[excited]` (ancienne syntaxe Sawtify, toujours supportée).
+- Les crochets décrivent un **TON**, pas un son : `[calm]`, `[excited]`, `[dramatic]`, `[serious]`
+  sont transmis dans `speech_metadata.style`. `[whispers]`, `[laughter]`, `[breathing]` deviennent
+  des balises officielles.
+- **Un seul ton par lecture.** Dans `[calm] … [dramatic] …`, seul le premier est appliqué ; le
+  second est signalé dans le champ `warnings`. `speech_metadata.style` dure tout le tour, il est
+  donc impossible de changer de ton en plein milieu d'une réplique.
+- Ne pas envoyer de bruit non humain (`<applause>`, `<music>`, `<bang>`…) : ils sont retirés.
+- Sawtify n'invente **aucun** style : si vous ne demandez rien, aucun style n'est envoyé.
+
 Documentation complète : <https://sawtify.space/docs/developer-api-beta.html>
 
 ## Pages

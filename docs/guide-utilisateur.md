@@ -104,12 +104,31 @@ l'intérieur de la phrase. C'est ce qui donne l'impression d'une personne, pas d
 | `<همس>` / `<chuchotement>` | pour les confidences, les secrets, les fins de vidéo |
 | `<وقفة طويلة>` | avant une révélation, pour créer l'attente |
 
+### Changer le **ton** (calme, énergique, dramatique…)
+
+Les balises ci-dessus sont des **sons ponctuels** : un rire, un soupir. Le **ton**, lui, est
+différent — c'est la couleur de **toute la lecture**.
+
+Pour le régler, deux endroits :
+
+| Où | Quoi |
+|---|---|
+| La pop-up « Comment la voix doit-elle commencer ? » | apparaît à chaque clic sur **Générer** : Calme, Simple ou Excité |
+| Le bouton **Insérer effet** | `[calm]` `[excited]` `[dramatic]` `[articulated]` `[fast]` `[serious]` |
+
+Ces mots se mettent **entre crochets** (en anglais) et **au début** du texte. Sawtify les traduit
+tout seul dans la bonne langue technique : tu n'as rien d'autre à faire.
+
+> ⚠️ **Un seul ton par lecture.** `[calm]` puis `[dramatic]` dans le même texte : seul le
+> **premier** est appliqué, et Sawtify te prévient que le second n'a pas été pris en compte.
+> Pour changer de ton en cours de route, génère **deux fichiers** et assemble-les au montage.
+
 ### Trois choses à ne pas faire
 
 | ❌ À éviter | Pourquoi | ✅ À faire plutôt |
 |---|---|---|
 | `<music>` `<applause>` `<door>` `<bang>` | Ces bruits **ne sont pas des sons humains** : Sawtify les retire automatiquement | Ajoute la musique ou le bruitage au montage vidéo, pas dans la voix |
-| `[calm]` `[dramatic]` `[fast]` | L'ancienne syntaxe existe encore mais ces mots-là **ne font rien** | Utilise `speed` (vitesse) et `pitch` (hauteur) dans les réglages |
+| `[calm]` **puis** `[dramatic]` dans le même texte | Un seul **ton** par lecture : le premier choisi gagne, l'autre est ignoré | Choisis un ton, ou change de ton entre **deux générations** |
 | Une balise tous les trois mots | La voix devient théâtrale, voire ridicule | **2 à 4 balises** par paragraphe suffisent largement |
 
 > ⚠️ Si tu écris une balise que Sawtify ne connaît pas, elle est simplement retirée : elle ne sera

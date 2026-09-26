@@ -121,7 +121,7 @@ input[type=search]:focus{outline:2px solid #ddd6fe;border-color:var(--purple)}
 <span class="pill h">Astuce 1</span> Les accents et la vocalisation arabe ne comptent pas : <code>&lt;rire léger&gt;</code> = <code>&lt;RIRE LEGER&gt;</code> = <code>&lt;ضَحْكة&gt;</code> = <code>&lt;ضحكة&gt;</code>.<br>
 <span class="pill f">Astuce 2</span> La langue parlée ne change jamais : une balise anglaise dans un texte arabe ne fait pas passer le texte en anglais.
 </div>
-<div class="callout warn" style="margin-top:16px"><div>⚠️</div><div><strong>Ce qui n'est pas accepté</strong>Les bruits non humains (<code>&lt;applause&gt;</code>, <code>&lt;music&gt;</code>, <code>&lt;bang&gt;</code>, <code>&lt;door&gt;</code>…) sont <b>retirés automatiquement</b> : ils seraient lus tels quels. L'ancienne syntaxe à crochets <code>[excited]</code> reste supportée, mais les chevrons sont recommandés (40 sons contre 11).</div></div>
+<div class="callout warn" style="margin-top:16px"><div>⚠️</div><div><strong>Ce qui n'est pas accepté</strong>Les bruits non humains (<code>&lt;applause&gt;</code>, <code>&lt;music&gt;</code>, <code>&lt;bang&gt;</code>, <code>&lt;door&gt;</code>…) sont <b>retirés automatiquement</b> : ils seraient lus tels quels. L'ancienne syntaxe à crochets reste supportée, mais elle décrit un <b>ton</b>, pas un son : <code>[calm]</code> <code>[excited]</code> <code>[dramatic]</code> passent par <code>speech_metadata.style</code>. <b>Un seul ton par lecture</b> — le premier gagne, le suivant est signalé dans <code>warnings</code>. Les chevrons restent recommandés (40 sons contre 11 écritures).</div></div>
 </section>
 
 <section class="section" id="tts"><h2>Générer un fichier vocal</h2>
@@ -287,7 +287,7 @@ print("Points débités :", data["points_deducted"], "| Reste :", data["remainin
 <tr><td><b><code>/api/v1/developer/usage</code></b></td><td>Statistiques sur 30 jours, détaillées par jour</td></tr>
 <tr><td><b>Champ <code>source</code></b></td><td>Indique si l'audio vient d'un fichier figé ou d'une génération</td></tr>
 </table></div>
-<div class="callout green"><div>✓</div><div><strong>Compatibilité garantie</strong>Les 9 <code>voice_*</code> historiques fonctionnent à l'identique · l'ancienne syntaxe <code>[excited]</code> est toujours comprise · la sortie reste WAV PCM mono 24 kHz · un identifiant jamais résolu retombait déjà sur Amine, ce comportement est conservé.</div></div>
+<div class="callout green"><div>✓</div><div><strong>Compatibilité garantie</strong>Les 9 <code>voice_*</code> historiques fonctionnent à l'identique · l'ancienne syntaxe à crochets est toujours comprise <b>et agit vraiment</b> (les tons ne faisaient rien avant le 26/09/2026 ; <code>[excited]</code> produisait même un bruit de foule) · la sortie reste WAV PCM mono 24 kHz · un identifiant jamais résolu retombait déjà sur Amine, ce comportement est conservé.</div></div>
 </section>
 
 <footer class="footer">Sawtify Developer API Beta · <a href="mailto:SAWTIFYSPACE@GMAIL.COM">SAWTIFYSPACE@GMAIL.COM</a><br><span style="font-size:11px">Dernière mise à jour : 26 septembre 2026 · Version API v1 · Gemini 3.8 Flash TTS</span></footer>

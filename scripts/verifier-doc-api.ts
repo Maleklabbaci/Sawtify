@@ -239,8 +239,12 @@ check("les 30 prénoms sont dans le guide", manquantsGuide.length === 0, manquan
 check("le guide dit qu'une balise n'est jamais prononcée", /jamais prononcée|n'est jamais prononcée|Jamais prononcée/i.test(GUIDE));
 check("le guide dit que la langue est détectée automatiquement", /détectée automatiquement/i.test(GUIDE));
 check("le guide dit que les accents ne comptent pas", /accents? .*ne comptent pas|ne comptent pas/i.test(GUIDE));
-check("le guide prévient que [calm]/[fast] ne font rien",
-  GUIDE.includes("[calm]") && /ne font rien|ne fait rien/i.test(GUIDE));
+// Obsolète depuis le 26/09/2026 : les tons À CROCHETS agissent désormais pour de
+// vrai (ils étaient mappés vers « rien », or l'app les envoie depuis sa pop-up de
+// génération). Ce qui reste vrai, et que le guide doit dire, c'est qu'un seul ton
+// s'applique par lecture.
+check("le guide prévient qu'un seul ton s'applique par lecture",
+  GUIDE.includes("[calm]") && /un seul ton par lecture/i.test(GUIDE));
 check("le guide explique que les bruits non humains sont retirés", /retire automatiquement|retiré automatiquement|sont retirés/i.test(GUIDE));
 
 // ===========================================================================
@@ -262,6 +266,28 @@ check("plus aucune balise entre crochets dans les exemples",
   !/\["\[\]a-z\]"/.test("") && !SNIPPETS.includes('"[whispers]"') && !SNIPPETS.includes('"[excited]"') && !SNIPPETS.includes('"[calm]"'));
 check("les balises officielles de Google sont utilisées dans les exemples",
   officialTagStrings().some((t) => SNIPPETS.includes(`"${t}"`)));
+
+// ===========================================================================
+titre("10. LES TONS (correctif du 26/09/2026)");
+
+// L'app parlait encore la langue 3.1 : `[calm]` n'y existait plus et devenait
+// « rien ». 5 des 9 effets du menu étaient morts, et `[excited]` déclenchait un
+// bruit de foule (<cheer>) au lieu d'une voix énergique. Ces contrôles empêchent
+// la doc de recommencer à mentir sur ce point.
+const VOCAL = lire("tts/vocalTags.ts");
+const MOTEUR = lire("tts/engine.ts");
+
+check("le code traduit les tons vers `speech_metadata.style`", VOCAL.includes('kind: "tone"') && MOTEUR.includes("parsed.requestedStyle"));
+check("`[excited]` n'est plus mappé vers la balise <cheer>", !/excited:\s*\{\s*kind:\s*"tag"/.test(VOCAL));
+check("le markdown documente la règle du seul ton par lecture", /un seul ton par lecture/i.test(MD));
+check("la page HTML documente la règle du seul ton par lecture", /un seul ton par lecture/i.test(HTML));
+check("llms.txt documente la règle du seul ton par lecture", /un seul ton par lecture/i.test(LLMS));
+check("le guide utilisateur ne dit plus que ces mots ne font rien", !/ces mots-là \*\*ne font rien\*\*/i.test(GUIDE));
+check("le guide utilisateur explique où régler le ton", /Changer le \*\*ton\*\*/i.test(GUIDE));
+check("les tons du menu sont cités dans le markdown", ["[calm]", "[excited]", "[dramatic]", "[articulated]"].every((t) => MD.includes(t)));
+check("le code distingue TON (unique) et FAÇON DE DIRE (cumulable)", VOCAL.includes('kind: "delivery"') && MOTEUR.includes("droppedTones"));
+check("le mode 3.1 ne perd pas le ton (syntaxe native à crochets)", MOTEUR.includes("honoredLegacyTags"));
+check("les 13 anciennes balises ont toutes un effet réel", (VOCAL.match(/kind:\s*"(tag|tone|delivery)"/g) || []).length >= 12);
 
 // ===========================================================================
 console.log(`\n${"═".repeat(78)}`);

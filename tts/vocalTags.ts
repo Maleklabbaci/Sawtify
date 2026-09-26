@@ -155,20 +155,60 @@ const TAG_INDEX: Map<string, VocalTag> = (() => {
  * Conservé UNIQUEMENT pour la détection/nettoyage : ces balises ne doivent
  * JAMAIS atteindre Gemini 3.8 (il les lirait à voix haute).
  */
-export const LEGACY_SQUARE_TAGS: Record<string, string> = {
-  natural: "",
-  articulated: "",
-  excited: "<cheer>",
-  calm: "",
-  dramatic: "",
-  serious: "",
-  whispers: "<whispers>",
-  whisper: "<whispers>",
-  fast: "",
-  laughter: "<laugh>",
-  laughs: "<laugh>",
-  breathing: "<breath>",
-  sighs: "<sigh>",
+/**
+ * ⚠️ À NE PAS CONFONDRE — c'est l'erreur qui a rendu 5 effets « morts » :
+ *
+ *   • une BALISE (`<laugh>`) est un bruit PONCTUEL : elle ne dure qu'un instant ;
+ *   • un TON (« calme », « énergique ») est SOUTENU : il dure toute la lecture.
+ *
+ * Google n'expose donc AUCUNE balise pour dire « calme » ou « énergique » —
+ * ces intentions passent par `speech_metadata.style`. Mapper `[calm]` vers
+ * « rien » était faux : l'utilisateur avait explicitement demandé un ton.
+ *
+ * Trois familles :
+ *   • `tag`   → il existe une balise officielle équivalente → on l'émet ;
+ *   • `style` → aucun équivalent en balise → on envoie une instruction de TON ;
+ *   • `none`  → la balise demandait déjà le comportement par défaut → rien à faire.
+ *
+ * Les instructions de ton restent COURTES à dessein : la documentation Google
+ * précise que « extra prompt text increases drift ».
+ */
+export type LegacySquareMapping =
+  | { kind: "tag"; tag: string }
+  | { kind: "tone"; style: string }
+  | { kind: "delivery"; style: string }
+  | { kind: "none" };
+
+export const LEGACY_SQUARE_TAGS: Record<string, LegacySquareMapping> = {
+  // ── Équivalent direct en balise officielle (bruit ponctuel) ──
+  whispers: { kind: "tag", tag: "<whispers>" },
+  whisper: { kind: "tag", tag: "<whispers>" },
+  laughter: { kind: "tag", tag: "<laugh>" },
+  laughs: { kind: "tag", tag: "<laugh>" },
+  breathing: { kind: "tag", tag: "<breath>" },
+  sighs: { kind: "tag", tag: "<sigh>" },
+
+  // ── HUMAIS : aucune balise ne décrit un ton ──
+  // Le style étant SOUTENU, il s'applique dès le premier mot : c'est exactement
+  // ce que promet la pop-up « Comment la voix doit-elle commencer ? ».
+  //
+  // ⚠️ UN SEUL ton par lecture. L'ancienne syntaxe 3.1 permettait de changer de
+  // ton EN PLEIN MILIEU du texte (« [excited] … [calm] … »). C'est impossible
+  // en 3.8 : `speech_metadata.style` dure toute la réplique. Cumuler
+  // « excité » ET « calme » enverrait une consigne contradictoire au modèle —
+  // donc le PREMIER ton gagne, et les suivants sont signalés à l'utilisateur.
+  calm: { kind: "tone", style: "calm and composed from the very first word, soft and soothing throughout" },
+  excited: { kind: "tone", style: "excited and enthusiastic, high energy from the very first word" },
+  dramatic: { kind: "tone", style: "dramatic and captivating, with weight on the key words" },
+  serious: { kind: "tone", style: "serious and formal, measured delivery" },
+
+  // ── FAÇON DE DIRE : complémentaire, donc cumulable avec un ton ──
+  // « [excited] [articulated] » doit donner l'énergie ET la diction nette.
+  articulated: { kind: "delivery", style: "clear and precise articulation, every consonant well pronounced" },
+  fast: { kind: "delivery", style: "fast-paced, brisk delivery without slurring" },
+
+  // ── Déjà le comportement par défaut : rien à ajouter ──
+  natural: { kind: "none" },
 };
 
 /**
@@ -194,8 +234,35 @@ export type ParsedTranscript = {
   legacyTagsFound: string[];
   /** Bruitages non humains détectés et retirés. */
   forbiddenSfx: string[];
-  /** Style suggéré, déduit de la 1re balise « porteuse d'émotion » trouvée. */
-  suggestedStyle: string | null;
+    /** Style suggéré, déduit de la 1re balise « porteuse d'émotion » trouvée. */
+    suggestedStyle: string | null;
+    /**
+     * Ton RÉELLEMENT DEMANDÉ par l'utilisateur, via une ancienne balise à
+     * crochets carrés (`[calm]`, `[excited]`, `[dramatic]`…).
+     *
+     * Différence capitale avec `suggestedStyle` :
+     *   • `suggestedStyle` est DÉDUIT d'un bruit entendu dans le texte
+     *     (« il y a un <laugh>, donc le ton est joyeux ») — c'est une invention,
+     *     et c'est pour ça qu'il n'est plus utilisé par défaut ;
+     *   • `requestedStyle` est une DEMANDE EXPLICITE de l'utilisateur. On ne
+     *     l'invente pas, on la transmet : elle est donc TOUJOURS honorée,
+     *     indépendamment de `autoStyle`.
+     */
+    requestedStyle: string | null;
+    /**
+     * Tons refusés parce qu'un seul ton par lecture est possible en 3.8.
+     * Ex. « [excited] … [calm] … » : le 1er gagne, `calm` atterrit ici — et
+     * l'utilisateur est prévenu au lieu de croire que son 2e réglage a agi.
+     */
+    droppedTones: string[];
+    /**
+     * Les balises à crochets carrés RÉELLEMENT honorées, dans l'ordre.
+     *
+     * Sert au mode 3.1 : ce mode comprend NATIVEMENT `[calm]`, `[excited]`…
+     * (c'est même écrit dans ses DIRECTOR'S NOTES). On les lui rend donc telles
+     * quelles, au lieu de les traduire en style comme en 3.8.
+     */
+    honoredLegacyTags: string[];
   /** Balises écrites en français et automatiquement traduites vers l'anglais. */
   translatedFromFrench: string[];
   /** Balises écrites en arabe et automatiquement traduites vers l'anglais. */
@@ -223,6 +290,14 @@ export function parseTranscript(raw: string): ParsedTranscript {
   const tags: VocalTag[] = [];
   const unknownTags: string[] = [];
   const legacyTagsFound: string[] = [];
+  /** Tons demandés explicitement via `[calm]`, `[excited]`… (voir requestedStyle). */
+  const requestedTones: string[] = [];
+  /** Façons de dire demandées (`[articulated]`, `[fast]`) — cumulables avec un ton. */
+  const requestedDeliveries: string[] = [];
+  /** Tons refusés faute de place : un seul ton par lecture (le 1er gagne). */
+  const droppedTones: string[] = [];
+  /** Balises `[...]` honorées, rendues telles quelles au mode 3.1. */
+  const honoredLegacyTags: string[] = [];
   const forbiddenSfx: string[] = [];
   const translatedFromFrench: string[] = [];
   const translatedFromArabic: string[] = [];
@@ -258,13 +333,34 @@ export function parseTranscript(raw: string): ParsedTranscript {
         // être PRONONCÉ. Ex. « [مهتم] », « [فيديو] ». On le laisse intact.
         if (/[^\x00-\x7F]/.test(raw)) return match;
 
-        if (!(key in LEGACY_SQUARE_TAGS)) return match; // ex. « [promo] » → prononcé
-        legacyTagsFound.push(key);
-        const mapped = LEGACY_SQUARE_TAGS[key];
-        if (!mapped) return " "; // « [natural] » n'a pas d'équivalent son → simple retrait
-        const official = TAG_INDEX.get(tagKeyOf(mapped));
-        if (official && !tags.includes(official)) tags.push(official);
-        return official ? official.tag : mapped;
+          if (!(key in LEGACY_SQUARE_TAGS)) return match; // ex. « [promo] » → prononcé
+          legacyTagsFound.push(key);
+          const mapping = LEGACY_SQUARE_TAGS[key];
+
+          // Déjà le comportement par défaut → simple retrait (« [natural] »).
+          if (mapping.kind === "none") return " ";
+
+          // Aucune balise ne décrit un TON → on le transmet via le style.
+          if (mapping.kind === "tone" || mapping.kind === "delivery") {
+            // Un seul TON par lecture (le style dure toute la réplique) ; les
+            // consignes de diction, elles, se cumulent.
+            const doublon = [...requestedTones, ...requestedDeliveries].includes(mapping.style);
+            const tonDejaPris = mapping.kind === "tone" && requestedTones.length > 0;
+            if (doublon) {
+              // Même demande deux fois : ce n'est pas un conflit, rien à faire.
+            } else if (tonDejaPris) {
+              if (!droppedTones.includes(key)) droppedTones.push(key);
+            } else {
+              (mapping.kind === "tone" ? requestedTones : requestedDeliveries).push(mapping.style);
+              honoredLegacyTags.push(key);
+            }
+            return " ";
+          }
+
+          // Équivalent officiel en bruit ponctuel (« [laughter] » → « <laugh> »).
+          const official = TAG_INDEX.get(tagKeyOf(mapping.tag));
+          if (official && !tags.includes(official)) tags.push(official);
+          return official ? official.tag : mapping.tag;
       }
 
       // ── Nouvelle syntaxe angle (Gemini 3.8) ──
@@ -309,15 +405,21 @@ export function parseTranscript(raw: string): ParsedTranscript {
   // 4) Espaces propres (sans toucher aux retours à la ligne significatifs).
   text = text.replace(/[ \t]{2,}/g, " ").replace(/ +([,.;!?؟،؛:])/g, "$1").trim();
 
-  // 5) Style suggéré : première balise porteuse d'une émotion, hors silences.
-  //    L'ordre est celui du texte (garanti par la passe unique ci-dessus).
-  const withStyle = tags.find((t) => !t.isPause && t.styleHint);
-  const suggestedStyle = withStyle?.styleHint ?? null;
+    // 5) Style suggéré : première balise porteuse d'une émotion, hors silences.
+    //    L'ordre est celui du texte (garanti par la passe unique ci-dessus).
+    const withStyle = tags.find((t) => !t.isPause && t.styleHint);
+    const suggestedStyle = withStyle?.styleHint ?? null;
 
-  return {
-    text, tags, unknownTags, legacyTagsFound, forbiddenSfx, suggestedStyle,
-    translatedFromFrench, translatedFromArabic,
-  };
+    // 5bis) Ton DEMANDÉ par l'utilisateur (balises à crochets carrés).
+    //       Le TON vient en premier, la FAÇON DE DIRE ensuite :
+    //       « [excited] [articulated] » → énergie + diction nette.
+    const demande = [...requestedTones, ...requestedDeliveries];
+    const requestedStyle = demande.length ? demande.join(", ") : null;
+
+    return {
+      text, tags, unknownTags, legacyTagsFound, forbiddenSfx, suggestedStyle, requestedStyle,
+      droppedTones, honoredLegacyTags, translatedFromFrench, translatedFromArabic,
+    };
 }
 
 /** Vérifie qu'un texte ne contient QUE des balises officielles. */
