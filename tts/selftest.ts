@@ -34,6 +34,13 @@ ok(resolveEngineMode("gemini-3.1-flash-tts-preview") === "legacy", "3.1 (actuel)
 ok(resolveEngineMode("gemini-2.5-pro-preview-tts") === "legacy", "2.5 → mode LEGACY");
 ok(resolveEngineMode("") === "legacy", "modèle vide → LEGACY (sûr par défaut)");
 ok(resolveEngineMode("gemini-4.0-flash-tts") === "modern", "futur 4.x → MODERN (à jour automatiquement)");
+// ★ 3.10 > 3.9 : la comparaison doit être NUMÉRIQUE. Avec l'ancien motif
+//   (une liste « 3.8 | 3.9 »), un futur 3.10 repassait en mode ANCIEN.
+ok(resolveEngineMode("gemini-3.10-flash-tts") === "modern", "★ 3.10 → MODERN (comparaison numérique, pas alphabétique)");
+ok(resolveEngineMode("gemini-3.9-flash-tts") === "modern", "3.9 → MODERN");
+ok(resolveEngineMode("gemini-3.7-flash-tts") === "legacy", "3.7 → LEGACY (juste sous le seuil)");
+ok(resolveEngineMode("gemini-10.0-flash-tts") === "modern", "10.0 → MODERN (deux chiffres au majeur)");
+ok(resolveEngineMode("gemini-3") === "legacy", "« gemini-3 » sans mineure → LEGACY (sûr par défaut)");
 
 // ─────────────────────────────────────────────────────────────────────────────
 section("3. NETTOYAGE DU TRANSCRIPT");
@@ -115,7 +122,7 @@ ok(!/<laugh>/.test(lText), "aucune balise ANGLE ne fuit vers le 3.1 (sinon lue �
 ok(lBody.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === "Puck", "ancien champ prebuiltVoiceConfig conservé");
 ok(lBody.generationConfig.speechConfig.voiceConfig.voice === undefined, "champ moderne absent en legacy");
 ok(lBody.contents[0].parts[0].speech_metadata === undefined, "pas de speech_metadata en legacy (non supporté)");
-ok(lBody.generationConfig.responseModalities[0] === "audio", "responseModalities = audio (minuscules, ancien format)");
+ok(lBody.generationConfig.responseModalities[0] === "AUDIO", "responseModalities = AUDIO (majuscules) — MÊME graphie dans les deux modes");
 ok(lBody.generationConfig.responseFormat === undefined, "pas de responseFormat en legacy");
 
 // ─────────────────────────────────────────────────────────────────────────────

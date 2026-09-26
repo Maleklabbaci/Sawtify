@@ -43,8 +43,19 @@ export type EngineMode = "legacy" | "modern";
 export const SAMPLE_RATE = 24000;
 export const BYTES_PER_SECOND = SAMPLE_RATE * 2; // 16 bits mono = 48 000 octets/s
 
-/** Modèles connus et leur mode. */
-const MODERN_MODEL_RE = /^gemini-(3\.[89]|[4-9]\.\d+)/;
+/**
+ * Numéro de version lu dans un identifiant de modèle (« gemini-3.10-… » → 3.10).
+ *
+ * ⚠️ On compare les numéros, on n'écrit PAS la liste des versions connues.
+ * Avant, le motif était `/^gemini-(3\.[89]|…)/` : il ne listait que 3.8 et 3.9,
+ * donc un futur `gemini-3.10` était classé en mode ANCIEN (3.10 < 3.9 pour une
+ * comparaison de texte). Ici 3.10 vaut bien 3 + 10/100, donc > 3.8.
+ */
+const MODEL_VERSION_RE = /^gemini-(\d+)\.(\d+)/;
+
+/** Seuil : à partir de cette version, le modèle comprend les nouveautés. */
+const MODERN_MIN_MAJOR = 3;
+const MODERN_MIN_MINOR = 8;
 
 /**
  * Détermine le mode à utiliser pour un modèle donné.
@@ -53,7 +64,17 @@ const MODERN_MODEL_RE = /^gemini-(3\.[89]|[4-9]\.\d+)/;
 export function resolveEngineMode(model: string): EngineMode {
   const m = String(model || "").trim().toLowerCase();
   if (!m) return "legacy";
-  return MODERN_MODEL_RE.test(m) ? "modern" : "legacy";
+
+  const found = MODEL_VERSION_RE.exec(m);
+  if (!found) return "legacy";
+
+  const major = Number(found[1]);
+  const minor = Number(found[2]);
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return "legacy";
+
+  if (major > MODERN_MIN_MAJOR) return "modern";
+  if (major < MODERN_MIN_MAJOR) return "legacy";
+  return minor >= MODERN_MIN_MINOR ? "modern" : "legacy";
 }
 
 /** Vrai si le modèle supporte les nouveautés (sons, style, voix sur mesure). */
@@ -291,7 +312,11 @@ ${tonLegacy}${legacyBody}`;
   const body: Record<string, unknown> = {
     contents: [{ parts: [{ text: noteBlock }] }],
     generationConfig: {
-      responseModalities: ["audio"],
+      // La liste `Modality` est une énumération : en JSON, les valeurs
+      // s'écrivent en MAJUSCULES (« AUDIO », « TEXT »). Écrire « audio » en
+      // minuscules n'était pas cohérent avec la branche moderne — même clé,
+      // deux graphies. Aligné sur la doc.
+      responseModalities: ["AUDIO"],
       speechConfig: {
         voiceConfig: {
           // Ancien champ, toujours accepté par 3.1.

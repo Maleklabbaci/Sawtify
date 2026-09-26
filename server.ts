@@ -864,43 +864,13 @@ function injectNaturalFiller(text: string): string {
 }
 
 // ===================================================================
-//  FIX n°2 : les balises d'émotion restent des AUDIO TAGS natifs.
-// Avant : [excited] était remplacé par "، بحماس واضح وطاقة عالية، " DANS le
-// transcript → la voix lisait ces instructions à voix haute ou livrait un
-// débit mécanique. La doc Google est explicite : "If your transcript is not
-// in English, for best results we recommend that you still use English audio
-// tags." Gemini TTS comprend nativement [excited], [whispers], [very fast]...
 // ===================================================================
-const EMOTION_TAG_MAP: Record<string, string> = {
-  excited: "[excited]",
-  natural: "[natural]",
-  calm: "[calm]",
-  dramatic: "[serious]",
-  serious: "[serious]",
-  whispers: "[whispers]",
-  whisper: "[whispers]",
-  fast: "[very fast]",
-  articulated: "",
-  laughter: "[laughs]",
-  laughs: "[laughs]",
-  breathing: "[sighs]",
-  sighs: "[sighs]",
-};
-
-function extractAndApplyEmotionTags(rawText: string): { textForSpeech: string; tags: string[] } {
-  const tags: string[] = [];
-  // Ne touche qu'aux tags ASCII type [excited]. Le reste est laissé intact :
-  // par ex. le mot entre crochets d'un CTA comme "[مهتم]" doit être PRONONCÉ,
-  // pas traité comme une balise.
-  const textForSpeech = rawText.replace(/\[([a-zA-Z][a-zA-Z _-]*)\]/g, (match, rawTag: string) => {
-    const tag = String(rawTag).toLowerCase().trim();
-    if (!(tag in EMOTION_TAG_MAP)) return match; // tag non géré → conservé tel quel (mécanisme natif)
-    tags.push(tag);
-    return EMOTION_TAG_MAP[tag];
-  });
-  return { textForSpeech, tags };
-}
-
+//  Les balises d'émotion sont gérées par `tts/vocalTags.ts` (catalogue des
+//  40 sons) et `tts/engine.ts`. L'ancien EMOTION_TAG_MAP et sa fonction
+//  extractAndApplyEmotionTags ont été SUPPRIMÉS le 26/09/2026 : plus
+//  appelés nulle part, ils faisaient croire à une seconde table de balises
+//  et ont induit un audit en erreur.
+// ===================================================================
 // Renfort de ton en anglais, court et positif (combinable aux audio tags
 // selon la doc : "combine them with a context prompt to set the overall tone").
 const EMOTION_TONE_EN: Record<string, string> = {
@@ -1078,24 +1048,10 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 
 // ===================================================================
 //  SYNTHESIZE WITH RETRY (réécrit : chunking + timeout + finishReason)
-// FIX n°3 conservé : prompt court type "Director's Notes".
 // L'ancienne stratégie "streaming" SSE est SUPPRIMÉE (FIX TTS-BIS) : elle
 // bufferisait toute la réponse avant de parser (aucun gain de latence) et
 // était la source principale des blocages et coupures aléatoires.
 // ===================================================================
-function buildTTSPrompt(preparedText: string, persona: string, pace: string, pitchNote: string, emotionNote: string): string {
-  return `TTS the following transcript. Do not read these notes aloud.
-
-DIRECTOR'S NOTES
-Speaker: ${persona}
-Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.
-Pace: ${pace}${pitchNote ? `\nPitch: ${pitchNote}` : ""}${emotionNote ? `\nTone: ${emotionNote}` : ""}
-The transcript may contain audio tags in brackets such as [excited], [calm], [whispers] or [very fast]: follow them for delivery, never pronounce them. A leading "..." is just a short silent beat before starting.
-
-TRANSCRIPT:
-${preparedText}`;
-}
-
 async function synthesizeWithRetry(
   rawText: string,
   selectedVoiceName: string,
