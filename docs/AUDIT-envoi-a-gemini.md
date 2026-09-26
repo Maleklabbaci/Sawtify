@@ -113,6 +113,10 @@ La doc prévient : en 3.8, une requête normale renvoie un **WAV complet** (en-t
 Sawtify se protège **deux fois** :
 
 1. il **demande** explicitement `AUDIO_L16` (donc du PCM brut) ;
+   *doute levé le 26/09 : la référence de l'API `generateContent` liste bien l'énumération
+   `MimeType.AUDIO_L16` pour `responseFormat.audio.mimeType`, et la page du modèle écrit
+   `«audio/l16» (AUDIO_L16)` — l'orthographe `audio/l16` appartient à l'autre API (`interactions`).
+   Notre code est donc correct en l'état, rien à changer ;*
 2. s'il reçoit quand même un WAV, `stripWavHeader()` retire l'en-tête en parcourant les blocs
    RIFF — pas juste en sautant 44 octets.
 

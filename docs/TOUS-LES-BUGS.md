@@ -107,11 +107,30 @@ Le détail complet est dans `docs/MODIF-26-09-popup-et-voix.md`.
 | 2 | **Le genre des 21 nouvelles voix** | Google **ne le publie pas**. Seule ton oreille peut trancher |
 | 3 | **Le filtre Hommes / Femmes** ne montre que 5 H et 4 F sur 30 | parce que le genre des 21 autres est inconnu (conséquence du n°2) |
 | 4 | **Les 4 voix régionales** | chantier jamais commencé |
-| 5 | **`AUDIO_L16` ou `audio/l16` ?** | les **deux pages de Google se contredisent**. Impossible de trancher sans clé API |
+| 5 | **`AUDIO_L16` ou `audio/l16` ?** | ✅ **TRANCHÉ le 26/09 — le code est juste**, voir ci-dessous |
 | 6 | **Les 3 réglages SlickPay** dans Render | je n'ai pas accès à ton tableau de bord Render |
 | 7 | **Les e-mails Supabase** | envoyés par Supabase, pas par Sawtify |
 | 8 | **`RechargeModal.tsx`** | meuble oublié, utilisé par personne |
 | 9 | **Il existe DEUX versions de ton site dans le dépôt** | voir la section ⑥ ci-dessous — **c'est le point le plus important de ce document** |
+
+### Le doute `AUDIO_L16` — TRANCHÉ, le code avait raison
+
+Je traînais ce doute depuis deux jours : « l'ancien modèle rendait du son brut, le nouveau rend du
+WAV — est-ce qu'on a bien dit à Google ce qu'on veut ? » Les deux pages de Google écrivaient deux
+choses différentes, alors je n'ai pas voulu toucher au code au hasard.
+
+**Verdict : il n'y avait pas de contradiction.** Ce sont **deux API différentes** :
+
+| | Son nom dans le code | La bonne orthographe |
+|---|---|---|
+| L'API qu'utilise Sawtify (`generateContent`) | `responseFormat.audio.mimeType` | **`AUDIO_L16`** ✅ |
+| L'autre API de Google (`interactions`) | `response_format.mime_type` | `audio/l16` |
+
+Et la page du modèle le dit noir sur blanc : `«audio/l16» (AUDIO_L16)` — **les deux veulent dire
+la même chose**, chacun dans sa langue.
+
+**Donc : le code de Sawtify est correct.** Il demande bien du son brut sans en-tête, 24 000 Hz,
+exactement ce que ton installation attend. **Rien à changer.**
 
 ---
 
