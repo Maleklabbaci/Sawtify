@@ -61,7 +61,7 @@ const modern = buildTtsRequest({
   model: "gemini-3.8-flash-tts",
   rawText: "سلام خاوتي <laugh> واش راكم <short pause> لاباس؟",
   voiceName: "Puck",
-  style: null, // → doit être déduit de <laugh>
+  style: null, // aucun style réglé → la requête ne doit contenir AUCUN style
   legacyPersona: "Amin, a young friendly Algerian man.",
   legacyNotes: ["Pace: Natural conversational pace."],
 });
@@ -69,8 +69,10 @@ const mBody: any = modern.body;
 const mPart = mBody.contents[0].parts[0];
 
 ok(modern.mode === "modern", "mode = modern");
-ok(typeof mPart.speech_metadata?.style === "string", `speech_metadata.style présent : "${mPart.speech_metadata?.style}"`);
-ok(mPart.speech_metadata.style === "cheerful and amused", "style déduit automatiquement du tag <laugh>");
+// ⚠️ Décision du 26/09/2026 : on n'invente PLUS de style à partir des balises.
+// `style` ne contient que ce que l'utilisateur a réglé explicitement.
+ok(mPart.speech_metadata === undefined, "aucun style n'est inventé : speech_metadata absent quand rien n'est réglé");
+ok(mPart.text === "سلام خاوتي <laugh> واش راكم <short pause> لاباس؟", "le transcript reste VERBATIM, balises officielles en place");
 ok(!/DIRECTOR'S NOTES/.test(mPart.text), "AUCUN « DIRECTOR'S NOTES » dans le texte (règle Google anti-dérive)");
 ok(!/Pace:|Tone:|Speaker:/.test(mPart.text), "aucune instruction de jeu dans le texte");
 ok(mPart.text.includes("<laugh>"), "balise angle conservée telle quelle");
@@ -280,8 +282,54 @@ ok(balisesValides.text.includes("<sigh>"), "★ deux balises valides sont prése
 ok(balisesValides.unknownTags.length === 0, "aucune fausse alerte sur un texte sain");
 ok(balisesValides.tags.length === 2, "les 2 balises valides sont bien reconnues");
 
+
 // ─────────────────────────────────────────────────────────────────────────────
-section("13. RÉSUMÉ");
+section("13. STYLE — on n'invente plus rien (décision du 26/09/2026)");
+
+// `style` est SOUTENU (toute la réplique) alors qu'une balise est PONCTUELLE.
+// Déduire un style d'un seul <laugh> faisait livrer un texte grave sur un ton
+// joyeux. On n'envoie donc QUE ce que l'utilisateur a réglé explicitement.
+const sansStyle = buildTtsRequest({
+  model: "gemini-3.8-flash-tts",
+  rawText: "بصح <laugh> الكلام هذا ما يضحكش، المشكل كبير.",
+  voiceName: "Puck",
+  style: null,
+});
+const sansStylePart: any = (sansStyle.body as any).contents[0].parts[0];
+ok(sansStylePart.speech_metadata === undefined, "★ texte grave contenant un <laugh> → AUCUN style imposé à tout le texte");
+ok(sansStyle.tags.some((t) => t.tag === "<laugh>"), "la balise <laugh> reste dans le texte (son ponctuel conservé)");
+
+const avecStyle = buildTtsRequest({
+  model: "gemini-3.8-flash-tts",
+  rawText: "واش راكم خاوتي",
+  voiceName: "Puck",
+  style: "speaking rapidly",
+});
+const avecStylePart: any = (avecStyle.body as any).contents[0].parts[0];
+ok(avecStylePart.speech_metadata?.style === "speaking rapidly", "le style RÉGLÉ par l'utilisateur est bien transmis");
+
+// L'ancien comportement reste accessible pour revenir en arrière.
+const autoStyle = buildTtsRequest({
+  model: "gemini-3.8-flash-tts",
+  rawText: "سلام <laugh> خاوتي",
+  voiceName: "Puck",
+  style: null,
+  autoStyle: true,
+});
+const autoPart: any = (autoStyle.body as any).contents[0].parts[0];
+ok(autoPart.speech_metadata?.style === "cheerful and amused", "autoStyle: true restaure l'ancien comportement (déduction depuis <laugh>)");
+
+// Un utilisateur peut toujours demander un style explicitement : rien n'est bloqué.
+const force = buildTtsRequest({
+  model: "gemini-3.8-flash-tts",
+  rawText: "نص",
+  voiceName: "Puck",
+  style: "muttering, then reassuring",
+});
+ok(((force.body as any).contents[0].parts[0].speech_metadata?.style) === "muttering, then reassuring", "un style explicite est transmis tel quel");
+
+// ─────────────────────────────────────────────────────────────────────────────
+section("14. RÉSUMÉ");
 console.log(`\n  Tests réussis : ${pass}   |   Échecs : ${fail}`);
 if (fail === 0) console.log("\n  ✅ LE DOUBLE MOTEUR FONCTIONNE — les deux modes sont opérationnels.\n");
 else console.log("\n  ❌ Corriger les échecs ci-dessus.\n");

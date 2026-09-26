@@ -101,7 +101,7 @@ C'est exactement pour ça que tout le nettoyage existe : une balise qui arrivera
 | Sujet | Doc Google | Sawtify | Verdict |
 |---|---|---|---|
 | Backchannels `\|oh hmm\|` | pour le dialogue à 2 voix | non utilisés | ➖ hors périmètre |
-| **Style automatique** | « Synthétise d'abord **sans style** : la plupart des requêtes n'en ont pas besoin. Ajoute un style **court**, seulement pour ajuster. » | un style est injecté dès qu'une balise porteuse d'émotion est présente | ⚠️ **écart réel — voir §5** |
+| **Style automatique** | « Synthétise d'abord **sans style** : la plupart des requêtes n'en ont pas besoin. » | ✅ **corrigé le 26/09** : plus aucun style inventé, voir §5 | ✅ **conforme** |
 
 ---
 
@@ -177,9 +177,13 @@ le défaut 1 : un code qu'on ne peut pas tester est un code qui casse en silence
 
 ---
 
-## 5. Ce qu'il reste à décider (pas des bugs, des choix)
+## 5. Le style automatique — corrigé le 26 septembre 2026
 
-### ⚠️ Le style automatique va plus loin que ce que recommande Google
+> ✅ **Décision prise : option A.** Sawtify n'invente plus aucun style. `style` ne contient
+> désormais que ce que l'utilisateur a réglé lui-même (sa vitesse, sa hauteur).
+> Interrupteur de retour en arrière : `TTS_AUTO_STYLE=1`.
+
+### Ce qui n'allait pas
 
 Aujourd'hui, en 3.8, si tu ne règles aucun style, Sawtify en **invente un** à partir de la
 première balise « porteuse d'émotion » du texte. Exemples :
@@ -200,13 +204,15 @@ Tout le texte risque d'être livré sur un ton joyeux — alors que la balise ne
 Et la doc va plus loin : *« Synthétise d'abord **sans style** : la plupart des requêtes n'en ont
 pas besoin. »* Aujourd'hui Sawtify en met un presque toujours.
 
-**Trois options :**
+**Ce qui a été fait :** `style` ne contient plus que les réglages explicites. Vérifié par 5 tests :
 
-| | Quoi | Effet |
-|---|---|---|
-| **A** | Ne plus rien inventer : `style` ne contient que ce que **toi** tu règles (vitesse, hauteur) | 100 % conforme à Google, comportement le plus prévisible |
-| **B** | N'inventer que les styles **soutenus par nature** (`whispering`, `crying`, `weary`) et jamais les explosions ponctuelles (`laugh`, `scream`, `gasp`, `cheer`) | garde un peu d'automatisme sans contresens |
-| **C** | Ne rien changer | le plus expressif, mais parfois à côté de l'intention |
+```
+✓ ★ texte grave contenant un <laugh> → AUCUN style imposé à tout le texte
+✓ la balise <laugh> reste dans le texte (son ponctuel conservé)
+✓ le style RÉGLÉ par l'utilisateur est bien transmis
+✓ autoStyle: true restaure l'ancien comportement
+✓ un style explicite est transmis tel quel
+```
 
 > ⚠️ À ne pas confondre avec les **styles automatiques par voix et par région** dont on a parlé
 > (chantier 6–7, pas encore commencé). Ça, c'est un autre mécanisme. Celui-ci existe **déjà** en
@@ -216,7 +222,7 @@ pas besoin. »* Aujourd'hui Sawtify en met un presque toujours.
 
 | # | Constat | Gravité | Recommandation |
 |---|---|---|---|
-| 1 | La clé API voyage dans l'URL (`…:generateContent?key=…`) au lieu de l'en-tête `x-goog-api-key` | faible | La doc REST utilise l'en-tête. Une clé dans une URL peut se retrouver dans des journaux ou un proxy. À changer si tu veux — je n'ai pas pu tester sans ta clé. |
+| 1 | ~~La clé API voyage dans l'URL~~ | ✅ **corrigé** | La clé part maintenant dans l'en-tête `x-goog-api-key` (la méthode de la doc). Avec un **repli automatique** sur l'ancienne méthode si Google refuse l'en-tête : ce changement ne peut pas casser la production. |
 | 2 | `responseModalities` s'écrit `["audio"]` (minuscules) en mode 3.1 et `["AUDIO"]` en 3.8 | faible | Incohérence, pas un bug : l'ancien mode fonctionne depuis toujours. À uniformiser. |
 | 3 | La reconnaissance des modèles `^gemini-(3\.[89]\|[4-9]\.\d+)` classerait `gemini-3.10` en mode **legacy** | faible, futur | Aucun impact aujourd'hui. À corriger avant la sortie d'un 3.10. |
 | 4 | Les notes du mode 3.1 annoncent `[calm]` et `[very fast]`, deux balises que le code ne produit jamais | cosmétique | Texte du prompt à nettoyer. |
@@ -245,5 +251,6 @@ documentation          49 / 49
 TOTAL                 266 vérifications, 0 échec
 ```
 
-**La seule chose qui reste en écart avec la doc, c'est le style automatique (§5).** Ce n'est pas
-un bug — c'est une décision produit qui t'appartient.
+**Et le seul écart qui restait avec la doc — le style automatique — a été corrigé le même jour :
+Sawtify n'invente plus rien.** La requête envoyée à Gemini est maintenant conforme à la
+documentation officielle sur **tous** les points vérifiés.

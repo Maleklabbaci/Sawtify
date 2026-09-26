@@ -242,6 +242,22 @@ const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts";
 /** Mode déduit automatiquement du modèle de voix : "legacy" ou "modern". */
 const TTS_ENGINE_MODE = resolveEngineMode(TTS_MODEL);
 
+/**
+ * INVENTER UN STYLE À PARTIR DES BALISES ? NON (décision du 26/09/2026).
+ *
+ * On envoie désormais à Gemini UNIQUEMENT ce que l'utilisateur a réglé :
+ * sa vitesse et sa hauteur de voix. Rien d'autre.
+ *
+ * Pourquoi ce choix : `speech_metadata.style` est SOUTENU (il s'applique à
+ * toute la réplique) alors qu'une balise est PONCTUELLE (elle arrive à un
+ * instant précis). Déduire un style d'un seul `<laugh>` faisait livrer un
+ * texte grave sur un ton joyeux.
+ *
+ * Pour revenir à l'ancien comportement sans redéployer de code :
+ *     TTS_AUTO_STYLE=1
+ */
+const TTS_AUTO_STYLE = process.env.TTS_AUTO_STYLE === "1";
+
 // ── Diagnostic du moteur de VOIX au démarrage (après déclaration de TTS_MODEL) ──
 // Affiche clairement QUEL modèle de voix est actif et ce que ça implique.
 // ⚠️ Le modèle de SCRIPT/CORRECTEUR est totalement indépendant
@@ -959,21 +975,61 @@ function getRegionGuide(region: string): string { return REGION_GUIDES[region] |
 //   probablement TRONQUÉ → on le REJETTE. Avant, un son coupé en plein
 //   milieu était renvoyé comme un succès et FACTURÉ au client.
 // ===================================================================
+
+/* ===================================================================
+   APPEL GEMINI — LA CLÉ API PART DANS L'EN-TÊTE, PLUS DANS L'ADRESSE
+
+   Avant :  …:generateContent?key=LA_CLE
+   Après  :  …:generateContent   +   en-tête « x-goog-api-key »
+
+   Pourquoi : une adresse se retrouve partout — journaux du serveur, journaux
+   du proxy, messages d'erreur, historique du navigateur. Un en-tête, non.
+   C'est aussi la méthode utilisée dans la documentation officielle Google.
+
+   SÉCURITÉ : si Google refuse malgré tout l'appel avec l'en-tête (401 ou 403),
+   on retente UNE seule fois avec l'ancienne méthode. Ce changement ne peut donc
+   pas casser la production — au pire, il ne change rien.
+   =================================================================== */
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+
+async function appelleGemini(
+  modele: string,
+  apiKey: string,
+  corps: unknown,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {}
+): Promise<Response> {
+  const urlSansCle = `${GEMINI_BASE}/${modele}:generateContent`;
+  // Un seul signal possible : celui qu'on nous passe, ou un délai maximal.
+  const signal = options.signal ?? (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined);
+  const corpsJson = JSON.stringify(corps);
+
+  const reponse = await fetch(urlSansCle, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: corpsJson,
+    ...(signal ? { signal } : {}),
+  });
+  if (reponse.status !== 401 && reponse.status !== 403) return reponse;
+
+  // Repli : ancienne méthode (clé dans l'adresse). On ne retente qu'ici,
+  // et une seule fois, pour ne pas doubler les appels facturés.
+  console.warn(`[Gemini] L'en-tête x-goog-api-key a été refusé (${reponse.status}) — repli sur la clé dans l'adresse`);
+  return fetch(`${urlSansCle}?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: corpsJson,
+    ...(signal ? { signal } : {}),
+  });
+}
+
 async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${apiKey}`;
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TTS_FETCH_TIMEOUT_MS);
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
+    const res = await appelleGemini(TTS_MODEL, apiKey, requestBody, { signal: controller.signal });
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -1115,6 +1171,8 @@ async function synthesizeWithRetry(
       // En mode modern on ne transmet que vitesse/hauteur ; l'émotion est
       // déduite par le moteur depuis les balises de sons du transcript.
       style: TTS_ENGINE_MODE === "modern" ? modernStyle : null,
+      // On n'invente AUCUN style à partir des balises (voir TTS_AUTO_STYLE).
+      autoStyle: TTS_AUTO_STYLE,
       legacyPersona: persona,
       legacyNotes: [
         `Pace: ${pace}`,
@@ -1224,8 +1282,7 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
 
   for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(12000), body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature, maxOutputTokens: 4096 } }) });
+      const response = await appelleGemini(model, apiKey, { contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature, maxOutputTokens: 4096 } }, { timeoutMs: 12000 });
       if (response.ok) {
         const data = await response.json();
         let result = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || data.candidates?.[0]?.content?.parts?.[0]?.text || "";

@@ -134,6 +134,17 @@ export type BuildTtsRequestOptions = {
   output?: "pcm" | "wav";
   /** Taux d'échantillonnage (défaut 24000). */
   sampleRate?: number;
+  /**
+   * Inventer un style à partir des balises du texte ?
+   *
+   * ⚠️ DÉSACTIVÉ PAR DÉFAUT (décision du 26/09/2026, après audit).
+   * Raison : Google dit que `style` est SOUTENU (il dure tout le tour) alors
+   * qu'une balise est PONCTUELLE (elle arrive à un instant précis). Appliquer
+   * l'émotion d'un seul `<laugh>` à tout un texte fait dériver la voix, et la
+   * doc recommande explicitement de synthétiser SANS style d'abord.
+   * Mettre `true` restaure l'ancien comportement.
+   */
+  autoStyle?: boolean;
   /** true pour logger le nettoyage des balises (diagnostic). */
   debug?: boolean;
 };
@@ -178,8 +189,19 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
     );
   }
 
-  // ── Style effectif : celui demandé, sinon déduit des balises de sons.
-  const effectiveStyle = (opts.style || "").trim() || parsed.suggestedStyle || "";
+  // ── Style effectif ──────────────────────────────────────────────────────
+  // Par défaut : UNIQUEMENT ce que l'utilisateur a réglé explicitement
+  // (sa vitesse, sa hauteur). On n'invente plus rien à partir des balises.
+  //
+  // Pourquoi : `style` est SOUTENU (toute la réplique) alors qu'une balise est
+  // PONCTUELLE. Un seul <laugh> au milieu d'un texte grave suffisait à faire
+  // livrer tout le texte sur un ton joyeux. Et la doc Google recommande de
+  // synthétiser sans style d'abord : « most requests need no style instruction ».
+  //
+  // `autoStyle: true` restaure l'ancien comportement (déduction depuis le
+  // premier tag porteur d'émotion).
+  const styleExplicite = (opts.style || "").trim();
+  const effectiveStyle = styleExplicite || (opts.autoStyle ? parsed.suggestedStyle || "" : "");
 
   if (mode === "modern") {
     // ======================================================================

@@ -193,12 +193,20 @@ La balise est une **instruction**, pas un mot. **Aucun mot anglais n'est ajouté
 
 ---
 
-## 6. Le style : automatique, et tu peux le corriger
+## 6. Le style : Sawtify n'invente plus rien
 
-### Par défaut, tu n'as rien à faire
+### Ce qui a changé (26 septembre 2026)
 
-Sawtify choisit un style qui va bien avec la voix que tu as prise : Amine sera enjoué,
-Khalid sera posé, Nour sera apaisante. C'est le **style automatique**.
+Avant, Sawtify **devinait un style** à partir de la première balise d'émotion du texte.
+Le problème : un style dure **tout le texte**, alors qu'une balise ne dure qu'un **instant**.
+
+> `بصح <ضحكة> الكلام هذا ما يضحكش، المشكل كبير.`
+
+Avec l'ancien système, tout ce texte risquait d'être livré sur un ton joyeux, à cause d'un seul
+petit rire. **Ce n'est plus le cas.** Sawtify n'envoie plus que **ce que tu règles toi-même** :
+ta vitesse et ta hauteur. La voix reste naturelle, et elle suit exactement ton texte.
+
+C'est aussi ce que recommande Google : *« la plupart des requêtes n'ont besoin d'aucun style. »*
 
 ### Si tu veux forcer le ton
 
@@ -207,8 +215,11 @@ Khalid sera posé, Nour sera apaisante. C'est le **style automatique**.
 | `speed` (vitesse) | `0.9` = posé, `1.1` = dynamique | Au-delà de `1.2`, ça devient dur à suivre |
 | `pitch` (hauteur) | `0.95` = un peu plus grave, `1.05` = plus clair | Reste entre `0.9` et `1.1` |
 
-> 💡 **Le style est tenu du début à la fin.** Même si ton texte est long, la voix ne change pas
-> de ton en cours de route. Tu n'as pas à le découper toi-même.
+> 💡 **Ton réglage est tenu du début à la fin.** Même si ton texte est long, la vitesse et la
+> hauteur ne changent pas en cours de route. Tu n'as pas à découper ton texte toi-même.
+
+> 💡 **Tu veux un ton particulier sur tout un passage ?** Écris-le en toutes lettres au début de
+> la phrase (`بصوت هادي` / `d'un ton posé`). Le modèle comprend, et ça reste **ton** choix.
 
 ---
 
@@ -276,6 +287,7 @@ Et voilà : c'est terminé. <soupir>
 - **2 à 4 balises** de sons par paragraphe, placées exactement où tu veux le son.
 - Écrire les balises **dans la langue qui te vient** : français, arabe ou anglais.
 - **Écouter l'aperçu** avant de lancer une longue génération.
+- **Dire toi-même** le ton que tu veux, en toutes lettres, si tu en veux un.
 
 ### ❌ À éviter
 
