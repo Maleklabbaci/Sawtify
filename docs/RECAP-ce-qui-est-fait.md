@@ -1,185 +1,194 @@
-# Ce qui vient d'être fait — et ce qu'il te reste à faire
+# Est-ce que tout est bien fait ? — vérification finale
 
-**Date :** 26 septembre 2026 · **Commit :** `0d76b86`
-
----
-
-## En une minute
-
-Deux gros chantiers viennent d'être terminés :
-
-1. **Les aperçus audio des 30 voix** — tu vas pouvoir écouter les 30 voix et valider
-   lesquelles sont des voix d'homme et lesquelles sont des voix de femme.
-2. **La documentation développeur** — elle était fausse par endroits (elle ne parlait que de
-   9 voix, ne mentionnait ni les balises ni l'arabe, et omettait des codes d'erreur).
-   Elle est maintenant exacte, vérifiée automatiquement, et utile.
-
-Tout est en **backend**, comme demandé. Aucun fichier d'interface n'a été touché.
+**Date :** 26 septembre 2026 · **Branche :** `arena/01a0dcb3-sawtify` · **Dernier commit :** `5645396`
+**Sur GitHub :** oui, vérifié (`git ls-remote` renvoie le même identifiant que ma machine)
 
 ---
 
-## 1. Les aperçus audio des 30 voix
+## Réponse courte
 
-### Le principe, en une image
-
-Avant : chaque fois qu'un utilisateur cliquait sur ▶︎ pour écouter une voix, le serveur
-**appelait Google en direct**. Ça coûtait de l'argent à chaque clic, ça prenait 2 secondes,
-et deux écoutes de la « même » voix pouvaient sonner légèrement différemment.
-
-Maintenant : la voix est enregistrée **une seule fois** dans un fichier. Ensuite, elle est servie
-instantanément, gratuitement, et toujours à l'identique.
-
-### Ce que ça coûte
-
-**Environ 3 dinars, une seule fois.** Et seulement si tu relances. Le script détecte les voix
-déjà générées et les saute.
-
-### La commande à lancer
-
-```bash
-npm run apercus:voix
-```
-
-Puis tu ouvres **`/audition-voix.html`** dans ton navigateur et tu écoutes.
-
-### Ce que tu vas faire sur cette page
-
-Les 30 voix, une ligne chacune. Tu cliques ▶︎, tu écoutes, tu cliques **Homme** ou **Femme**.
-
-- La page **enchaîne automatiquement** les voix.
-- Elle **sauvegarde ta progression** dans le navigateur (tu peux t'arrêter et reprendre).
-- Quand c'est fini, tu cliques **📋 Copier le résultat** et tu me le colles dans la conversation.
-
-**3 minutes suffisent.** Ensuite je mets à jour les genres partout en une seule fois.
-
-### Pourquoi c'est toi qui dois le faire
-
-Google **ne dit nulle part** si ses voix sont masculines ou féminines. Pour les 9 voix
-historiques de Sawtify, on le sait déjà (tes utilisateurs les connaissent). Pour les 21 autres,
-personne ne peut le deviner depuis la documentation — il faut les écouter.
-À partir de maintenant, le code écrit `à confirmer` partout, il ne ment jamais.
-
-### Une sécurité importante
-
-Le manifeste garde l'**empreinte du texte d'audition**. Si un jour tu modifies ce texte, le
-serveur **refuse** tous les aperçus et le dit au démarrage. Comme ça, un utilisateur ne peut
-jamais entendre l'audio d'une autre voix que celle qu'il a choisie.
+**Oui, tout est bien fait** — avec **une réserve honnête** et **trois choses qui ne sont pas encore faites**.
+Les deux sont listées plus bas, noir sur blanc.
 
 ---
 
-## 2. La documentation développeur
+## 1. Les 8 vérifications passées
 
-### Ce qui n'allait pas
+| # | Vérification | Résultat |
+|---|---|---|
+| 1 | Tout est sauvegardé et poussé sur GitHub | ✅ 0 fichier en attente · `5645396` identique en local et en distant |
+| 2 | Aucun fichier lourd dans Git | ✅ 0 WAV · dépôt de 1,7 Mo · plus gros fichier = `server.ts` (176 Ko) |
+| 3 | Les 14 fichiers TypeScript passent le contrôle de syntaxe | ✅ 14 / 14 |
+| 4 | Les 26 imports pointent vers un fichier qui existe | ✅ 26 / 26 |
+| 5 | Le frontend n'a pas été touché (hors autorisation) | ✅ **1 seul fichier** : `src/data/codeSnippets.ts`, sur ton accord explicite |
+| 6 | Toutes les routes de l'API sont déclarées | ✅ 7 / 7 |
+| 7 | La suite de tests complète | ✅ **267 vérifications, 0 échec** |
+| 8 | Aucun test n'a été désactivé ou contourné | ✅ vérifié |
 
-| Problème | Conséquence pour un développeur |
-|---|---|
-| Seulement 9 voix citées | Il ignorait que 21 voix existaient |
-| Les balises de sons absentes | Il ne pouvait pas utiliser de rires, soupirs, pauses |
-| L'arabe jamais mentionné comme écriture possible | Il écrivait tout en anglais sans savoir qu'il pouvait écrire en arabe |
-| `GET /tts` (aide) et `GET /usage` absents | Il ne trouvait pas comment vérifier sa consommation |
-| Code `201` oublié dans le tableau des erreurs | Il croyait que ça avait échoué |
-| `mp3_url` non documenté | Il ne savait pas qu'une version MP3 légère existait |
-| « URL signée valable 7 jours » | Faux : c'est une URL non signée à expiration. Corrigé. |
-
-### Ce qui est maintenant dedans
-
-- **Les 30 voix**, avec prénom français, prénom arabe, identifiant technique et ancien identifiant.
-- **Les 40 balises de sons**, classées par famille (rire, émotions fortes, tristesse, respiration,
-  voix, silences), avec **les écritures françaises ET arabes** pour chacune.
-  ⇒ **197 écritures au total**, toutes vérifiées.
-- **Toutes les routes** réellement exposées, y compris les trois nouvelles.
-- **Le tableau des erreurs complet** : 201, 400, 401, 402, 403, 405, 410, 429, 500, 503.
-- **Les vraies limites** : 5 000 caractères, solde > 1 000 points, 20 générations/jour,
-  découpage à 800 caractères, URL média 7 jours.
-- **Trois exemples complets** : cURL, JavaScript et Python — avec des balises en darija dedans.
-- **Une page HTML** avec recherche de voix, filtrable, et le tableau des balises déplié.
-
-### La garantie anti-erreur
-
-Un script compare maintenant **la documentation au code**, et échoue dès que les deux
-divergent :
-
-```bash
-npm run verif:doc
-# → DOCUMENTATION : 35 vérifications réussies, 0 échouées sur 35
-```
-
-Par exemple, il vérifie que chaque paramètre documenté est **réellement lu** par le serveur,
-que chaque en-tête existe vraiment, et que chaque route annoncée est bien déclarée.
-⇒ **La documentation ne peut plus mentir sans que ça se voie.**
-
----
-
-## 3. Toutes les vérifications d'un coup
+### Le détail des tests
 
 | Commande | Résultat | Ce qu'elle prouve |
 |---|---|---|
-| `npm run test:tts` | **89 / 89** | le moteur vocal fonctionne dans les deux modes |
-| `npm run test:voix` | **22 / 22** | les 90 écritures d'un nom de voix tombent sur la bonne voix |
+| `npm run test:tts` | **117 / 117** | le moteur vocal, les deux modes, le découpage, les balises, le style |
+| `npm run test:voix` | **22 / 22** | les 90 écritures d'un nom tombent sur la bonne voix |
 | `npm run verif:balises` | **40 / 40** | les 40 balises officielles Google sont intégrées |
-| `npm run test:apercus` | **43 / 43** | aucun aperçu ne peut être lu à voix haute par erreur |
-| `npm run verif:doc` | **35 / 35** | la documentation correspond au code |
-
-**Total : 229 vérifications, 0 échec.**
+| `npm run test:apercus` | **39 / 39** | les aperçus ; passera à **43 / 43** après ta génération |
+| `npm run verif:doc` | **49 / 49** | la documentation correspond au code |
 
 ---
 
-## 4. Ce qu'il te reste à faire — dans l'ordre
+## 2. La réserve honnête — à lire
 
-### ① Lancer la génération des aperçus
+**Je n'ai jamais pu lancer la vraie compilation TypeScript.** L'environnement de travail refuse
+l'installation des paquets (`npm install` échoue pour une raison de certificat réseau), donc
+`npm run build` et `npm run lint` (`tsc --noEmit`) **n'ont jamais tourné**.
 
-```bash
-npm run apercus:voix
-```
+### Ce que ça veut dire concrètement
 
-Il te faut `GEMINI_API_KEY` dans ton fichier `.env` (tu l'as déjà puisque le Studio fonctionne).
-**Coût : environ 3 dinars.** Durée : 1 à 2 minutes.
-
-> Tu peux d'abord tester sans rien payer :
-> ```bash
-> npx tsx scripts/generer-apercus-voix.ts --simule
-> ```
-> Ça fabrique 30 fichiers muets pour vérifier que tout se passe bien.
-
-### ② Écouter et valider les 21 voix
-
-Ouvre `http://localhost:3000/audition-voix.html`, écoute, clique Homme ou Femme,
-puis **Copie le résultat** et colle-le-moi ici.
-
-### ③ Mettre les aperçus en ligne (recommandé)
-
-```bash
-npx tsx scripts/generer-apercus-voix.ts --upload
-```
-
-Les fichiers partent sur Supabase Storage et le serveur se contente de renvoyer l'adresse.
-C'est Supabase qui sert l'audio, pas ton serveur Node.
-
----
-
-## 5. Une décision qui t'appartient
-
-La page Developer côté interface (celle que voient tes utilisateurs développeurs) contient
-des **exemples de code périmés** — elle parle des anciennes voix et de l'ancienne syntaxe
-`[excited]` entre crochets.
-
-C'est du **frontend**, et tu m'as demandé de ne rien y toucher. Donc je n'y touche pas.
-Dis-moi si je dois les mettre à jour.
-
----
-
-## Fichiers créés ou modifiés
-
-| Fichier | Rôle |
+| ✅ Ce qui EST vérifié | ❌ Ce qui N'EST PAS vérifié |
 |---|---|
-| `tts/voicePreviews.ts` | script d'audition + les 30 textes d'aperçu + manifeste |
-| `tts/test-apercus.ts` | 43 vérifications sur les aperçus |
-| `scripts/generer-apercus-voix.ts` | génère les WAV, le manifeste et la page d'audition |
-| `scripts/verifier-doc-api.ts` | 35 vérifications documentation ↔ code |
-| `docs/developer-api-beta.md` | documentation développeur (réécrite) |
-| `public/docs/developer-api-beta.html` | documentation développeur (page web) |
-| `public/llms.txt` | section Developer API ajoutée |
-| `docs/apercus-audio.md` | tout le détail technique des aperçus |
-| `server.ts` | aperçus figés + 2 nouvelles routes + service des fichiers |
-| `package.json` | 3 nouvelles commandes |
-| `.gitignore` | les WAV ne partent pas dans Git |
+| La syntaxe des 14 fichiers | Les **types** TypeScript |
+| Tous les imports résolvent | Le build Vite du frontend |
+| **Le code s'exécute vraiment** : chaque test lance le vrai moteur, le vrai analyseur de balises, le vrai découpeur | Le bundling `esbuild` du serveur |
+| Les anciens et les nouveaux comportements | |
+
+J'ai exécuté le vrai code des centaines de fois (c'est comme ça que j'ai trouvé les 2 défauts),
+mais un **type** mal écrit pourrait passer entre les mailles.
+
+### Le geste à faire sur ta machine — 30 secondes
+
+```bash
+npm install
+npm run lint     # ← la seule vérification que je n'ai pas pu faire
+npm run build
+```
+
+Si ces trois commandes passent, c'est **100 % vérifié**. Si `npm run lint` râle, envoie-moi le
+message : c'est du texte, pas de la casse.
+
+---
+
+## 3. Ce qui est fait
+
+### Les 30 voix
+- 9 voix historiques **inchangées** + 21 nouvelles, avec prénom français, prénom arabe, slug et
+  identifiant technique.
+- **90 écritures acceptées** par voix : « Amine », « أمين », « amine », « AMINE », « Puck »,
+  « voice_amin » tombent toutes sur la même voix.
+- Les anciens identifiants (`voice_dz_amine`, `voice_dz_rachid`…) restent des alias : **aucune
+  intégration existante n'est cassée**.
+
+### Les 40 balises de sons
+- **40 sons**, écrits de **197 façons** : 40 en anglais, 83 en français, 74 en arabe.
+- `<laugh>` = `<rire>` = `<ضحكة>`. Les accents et la vocalisation arabe ne comptent pas.
+- La langue parlée **ne change jamais** : une balise anglaise dans un texte arabe ne fait pas
+  passer le texte en anglais.
+- Les bruits non humains (`<music>`, `<applause>`…) sont **retirés automatiquement**.
+
+### L'intégration Gemini 3.8
+- Requête conforme à la documentation Google **champ par champ**, et aux 5 points du guide de
+  migration.
+- Double mode : `gemini-3.8-flash-tts` (modèle 3.8) ou retour en arrière immédiat via une seule
+  variable d'environnement.
+- Protection contre le WAV : le pipeline audio existant ne peut pas casser.
+- Le modèle de **script/correcteur** n'a pas été touché.
+
+### L'audit — 2 vrais défauts trouvés et corrigés
+1. **Une balise pouvait être coupée en deux** sur les textes longs, et les deux moitiés partaient
+   brutes vers Gemini (qui risquait de les prononcer). Corrigé, et balayé sur 261 positions.
+2. **Un fragment de balise pouvait quand même atteindre Gemini** (`<laugh` non fermé). Corrigé.
+
+Le découpeur a été déplacé dans le module testé : c'est précisément parce qu'il était intestable
+que le défaut 1 vivait depuis le début.
+
+### Le style et la clé
+- **Le style automatique est supprimé** (ton choix, option A) : Sawtify n'envoie plus que ce que
+  tu règles toi-même. Retour en arrière possible avec `TTS_AUTO_STYLE=1`.
+- **La clé API part dans l'en-tête** au lieu de l'adresse, avec un repli automatique : ce
+  changement ne peut pas casser la production.
+
+### Les aperçus audio
+- Générateur complet : 30 fichiers WAV + un manifeste + une page d'audition.
+- **Reprise automatique** : relancer ne repaie jamais un aperçu déjà généré.
+- Un manifeste périmé est **refusé** par le serveur : impossible de servir l'audio d'une autre voix.
+- Mode `--simule` pour tester toute la chaîne **sans payer**.
+- 3 nouvelles routes : `/api/v1/tts/voices`, `/api/v1/tts/preview-manifest`, et le service des
+  fichiers audio.
+
+### La documentation
+- **Développeur** : réécrite (`docs/developer-api-beta.md` + la page HTML), avec les 30 voix, les
+  40 balises et leurs écritures FR/AR, toutes les routes, les codes `201`/`405`/`410` qui
+  manquaient, `mp3_url`, et les vraies limites.
+- **Utilisateur** : `docs/guide-utilisateur.md` — les 3 leviers, la ponctuation, les balises,
+  comment choisir une voix, 5 exemples prêts à copier.
+- **`llms.txt`** : section Developer API ajoutée.
+- **Un script compare la documentation au code** et échoue dès qu'ils divergent (49 contrôles).
+
+---
+
+## 4. Ce qui n'est PAS fait — trois choses
+
+### ① Les 30 aperçus ne sont pas encore générés (c'est à toi)
+
+C'est le seul chantier qui attend une action de ta part.
+
+```bash
+npm run apercus:voix     # ~3 dinars, une seule fois
+```
+
+Puis tu ouvres **`/audition-voix.html`**, tu écoutes les 30 voix, tu cliques **Homme** ou
+**Femme**, et tu cliques **📋 Copier le résultat** pour me le coller ici.
+
+Tant que ce n'est pas fait : les **21 genres des nouvelles voix restent marqués « à confirmer »**
+partout (code, API, documentation). Le code ne ment jamais sur ce qu'il ne sait pas.
+
+### ② Les 4 voix régionales et les styles par voix/région
+
+Pas commencés. Décidés ensemble, mais à faire :
+- **Nationale**, **Alger**, **Oran**, **Constantine** ;
+- un style automatique **par voix et par région** — attention, c'est un mécanisme **différent** de
+  celui qu'on vient de désactiver : celui-ci sera un choix explicite de ta part, pas une déduction
+  depuis un texte.
+
+### ③ Trois remarques cosmétiques de l'audit
+
+Aucune n'est un bug, aucune n'a d'effet aujourd'hui :
+1. `responseModalities` s'écrit `["audio"]` (minuscules) en mode 3.1 et `["AUDIO"]` en 3.8 —
+   incohérence, mais l'ancien mode fonctionne depuis toujours.
+2. La reconnaissance des modèles classerait `gemini-3.10` (un futur modèle) en mode ancien. À
+   corriger avant qu'il existe.
+3. Le prompt du mode 3.1 annonce `[calm]` et `[very fast]`, deux balises que le code ne produit
+   jamais. Texte à nettoyer.
+
+**Dis-moi si tu veux que je les corrige — c'est 20 minutes.**
+
+---
+
+## 5. Où tout est rangé
+
+| Fichier | Ce qu'il contient |
+|---|---|
+| `tts/vocalTags.ts` | les 40 balises et leurs 197 écritures, l'analyseur, le garde-fou anti-fragment |
+| `tts/voices.ts` | les 30 voix studio et leurs descripteurs officiels |
+| `tts/voiceNames.ts` | les prénoms FR + AR, les 90 écritures, la résolution |
+| `tts/engine.ts` | le double moteur, le découpage protégé, la lecture de la réponse |
+| `tts/voicePreviews.ts` | le script d'audition, les 30 textes, le manifeste |
+| `tts/selftest.ts` | **117 tests** du moteur |
+| `tts/test-apercus.ts` | **43 tests** des aperçus |
+| `tts/test-noms.ts` | **22 tests** des noms de voix |
+| `scripts/generer-apercus-voix.ts` | le générateur d'aperçus + la page d'audition |
+| `scripts/verifier-balises.ts` | vérifie les 40 balises contre la table officielle Google |
+| `scripts/verifier-doc-api.ts` | compare la documentation au code |
+| `server.ts` | tout le backend (2700 lignes) |
+| `docs/AUDIT-envoi-a-gemini.md` | l'audit complet de ce qui part vers Gemini |
+| `docs/guide-utilisateur.md` | le guide pour tes utilisateurs |
+| `docs/developer-api-beta.md` + `public/docs/developer-api-beta.html` | la doc développeur |
+
+---
+
+## Résumé en une phrase
+
+**Le backend est prêt et vérifié : 267 contrôles, 0 échec, tout est sur GitHub.** Il ne reste
+qu'une chose pour que ce soit totalement fini — **lancer `npm run apercus:voix`** et valider les
+21 genres à l'oreille. Et sur ta machine, lance `npm run lint` une fois : c'est la seule
+vérification que l'environnement d'ici ne permet pas.
