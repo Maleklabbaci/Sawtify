@@ -89,6 +89,29 @@ Une fois terminé, le studio sert l'aperçu **directement depuis le CDN Supabase
 (adresse publique, aucun téléchargement serveur, cache navigateur) : le ▶ répond
 en quelques dizaines de millisecondes, et **aucun point n'est facturé**.
 
+### Ménage automatique des anciens aperçus (26/09/2026)
+
+Avant cette date, un aperçu était enregistré sous la **clé de la requête** :
+
+```
+voice_amin_Puck_1.0_1.0.wav        ← ancien format (à supprimer)
+voice_yasmin_Zephyr_1.0_1.0.wav
+```
+
+Ces fichiers posent **deux problèmes** : ils contiennent l'**ancien texte en arabe
+classique** (avant la réécriture 100 % darija), et l'ancien mapping des voix était
+faux (`voice_yacine` pointait sur Puck — c'est aujourd'hui **Pulcherrima**).
+
+Au démarrage, le préchauffage **les supprime tout seul** et les remplace par les
+nouveaux (`studio_<Voix>.wav`, texte 100 % darija) :
+
+```
+[Aperçus] 9 ancien(s) aperçu(s) supprimé(s) — format périmé, texte en arabe classique : voice_amin_Puck_1.0_1.0.wav, …
+```
+
+Le format valide (`studio_…`) et `manifest.json` ne sont **jamais** touchés.
+Rien à faire à la main dans Supabase.
+
 ### Bonus : une seule génération par voix, quelle que soit l'écriture
 
 Les aperçus sont désormais enregistrés sous une clé **canonique**

@@ -2107,10 +2107,11 @@ async function startServer() {
       }
     }
 
-    const persistentPreview = await loadPersistentPreview(cacheKey);
-    if (persistentPreview) {
-      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: persistentPreview, duration_seconds: 2.5, cached: true, source: "storage" });
-    }
+    // ⚠️ NE PAS relire l'ANCIENNE clé de stockage (« voice_amin_Puck_1.0_1.0 ») :
+    // ces fichiers datent d'avant la réécriture 100 % darija et contiennent
+    // l'ancien texte en arabe classique. Les servir, c'est faire entendre à
+    // l'utilisateur l'ancienne version — exactement ce qu'on ne veut pas.
+    // Ils sont supprimés du stockage par le préchauffage (voir plus bas).
 
     // Texte de l'aperçu : d'abord le texte « vitrine » propre à la voix,
     // sinon l'ancien script pour compatibilité, sinon le script d'audition.
@@ -2889,7 +2890,26 @@ Style vocal souhaité : ${style || "excited"}`;
         if (nom.endsWith(".wav")) PREVIEW_STORAGE_KEYS.add(nom.replace(/\.wav$/, ""));
       }
       const presents = new Set((fichiers || []).map((f: any) => String(f.name)));
+
+      // ── MÉNAGE : les aperçus au FORMAT PÉRIMÉ ────────────────────────────
+      // Avant le 26/09/2026, un aperçu était enregistré sous la clé de la
+      // requête : « voice_amin_Puck_1.0_1.0.wav ». Ces fichiers contiennent
+      // l'ANCIEN texte (arabe classique) et un ancien mapping de voix
+      // (« voice_yacine » pointait sur Puck — c'est désormais Pulcherrima).
+      // Le nouveau code ne les lit plus ; on les supprime pour ne pas laisser
+      // de faux aperçus dormir dans le stockage. Le format valide aujourd'hui
+      // est « studio_<Voix>.wav » — jamais touché par ce ménage.
+      const ANCIEN_FORMAT = /^.+_[0-9]+\.[0-9]+_[0-9]+\.[0-9]+\.wav$/;
+      const anciens = (fichiers || [])
+        .map((f: any) => String(f.name))
+        .filter((n) => ANCIEN_FORMAT.test(n) && !n.startsWith("studio_"));
+      if (anciens.length) {
+        const { error: errSupp } = await supabaseClient.storage.from(PREVIEW_BUCKET).remove(anciens);
+        if (errSupp) console.warn(`[Aperçus] Ménage impossible : ${errSupp.message}`);
+        else console.log(`[Aperçus] ${anciens.length} ancien(s) aperçu(s) supprimé(s) — format périmé, texte en arabe classique : ${anciens.join(", ")}`);
+      }
       const manquantes = previewTargets().filter((t) => {
+        // Seul le format CANONIQUE compte : « studio_<voix>.wav ».
         if (presents.has(`${previewKeyForVoice(t.voice.id)}.wav`)) return false;
         if (getCachedPreviewUrl(t.voice.id)) return false;  // local ou mémoire
         return true;
