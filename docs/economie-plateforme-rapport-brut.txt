@@ -1,0 +1,91 @@
+════════════════════════════════════════════════════════════════════════════════════════════════
+  SAWTIFY — OÙ PART RÉELLEMENT L'ARGENT CHAQUE MOIS ?
+════════════════════════════════════════════════════════════════════════════════════════════════
+  Hypothèses : 100 inscriptions/jour · 35% activés · 2.0% convertis en payant · panier moyen 1 000 DZD
+  Coûts unitaires : clip payant 60 s = 3.79 DZD | clip gratuit 45 s = 2.84 DZD | 1 USD = 260 DZD
+
+  ── 1. LE CÔTÉ GRATUIT (ton vrai centre de coût) ──────────────────────────────────────────────────
+     3 000 inscriptions/mois × 35% activés = 1 050 utilisateurs qui génèrent
+     1 050 × 2 clips (50 pts de bienvenue) = 2 100 clips gratuits/mois
+     2 100 × 2.84 DZD = 5 969 DZD/mois   ($22.96)
+     → 67% du COGS VARIABLE (hors infra) et 35% du COGS TOTAL
+     → coût moyen par inscription : 1.99 DZD
+
+  ── 2. LE CÔTÉ PAYANT (marge ≈ 95%) ───────────────────────────────────────────────
+     60 clients payants/mois (soit 2,0/jour)
+     Revenu encaissé                            : 60 000 DZD
+     Points réellement livrés (bonus palier +15%) : 253 pts → 13 clips
+     COGS payant                                 : 2 877 DZD   ($11.06)
+
+  ── 3. RÉSULTAT ────────────────────────────────────────────────────────────────────────
+     Coût gratuit   :     5 969 DZD
+     Coût payant    :     2 877 DZD
+     Infra fixe     :     8 320 DZD   (32$ Render + Supabase)
+     ─────────────────────────────
+     COGS TOTAL     :    17 166 DZD
+     Revenu         :    60 000 DZD
+     MARGE NETTE    :    42 834 DZD   ($164.75)  → 71%
+
+  ── 4. LE SEUIL QUI COMPTE ──────────────────────────────────────────────────────────────
+     Chaque client payant rapporte 952 DZD de marge brute.
+     Il t'en faut 7 /mois pour couvrir UNIQUEMENT le coût des comptes gratuits.
+     Soit 0,2 client(s) payant(s) par jour.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+  SENSIBILITÉ 1 — ET SI TU FAIS 10× PLUS D'INSCRIPTIONS ?
+════════════════════════════════════════════════════════════════════════════════════════════════
+  Inscriptions/jour   Coût gratuit/mois     Clients payants requis   Marge nette (à 2% de conversion)
+  --------------------------------------------------------------------------------------------
+                10                597 DZD                        1                         -3 205 DZD
+                50              2 985 DZD                        4                         17 257 DZD
+               100              5 969 DZD                        7                         42 834 DZD
+               250             14 923 DZD                       16                        119 565 DZD
+               500             29 846 DZD                       32                        247 451 DZD
+             1 000             59 693 DZD                       63                        503 221 DZD
+             5 000            298 463 DZD                      314                      2 549 387 DZD
+
+  ▸ LE POINT CLÉ : le coût gratuit est PARFAITEMENT LINÉAIRE. Il ne devient
+    dangereux que si ton taux de conversion ne suit pas le volume.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+  SENSIBILITÉ 2 — CE QUE TU CROIS PAYER vs CE QUE TU PAIES VRAIMENT
+════════════════════════════════════════════════════════════════════════════════════════════════
+  Taux d'activation   Coût gratuit/mois    Écart vs 100%
+  ------------------------------------------------------------
+               100%             17 055 DZD              0%
+                60%             10 233 DZD            -40%
+                35%              5 969 DZD            -65%
+                15%              2 558 DZD            -85%
+
+  ▸ La plupart des inscrits ne génèrent JAMAIS rien : ils créent un compte,
+    touchent 50 points et disparaissent. Ton vrai coût est donc souvent 3×
+    plus bas que le pire cas — mais il est impossible à prévoir sans mesurer.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+  ⚠  SENSIBILITÉ 3 — LE FARMING (le seul scénario non borné)
+════════════════════════════════════════════════════════════════════════════════════════════════
+  Ton bonus de 50 points est crédité par le TRIGGER SQL à la création du compte.
+  La limite « 1 bonus par IP » n'est appliquée QUE si le client appelle
+  POST /api/auth/claim-welcome-bonus (voir App.tsx, à la 1re connexion).
+
+  Un script qui : crée un compte via l'API Auth de Supabase → n'appelle JAMAIS
+  claim-welcome-bonus → utilise /api/v1/tts/generate directement avec le token,
+  conserve 50 points SANS AUCUNE VÉRIFICATION D'IP. En boucle :
+
+  Comptes farmés/jour   Coût/jour        Coût/mois       Ce que ça te rapporte
+  ----------------------------------------------------------------------------------------
+                   100            569 DZD         17 055 DZD      0 DZD
+                   500          2 843 DZD         85 275 DZD      0 DZD
+                 2 000         11 370 DZD        341 100 DZD      0 DZD
+                10 000         56 850 DZD      1 705 500 DZD      0 DZD
+
+  ▸ 2 000 comptes farmés/jour = 341 100 DZD/mois ($1311.92) de sortie de cash,
+    sans un seul utilisateur réel. C'est ÇA le risque non borné.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+  LEVIER : BASCULER LES COMPTES GRATUITS SUR gemini-3.8-flash-lite-tts
+════════════════════════════════════════════════════════════════════════════════════════════════
+  Coût clip gratuit 45 s : 3.8 Flash TTS 2.84 DZD  →  Flash-Lite 1.90 DZD  (−33%)
+  Économie mensuelle sur les comptes gratuits : 1 990 DZD  (33% de moins)
+  Les utilisateurs payants gardent la qualité studio — ils ne verront pas la différence de coût sur leur facture.
+

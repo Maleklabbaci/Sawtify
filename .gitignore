@@ -1,0 +1,31 @@
+# ── Dépendances ──
+node_modules/
+
+# ── Build ──
+dist/
+server.js
+*.tsbuildinfo
+.vite/
+
+# ── Variables d'environnement (JAMAIS dans Git) ──
+.env
+.env.local
+.env.*.local
+
+# ── Journalisation ──
+*.log
+npm-debug.log*
+
+# ── Système ──
+.DS_Store
+Thumbs.db
+
+# ── Aperçus audio des voix ────────────────────────────────────────────────
+# Les fichiers WAV générés par `npm run apercus:voix` sont des artefacts
+# volumineux (~75 Ko × 30). Ils NE vont PAS dans Git.
+# En production, ils sont hébergés sur Supabase Storage (option --upload).
+# Le manifeste (tts/preview-manifest.json), lui, EST versionné : c'est lui
+# qui dit au serveur quelle voix a un aperçu et à quelle adresse.
+storage/voice-previews/*.wav
+storage/video/
+storage/*.mp3

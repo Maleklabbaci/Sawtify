@@ -11,8 +11,47 @@ import { createHash, randomBytes } from "node:crypto";
 import * as lamejsModule from "lamejs";
 import ffmpegPath from "ffmpeg-static";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
+
+// ===================================================================
+//  MOTEUR TTS À DOUBLE MODE (Gemini 3.8 / 3.1)
+//
+//  ⚠️  ATTENTION À NE PAS CONFONDRE LES DEUX MODÈLES GEMINI DU PROJET :
+//
+//   ① GEMINI_TTS_MODEL  (plus bas, ~L167)
+//      = GÉNÉRATEUR DE VOIX (text-to-speech)
+//      → peut basculer entre gemini-3.1-flash-tts-preview et gemini-3.8-flash-tts
+//      → C'EST LE SEUL MODÈLE QUE CE MOTEUR CONCERNE
+//
+//   ② GEMINI_TEXT_MODEL (~L990)
+//      = GÉNÉRATEUR DE SCRIPT + CORRECTEUR (texte)
+//      → RESTE SUR gemini-3.1-flash-lite, JAMAIS TOUCHÉ PAR CE MOTEUR
+//
+//  Le moteur s'adapte automatiquement au modèle de voix configuré :
+//  aucune autre partie du serveur n'a besoin de savoir lequel est actif.
+// ===================================================================
+import {
+  buildTtsRequest,
+  extractAudioFromResponse,
+  resolveEngineMode,
+  describeEngine,
+  legacyFidelityReport,
+} from "./tts/engine";
+import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
+import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
+import { resolveVoiceName, voiceNameStats, voiceNameEntry, VOICE_NAMES } from "./tts/voiceNames";
+import {
+  AUDITION_SCRIPT,
+  AUDITION_SCRIPT_HASH,
+  AUDITION_SCRIPT_VERSION,
+  VOICE_PREVIEW_TEXTS,
+  previewFileName,
+  previewTargets,
+  validateManifest,
+  voicesNeedingGenderValidation,
+  type VoicePreviewManifest,
+} from "./tts/voicePreviews";
 
 dotenv.config();
 
@@ -63,6 +102,31 @@ process.on("unhandledRejection", (reason) => {
 //          artificiels entre chaque morceau).
 // FIX TTS-E : garde-fou durée — si l'audio généré est absurdement plus court
 //          que ce que le texte devrait donner à l'oral → rejet, aucun débit.
+//
+// ─── MIGRATION GEMINI 3.8 TTS (générateur de VOIX uniquement) ───
+// 3.8-1 : le moteur `tts/engine.ts` remplace la construction manuelle de la
+//         requête. Il s'adapte AUTOMATIQUEMENT au modèle de voix configuré :
+//         mode "legacy" (3.1, comportement historique) ou "modern" (3.8+).
+//         Bascule = la seule variable GEMINI_TTS_MODEL. Aucun autre code à
+//         toucher, retour arrière immédiat.
+// 3.8-2 : catalogue `tts/vocalTags.ts` — 35 sons humains officiels, avec
+//         nettoyage automatique des balises inconnues et des bruitages non
+//         humains (applaudissements…) que Google déconseille explicitement.
+// 3.8-3 : sortie forcée en PCM brut (AUDIO_L16) dans les DEUX modes. Le 3.8
+//         renvoie du WAV complet par défaut → l'en-tête RIFF est retiré
+//         automatiquement. Sans ça : craquement de 44 octets en début de
+//         piste et durée faussée (donc points facturés trop haut).
+// 3.8-4 : « comment dire » sorti du texte en mode modern → part dans
+//         `speech_metadata.style`. La doc Google est explicite : garder les
+//         blocs « DIRECTOR'S NOTES » dans le texte est LA première cause de
+//         dérive de voix sur 3.8. Le mode legacy les conserve à l'identique.
+// 3.8-5 : 30 voix studio exposées via tts/voices.ts, avec migration
+//         automatique des 9 identifiants historiques → aucun utilisateur,
+//         aucun historique, aucune clé API existante n'est perdu.
+//
+// ⚠️ Ce qui n'est PAS touché : GEMINI_TEXT_MODEL (générateur de script +
+//    correcteur) reste sur gemini-3.1-flash-lite. Les deux modèles sont
+//    totalement indépendants.
 // ===================================================================
 // ===================================================================
 //  CONCURRENCY LIMITER (Fix: expose activeCount / pendingCount)
@@ -164,7 +228,46 @@ const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
 // ===================================================================
 //  NOUVEAUX PARAMÈTRES TTS (tous surchargables via .env, valeurs par défaut saines)
 // ===================================================================
-const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
+// ===================================================================
+//  ① MODÈLE DU GÉNÉRATEUR DE VOIX (TTS) — SEUL MODÈLE CONCERNÉ PAR 3.8
+//
+//  gemini-3.1-flash-tts-preview  →  mode LEGACY  (comportement historique)
+//  gemini-3.8-flash-tts          →  mode MODERN  (35 sons, style, voix sur mesure)
+//  gemini-3.8-flash-lite-tts     →  mode MODERN  (moins cher, 100 langues)
+//
+//  Bascule = cette seule variable d'environnement. Retour arrière immédiat.
+// ===================================================================
+const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts";
+/** Mode déduit automatiquement du modèle de voix : "legacy" ou "modern". */
+const TTS_ENGINE_MODE = resolveEngineMode(TTS_MODEL);
+
+// ── Diagnostic du moteur de VOIX au démarrage (après déclaration de TTS_MODEL) ──
+// Affiche clairement QUEL modèle de voix est actif et ce que ça implique.
+// ⚠️ Le modèle de SCRIPT/CORRECTEUR est totalement indépendant
+//    (voir GEMINI_TEXT_MODEL plus bas) et n'est jamais touché ici.
+console.log(describeEngine(TTS_MODEL));
+if (TTS_ENGINE_MODE === "modern") {
+  const fid = legacyFidelityReport();
+  console.log(
+    `[TTS] ${VOCAL_TAGS.length} sons humains disponibles ` +
+    `(le mode 3.1 n'en exprimerait que ${fid.distinctLegacyTags}, soit ${fid.fidelityPercent}%)`
+  );
+} else {
+  console.log(
+    `[TTS] ⚠️  Mode 3.1 : ${legacyFidelityReport().distinctLegacyTags} sons distincts seulement. ` +
+    `Pour les ${VOCAL_TAGS.length} sons + le style séparé : GEMINI_TTS_MODEL=gemini-3.8-flash-tts`
+  );
+}
+
+// Diagnostic du catalogue de voix (prénoms + écritures acceptées).
+{
+  const vs = voiceNameStats();
+  console.log(
+    `[Voix] ${vs.total} voix disponibles (${vs.prenomsConfirmes} prénoms confirmés, ` +
+    `${vs.prenomsAConfirmer} à valider à l'écoute) — ${vs.ecrituresAcceptees} écritures acceptées ` +
+    `(français, arabe, slug, nom technique, anciens identifiants).`
+  );
+}
 const TTS_FETCH_TIMEOUT_MS = Number(process.env.TTS_FETCH_TIMEOUT_MS) || 45000;   // FIX TTS-A
 const TTS_CHUNK_MAX_CHARS = Number(process.env.TTS_CHUNK_MAX_CHARS) || 800;       // FIX TTS-C
 const TTS_CHUNK_GAP_MS = Number(process.env.TTS_CHUNK_GAP_MS) || 200;             // FIX TTS-C
@@ -558,6 +661,40 @@ const GEMINI_VOICE_MAP: Record<string, string> = {
   voice_fr_ines: "Sulafat", voice_dz_rachid: "Fenrir", voice_en_lina: "Leda",
 };
 
+// ── Extension 3.8 : accès aux 30 voix studio ──────────────────────────────
+// On AJOUTE les correspondances manquantes sans jamais écraser les entrées
+// ci-dessus (les voix historiques gardent donc exactement le même rendu).
+// Permet aussi d'envoyer directement un nom de voix officiel ("Kore",
+// "Sadachbia"…) ou une voix sur mesure ("voice_abc123") depuis l'API.
+for (const [legacyId, studioVoice] of Object.entries(LEGACY_VOICE_MIGRATION)) {
+  if (!(legacyId in GEMINI_VOICE_MAP)) GEMINI_VOICE_MAP[legacyId] = studioVoice;
+}
+
+/**
+ * ★ POINT D'ENTRÉE UNIQUE POUR TOUTES LES VOIX ★
+ *
+ * Accepte N'IMPORTE QUELLE écriture et renvoie toujours le nom technique
+ * officiel attendu par Google :
+ *
+ *   "voice_amin"  → "Puck"      (identifiant historique Sawtify)
+ *   "Amine"       → "Puck"      (prénom français)
+ *   "أمين"         → "Puck"      (prénom arabe)
+ *   "amine"       → "Puck"      (slug)
+ *   "Puck"        → "Puck"      (nom technique)
+ *   "Karim"       → "Kore"      (nouvelle voix studio, en français)
+ *   "كريم"         → "Kore"      (nouvelle voix studio, en arabe)
+ *   "voice_xyz"   → "voice_xyz" (voix sur mesure, laissée telle quelle)
+ *   "inconnu"     → "Puck"      (repli sûr : jamais de voix invalide envoyée)
+ *
+ * Remplace la double logique GEMINI_VOICE_MAP + LEGACY_VOICE_MIGRATION :
+ * un seul endroit décide, donc aucune incohérence possible entre les routes.
+ */
+function resolveRequestedVoice(requested: unknown): string {
+  const builtin = GEMINI_VOICE_MAP[String(requested)] || LEGACY_VOICE_MIGRATION[String(requested)];
+  if (builtin) return builtin;
+  return resolveVoiceName(String(requested || "")) || "Puck";
+}
+
 const FEMALE_GEMINI_VOICES = new Set(["Zephyr", "Kore", "Aoede", "Sulafat", "Leda", "Achernar"]);
 
 // FIX n°3 : persona EN CLAIR par voix (Audio Profile du guide officiel Google).
@@ -588,6 +725,85 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
 const PREVIEW_BUCKET = "voice-previews";
+/** Dossier local des aperçus générés par `npm run apercus:voix`. */
+const PREVIEW_DIR = path.join(process.cwd(), "storage", "voice-previews");
+
+/* ===================================================================
+   MANIFESTE DES 30 APERÇUS (généré par scripts/generer-apercus-voix.ts)
+
+   Pourquoi un manifeste et pas un appel Gemini à chaque fois ?
+     • un aperçu est un contenu FIGÉ : il ne doit jamais coûter un centime
+       de plus d'une fois à l'autre ;
+     • les 30 aperçus doivent être comparables entre eux (même script) ;
+     • si le texte d'audition change, le manifeste est invalidé tout seul
+       grâce à son empreinte (scriptHash) — donc jamais d'aperçu périmé.
+
+   Le serveur cherche le manifeste à 2 endroits, dans cet ordre :
+     1) tts/preview-manifest.json            (écrit par le générateur)
+     2) storage/voice-previews/manifest.json (copie de production)
+   =================================================================== */
+function loadPreviewManifest(): VoicePreviewManifest | null {
+  const candidats = [
+    path.join(process.cwd(), "tts", "preview-manifest.json"),
+    path.join(PREVIEW_DIR, "manifest.json"),
+  ];
+  for (const p of candidats) {
+    if (!existsSync(p)) continue;
+    try {
+      const m = JSON.parse(readFileSync(p, "utf8")) as VoicePreviewManifest;
+      const v = validateManifest(m);
+      if (!v.ok) { console.warn(`[Aperçus] manifeste ignoré (${path.basename(p)}) : ${v.raisons.join(" ; ")}`); continue; }
+      for (const a of v.avertissements) console.warn(`[Aperçus] ⚠️  ${a}`);
+      return m;
+    } catch (err: any) {
+      console.warn(`[Aperçus] manifeste illisible (${path.basename(p)}) : ${err?.message || err}`);
+    }
+  }
+  return null;
+}
+
+const PREVIEW_MANIFEST = loadPreviewManifest();
+/** Index voix technique → entrée du manifeste. */
+const PREVIEW_INDEX = new Map<string, NonNullable<VoicePreviewManifest>["voices"][number]>(
+  (PREVIEW_MANIFEST?.voices || []).map((v) => [v.voiceId, v])
+);
+
+// ── Diagnostic des aperçus au démarrage ──
+if (PREVIEW_MANIFEST) {
+  const manquantes = voicesNeedingGenderValidation(PREVIEW_MANIFEST);
+  console.log(
+    `[Aperçus] ✅ ${PREVIEW_MANIFEST.count}/30 voix · script v${PREVIEW_MANIFEST.version} ` +
+    `(${AUDITION_SCRIPT_HASH}) · modèle ${PREVIEW_MANIFEST.model}`
+  );
+  if (manquantes.length) console.log(`[Aperçus] ${manquantes.length} voix à valider à l'oreille → /audition-voix.html`);
+} else {
+  console.log(`[Aperçus] ⚠️  Aucun aperçu généré. Lance : npm run apercus:voix`);
+}
+
+/**
+ * Récupère l'aperçu FIGÉ d'une voix, s'il existe.
+ * Renvoie une URL (Supabase publique) ou un data-URI (fichier local).
+ * Aucun appel Gemini → aucun coût.
+ */
+function getCachedPreviewUrl(voiceName: string): string | null {
+  const entry = PREVIEW_INDEX.get(voiceName);
+  const file = entry?.file || previewFileName(voiceName);
+  const cacheKey = `studio_${voiceName}`;
+
+  // 1) déjà chargé en mémoire
+  if (PREVIEW_AUDIO_CACHE.has(cacheKey)) return PREVIEW_AUDIO_CACHE.get(cacheKey)!;
+  // 2) URL publique Supabase (le navigateur la charge tout seul)
+  if (entry?.url) { PREVIEW_AUDIO_CACHE.set(cacheKey, entry.url); return entry.url; }
+  // 3) fichier local (développement)
+  const localPath = path.join(PREVIEW_DIR, file);
+  if (existsSync(localPath)) {
+    const dataUri = `data:audio/wav;base64,${readFileSync(localPath).toString("base64")}`;
+    PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
+    return dataUri;
+  }
+  return null;
+}
+
 
 async function loadPersistentPreview(cacheKey: string): Promise<string | null> {
   if (!supabaseClient) return null;
@@ -686,9 +902,31 @@ const EMOTION_TONE_EN: Record<string, string> = {
   sighs: "relaxed, with natural breaths between sentences",
 };
 
+/**
+ * Traduit une liste de balises (anciennes OU nouvelles) en une consigne
+ * de ton, utilisée UNIQUEMENT par le mode legacy (3.1).
+ *
+ * En mode modern (3.8), le moteur déduit lui-même le style à partir des
+ * balises — cette fonction n'est donc pas utilisée pour le style 3.8.
+ *
+ * Gère les deux syntaxes pour ne RIEN casser quand on bascule entre les modes :
+ *   • ancienne : ["excited", "laughter"]       → table EMOTION_TONE_EN
+ *   • nouvelle : ["<cheer>", "<laugh>"]        → styleHint du catalogue 3.8
+ */
 function buildEmotionPromptInstruction(tags: string[]): string {
   if (!tags.length) return "";
-  const dominant = EMOTION_TONE_EN[tags[0].toLowerCase()];
+
+  // 1) Nouvelle syntaxe (<laugh>, <sigh>…) → on lit le styleHint du catalogue.
+  const modern = tags.map((t) => String(t).toLowerCase()).find((t) => t.startsWith("<"));
+  if (modern) {
+    const found = VOCAL_TAGS.find((v) => v.tag === modern || (v.aliases || []).includes(modern));
+    if (found?.styleHint) {
+      return `Start ${found.styleHint} from the very first word and keep it consistent.`;
+    }
+  }
+
+  // 2) Ancienne syntaxe → table historique (comportement inchangé).
+  const dominant = EMOTION_TONE_EN[String(tags[0]).toLowerCase()];
   return dominant ? `Start ${dominant} from the very first word and keep it consistent.` : "";
 }
 
@@ -785,19 +1023,21 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
     }
 
     const json = await res.json();
-    const candidate = json.candidates?.[0];
-    const finishReason: string | undefined = candidate?.finishReason;
 
-    // On collecte TOUTES les parties audio de la réponse (pas seulement la 1re).
-    const pcmParts: Buffer[] = [];
-    for (const part of candidate?.content?.parts || []) {
-      if (part.inlineData?.data) pcmParts.push(Buffer.from(part.inlineData.data, "base64"));
-    }
+    // ── Extraction via le moteur TTS ──────────────────────────────────────
+    // Le moteur normalise TOUT en PCM brut sans en-tête, quel que soit le
+    // mode : le 3.1 renvoie du PCM brut, le 3.8 renvoie un WAV complet
+    // (en-tête RIFF de 44 octets) → ici on retire l'en-tête automatiquement.
+    // Sans ça, un WAV 3.8 serait traité comme du PCM : craquement en début
+    // de piste + durée faussée + points facturés trop haut.
+    const extracted = extractAudioFromResponse(json);
+    const finishReason = extracted.finishReason;
+    // Variable locale : garantit un typage sûr même sans compilateur disponible.
+    const audio = extracted.audio;
 
-    if (pcmParts.length === 0) {
-      const textPart = candidate?.content?.parts?.[0]?.text;
-      if (textPart) {
-        throw new Error(`Gemini a renvoyé du TEXTE au lieu d'AUDIO : "${String(textPart).substring(0, 150)}"`);
+    if (!audio) {
+      if (extracted.textInsteadOfAudio) {
+        throw new Error(`Gemini a renvoyé du TEXTE au lieu d'AUDIO : "${extracted.textInsteadOfAudio}"`);
       }
       throw new Error(`Réponse sans audio (finishReason=${finishReason || "absent"})`);
     }
@@ -807,7 +1047,11 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
       throw new Error(`Audio incomplet (finishReason=${finishReason})`);
     }
 
-    return Buffer.concat(pcmParts);
+    if (audio.received === "wav") {
+      console.log(`[TTS] En-tête WAV retiré automatiquement (${audio.headerStripped} octets) — modèle ${TTS_MODEL}`);
+    }
+
+    return audio.pcm;
   } catch (err: any) {
     if (err?.name === "AbortError") {
       throw new Error(`Timeout Gemini TTS après ${TTS_FETCH_TIMEOUT_MS}ms`);
@@ -863,6 +1107,21 @@ async function synthesizeWithRetry(
   const pitchNote = pitch >= 1.1 ? "Slightly higher pitch, lively." : pitch <= 0.9 ? "Slightly lower pitch, grounded." : "";
   const emotionNote = buildEmotionPromptInstruction(emotionTags);
 
+  // ── Style pour le mode MODERN (3.8) ──────────────────────────────────────
+  // En 3.8, le « comment dire » vit dans `speech_metadata.style` et doit
+  // rester COURT (la doc Google : « extra prompt text increases drift »).
+  // On n'y met donc QUE ce que l'utilisateur a réglé explicitement (sa
+  // vitesse et sa hauteur de voix). L'émotion, elle, est déduite par le
+  // moteur à partir des balises de sons présentes dans le texte : un seul
+  // endroit décide, donc aucune incohérence possible, et surtout aucune
+  // longue description de personnage (la 1re cause de dérive de voix en 3.8).
+  const modernStyleParts: string[] = [];
+  if (speed >= 1.15) modernStyleParts.push("speaking rapidly");
+  else if (speed <= 0.88) modernStyleParts.push("speaking slowly");
+  if (pitch >= 1.1) modernStyleParts.push("higher pitch, lively");
+  else if (pitch <= 0.9) modernStyleParts.push("lower pitch, grounded");
+  const modernStyle = modernStyleParts.length > 0 ? modernStyleParts.join(", ") : null;
+
   // FIX TTS-C : on découpe le texte complet AVANT toute génération.
   const cleanFullText = rawText.replace(/\s+/g, " ").trim();
   if (!cleanFullText) return { pcmBuffer: null, error: "Texte vide", usedStreaming: false, chunkCount: 0 };
@@ -881,18 +1140,36 @@ async function synthesizeWithRetry(
     let chunkText = normalizeTextForTTS(chunks[ci], isLastChunk);
     if (ci === 0) chunkText = injectNaturalFiller(chunkText);
 
-    const enrichedSpeechPrompt = buildTTSPrompt(chunkText, persona, pace, pitchNote, emotionNote);
-    const requestBody = {
-      contents: [{ parts: [{ text: enrichedSpeechPrompt }] }],
-      generationConfig: {
-        responseModalities: ["audio"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: selectedVoiceName }
-          }
-        }
-      }
-    };
+    // ── Construction de la requête par le MOTEUR TTS ─────────────────────
+    // Le moteur choisit TOUT SEUL le bon format selon TTS_MODEL :
+    //   • mode modern (3.8) : transcript verbatim + `speech_metadata.style`
+    //     séparé (règle Google : les instructions dans le texte font dériver
+    //     la voix) + balises en crochets ANGLE.
+    //   • mode legacy (3.1) : "DIRECTOR'S NOTES" préfixées + balises en
+    //     crochets CARRÉS + ancien champ prebuiltVoiceConfig.
+    // Dans les deux cas, la sortie est forcée en PCM brut (AUDIO_L16) pour
+    // que pcmToWavBuffer / pcmToMp3Buffer / la durée / les points restent
+    // EXACTEMENT identiques.
+    const built = buildTtsRequest({
+      model: TTS_MODEL,
+      rawText: chunkText,
+      voiceName: selectedVoiceName,
+      // En mode modern on ne transmet que vitesse/hauteur ; l'émotion est
+      // déduite par le moteur depuis les balises de sons du transcript.
+      style: TTS_ENGINE_MODE === "modern" ? modernStyle : null,
+      legacyPersona: persona,
+      legacyNotes: [
+        `Pace: ${pace}`,
+        pitchNote ? `Pitch: ${pitchNote}` : "",
+        emotionNote ? `Tone: ${emotionNote}` : "",
+      ],
+      output: "pcm",
+    });
+    const requestBody = built.body;
+
+    if (built.warnings.length) {
+      console.warn(`[TTS] Morceau ${ci + 1} — ${built.warnings.join(" | ")}`);
+    }
 
     let chunkBuffer: Buffer | null = null;
     let lastChunkError: any = null;
@@ -1620,9 +1897,15 @@ async function startServer() {
     const estimatedCost = computePointsCost(estimatedDuration);
     if (balance < estimatedCost) return res.status(402).json({ error: "Solde insuffisant pour ce texte.", estimated_duration_seconds: estimatedDuration, estimated_points_required: estimatedCost, current_balance: balance });
     if (await hasReachedDailyTTSLimit(key.userId)) return res.status(429).json({ error: `Quota quotidien atteint (${DAILY_TTS_LIMIT} générations).` });
-    const selectedVoiceName = GEMINI_VOICE_MAP[voice_id] || "Puck";
+    const selectedVoiceName =
+      resolveRequestedVoice(voice_id);
+    // API développeur : les balises sont analysées comme partout ailleurs,
+    // donc les clients existants qui envoient `[excited]` continuent de
+    // fonctionner, et les nouveaux peuvent utiliser `<laugh>`, `<sigh>`…
+    const devApi = parseTranscript(text);
+    const devTags = devApi.tags.map((t) => t.tag);
     const started = Date.now();
-    const generated = await synthesizeWithRetry(text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, []);
+    const generated = await synthesizeWithRetry(devApi.text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, devTags);
     const usageCount = await recordGeminiUsage({ userId: key.userId, operation: "tts", characters: text.length, success: Boolean(generated.pcmBuffer), model: TTS_MODEL, metadata: { source: "developer_api", key_id: key.id } });
     if (!generated.pcmBuffer) return res.status(503).json({ error: "Génération indisponible; aucun point débité.", detail: generated.error });
     const duration = Math.round((generated.pcmBuffer.length / 48000) * 10) / 10;
@@ -1671,17 +1954,38 @@ async function startServer() {
     const pitch = parseFloat(req.query.pitch as string) || 1.0;
 
     // FIX n°5 : la voix Gemini est dans la clé de cache.
-    const selectedVoiceName = GEMINI_VOICE_MAP[voiceId] || "Puck";
+    // MIGRATION 30 VOIX : plus de « GEMINI_VOICE_MAP[...] || Puck » ici.
+    // resolveRequestedVoice() accepte les 9 anciens IDs, les 30 prénoms
+    // français, les prénoms arabes, les slugs et les noms techniques.
+    const selectedVoiceName = resolveRequestedVoice(voiceId);
     const cacheKey = `${voiceId}_${selectedVoiceName}_${speed.toFixed(1)}_${pitch.toFixed(1)}`;
 
+    // ── APERÇU FIGÉ (le moins cher et le plus rapide) ──
+    // Si l'aperçu de cette voix a déjà été généré par `npm run apercus:voix`,
+    // on le sert directement : 0 appel Gemini, 0 point, réponse instantanée.
+    // Vitesse et hauteur n'ont pas d'incidence : l'aperçu est un échantillon fixe.
+    const frozen = getCachedPreviewUrl(selectedVoiceName);
+    if (frozen) {
+      const entry = PREVIEW_INDEX.get(selectedVoiceName);
+      return res.json({
+        voice_id: voiceId,
+        voice_name: selectedVoiceName,
+        display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName,
+        audio_url: frozen,
+        duration_seconds: entry?.durationSeconds ?? 2.5,
+        cached: true,
+        source: "manifest",
+      });
+    }
+
     if (PREVIEW_AUDIO_CACHE.has(cacheKey)) {
-      return res.json({ voice_id: voiceId, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5 });
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5, cached: true, source: "memory" });
     }
     const inflight = PREVIEW_INFLIGHT.get(cacheKey);
     if (inflight) {
       try {
         const audioUrl = await inflight;
-        return res.json({ voice_id: voiceId, audio_url: audioUrl, duration_seconds: 2.5 });
+        return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: audioUrl, duration_seconds: 2.5, cached: true, source: "inflight" });
       } catch (err: any) {
         return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes.", detail: err?.message });
       }
@@ -1689,10 +1993,17 @@ async function startServer() {
 
     const persistentPreview = await loadPersistentPreview(cacheKey);
     if (persistentPreview) {
-      return res.json({ voice_id: voiceId, audio_url: persistentPreview, duration_seconds: 2.5 });
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: persistentPreview, duration_seconds: 2.5, cached: true, source: "storage" });
     }
 
-    const sampleScript = VOICE_PREVIEW_SCRIPTS[voiceId] || "سلام عليكم، مرحبا بيكم في منصة صوتيفي.";
+    // Texte de l'aperçu : d'abord le texte « vitrine » propre à la voix,
+    // sinon l'ancien script pour compatibilité, sinon le script d'audition.
+    const legacyKey = previewTargets().find((t) => t.voice.id === selectedVoiceName)?.legacyId || voiceId;
+    const sampleScript =
+      VOICE_PREVIEW_TEXTS[selectedVoiceName] ||
+      VOICE_PREVIEW_SCRIPTS[legacyKey] ||
+      VOICE_PREVIEW_SCRIPTS[voiceId] ||
+      AUDITION_SCRIPT;
     const generation = (async () => {
       // FIX n°1 : SEUL du vrai audio Gemini est caché/persisté.
       // Échec → exception → 503. Jamais de sinusoïdes robotiques en cache.
@@ -1713,7 +2024,7 @@ async function startServer() {
     PREVIEW_INFLIGHT.set(cacheKey, generation);
     try {
       const dataUri = await generation;
-      return res.json({ voice_id: voiceId, audio_url: dataUri, duration_seconds: 2.5 });
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: dataUri, duration_seconds: 2.5, cached: false, source: "gemini" });
     } catch (err: any) {
       return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes.", detail: err?.message });
     } finally {
@@ -1722,6 +2033,69 @@ async function startServer() {
   };
   app.get("/api/v1/tts/preview", previewLimiter, handleTTSPreview);
   app.get("/api/tts/preview", previewLimiter, handleTTSPreview);
+
+  /* ===================================================================
+     LISTE DES 30 VOIX (API)
+     -------------------------------------------------------------------
+     Renvoie TOUT ce qu'un développeur a besoin de savoir sur chaque voix :
+     prénom français, prénom arabe, nom technique, caractère, genre,
+     et l'URL de son aperçu audio quand il a été généré.
+
+     `?lang=ar` pour les textes en arabe. `?avec_apercu=1` pour ne garder
+     que les voix dont l'aperçu existe déjà.
+     =================================================================== */
+  app.get("/api/v1/tts/voices", (req, res) => {
+    const lang = (req.query.lang as string) === "ar" ? "ar" : "fr";
+    const seulementAvecApercu = req.query.avec_apercu === "1";
+
+    let voix = previewTargets().map((t) => {
+      const n = VOICE_NAMES.find((x) => x.id === t.voice.id);
+      const entry = PREVIEW_INDEX.get(t.voice.id);
+      const apercu = getCachedPreviewUrl(t.voice.id);
+      return {
+        id: t.voice.id,
+        name_fr: t.nameFr,
+        name_ar: t.nameAr,
+        slug: t.slug,
+        legacy_id: t.legacyId ?? null,
+        caractere: lang === "fr" ? n?.caractereFr : n?.caractereAr,
+        gender: n?.gender ?? "unknown",
+        a_confirmer: Boolean(n?.aConfirmer),
+        preview_url: apercu && !apercu.startsWith("data:") ? apercu : apercu ? `/api/v1/tts/preview?voice_id=${encodeURIComponent(t.voice.id)}` : null,
+        preview_seconds: entry?.durationSeconds ?? null,
+      };
+    });
+    if (seulementAvecApercu) voix = voix.filter((v) => v.preview_url);
+
+    res.set("Cache-Control", "public, max-age=300");
+    res.json({
+      model: TTS_MODEL,
+      lang,
+      count: voix.length,
+      total: previewTargets().length,
+      audition_script_version: AUDITION_SCRIPT_VERSION,
+      gender_valides: PREVIEW_MANIFEST ? PREVIEW_MANIFEST.count : 0,
+      voices: voix,
+    });
+  });
+  app.get("/api/tts/voices", (req, res) => res.redirect(307, `/api/v1/tts/voices?${new URLSearchParams(req.query as any).toString()}`));
+
+  /* ===================================================================
+     MANIFESTE DES APERÇUS (API)
+     Renvoie le manifeste tel quel : noms des fichiers WAV, durées, dates,
+     empreinte du script. Sert aux outils internes et au diagnostic.
+     =================================================================== */
+  app.get("/api/v1/tts/preview-manifest", (_req, res) => {
+    if (!PREVIEW_MANIFEST) {
+      return res.status(404).json({
+        error: "Aucun aperçu généré pour le moment.",
+        comment_faire: "npm run apercus:voix",
+        script_version_attendu: AUDITION_SCRIPT_VERSION,
+      });
+    }
+    res.set("Cache-Control", "public, max-age=300");
+    res.json({ ...PREVIEW_MANIFEST, script_version: AUDITION_SCRIPT_VERSION, a_valider_a_loreille: voicesNeedingGenderValidation(PREVIEW_MANIFEST) });
+  });
 
   /* ===================================================================     TTS GENERATE (débit côté serveur)
      Bénéficie des FIX TTS-A → TTS-E :
@@ -1806,9 +2180,22 @@ async function startServer() {
         return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
       }
 
-      // FIX n°2 : les balises deviennent des audio tags natifs dans le transcript.
-      const { textForSpeech, tags: emotionTags } = extractAndApplyEmotionTags(text);
-      const selectedVoiceName = GEMINI_VOICE_MAP[requestedVoice] || "Puck";
+      // FIX n°2 + 3.8 : analyse des balises par le MOTEUR (gère les deux
+      // syntaxes — ancienne `[excited]` et nouvelle `<laugh>` — et retire
+      // les balises inconnues de Google ainsi que les bruitages non humains
+      // qui dégradent l'audio). Le transcript envoyé ne contient donc QUE
+      // des balises officielles.
+      const analysed = parseTranscript(text);
+      const emotionTags = analysed.tags.map((t) => t.tag);
+      const textForSpeech = analysed.text;
+      if (analysed.unknownTags.length || analysed.forbiddenSfx.length) {
+        console.warn(`[TTS] Balises nettoyées du transcript : ${[
+          ...analysed.unknownTags,
+          ...analysed.forbiddenSfx.map((s) => `[${s}]`),
+        ].join(", ")}`);
+      }
+      const selectedVoiceName =
+        resolveRequestedVoice(requestedVoice);
 
       const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
       // FIX COST-3 : génération payante → billable=true, séparée des previews gratuites (billable=false).
@@ -2252,6 +2639,22 @@ Style vocal souhaité : ${style || "excited"}`;
       return res.json({ success: true, welcomeGranted: false });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
   });
+
+  /* ===================================================================
+     SERVICE DES APERÇUS AUDIO LOCAUX
+     Les WAV générés par `npm run apercus:voix` sont dans storage/.
+     Ce dossier n'est PAS copié dans dist/ au build : cette route les sert
+     donc aussi en production, pour que public/audition-voix.html et
+     l'API `/voices` fonctionnent même sans Supabase.
+     (En production, préfère quand même `--upload` : les fichiers sont alors
+     servis par Supabase, donc plus rapides et déchargés du serveur Node.)
+     =================================================================== */
+  app.use("/storage/voice-previews", (req, res, next) => {
+    // On n'autorise QUE les .wav/.json : rien d'autre n'est exposé.
+    if (!/\.(wav|json)$/i.test(req.path)) return next();
+    res.set("Cache-Control", "public, max-age=86400");
+    next();
+  }, express.static(PREVIEW_DIR, { fallthrough: true, index: false, dotfiles: "deny" }));
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
