@@ -881,6 +881,42 @@ async function loadPersistentPreview(cacheKey: string): Promise<string | null> {
   } catch { return null; }
 }
 
+/**
+ * CLÉ CANONIQUE D'UN APERÇU — `studio_<nom technique de la voix>`.
+ *
+ * ⚠️ POURQUOI PAS LA CLÉ DE LA REQUÊTE : celle-ci contient l'identifiant
+ * envoyé par le client ET la vitesse/hauteur. « Amin », « voice_amin », le
+ * slug « amin » et le prénom arabe désignent LA MÊME VOIX — ils créaient donc
+ * jusqu'à 4 entrées différentes dans le stockage, donc 4 générations payées
+ * et 4 fichiers identiques. Avec cette clé canonique, une seule : l'aperçu
+ * généré une fois est servi à tout le monde, quelle que soit l'écriture
+ * utilisée (c'est aussi la clé déjà utilisée par le cache mémoire de
+ * `getCachedPreviewUrl`, donc les deux se répondent).
+ */
+const previewKeyForVoice = (voiceName: string): string => `studio_${voiceName}`;
+
+/** Texte d'aperçu d'une voix (vitrine si elle existe, sinon audition). */
+function previewScriptForVoice(voiceName: string, voiceId: string): string {
+  return (
+    VOICE_PREVIEW_TEXTS[voiceName] ||
+    VOICE_PREVIEW_SCRIPTS[voiceId] ||
+    VOICE_PREVIEW_SCRIPTS[voiceName] ||
+    AUDITION_SCRIPT
+  );
+}
+
+/**
+ * Génère l'aperçu d'UNE voix et renvoie un data-URI WAV prêt à servir.
+ * Utilisé par la route publique ET par le préchauffage du démarrage : il n'y
+ * a donc qu'un seul code qui sait fabriquer un aperçu.
+ */
+async function generateVoicePreviewDataUri(voiceName: string, voiceId: string): Promise<string> {
+  const script = previewScriptForVoice(voiceName, voiceId);
+  const { pcmBuffer, error } = await synthesizeWithRetry(script, voiceName, 3, 1.0, 1.0, voiceId, []);
+  if (!pcmBuffer || error) throw new Error(error || "Audio d'aperçu vide");
+  return `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
+}
+
 async function savePersistentPreview(cacheKey: string, dataUri: string): Promise<void> {
   if (!supabaseClient) return;
   try {
@@ -2018,6 +2054,16 @@ async function startServer() {
     if (PREVIEW_AUDIO_CACHE.has(cacheKey)) {
       return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5, cached: true, source: "memory" });
     }
+
+    // ── APERÇU DÉJÀ FABRIQUÉ, TOUTES ÉCRITURES CONFONDUES ────────────────
+    // On interroge la clé canonique AVANT de dépenser un appel Gemini : un
+    // aperçu généré une fois (par le préchauffage ou par n'importe quel
+    // utilisateur) est servi à tous, même si la voix est écrite autrement.
+    const canonicalKey = previewKeyForVoice(selectedVoiceName);
+    const canonicalPreview = await loadPersistentPreview(canonicalKey);
+    if (canonicalPreview) {
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName, audio_url: canonicalPreview, duration_seconds: PREVIEW_INDEX.get(selectedVoiceName)?.durationSeconds ?? 2.5, cached: true, source: "supabase" });
+    }
     const inflight = PREVIEW_INFLIGHT.get(cacheKey);
     if (inflight) {
       try {
@@ -2054,7 +2100,10 @@ async function startServer() {
       }
       const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
       PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
-      await savePersistentPreview(cacheKey, dataUri);
+      // Enregistrement sous la clé CANONIQUE : c'est ce qui fait qu'un seul
+      // aperçu suffit pour toutes les écritures de la même voix.
+      PREVIEW_AUDIO_CACHE.set(canonicalKey, dataUri);
+      await savePersistentPreview(canonicalKey, dataUri);
       await recordGeminiUsage({ userId: previewUserId, operation: "preview", characters: sampleScript.length, success: true, model: TTS_MODEL, metadata: { voice: voiceId, free: true } });
       return dataUri;
     })();
@@ -2733,8 +2782,90 @@ Style vocal souhaité : ${style || "excited"}`;
     res.status(error?.status || 500).json({ error: error?.message || "Erreur interne du serveur." });
   });
 
+  /* ===================================================================
+     PRÉCHAUFFAGE DES APERÇUS DE VOIX — 26/09/2026
+     -------------------------------------------------------------------
+     POURQUOI : sans ça, le 1er visiteur qui clique ▶ sur une voix attend
+     4 à 8 secondes pendant que l'aperçu se fabrique. Et chaque fois qu'un
+     utilisateur écrit la voix autrement (« Amin », « voice_amin », le nom
+     arabe…), c'était une NOUVELLE génération payée pour le même son.
+
+     CE QUE FAIT CETTE FONCTION, au démarrage :
+       • regarde quelles voix ont déjà un aperçu dans le stockage ;
+       • fabrique les manquants UN PAR UN, en tâche de fond (le site répond
+         normalement pendant ce temps — rien n'est bloqué) ;
+       • les enregistre définitivement (le coût n'est payé qu'UNE fois).
+
+     COÛT : 30 aperçus ≈ 3 DZD au total, une seule fois. Ensuite, plus jamais.
+     Le texte prononcé est celui de `VOICE_PREVIEW_TEXTS`, en darija, et la
+     voix reçoit la consigne « lis exactement ce qui est écrit ».
+
+     POUR DÉSACTIVER : variable TTS_WARM_PREVIEWS=0 (aucun redéploiement du
+     code n'est nécessaire, c'est un simple réglage).
+     =================================================================== */
+  async function warmMissingVoicePreviews(): Promise<void> {
+    if (process.env.TTS_WARM_PREVIEWS === "0") {
+      console.log("[Aperçus] Préchauffage désactivé (TTS_WARM_PREVIEWS=0).");
+      return;
+    }
+    if (!process.env.GEMINI_API_KEY) {
+      console.log("[Aperçus] Préchauffage ignoré : GEMINI_API_KEY absente (normal en local).");
+      return;
+    }
+    if (!supabaseClient) {
+      console.log("[Aperçus] Préchauffage ignoré : stockage Supabase indisponible — un aperçu généré serait perdu au redémarrage.");
+      return;
+    }
+
+    try {
+      // 1) Que possède-t-on déjà ? (un seul appel réseau)
+      const { data: fichiers } = await supabaseClient.storage.from(PREVIEW_BUCKET).list("", { limit: 1000 });
+      const presents = new Set((fichiers || []).map((f: any) => String(f.name)));
+      const manquantes = previewTargets().filter((t) => {
+        if (presents.has(`${previewKeyForVoice(t.voice.id)}.wav`)) return false;
+        if (getCachedPreviewUrl(t.voice.id)) return false;  // local ou mémoire
+        return true;
+      });
+
+      if (manquantes.length === 0) {
+        console.log(`[Aperçus] Les ${previewTargets().length} aperçus sont déjà en place — rien à générer.`);
+        return;
+      }
+      console.log(`[Aperçus] ${manquantes.length} aperçu(x) manquant(s) → génération en tâche de fond (le site reste disponible).`);
+
+      let faits = 0, echecs = 0;
+      for (const t of manquantes) {
+        const key = previewKeyForVoice(t.voice.id);
+        try {
+          const dataUri = await generateVoicePreviewDataUri(t.voice.id, t.legacyId || t.voice.id);
+          PREVIEW_AUDIO_CACHE.set(key, dataUri);
+          await savePersistentPreview(key, dataUri);
+          faits++;
+          console.log(`[Aperçus ✓] ${t.voice.id} (${t.nameFr}) — ${faits}/${manquantes.length}`);
+        } catch (err: any) {
+          echecs++;
+          console.warn(`[Aperçus ✗] ${t.voice.id} : ${err?.message || err}`);
+          // Le stockage refuse tout (bucket absent ou non public) ? On ne
+          // gaspille pas 30 générations : on s'arrête tout de suite et on dit
+          // exactement quoi faire.
+          if (faits === 0 && echecs === 1) {
+            console.warn(`[Aperçus] Arrêt : le 1er enregistrement a échoué. Crée un bucket PUBLIC nommé « ${PREVIEW_BUCKET} » dans Supabase Storage, puis redémarre.`);
+            return;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 1200)); // on ne bouscule pas l'API
+      }
+      console.log(`[Aperçus] Préchauffage terminé : ${faits} généré(s), ${echecs} échec(s). Coût ≈ ${(faits * 0.004).toFixed(3)} $ une seule fois.`);
+    } catch (err: any) {
+      console.warn(`[Aperçus] Préchauffage impossible : ${err?.message || err}`);
+    }
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    // Les aperçus manquants se fabriquent tout seuls, en tâche de fond :
+    // aucune commande à lancer, aucun terminal. Voir warmMissingVoicePreviews.
+    setTimeout(() => { void warmMissingVoicePreviews(); }, 3000);
     void cleanupExpiredGenerations();
     setInterval(() => void cleanupExpiredGenerations(), 24 * 60 * 60 * 1000).unref();
   });

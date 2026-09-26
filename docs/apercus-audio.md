@@ -47,6 +47,38 @@ entendes comment la voix gère une respiration et un petit rire.
 
 ---
 
+## ⚡ NOUVEAU (26/09/2026) : les aperçus se génèrent TOUT SEULS
+
+Plus besoin de terminal ni de commande : **au démarrage du serveur**, les
+aperçus manquants sont fabriqués un par un **en tâche de fond** (le site répond
+normalement pendant ce temps), puis enregistrés définitivement. Le coût
+(≈ 3 DZD pour les 30) n'est payé **qu'une seule fois**.
+
+```
+[Aperçus] 27 aperçu(x) manquant(s) → génération en tâche de fond…
+[Aperçus ✓] Kore (Ines) — 1/27
+…
+[Aperçus] Préchauffage terminé : 27 généré(s), 0 échec(s).
+```
+
+Trois conditions (déjà en place si le reste fonctionne) :
+
+1. `GEMINI_API_KEY` présente sur le serveur ;
+2. stockage Supabase accessible ;
+3. un bucket **PUBLIC** nommé **`voice-previews`** dans Supabase Storage.
+
+Si le bucket manque, le serveur s'arrête après **un seul** essai et l'écrit
+clairement — il ne gaspille pas 30 générations.
+
+Pour désactiver : variable d'environnement **`TTS_WARM_PREVIEWS=0`**.
+
+### Bonus : une seule génération par voix, quelle que soit l'écriture
+
+Les aperçus sont désormais enregistrés sous une clé **canonique**
+(`studio_<voix>`). Avant, « Amin », « voice_amin », le slug et le prénom arabe
+créaient **4 entrées différentes** → 4 générations payées pour le même son.
+Maintenant : une seule, servie à tout le monde.
+
 ## 3. La commande
 
 ```bash
