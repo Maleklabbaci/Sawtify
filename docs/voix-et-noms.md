@@ -86,7 +86,7 @@ pour que le prénom corresponde enfin au genre réel de la voix.
 | 14 | `Despina` | **Salma** | سلمى | Voix lisse et douce | 🆕 femme |
 | 15 | `Erinome` | **Rania** | رانيا | Voix claire et précise | 🆕 femme |
 | 16 | `Laomedeia` | **Hanane** | حنان | Voix enjouée et vive | 🆕 femme |
-| 17 | `Vindemiatrix` | **Nassima** | نسيمة | Voix douce et délicate | 🆕 femme |
+| 17 | `Vindemiatrix` | **Amina** | أمينة | Voix douce et délicate | 🆕 femme |
 | 18 | `Gacrux` | **Widad** | وداد | Voix mûre et expérimentée | 🆕 femme |
 | 19 | `Enceladus` | **Anis** | أنيس | Voix soufflée et intime | 🆕 homme |
 | 20 | `Iapetus` | **Zaki** | زكي | Voix claire et nette | 🆕 homme |
@@ -97,7 +97,7 @@ pour que le prénom corresponde enfin au genre réel de la voix.
 | 25 | `Achird` | **Hicham** | هشام | Voix amicale et proche | 🆕 homme |
 | 26 | `Zubenelgenubi` | **Reda** | رضا | Voix décontractée et naturelle | 🆕 homme |
 | 27 | `Pulcherrima` | **Yacine** | ياسين | Voix directe et assurée | 🆕 homme |
-| 28 | `Schedar` | **Amir** | أمير | Voix égale et posée | 🆕 homme |
+| 28 | `Schedar` | **Nassim** | نسيم | Voix égale et posée | 🆕 homme |
 | 29 | `Sadachbia` | **Fares** | فارس | Voix vivante et animée | 🆕 homme |
 | 30 | `Sadaltager` | **Mourad** | مراد | Voix savante et pédagogue | 🆕 homme |
 

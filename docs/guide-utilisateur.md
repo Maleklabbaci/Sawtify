@@ -241,7 +241,7 @@ c'est l'ordre affiché quand aucun filtre n'est actif.
 | **Salma** | سلمى | lisse et douce | Femme |
 | **Rania** | رانيا | claire et précise | Femme |
 | **Hanane** | حنان | enjouée et vive | Femme |
-| **Nassima** | نسيمة | douce et délicate | Femme |
+| **Amina** | أمينة | douce et délicate | Femme |
 | **Widad** | وداد | mûre et expérimentée | Femme |
 | **Anis** | أنيس | soufflée et intime | Homme |
 | **Zaki** | زكي | claire et nette | Homme |
@@ -252,7 +252,7 @@ c'est l'ordre affiché quand aucun filtre n'est actif.
 | **Hicham** | هشام | amicale et proche | Homme |
 | **Reda** | رضا | décontractée et naturelle | Homme |
 | **Yacine** | ياسين | directe et assurée | Homme |
-| **Amir** | أمير | égale et posée | Homme |
+| **Nassim** | نسيم | égale et posée | Homme |
 | **Fares** | فارس | vivante et animée | Homme |
 | **Mourad** | مراد | savante et pédagogue | Homme |
 > ✅ **Le genre de chaque voix est désormais connu.** Google ne le publie pas, mais une liste de

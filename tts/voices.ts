@@ -5,18 +5,11 @@
  *  Source : documentation officielle Gemini 3.8 TTS (24/09/2026)
  *  → « Prebuilt voices » (30 voix) + « Extended Voice Library »
  *
- *  LE GENRE (homme/femme) — RÉSOLU LE 26/09/2026
- *  Google ne publie pas le genre de ses 30 voix studio : sa doc ne donne
- *  qu'un descripteur de caractère (« Bright », « Gravelly », « Warm »…).
- *  Le genre ci-dessous vient donc d'une LISTE DE RÉFÉRENCE vérifiée :
- *      12 femmes · 18 hommes
- *  Elle a servi à corriger deux erreurs réelles : Zephyr et Achernar
- *  étaient marquées « female » alors que ce sont des voix d'homme — elles
- *  doublaient Yasmine et Nour, deux voix féminines de Sawtify.
- *
- *  Toute modification de genre ici doit être répercutée dans :
- *    tts/voiceNames.ts  ·  src/data/voicesV41.ts  ·  server.ts
- *  `npm run verif:voix` vérifie que les quatre sont d'accord.
+ *  GENRE (homme/femme) — CONFIRMÉ le 26/09 sur les 30 voix
+ *  Genre officiel Google (catalogue Gemini TTS, listes "Voix féminines" /
+ *  "Voix masculines"). Avant cette date, les 21 voix ajoutées en 4.1
+ *  portaient `gender: "unknown"`, ce qui les excluait silencieusement des
+ *  filtres Homme/Femme du studio. Ne plus repasser une voix à "unknown".
  * ============================================================================
  */
 

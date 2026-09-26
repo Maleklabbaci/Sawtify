@@ -104,7 +104,7 @@ aucune intégration existante n'est cassée.
 | 14 | Salma | سلمى | `Despina` | — | femme |
 | 15 | Rania | رانيا | `Erinome` | — | femme |
 | 16 | Hanane | حنان | `Laomedeia` | — | femme |
-| 17 | Nassima | نسيمة | `Vindemiatrix` | — | femme |
+| 17 | Amina | أمينة | `Vindemiatrix` | — | femme |
 | 18 | Widad | وداد | `Gacrux` | — | femme |
 | 19 | Anis | أنيس | `Enceladus` | — | homme |
 | 20 | Zaki | زكي | `Iapetus` | — | homme |
@@ -115,7 +115,7 @@ aucune intégration existante n'est cassée.
 | 25 | Hicham | هشام | `Achird` | — | homme |
 | 26 | Reda | رضا | `Zubenelgenubi` | — | homme |
 | 27 | Yacine | ياسين | `Pulcherrima` | — | homme |
-| 28 | Amir | أمير | `Schedar` | — | homme |
+| 28 | Nassim | نسيم | `Schedar` | — | homme |
 | 29 | Fares | فارس | `Sadachbia` | — | homme |
 | 30 | Mourad | مراد | `Sadaltager` | — | homme |
 **Les 30 genres sont désormais connus** (13 femmes, 17 hommes) et chaque `voice_name`

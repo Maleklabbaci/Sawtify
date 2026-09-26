@@ -71,9 +71,9 @@ const PRENOMS: Record<string, "male" | "female"> = {
   Rachid: "male", Layla: "female", Bilal: "male", Nour: "female",
   Fayçal: "male", Karima: "female", Aya: "female", Samia: "female",
   Nada: "female", Salma: "female", Rania: "female", Rym: "female",
-  Nassima: "female", Souad: "female", Anis: "male", Zaki: "male",
+  Amina: "female", Souad: "female", Anis: "male", Zaki: "male",
   Walid: "male", Nabil: "male", Hakim: "male", Adel: "male",
-  Hicham: "male", Reda: "male", Yacine: "male", Amir: "male",
+  Hicham: "male", Reda: "male", Yacine: "male", Nassim: "male",
   Sofiane: "male", Mourad: "male",
 };
 

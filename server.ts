@@ -712,9 +712,6 @@ function resolveRequestedVoice(requested: unknown): string {
   return resolveVoiceName(String(requested || "")) || "Puck";
 }
 
-// Source : liste de reference verifiee (12 femmes / 18 hommes), 26/09/2026.
-// Les 2 erreurs corrigees : Zephyr et Achernar sont des voix d'HOMME
-// (elles servaient a Yasmine et Nour, deux voix feminines).
 // Source : liste de reference verifiee (13 femmes / 17 hommes), 26/09/2026.
 // Attention : Zephyr, Achernar et Gacrux sont des voix de FEMME, et
 // Pulcherrima / Schedar des voix d'HOMME — l'inverse de ce que
