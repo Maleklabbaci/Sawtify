@@ -7,6 +7,7 @@ import {
   resolveEngineMode, buildTtsRequest, stripWavHeader, extractAudioFromResponse,
   toLegacyTranscript, describeEngine, pcmDurationSeconds, legacyFidelityReport,
   splitIntoChunksForTTS, protegerBalises, restaurerBalises, estEquilibre,
+  languageInstruction,
 } from "./engine";
 
 let pass = 0, fail = 0;
@@ -84,9 +85,18 @@ const mBody: any = modern.body;
 const mPart = mBody.contents[0].parts[0];
 
 ok(modern.mode === "modern", "mode = modern");
-// ⚠️ Décision du 26/09/2026 : on n'invente PLUS de style à partir des balises.
-// `style` ne contient que ce que l'utilisateur a réglé explicitement.
-ok(mPart.speech_metadata === undefined, "aucun style n'est inventé : speech_metadata absent quand rien n'est réglé");
+// ⚠️ Décision du 26/09/2026 : on n'invente PLUS de TON à partir des balises.
+// Ce qui part dans `style` = la consigne de LANGUE (voir 13ter) + les réglages
+// explicites de l'utilisateur. Rien d'autre, jamais rien de deviné.
+ok(mPart.speech_metadata?.style === languageInstruction("سلام خاوتي <laugh> واش راكم <short pause> لاباس؟"),
+    "aucun TON n'est inventé : `style` ne porte que la consigne de langue");
+// Et quand il n'y a vraiment rien à dire au modèle, on ne dit RIEN :
+// pas même un `speech_metadata` vide. Un texte français sans réglage.
+const mRien = buildTtsRequest({
+  model: "gemini-3.8-flash-tts", rawText: "Bonjour tout le monde.", voiceName: "Puck", style: null,
+});
+ok((mRien.body as any).contents[0].parts[0].speech_metadata === undefined,
+    "★ texte français sans aucun réglage → `speech_metadata` totalement absent");
 ok(mPart.text === "سلام خاوتي <laugh> واش راكم <short pause> لاباس؟", "le transcript reste VERBATIM, balises officielles en place");
 ok(!/DIRECTOR'S NOTES/.test(mPart.text), "AUCUN « DIRECTOR'S NOTES » dans le texte (règle Google anti-dérive)");
 ok(!/Pace:|Tone:|Speaker:/.test(mPart.text), "aucune instruction de jeu dans le texte");
@@ -311,7 +321,12 @@ const sansStyle = buildTtsRequest({
   style: null,
 });
 const sansStylePart: any = (sansStyle.body as any).contents[0].parts[0];
-ok(sansStylePart.speech_metadata === undefined, "★ texte grave contenant un <laugh> → AUCUN style imposé à tout le texte");
+// Depuis le 26/09, le style porte AUSSI l'instruction de LANGUE (voir 13ter).
+// Ce qui reste vrai et testé ici : aucun TON n'est inventé depuis la balise.
+ok(/Algerian Darija/.test(sansStylePart.speech_metadata?.style || ""),
+    "★ un texte en darija porte l'instruction de langue dans `style`");
+ok(!/cheerful/i.test(sansStylePart.speech_metadata?.style || ""),
+    "★ texte grave contenant un <laugh> → AUCUN ton inventé (le <laugh> reste ponctuel)");
 ok(sansStyle.tags.some((t) => t.tag === "<laugh>"), "la balise <laugh> reste dans le texte (son ponctuel conservé)");
 
 const avecStyle = buildTtsRequest({
@@ -321,7 +336,8 @@ const avecStyle = buildTtsRequest({
   style: "speaking rapidly",
 });
 const avecStylePart: any = (avecStyle.body as any).contents[0].parts[0];
-ok(avecStylePart.speech_metadata?.style === "speaking rapidly", "le style RÉGLÉ par l'utilisateur est bien transmis");
+ok(/speaking rapidly$/.test(avecStylePart.speech_metadata?.style || ""),
+    "le style RÉGLÉ par l'utilisateur est bien transmis (en fin de style)");
 
 // L'ancien comportement reste accessible pour revenir en arrière.
 const autoStyle = buildTtsRequest({
@@ -332,7 +348,8 @@ const autoStyle = buildTtsRequest({
   autoStyle: true,
 });
 const autoPart: any = (autoStyle.body as any).contents[0].parts[0];
-ok(autoPart.speech_metadata?.style === "cheerful and amused", "autoStyle: true restaure l'ancien comportement (déduction depuis <laugh>)");
+ok(/cheerful and amused$/.test(autoPart.speech_metadata?.style || ""),
+    "autoStyle: true restaure l'ancien comportement (déduction depuis <laugh>)");
 
 // Un utilisateur peut toujours demander un style explicitement : rien n'est bloqué.
 const force = buildTtsRequest({
@@ -341,9 +358,65 @@ const force = buildTtsRequest({
   voiceName: "Puck",
   style: "muttering, then reassuring",
 });
-  ok(((force.body as any).contents[0].parts[0].speech_metadata?.style) === "muttering, then reassuring", "un style explicite est transmis tel quel");
+  ok(((force.body as any).contents[0].parts[0].speech_metadata?.style)?.endsWith("muttering, then reassuring") === true,
+    "un style explicite est transmis tel quel (en fin de style)");
 
   // ─────────────────────────────────────────────────────────────────────────────
+  section("13ter. LA LANGUE EST DITE AU MODÈLE (correctif du 26/09)");
+
+  // ── LE PROBLÈME RÉPARÉ ──────────────────────────────────────────────────
+  // L'ancien prompt 3.1 contenait « Language: Algerian Darija (Arabic script).
+  // Natural, human delivery, like a real person talking. » Le passage à la 3.8
+  // a supprimé tout le bloc « DIRECTOR'S NOTES » — à raison, Google dit que
+  // c'est la 1re cause de dérive de voix — mais la consigne de LANGUE est
+  // partie avec. Résultat : « واش راك » se lisait comme de l'arabe STANDARD,
+  // c'est-à-dire comme un présentateur du journal, pas comme un Algérien.
+  //
+  // Impossible de la remettre dans le texte : en 3.8 le transcript est lu
+  // VERBATIM, la voix lirait la consigne à voix haute. Le seul canal est
+  // `speech_metadata.style`. C'est ce que vérifient les tests ci-dessous.
+  ok(/Algerian Darija/.test(languageInstruction("واش راك يا خويا؟")),
+      "★ un texte en darija reçoit la consigne de langue");
+  ok(languageInstruction("Bonjour tout le monde, bienvenue.") === "",
+      "★ un texte SANS arabe ne reçoit AUCUNE consigne de darija");
+  ok(languageInstruction("") === "", "texte vide → aucune consigne");
+  ok(/Algerian Darija/.test(languageInstruction("واش راك khouya, un nouveau service")),
+      "texte mixte darija + français → consigne de darija quand même");
+
+  // Le français garde ses seuls réglages : rien de parasite.
+  const frOnly = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "Bonjour à tous, bienvenue sur Sawtify.",
+    voiceName: "Puck", style: "speaking rapidly",
+  });
+  const frOnlyStyle: string = (frOnly.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(frOnlyStyle === "speaking rapidly",
+      "★ texte français → consigne de langue ABSENTE, seuls les réglages passent");
+  ok(!/Darija/i.test(frOnlyStyle), "★ et surtout : aucune mention de darija sur du français");
+
+  // ── LE SECOND BUG, RÉPARÉ DANS LE MÊME GESTE ────────────────────────────
+  // Avant, la composition du style était un `||` : la vitesse ÉCRASAIT le ton.
+  // « [calm] + vitesse rapide » n'envoyait que « speaking rapidly », et le
+  // calme disparaissait sans le moindre avertissement.
+  const combo = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "[calm] واش راك يا خويا؟",
+    voiceName: "Puck", style: "speaking rapidly",
+  });
+  const comboStyle: string = (combo.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(/Algerian Darija/.test(comboStyle), "★ darija + ton + vitesse : la LANGUE est envoyée");
+  ok(/calm and composed/i.test(comboStyle), "★ darija + ton + vitesse : le TON N'EST PLUS ÉCRASÉ par la vitesse");
+  ok(/speaking rapidly/.test(comboStyle), "★ darija + ton + vitesse : la VITESSE est envoyée aussi");
+
+  // En mode ancien, la consigne de langue reste là où elle a toujours été :
+  // dans les notes du prompt (et pas dans `style`, non supporté par le 3.1).
+  const langLegacy = buildTtsRequest({
+    model: "gemini-3.1-flash-tts-preview", rawText: "واش راك يا خويا؟", voiceName: "Puck",
+  });
+  const langLegacyText: string = String((langLegacy.body as any).contents[0].parts[0].text || "");
+  ok(/Language: Algerian Darija/.test(langLegacyText),
+      "mode 3.1 : la consigne de langue est TOUJOURS dans le prompt (jamais touchée)");
+  ok((langLegacy.body as any).contents[0].parts[0].speech_metadata === undefined,
+      "mode 3.1 : aucun speech_metadata (non supporté)");
+
   section("13bis. LES EFFETS DU MENU FONT TOUS QUELQUE CHOSE (correctif du 26/09)");
 
   // RÉGRESSION HISTORIQUE : l'app parlait encore la langue 3.1, où `[calm]`

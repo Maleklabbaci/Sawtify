@@ -182,8 +182,40 @@ export type BuildTtsRequestResult = {
   warnings: string[];
 };
 
-/**
- * Construit le corps de requête adapté au modèle.
+  /**
+   * Instruction de LANGUE, pour le champ `style` du mode 3.8.
+   *
+   * ════════════════════════════════════════════════════════════════════════
+   *  D'OÙ ELLE VIENT : du prompt 3.1, qui disait noir sur blanc
+   *      « Language: Algerian Darija (Arabic script). Natural, human
+   *        delivery, like a real person talking. »
+   *  Ce bloc « DIRECTOR'S NOTES » a été supprimé lors du passage à la 3.8,
+   *  à juste titre : Google dit qu'il est la 1re cause de dérive de voix.
+   *  MAIS la consigne de langue est partie avec — et elle, elle manque.
+   *
+   *  POURQUOI ELLE EST INDISPENSABLE :
+   *  L'arabe écrit se lit par défaut en arabe STANDARD (fusḥa). « واش راك يا
+   *  خويا » sort alors comme un présentateur du journal télévisé, pas comme un
+   *  Algérien qui parle à son voisin. La darija n'a pas d'orthographe
+   *  officielle : sans consigne, le modèle n'a aucun moyen de la reconnaître.
+   *
+   *  POURQUOI DANS `style` ET PAS DANS LE TEXTE :
+   *  en 3.8, `text` est lu VERBATIM. Écrire la consigne dedans ferait
+   *  littéralement lire « Language: Algerian Darija » à voix haute.
+   *  `style` est le canal prévu pour ce qui vaut « across an entire turn ».
+   *
+   *  On ne l'ajoute QUE si le texte contient de l'arabe : un texte français
+   *  n'a aucune raison d'être prononcé en darija.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  export function languageInstruction(text: string): string {
+    const arabe = (String(text || "").match(/[\u0600-\u06FF]/g) || []).length;
+    if (arabe === 0) return "";
+    return "in Algerian Darija, natural and human, like a real person talking";
+  }
+
+  /**
+   * Construit le corps de requête adapté au modèle.
  *
  * C'est LA fonction qui permet de basculer entre 3.1 et 3.8 sans toucher
  * au reste du serveur.
@@ -218,31 +250,47 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       );
     }
 
-  // ── Style effectif ──────────────────────────────────────────────────────
-  // Trois sources, par ordre de priorité :
+  // ── Style effectif ───────────────────────────────────────────────────────
+  // Le style est SOUTENU : il vaut pour toute la réplique. On y met, dans cet
+  // ordre — et CES QUATRE SOURCES S'ADDITIONNENT :
   //
-  //   1. `opts.style`      — la vitesse / la hauteur réglées par l'utilisateur.
-  //   2. `requestedStyle`  — un TON que l'utilisateur a DEMANDÉ explicitement
-  //                          (balise à crochets carrés : `[calm]`, `[excited]`…).
-  //                          On ne l'invente pas, on le transmet : il est donc
-  //                          TOUJOURS honoré, même quand `autoStyle` est false.
-  //                          Sans ça, 5 des 9 effets du menu « Insérer effet »
-  //                          ne faisaient STRICTEMENT RIEN (l'app parlait encore
-  //                          la langue 3.1, où `[calm]` était un mot-clé natif).
-  //   3. `suggestedStyle`  — DÉDUIT d'une balise entendue dans le texte
-  //                          (« il y a un <laugh>, donc ton joyeux »). C'est une
-  //                          invention : désactivée par défaut (décision du 26/09).
-  //                          À réactiver avec `autoStyle: true` / `TTS_AUTO_STYLE=1`.
+  //   ① LA LANGUE        — le « Language: Algerian Darija (Arabic script) » de
+  //                        l'ancien prompt 3.1 (voir `languageInstruction`).
+  //                        C'est ce qui empêche la 3.8 de lire la darija comme
+  //                        de l'arabe standard.
+  //   ② LE TON DEMANDÉ   — `[calm]`, `[excited]`… : un choix explicite de
+  //                        l'utilisateur. On le transmet, on ne l'invente pas,
+  //                        donc il est honoré même si `autoStyle` est false.
+  //                        Sans ça, 5 des 9 effets du menu « Insérer effet »
+  //                        ne faisaient STRICTEMENT RIEN (l'app parlait encore
+  //                        la langue 3.1, où `[calm]` était un mot-clé natif).
+  //   ③ VITESSE/HAUTEUR  — les réglages de l'utilisateur.
+  //   ④ `suggestedStyle` — DÉDUIT d'une balise entendue dans le texte
+  //                        (« il y a un <laugh>, donc ton joyeux »). C'est une
+  //                        invention : désactivée par défaut (décision du 26/09).
+  //                        À réactiver avec `autoStyle: true` / `TTS_AUTO_STYLE=1`.
   //
-  // Pourquoi l'invention est éteinte : `style` est SOUTENU (toute la réplique)
-  // alors qu'une balise est PONCTUELLE. Un seul `<laugh>` au milieu d'un texte
-  // grave suffisait à faire livrer tout le texte sur un ton joyeux. Et la doc
-  // Google recommande de synthétiser sans style d'abord : « most requests need
-  // no style instruction ».
+  // ⚠️ POURQUOI `join` ET NON `||` : avant, la priorité était un `||`, donc la
+  // vitesse ÉCRASAIT le ton. « [calm] + vitesse rapide » n'envoyait que
+  // « speaking rapidly », et le calme disparaissait sans le moindre
+  // avertissement. Repéré le 26/09/2026.
+  //
+  // Pourquoi l'invention (④) est éteinte : `style` est SOUTENU (toute la
+  // réplique) alors qu'une balise est PONCTUELLE. Un seul `<laugh>` au milieu
+  // d'un texte grave suffisait à faire livrer tout le texte sur un ton joyeux.
+  // Et la doc Google recommande de synthétiser sans style d'abord : « most
+  // requests need no style instruction ».
   const styleExplicite = (opts.style || "").trim();
   const styleDemande = (parsed.requestedStyle || "").trim();
   const styleDeduit = opts.autoStyle ? parsed.suggestedStyle || "" : "";
-  const effectiveStyle = styleExplicite || styleDemande || styleDeduit;
+  const effectiveStyle = [
+    languageInstruction(parsed.text),
+    styleDemande,
+    styleExplicite,
+    styleDeduit,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   if (mode === "modern") {
     // ======================================================================

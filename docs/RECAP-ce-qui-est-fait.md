@@ -22,14 +22,14 @@ Les deux sont listées plus bas, noir sur blanc.
 | 4 | Les 26 imports pointent vers un fichier qui existe | ✅ 26 / 26 |
 | 5 | Le frontend n'a pas été touché (hors autorisation) | ✅ **1 seul fichier** : `src/data/codeSnippets.ts`, sur ton accord explicite |
 | 6 | Toutes les routes de l'API sont déclarées | ✅ 7 / 7 |
-| 7 | La suite de tests complète | ✅ **282 vérifications chiffrées, 0 échec** |
+| 7 | La suite de tests complète | ✅ **295 vérifications chiffrées, 0 échec** |
 | 8 | Aucun test n'a été désactivé ou contourné | ✅ vérifié |
 
 ### Le détail des tests
 
 | Commande | Résultat | Ce qu'elle prouve |
 |---|---|---|
-| `npm run test:tts` | **156 / 156** | le moteur vocal, les deux modes, le découpage, les balises, le style |
+| `npm run test:tts` | **169 / 169** | le moteur vocal, les deux modes, le découpage, les balises, le style |
 | `npm run test:voix` | **22 / 22** | les 90 écritures d'un nom tombent sur la bonne voix |
 | `npm run verif:balises` | **✅ complet** | les 40 balises officielles Google sont intégrées |
 | `npm run test:apercus` | **39 / 39** | les aperçus ; passera à **43 / 43** après ta génération |
@@ -93,10 +93,17 @@ message : c'est du texte, pas de la casse.
 - Protection contre le WAV : le pipeline audio existant ne peut pas casser.
 - Le modèle de **script/correcteur** n'a pas été touché.
 
-### L'audit — 2 vrais défauts trouvés et corrigés
+### L'audit — 3 vrais défauts trouvés et corrigés
 1. **Une balise pouvait être coupée en deux** sur les textes longs, et les deux moitiés partaient
    brutes vers Gemini (qui risquait de les prononcer). Corrigé, et balayé sur 261 positions.
 2. **Un fragment de balise pouvait quand même atteindre Gemini** (`<laugh` non fermé). Corrigé.
+3. **La darija n'était plus annoncée au modèle** (trouvé le 26/09 au soir). Depuis le passage à la
+   3.8, la requête ne disait plus *dans quelle langue* parler. Un texte en lettres arabes était
+   donc lu en **arabe standard** — la langue des journaux télévisés — et non en algérien parlé.
+   La darija n'ayant pas d'orthographe officielle, le modèle ne pouvait pas le deviner seul :
+   c'était **la** cause principale du défaut de prononciation. Corrigé, **13 nouveaux tests**.
+   Au passage, un second défaut trouvé dans la même ligne de code : **la vitesse écrasait le ton**
+   demandé (« `[calm]` + vitesse rapide » n'envoyait que la vitesse, le calme disparaissait).
 
 Le découpeur a été déplacé dans le module testé : c'est précisément parce qu'il était intestable
 que le défaut 1 vivait depuis le début.
@@ -150,17 +157,16 @@ Pas commencés. Décidés ensemble, mais à faire :
   celui qu'on vient de désactiver : celui-ci sera un choix explicite de ta part, pas une déduction
   depuis un texte.
 
-### ③ Trois remarques cosmétiques de l'audit
+### ③ Les trois remarques cosmétiques de l'audit — ✅ corrigées
 
-Aucune n'est un bug, aucune n'a d'effet aujourd'hui :
-1. `responseModalities` s'écrit `["audio"]` (minuscules) en mode 3.1 et `["AUDIO"]` en 3.8 —
-   incohérence, mais l'ancien mode fonctionne depuis toujours.
-2. La reconnaissance des modèles classerait `gemini-3.10` (un futur modèle) en mode ancien. À
-   corriger avant qu'il existe.
-3. Le prompt du mode 3.1 annonce `[calm]` et `[very fast]`, deux balises que le code ne produit
-   jamais. Texte à nettoyer.
-
-**Dis-moi si tu veux que je les corrige — c'est 20 minutes.**
+Aucune n'était un bug, aucune n'avait d'effet :
+1. `responseModalities` s'écrivait `["audio"]` (minuscules) en mode 3.1 et `["AUDIO"]` en 3.8 —
+   harmonisé partout en `["AUDIO"]`.
+2. La reconnaissance des modèles classait `gemini-3.10` (un futur modèle) en mode ancien —
+   comparé maintenant en **nombres** et non en texte, avec 5 tests.
+3. Le prompt du mode 3.1 annonçait `[calm]` et `[very fast]`, deux balises que le code ne produit
+   jamais — et ce faux positif venait en réalité de **44 lignes de code mort** jamais appelées.
+   Supprimées. Le prompt vivant annonce exactement ses 7 balises.
 
 ---
 
@@ -188,7 +194,7 @@ Aucune n'est un bug, aucune n'a d'effet aujourd'hui :
 
 ## Résumé en une phrase
 
-**Le backend est prêt et vérifié : 282 contrôles chiffrés + le catalogue complet des balises, 0 échec, tout est sur GitHub.** Il ne reste
+**Le backend est prêt et vérifié : 295 contrôles chiffrés + le catalogue complet des balises, 0 échec, tout est sur GitHub.** Il ne reste
 qu'une chose pour que ce soit totalement fini — **lancer `npm run apercus:voix`** et valider les
 21 genres à l'oreille. Et sur ta machine, lance `npm run lint` une fois : c'est la seule
 vérification que l'environnement d'ici ne permet pas.

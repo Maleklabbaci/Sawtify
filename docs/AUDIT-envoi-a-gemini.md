@@ -230,25 +230,131 @@ pas besoin. »* Aujourd'hui Sawtify en met un presque toujours.
 
 ---
 
-## 6. Verdict
+## 6. Trouvé le 26/09 au soir — la langue n'était plus dite au modèle
+
+Ce défaut ne vient pas de la documentation : il vient de **notre propre passage à la 3.8**.
+
+### Ce qui se passait
+
+L'ancien prompt du mode 3.1 contenait ces deux lignes :
+
+```
+Language: Algerian Darija (Arabic script).
+Natural, human delivery, like a real person talking.
+```
+
+En migrant vers la 3.8, le long bloc « DIRECTOR'S NOTES » a été retiré — **à raison** : la
+documentation de migration le désigne comme la première cause de dérive de la voix, et la 3.8 lit
+le texte **mot pour mot**. On ne peut donc plus y glisser la moindre instruction.
+
+Mais la consigne de **langue** est partie avec le reste. Et elle, elle manquait.
+
+### Pourquoi c'est grave pour l'algérien
+
+Un texte en lettres arabes se lit par défaut en **arabe standard** — la langue des journaux
+télévisés. « واش راك يا خويا » sortait donc comme un présentateur qui lit les informations, pas
+comme un Algérien qui parle à son voisin.
+
+Et ce n'est pas une question de réglage fin, parce que **la darija n'a pas d'orthographe
+officielle** : il n'existe aucun moyen pour le modèle de la reconnaître tout seul. Sans qu'on le
+lui dise, il ne peut pas savoir. C'était donc **la** cause principale du défaut de prononciation
+sur les textes algériens.
+
+### La preuve
+
+Requête construite pour un texte en darija, avant correction — il n'y a **rien** qui parle de
+langue :
+
+```json
+{
+  "contents": [{ "role": "user", "parts": [ { "text": "واش راك يا خويا؟ …" } ] }],
+  "generationConfig": { "responseModalities": ["AUDIO"], "responseFormat": …, "speechConfig": … }
+}
+```
+
+Et la fonction ne signalait **aucun avertissement** : `warnings` était vide. Le silence total.
+
+### Le correctif
+
+On ne pouvait pas remettre l'instruction dans le texte : la voix l'aurait **lue à voix haute**.
+Le seul canal prévu pour ce qui vaut « sur tout le tour de parole » est `speech_metadata.style`.
+La requête contient maintenant :
+
+```json
+{
+  "contents": [{ "role": "user", "parts": [ {
+    "text": "واش راك يا خويا؟ …",
+    "speech_metadata": { "style": "in Algerian Darija, natural and human, like a real person talking" }
+  } ] }]
+}
+```
+
+Trois règles tenues :
+
+| Règle | Pourquoi |
+|---|---|
+| **Courte** (10 mots) | la doc prévient : plus le texte d'ambiance est long, plus la voix dérive |
+| **Seulement si le texte contient de l'arabe** | un texte français n'a aucune raison d'être prononcé en darija |
+| **En premier, avant les réglages** | la langue est l'information la plus structurante |
+
+### Le second défaut, réparé dans le même geste
+
+En inspectant cet endroit du code, on a trouvé que la composition du style était un `||` :
+
+```ts
+const effectiveStyle = styleExplicite || styleDemande || styleDeduit;
+```
+
+Autrement dit, **la vitesse écrasait le ton**. Demander « [calm] » *et* une vitesse rapide
+n'envoyait que `speaking rapidly` — le calme disparaissait, sans le moindre avertissement. Repéré
+en testant « [calm] + vitesse rapide » : un seul style sortait, le calme n'y était pas.
+
+Les quatre sources s'**additionnent** maintenant dans un ordre défini :
+
+```
+in Algerian Darija, natural and human, like a real person talking,
+calm and composed from the very first word, soft and soothing throughout, speaking rapidly
+ └────────────── ① la langue ──────────────┘  └──── ② le ton demandé ────┘  └─ ③ la vitesse ─┘
+```
+
+(④ le style déduit des balises reste éteint par défaut, comme décidé le 26/09.)
+
+### Couverture
+
+**13 nouveaux tests** (§13ter du test interne) verrouillent les deux défauts :
+
+- un texte en darija reçoit bien la consigne ;
+- un texte **sans** arabe n'en reçoit **aucune** — vérifié jusqu'au mot « Darija » absent ;
+- un texte mixte darija + français la reçoit quand même ;
+- le mode 3.1 garde la sienne **dans le prompt**, comme avant, et **aucun** `speech_metadata`
+  (le mode 3.1 ne le supporte pas) ;
+- le ton demandé **n'est plus écrasé** par la vitesse, la vitesse est toujours envoyée, et les
+  trois survivent ensemble.
+
+---
+
+## 7. Verdict
 
 **Le JSON envoyé à Gemini est correct** : il correspond exactement à la forme officielle, champ
 par champ, et respecte les 5 points du guide de migration. Rien n'est envoyé en trop, rien ne
 manque.
 
-**Mais il y avait deux vrais défauts — tous les deux sur le même thème :** faire en sorte qu'un
-fragment de balise ne puisse **jamais** partir brut vers le modèle. Le premier était sérieux
-(une balise de pause coupée en deux sur les textes longs). Les deux sont corrigés et couverts par
-des tests de régression.
+**Mais il y avait trois vrais défauts.** Les deux premiers, sur le même thème : faire en sorte
+qu'un fragment de balise ne puisse **jamais** partir brut vers le modèle (le premier était
+sérieux : une balise de pause coupée en deux sur les textes longs). Le troisième, trouvé le soir
+du 26/09, était le plus visible à l'oreille : **la darija n'était plus annoncée au modèle**, qui la
+lisait donc comme de l'arabe standard — et au passage, la vitesse écrasait le ton demandé.
+
+Les trois sont corrigés et couverts par des tests de régression.
 
 ```
-moteur TTS            112 / 112   (89 avant l'audit, +23 nouveaux tests)
+moteur TTS            169 / 169   (112 au moment de cet audit, +57 depuis)
 noms des voix          22 / 22
 balises officielles    40 / 40
-aperçus audio          43 / 43
-documentation          49 / 49
+aperçus audio          39 / 39
+documentation          65 / 65
 ─────────────────────────────────
-TOTAL                 266 vérifications, 0 échec
+TOTAL                 335 vérifications, 0 échec
 ```
 
 **Et le seul écart qui restait avec la doc — le style automatique — a été corrigé le même jour :
