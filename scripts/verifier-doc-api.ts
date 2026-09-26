@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { VOICE_NAMES } from "../tts/voiceNames";
 import { VOCAL_TAGS, aliasCounts } from "../tts/vocalTags";
 import { previewTargets } from "../tts/voicePreviews";
+import { parseTranscript, officialTagStrings, allAcceptedTagStrings, FORBIDDEN_SFX, normalizeTagKey } from "../tts/vocalTags";
 
 const racine = process.cwd();
 const lire = (p: string) => readFileSync(join(racine, p), "utf8");
@@ -34,6 +35,8 @@ const MD = lire("docs/developer-api-beta.md");
 const HTML = lire("public/docs/developer-api-beta.html");
 const LLMS = lire("public/llms.txt");
 const SERVEUR = lire("server.ts");
+const GUIDE = lire("docs/guide-utilisateur.md");
+const SNIPPETS = lire("src/data/codeSnippets.ts");
 
 let ok = 0, ko = 0;
 const echecs: string[] = [];
@@ -197,6 +200,68 @@ check("tous les champs JSON documentés existent dans server.ts", champsInventes
 check("les bruits non humains annoncés comme retirés le sont vraiment",
   SERVEUR.includes("parseTranscript") || SERVEUR.includes("vocalTags"),
   "le handler doit passer par parseTranscript()");
+
+
+// ===========================================================================
+titre("8. GUIDE UTILISATEUR — les exemples ne doivent pas mal tourner");
+// ===========================================================================
+// ⚠️ On compare des CLÉS NORMALISÉES, pas des chaînes : le serveur accepte
+// "<rire léger>" comme "<rire leger>", et "<ضَحْكة>" comme "<ضحكة>". Une
+// comparaison littérale dirait à tort que le guide écrit des balises inconnues.
+const cle = (b: string) => normalizeTagKey(String(b).replace(/^<|>$/g, ""));
+const valides = new Set(allAcceptedTagStrings().map(cle));
+const interditsSet = new Set(FORBIDDEN_SFX.map(cle));
+
+// Toutes les balises écrites dans le guide.
+const balisesGuide = [...GUIDE.matchAll(/<[^<>\n]{1,40}>/g)].map((m) => m[0]);
+const inconnues = [...new Set(balisesGuide)].filter((b) => !valides.has(cle(b)) && !interditsSet.has(cle(b)));
+const interditsUtilises = [...new Set(balisesGuide)].filter((b) => interditsSet.has(cle(b)));
+check("aucune balise inconnue dans le guide utilisateur", inconnues.length === 0, inconnues.join(", "));
+check("le guide ne montre des bruits non humains que pour dire de les éviter",
+  interditsUtilises.every((b) => {
+    const ligne = GUIDE.split("\n").find((l) => l.includes(b)) || "";
+    return /éviter|retir|pas des sons|automatiquement/i.test(ligne);
+  }), interditsUtilises.join(", "));
+
+// Les exemples d'exemples (blocs ```) doivent passer le vrai analyseur du serveur.
+const blocs = [...GUIDE.matchAll(/```\n([\s\S]*?)```/g)].map((m) => m[1]);
+const exemplesCasses: string[] = [];
+for (const b of blocs) {
+  const p = parseTranscript(b);
+  if (p.unknownTags.length) exemplesCasses.push(`bruit inconnu ${p.unknownTags.join("/")}`);
+  if (p.forbiddenSfx.length) exemplesCasses.push(`effet sonore ${p.forbiddenSfx.join("/")}`);
+}
+check(`les ${blocs.length} exemples du guide passent l'analyseur du serveur`, exemplesCasses.length === 0, exemplesCasses.join(" | "));
+
+// Le guide doit parler des 30 voix et des 3 écritures.
+const manquantsGuide = cibles.filter((t) => !GUIDE.includes(t.nameFr));
+check("les 30 prénoms sont dans le guide", manquantsGuide.length === 0, manquantsGuide.map((t) => t.nameFr).join(", "));
+check("le guide dit qu'une balise n'est jamais prononcée", /jamais prononcée|n'est jamais prononcée|Jamais prononcée/i.test(GUIDE));
+check("le guide dit que la langue est détectée automatiquement", /détectée automatiquement/i.test(GUIDE));
+check("le guide dit que les accents ne comptent pas", /accents? .*ne comptent pas|ne comptent pas/i.test(GUIDE));
+check("le guide prévient que [calm]/[fast] ne font rien",
+  GUIDE.includes("[calm]") && /ne font rien|ne fait rien/i.test(GUIDE));
+check("le guide explique que les bruits non humains sont retirés", /retire automatiquement|retiré automatiquement|sont retirés/i.test(GUIDE));
+
+// ===========================================================================
+titre("9. EXEMPLES DE CODE DE L'INTERFACE (src/data/codeSnippets.ts)");
+// ===========================================================================
+const fantomes = ["voice_dz_amine", "voice_dz_yasmine", "voice_ar_sofiane", "voice_fr_ines", "Sofiane", "Inès"];
+const restants = fantomes.filter((f) => SNIPPETS.includes(f));
+check("plus aucune voix inventée dans les exemples de code", restants.length === 0, restants.join(", "));
+
+const idsSnippets = [...SNIPPETS.matchAll(/id: "(voice_[a-z]+)"/g)].map((m) => m[1]);
+const idsConnus = new Set(cibles.map((t) => t.legacyId).filter(Boolean));
+const idsFaux = idsSnippets.filter((i) => !idsConnus.has(i));
+check("les identifiants des exemples existent vraiment", idsFaux.length === 0, idsFaux.join(", "));
+
+const tagsSnippets = [...SNIPPETS.matchAll(/"[<\[]([^<>\]\n]{1,30})[>\]]"/g)].map((m) => m[0].slice(1, -1));
+const tagsSnippetsInconnus = tagsSnippets.filter((t) => !valides.has(cle(t)));
+check("les balises des exemples sont réelles et actives", tagsSnippetsInconnus.length === 0, tagsSnippetsInconnus.join(", "));
+check("plus aucune balise entre crochets dans les exemples",
+  !/\["\[\]a-z\]"/.test("") && !SNIPPETS.includes('"[whispers]"') && !SNIPPETS.includes('"[excited]"') && !SNIPPETS.includes('"[calm]"'));
+check("les balises officielles de Google sont utilisées dans les exemples",
+  officialTagStrings().some((t) => SNIPPETS.includes(`"${t}"`)));
 
 // ===========================================================================
 console.log(`\n${"═".repeat(78)}`);
