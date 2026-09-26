@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
-  ExternalLink, RefreshCw, CheckCircle2, Lock, Phone, User, MapPin, HelpCircle, X
+  ExternalLink, RefreshCw, Lock, Phone, User, MapPin, HelpCircle, X
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getCreditPacks } from '../data/voices';
@@ -164,7 +164,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12 pb-24">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16 space-y-12 pb-24">
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight">
@@ -179,24 +179,24 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
       {/* Free Bonus Card */}
       {balance <= 50 && (
-        <div className="max-w-2xl mx-auto p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-200 shadow-sm">
+        <div className="max-w-2xl mx-auto p-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl shadow-xl shadow-slate-900/10">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0">
                 <Sparkles className="w-6 h-6" />
               </div>
               <div className="text-center sm:text-start">
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-white">
                   {language === 'ar' ? '50 نقطة مجانية' : '50 points offerts'}
                 </h3>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-300">
                   {language === 'ar' ? 'ابدأ الآن بدون أي التزام وجرب أصواتنا' : 'Commencez gratuitement sans engagement et testez nos voix'}
                 </p>
               </div>
             </div>
             <button
               onClick={onNavigateToStudio}
-              className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition whitespace-nowrap"
+              className="px-6 py-2.5 bg-purple-500 hover:bg-purple-400 text-white font-bold rounded-xl transition whitespace-nowrap"
             >
               {language === 'ar' ? 'جرب الآن' : 'Essayer'}
             </button>
@@ -204,81 +204,96 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         </div>
       )}
 
-      {/* PRICING CARDS GRID - (REPLACES THE PILLS) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto pt-4">
+      {/* PRICING CARDS - Clean Forfaits */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 max-w-6xl mx-auto pt-6">
         {creditPacks.map((pack: CreditPack, index: number) => {
-          // Highlight the second or highest bonus pack to draw attention
-          const isHighlighted = index === 1 || (pack.bonusPercent && pack.bonusPercent >= 20);
+          // Highlight ONLY ONE pack (usually index 1, or 'pack_pro')
+          const isPopular = pack.id === 'pack_pro' || index === 1;
+          const audioCount = Math.floor(pack.points / 20);
 
           return (
             <div
               key={pack.id}
               className={`
-                relative flex flex-col p-6 sm:p-8 rounded-3xl transition-all duration-300
-                ${isHighlighted 
-                  ? 'bg-white border-2 border-purple-500 shadow-xl shadow-purple-500/10 scale-100 xl:scale-105 z-10' 
-                  : 'bg-white border border-slate-200 hover:border-purple-300 hover:shadow-lg'}
+                relative flex flex-col rounded-2xl p-6 transition-all duration-300
+                ${isPopular
+                  ? 'bg-slate-900 text-white shadow-2xl shadow-purple-900/30 ring-2 ring-purple-500 scale-100 xl:scale-105 z-10'
+                  : 'bg-white text-slate-900 border border-slate-200 hover:border-slate-300 hover:shadow-lg'}
               `}
             >
-              {isHighlighted && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold rounded-full shadow-md whitespace-nowrap">
-                  {language === 'ar' ? 'الأكثر طلباً' : 'Le Plus Populaire'}
+              {/* Popular Badge - ONLY on the popular card */}
+              {isPopular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg whitespace-nowrap">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {language === 'ar' ? 'الأكثر طلباً' : 'Populaire'}
+                  </span>
                 </div>
               )}
 
-              {/* Card Header */}
-              <div className="mb-4">
-                <h3 className={`text-xl font-bold ${isHighlighted ? 'text-purple-700' : 'text-slate-900'}`}>
+              {/* Pack Name */}
+              <div className="mb-5 mt-1 text-center">
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${isPopular ? 'text-purple-300' : 'text-slate-500'}`}>
                   {pack.name}
                 </h3>
-                <p className="text-sm text-slate-500 mt-1">
-                  {language === 'ar' ? 'رصيد نقاط لا تنتهي صلاحيته' : 'Points valables à vie'}
-                </p>
               </div>
 
               {/* Price */}
-              <div className="mb-6 flex items-end gap-1">
-                <span className="text-4xl font-extrabold text-slate-900">
+              <div className="mb-2 flex justify-center items-baseline gap-1.5">
+                <span className="text-4xl font-extrabold tracking-tight">
                   {pack.priceDZD.toLocaleString()}
                 </span>
-                <span className="text-lg font-bold text-slate-500 mb-1">DZD</span>
+                <span className={`text-sm font-semibold ${isPopular ? 'text-slate-400' : 'text-slate-500'}`}>
+                  DZD
+                </span>
               </div>
 
-              {/* Points Box */}
-              <div className={`mb-8 p-4 rounded-2xl flex items-center justify-between ${isHighlighted ? 'bg-purple-600 text-white' : 'bg-slate-50 border border-slate-100 text-slate-800'}`}>
-                <div className="flex items-center gap-2">
-                  <Zap className={`w-5 h-5 ${isHighlighted ? 'text-purple-200' : 'text-purple-500'}`} />
-                  <span className="font-bold text-lg">{pack.points}</span>
-                  <span className={`text-sm ${isHighlighted ? 'text-purple-200' : 'text-slate-500'}`}>
-                    {language === 'ar' ? 'نقطة' : 'pts'}
+              {/* Points subtitle */}
+              <div className="text-center mb-6">
+                <p className={`text-sm ${isPopular ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <span className={`font-bold ${isPopular ? 'text-white' : 'text-slate-800'}`}>
+                    {pack.points.toLocaleString()}
                   </span>
-                </div>
+                  {' '}{language === 'ar' ? 'نقطة' : 'points'}
+                </p>
                 {pack.bonusPercent ? (
-                  <span className={`text-xs font-bold px-2 py-1 rounded-lg ${isHighlighted ? 'bg-white/20' : 'bg-green-100 text-green-700'}`}>
-                    +{pack.bonusPercent}% Bonus
+                  <span className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                    isPopular ? 'bg-purple-500/20 text-purple-200' : 'bg-green-50 text-green-700'
+                  }`}>
+                    + {pack.bonusPercent}% Bonus
                   </span>
-                ) : null}
+                ) : <div className="h-5 mt-1" /> /* Spacer if no bonus */}
               </div>
 
-              {/* Features List (Simulating a Forfait) */}
+              {/* Divider */}
+              <div className={`h-px w-full mb-6 ${isPopular ? 'bg-slate-700' : 'bg-slate-100'}`} />
+
+              {/* Features List */}
               <ul className="space-y-4 mb-8 flex-1">
-                <li className="flex items-start gap-3 text-sm text-slate-700">
-                  <CheckCircle2 className={`w-5 h-5 shrink-0 ${isHighlighted ? 'text-purple-600' : 'text-purple-500/70'}`} />
+                <li className="flex items-start gap-3 text-sm">
+                  <Check className={`w-4 h-4 mt-0.5 shrink-0 ${isPopular ? 'text-purple-400' : 'text-slate-400'}`} />
                   <span>
-                    {language === 'ar' 
-                      ? `يكفي لحوالي ` : `Permet environ `}
-                    <strong className="font-bold">{Math.floor(pack.points / 20)}</strong>
-                    {language === 'ar' 
-                      ? ` توليد صوتي` : ` générations`}
+                    <strong className={`font-bold ${isPopular ? 'text-white' : 'text-slate-700'}`}>~{audioCount}</strong>
+                    {language === 'ar' ? ' توليد صوتي' : ' générations'}
                   </span>
                 </li>
-                <li className="flex items-start gap-3 text-sm text-slate-700">
-                  <CheckCircle2 className={`w-5 h-5 shrink-0 ${isHighlighted ? 'text-purple-600' : 'text-purple-500/70'}`} />
-                  <span>{language === 'ar' ? 'وصول لجميع الأصوات العالية الدقة' : 'Accès à toutes les voix HQ'}</span>
+                <li className="flex items-start gap-3 text-sm">
+                  <Check className={`w-4 h-4 mt-0.5 shrink-0 ${isPopular ? 'text-purple-400' : 'text-slate-400'}`} />
+                  <span className={isPopular ? 'text-slate-300' : 'text-slate-600'}>
+                    {language === 'ar' ? 'كل الأصوات عالية الدقة' : 'Toutes les voix HQ'}
+                  </span>
                 </li>
-                <li className="flex items-start gap-3 text-sm text-slate-700">
-                  <CheckCircle2 className={`w-5 h-5 shrink-0 ${isHighlighted ? 'text-purple-600' : 'text-purple-500/70'}`} />
-                  <span>{language === 'ar' ? 'استخدام تجاري مسموح' : 'Usage commercial autorisé'}</span>
+                <li className="flex items-start gap-3 text-sm">
+                  <Check className={`w-4 h-4 mt-0.5 shrink-0 ${isPopular ? 'text-purple-400' : 'text-slate-400'}`} />
+                  <span className={isPopular ? 'text-slate-300' : 'text-slate-600'}>
+                    {language === 'ar' ? 'استخدام تجاري مسموح' : 'Usage commercial autorisé'}
+                  </span>
+                </li>
+                <li className="flex items-start gap-3 text-sm">
+                  <Check className={`w-4 h-4 mt-0.5 shrink-0 ${isPopular ? 'text-purple-400' : 'text-slate-400'}`} />
+                  <span className={isPopular ? 'text-slate-300' : 'text-slate-600'}>
+                    {language === 'ar' ? 'صلاحية مدى الحياة' : 'Points valables à vie'}
+                  </span>
                 </li>
               </ul>
 
@@ -293,14 +308,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                   setIsCheckoutOpen(true);
                 }}
                 className={`
-                  w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2
-                  ${isHighlighted 
-                    ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-md hover:shadow-xl' 
-                    : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}
+                  w-full py-3.5 px-4 rounded-xl text-sm font-bold transition-all
+                  flex items-center justify-center gap-2
+                  ${isPopular
+                    ? 'bg-purple-500 hover:bg-purple-400 text-white shadow-lg shadow-purple-500/25'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}
                 `}
               >
                 <span>{language === 'ar' ? 'اختيار الباقة' : 'Choisir ce forfait'}</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
               </button>
             </div>
           );
@@ -326,7 +342,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
             
             <div className="p-6 sm:p-8 border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
@@ -342,7 +358,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
             {isSuccess ? (
               <div className="p-8 sm:p-12 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
                   <Check className="w-8 h-8" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-2">
@@ -353,7 +369,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 </p>
                 <button
                   onClick={onNavigateToStudio}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition"
+                  className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
                 >
                   {language === 'ar' ? 'الذهاب للاستوديو' : 'Aller au Studio'}
                 </button>
@@ -374,7 +390,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
-                      <span className="font-bold text-purple-600">+{selectedPack.points}</span>
+                      <span className="font-bold text-slate-900">+{selectedPack.points}</span>
                     </div>
 
                     <div className="flex justify-between items-center text-sm text-slate-500">
@@ -391,7 +407,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
                     <div className="flex justify-between items-center text-lg font-bold border-t border-slate-200 pt-4 mt-2">
                       <span className="text-slate-900">{language === 'ar' ? 'المجموع' : 'Total'}</span>
-                      <span className="text-purple-600">
+                      <span className="text-slate-900">
                         {totalToPay.toLocaleString()} <span className="text-sm text-slate-500">DZD</span>
                       </span>
                     </div>
@@ -457,7 +473,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                   </div>
 
                   <div className="mt-6 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
-                    <ShieldCheck className="w-4 h-4 text-purple-600" />
+                    <ShieldCheck className="w-4 h-4 text-green-600" />
                     <span>{language === 'ar' ? 'مدفوعات آمنة عبر SATIM' : 'Paiement sécurisé via SATIM'}</span>
                   </div>
                 </div>
@@ -472,11 +488,11 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                     )}
 
                     {paymentUrl ? (
-                      <div className="space-y-4 p-6 rounded-2xl bg-purple-50 border border-purple-200">
+                      <div className="space-y-4 p-6 rounded-2xl bg-slate-50 border border-slate-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                            <span className="text-sm font-bold text-purple-800">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                            <span className="text-sm font-bold text-slate-800">
                               {language === 'ar' ? 'جاهز للدفع' : 'Prêt à payer'}
                             </span>
                           </div>
@@ -495,7 +511,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                               window.location.href = paymentUrl;
                             }
                           }}
-                          className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition text-lg"
+                          className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition text-lg shadow-lg"
                         >
                           <ExternalLink className="w-5 h-5" />
                           <span>
@@ -505,7 +521,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                           </span>
                         </a>
 
-                        <div className="flex items-center justify-between pt-4 border-t border-purple-200">
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                           <button
                             onClick={checkStatusManually}
                             disabled={isProcessing}
@@ -544,7 +560,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                                 value={firstname}
                                 onChange={(e) => setFirstname(e.target.value)}
                                 placeholder="Mohamed"
-                                className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                                className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
                               />
                             </div>
                           </div>
@@ -559,7 +575,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                               value={lastname}
                               onChange={(e) => setLastname(e.target.value)}
                               placeholder="Benali"
-                              className="w-full px-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                              className="w-full px-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
                             />
                           </div>
 
@@ -575,7 +591,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
                                 placeholder="0550123456"
-                                className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                                className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
                               />
                             </div>
                           </div>
@@ -592,7 +608,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                                 placeholder="Alger"
-                                className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                                className="w-full pl-10 pr-3 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
                               />
                             </div>
                           </div>
@@ -601,7 +617,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                         <button
                           type="submit"
                           disabled={isProcessing}
-                          className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition text-lg"
+                          className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition text-lg shadow-md"
                         >
                           {isProcessing ? (
                             <>
@@ -616,7 +632,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                                   ? `دفع ${totalToPay.toLocaleString()} دج الآن`
                                   : `Payer ${totalToPay.toLocaleString()} DZD maintenant`}
                               </span>
-                              <ArrowRight className="w-5 h-5" />
+                              <ArrowRight className={`w-5 h-5 ${isRTL ? 'rotate-180' : ''}`} />
                             </>
                           )}
                         </button>
@@ -638,8 +654,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
       {/* FAQ Section */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 mt-12 border-t border-slate-200">
-        <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-purple-50 transition-colors duration-300 group">
-          <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+        <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100">
+          <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-4 text-slate-700">
             <Zap className="w-6 h-6" />
           </div>
           <h3 className="text-lg font-bold text-slate-900 mb-2">
@@ -652,8 +668,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           </p>
         </div>
 
-        <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-purple-50 transition-colors duration-300 group">
-          <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+        <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100">
+          <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-4 text-slate-700">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <h3 className="text-lg font-bold text-slate-900 mb-2">
@@ -666,8 +682,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           </p>
         </div>
 
-        <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-purple-50 transition-colors duration-300 group">
-          <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+        <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100">
+          <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-4 text-slate-700">
             <HelpCircle className="w-6 h-6" />
           </div>
           <h3 className="text-lg font-bold text-slate-900 mb-2">
@@ -715,7 +731,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
-                <span className="font-bold text-purple-600">+{selectedPack.points}</span>
+                <span className="font-bold text-slate-900">+{selectedPack.points}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">{language === 'ar' ? 'الاسم' : 'Nom'}</span>
@@ -742,7 +758,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               </div>
               <div className="flex justify-between items-center text-lg font-bold pt-2">
                 <span className="text-slate-900">{language === 'ar' ? 'المجموع' : 'Total'}</span>
-                <span className="text-purple-600">{totalToPay.toLocaleString()} DZD</span>
+                <span className="text-slate-900">{totalToPay.toLocaleString()} DZD</span>
               </div>
             </div>
 
@@ -752,7 +768,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                   setShowConfirmModal(false);
                   if (paymentUrl) openPaymentUrl(paymentUrl);
                 }}
-                className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
+                className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
               >
                 <Lock className="w-4 h-4" />
                 {language === 'ar'
