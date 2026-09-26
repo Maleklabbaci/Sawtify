@@ -51,28 +51,38 @@ type NouvelleVoix = {
  * Les 21 voix, dans l'ordre du catalogue officiel.
  * `caractere` reprend la traduction du descripteur Google.
  */
+/**
+ * ⚠️ ACCORD FRANÇAIS — à ne pas « simplifier ».
+ * Ces descripteurs sont affichés tels quels après le mot « Voix » :
+ *     Darja algérienne • Voix décontractée
+ * « Voix » est FÉMININ en français. Les descripteurs doivent donc TOUS être
+ * au féminin. Ils étaient au masculin à l'origine (« Voix décontracté »,
+ * « Voix clair », « Voix enjoué », « Voix mûr »…), ce qui se lit comme une
+ * faute dès la première ligne de la liste des voix. Corrigé le 26/09/2026.
+ * Idem pour le champ arabe, qui suit directement « صوت ».
+ */
 const NOUVELLES_VOIX: NouvelleVoix[] = [
   { slug: 'karim',  geminiVoice: 'Kore',           name: 'Karim',  nameAr: 'كريم',   caractere: 'Ferme',            caractereAr: 'حازم',        icon: 'mic',         category: 'formal' },
-  { slug: 'aya',    geminiVoice: 'Aoede',          name: 'Aya',    nameAr: 'آية',    caractere: 'Léger et aérien',  caractereAr: 'خفيف',        icon: 'sparkles',    category: 'social' },
-  { slug: 'sami',   geminiVoice: 'Callirrhoe',     name: 'Sami',   nameAr: 'سامي',   caractere: 'Décontracté',      caractereAr: 'مرتاح',       icon: 'podcast',     category: 'social' },
-  { slug: 'nada',   geminiVoice: 'Autonoe',        name: 'Nada',   nameAr: 'ندى',    caractere: 'Éclatant',         caractereAr: 'مشرق',        icon: 'sparkles',    category: 'commercial' },
-  { slug: 'anis',   geminiVoice: 'Enceladus',      name: 'Anis',   nameAr: 'أنيس',   caractere: 'Soufflé et aéré',  caractereAr: 'متنفس',       icon: 'volume-2',    category: 'narrative' },
-  { slug: 'zaki',   geminiVoice: 'Iapetus',        name: 'Zaki',   nameAr: 'زكي',    caractere: 'Clair',            caractereAr: 'واضح',        icon: 'mic',         category: 'formal' },
-  { slug: 'walid',  geminiVoice: 'Umbriel',        name: 'Walid',  nameAr: 'وليد',   caractere: 'Décontracté',      caractereAr: 'مرتاح',       icon: 'radio',       category: 'social' },
+  { slug: 'aya',    geminiVoice: 'Aoede',          name: 'Aya',    nameAr: 'آية',    caractere: 'Légère et aérienne',  caractereAr: 'خفيف',        icon: 'sparkles',    category: 'social' },
+  { slug: 'sami',   geminiVoice: 'Callirrhoe',     name: 'Sami',   nameAr: 'سامي',   caractere: 'Décontractée',      caractereAr: 'مرتاح',       icon: 'podcast',     category: 'social' },
+  { slug: 'nada',   geminiVoice: 'Autonoe',        name: 'Nada',   nameAr: 'ندى',    caractere: 'Éclatante',         caractereAr: 'مشرق',        icon: 'sparkles',    category: 'commercial' },
+  { slug: 'anis',   geminiVoice: 'Enceladus',      name: 'Anis',   nameAr: 'أنيس',   caractere: 'Soufflée et aérée',  caractereAr: 'نفَسي وخفيف',       icon: 'volume-2',    category: 'narrative' },
+  { slug: 'zaki',   geminiVoice: 'Iapetus',        name: 'Zaki',   nameAr: 'زكي',    caractere: 'Claire',            caractereAr: 'واضح',        icon: 'mic',         category: 'formal' },
+  { slug: 'walid',  geminiVoice: 'Umbriel',        name: 'Walid',  nameAr: 'وليد',   caractere: 'Décontractée',      caractereAr: 'مرتاح',       icon: 'radio',       category: 'social' },
   { slug: 'nabil',  geminiVoice: 'Algieba',        name: 'Nabil',  nameAr: 'نبيل',   caractere: 'Lisse',            caractereAr: 'ناعم',        icon: 'audio-lines', category: 'narrative' },
   { slug: 'salma',  geminiVoice: 'Despina',        name: 'Salma',  nameAr: 'سلمى',   caractere: 'Lisse',            caractereAr: 'ناعم',        icon: 'sparkles',    category: 'narrative' },
-  { slug: 'rania',  geminiVoice: 'Erinome',        name: 'Rania',  nameAr: 'رانيا',  caractere: 'Clair',            caractereAr: 'واضح',        icon: 'mic',         category: 'formal' },
-  { slug: 'hakim',  geminiVoice: 'Rasalgethi',     name: 'Hakim',  nameAr: 'حكيم',   caractere: 'Informatif',       caractereAr: 'معلوماتي',    icon: 'podcast',     category: 'formal' },
-  { slug: 'riad',   geminiVoice: 'Laomedeia',      name: 'Riad',   nameAr: 'رياض',   caractere: 'Enjoué',           caractereAr: 'مرح',         icon: 'flame',       category: 'commercial' },
+  { slug: 'rania',  geminiVoice: 'Erinome',        name: 'Rania',  nameAr: 'رانيا',  caractere: 'Claire',            caractereAr: 'واضح',        icon: 'mic',         category: 'formal' },
+  { slug: 'hakim',  geminiVoice: 'Rasalgethi',     name: 'Hakim',  nameAr: 'حكيم',   caractere: 'Informative',       caractereAr: 'إخباري',    icon: 'podcast',     category: 'formal' },
+  { slug: 'riad',   geminiVoice: 'Laomedeia',      name: 'Riad',   nameAr: 'رياض',   caractere: 'Enjouée',           caractereAr: 'مرح',         icon: 'flame',       category: 'commercial' },
   { slug: 'adel',   geminiVoice: 'Alnilam',        name: 'Adel',   nameAr: 'عادل',   caractere: 'Ferme',            caractereAr: 'حازم',        icon: 'mic',         category: 'formal' },
-  { slug: 'nassim', geminiVoice: 'Schedar',        name: 'Nassim', nameAr: 'نسيم',   caractere: 'Égal et posé',     caractereAr: 'رزين',        icon: 'audio-lines', category: 'narrative' },
-  { slug: 'omar',   geminiVoice: 'Gacrux',         name: 'Omar',   nameAr: 'عمر',    caractere: 'Mûr',              caractereAr: 'ناضج',        icon: 'headphones',  category: 'narrative' },
-  { slug: 'yacine', geminiVoice: 'Pulcherrima',    name: 'Yacine', nameAr: 'ياسين',  caractere: 'Direct et assuré', caractereAr: 'واثق',        icon: 'megaphone',   category: 'commercial' },
-  { slug: 'hicham', geminiVoice: 'Achird',         name: 'Hicham', nameAr: 'هشام',   caractere: 'Amical',           caractereAr: 'ودود',        icon: 'podcast',     category: 'social' },
-  { slug: 'reda',   geminiVoice: 'Zubenelgenubi',  name: 'Reda',   nameAr: 'رضا',    caractere: 'Décontracté',      caractereAr: 'مرتاح',       icon: 'radio',       category: 'social' },
-  { slug: 'amina',  geminiVoice: 'Vindemiatrix',   name: 'Amina',  nameAr: 'أمينة',  caractere: 'Doux et délicat',  caractereAr: 'لطيف',        icon: 'sparkles',    category: 'narrative' },
-  { slug: 'sara',   geminiVoice: 'Sadachbia',      name: 'Sara',   nameAr: 'سارة',   caractere: 'Vivant',           caractereAr: 'حيوي',        icon: 'zap',         category: 'social' },
-  { slug: 'mourad', geminiVoice: 'Sadaltager',     name: 'Mourad', nameAr: 'مراد',   caractere: 'Savant et érudit', caractereAr: 'عالِم',       icon: 'headphones',  category: 'formal' },
+  { slug: 'nassim', geminiVoice: 'Schedar',        name: 'Nassim', nameAr: 'نسيم',   caractere: 'Égale et posée',     caractereAr: 'رزين',        icon: 'audio-lines', category: 'narrative' },
+  { slug: 'omar',   geminiVoice: 'Gacrux',         name: 'Omar',   nameAr: 'عمر',    caractere: 'Mûre',              caractereAr: 'ناضج',        icon: 'headphones',  category: 'narrative' },
+  { slug: 'yacine', geminiVoice: 'Pulcherrima',    name: 'Yacine', nameAr: 'ياسين',  caractere: 'Directe et assurée', caractereAr: 'واثق',        icon: 'megaphone',   category: 'commercial' },
+  { slug: 'hicham', geminiVoice: 'Achird',         name: 'Hicham', nameAr: 'هشام',   caractere: 'Amicale',           caractereAr: 'ودود',        icon: 'podcast',     category: 'social' },
+  { slug: 'reda',   geminiVoice: 'Zubenelgenubi',  name: 'Reda',   nameAr: 'رضا',    caractere: 'Décontractée',      caractereAr: 'مرتاح',       icon: 'radio',       category: 'social' },
+  { slug: 'amina',  geminiVoice: 'Vindemiatrix',   name: 'Amina',  nameAr: 'أمينة',  caractere: 'Douce et délicate',  caractereAr: 'لطيف',        icon: 'sparkles',    category: 'narrative' },
+  { slug: 'sara',   geminiVoice: 'Sadachbia',      name: 'Sara',   nameAr: 'سارة',   caractere: 'Vivante',           caractereAr: 'حيوي',        icon: 'zap',         category: 'social' },
+  { slug: 'mourad', geminiVoice: 'Sadaltager',     name: 'Mourad', nameAr: 'مراد',   caractere: 'Savante et érudite', caractereAr: 'مثقّف ورصين',       icon: 'headphones',  category: 'formal' },
 ];
 
 /** Phrases d'exemple, choisies selon l'usage prévu de la voix. */
