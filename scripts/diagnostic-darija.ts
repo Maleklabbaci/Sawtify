@@ -25,6 +25,7 @@ import {
   protegerBalises,
   restaurerBalises,
 } from "../tts/engine";
+import { VOICES_FR } from "../src/data/voices";
 import { parseTranscript } from "../tts/vocalTags";
 import { resolveVoiceName } from "../tts/voiceNames";
 
@@ -170,12 +171,10 @@ titre("④ LES BALISES INCONNUES — sont-elles détectées ?");
 /* ── ⑤ LES 30 VOIX SE RÉSOLVENT ─────────────────────────────────────────── */
 titre("⑤ LES 30 VOIX — aucune ne retombe sur Puck par erreur ?");
 {
-  const attendues = [
-    "karim", "aya", "sami", "nada", "anis", "zaki", "walid", "nabil", "salma", "rania",
-    "hakim", "riad", "adel", "nassim", "omar", "yacine", "hicham", "reda", "amina", "sara", "mourad",
-    "voice_amin", "voice_yasmin", "voice_khalid", "voice_maryam", "voice_rashid",
-    "voice_layla", "voice_bilal", "voice_nour", "voice_faycal",
-  ];
+  // ⚠️ La liste est LUE DEPUIS LE CATALOGUE, jamais recopiée à la main : une
+  // liste en dur finit toujours par mentir (elle a menti une fois, le
+  // 26/09/2026, après le renommage de 5 voix). Ici, impossible.
+  const attendues = VOICES_FR.map((v) => v.id);
   const perdues = attendues.filter((nom) => !resolveVoiceName(nom));
   verdict(perdues.length === 0, "les 30 prénoms trouvent leur voix", perdues.join(", "));
   const distinctes = new Set(attendues.map((nom) => resolveVoiceName(nom)));
