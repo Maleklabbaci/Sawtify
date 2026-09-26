@@ -11,7 +11,6 @@ import { tagsByCategory } from '../../tts/vocalTags';
 import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, sendAIFeedback } from '../services/api';
-import { convertWavToMp3 } from '../utils/audioConverter';
 import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
 import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
@@ -36,6 +35,11 @@ const BURST_SECTIONS: { category: TagCategory; ar: string; fr: string }[] = [
   { category: 'voix', ar: 'نبرات الصوت', fr: 'Voix' },
   { category: 'silence', ar: 'وقفات صمت', fr: 'Silences (pause)' },
 ];
+
+// La conversion MP3 embarque lamejs (518 ko) + ffmpeg.wasm : ces librairies
+// ne servent QU'au clic « MP3 ». Elles sont donc chargees a la demande
+// (import dynamique) — plus rien de tout ca dans le bundle de demarrage.
+const chargerConvertisseurMp3 = () => import('../utils/audioConverter');
 
 // ==========================================================================
 // UTILITAIRES
@@ -464,6 +468,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       }
       
       try { 
+        const { convertWavToMp3 } = await chargerConvertisseurMp3();
         const r = await convertWavToMp3(audioBlob, () => {}); 
         setMp3Blob(r.mp3Blob); 
         setMp3Url(r.mp3Url); 

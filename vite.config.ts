@@ -11,6 +11,34 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      // ── DECOUPAGE EN LOTS STABLES ────────────────────────────────────────
+      // Sans ce reglage, TOUT le JS tient dans un seul fichier : au moindre
+      // deploiement, son empreinte change et le navigateur de l'utilisateur
+      // retelecharge les 300 ko — React et Supabase compris, alors qu'ils
+      // n'ont pas bouge.
+      // Ici, React / Supabase / les icones / les animations vivent dans des
+      // fichiers separes et immuables : apres un deploiement, seul le code de
+      // l'appli (quelques dizaines de ko) est retelecharge. C'est le gain le
+      // plus visible pour un visiteur qui revient souvent.
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            // lamejs / ffmpeg ne servent QU'au clic « MP3 » : on les laisse
+            // dans leur propre fichier, charge a la demande. Les ranger ici
+            // les ferait revenir dans le JS de demarrage (185 ko pour rien).
+            if (id.includes('lamejs') || id.includes('@ffmpeg')) return undefined;
+            if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) return 'vendor-react';
+            if (id.includes('@supabase')) return 'vendor-supabase';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('motion')) return 'vendor-motion';
+            if (id.includes('react-helmet-async')) return 'vendor-helmet';
+            return 'vendor';
+          },
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

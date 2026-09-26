@@ -7,7 +7,7 @@ import {
   resolveEngineMode, buildTtsRequest, stripWavHeader, extractAudioFromResponse,
   toLegacyTranscript, describeEngine, pcmDurationSeconds, legacyFidelityReport,
   splitIntoChunksForTTS, protegerBalises, restaurerBalises, estEquilibre,
-  languageInstruction,
+  languageInstruction, parallelMap,
 } from "./engine";
 
 let pass = 0, fail = 0;
@@ -578,7 +578,62 @@ const force = buildTtsRequest({
   ok(pause.requestedStyle === null, "une pause officielle ne fabrique aucun ton");
 
   // ─────────────────────────────────────────────────────────────────────────────
-section("14. RÉSUMÉ");
+section("14. GÉNÉRATION EN PARALLÈLE — la rapidité sans rien casser");
+await (async () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // ① L'ORDRE : le morceau le plus LENT est le premier, le plus rapide le
+  //    dernier. Sans garantie d'ordre, l'audio serait monté à l'envers.
+  const durees = [60, 5, 40, 10, 25, 15];
+  const ordre = await parallelMap(durees, 3, async (ms, i) => { await sleep(ms); return i; });
+  ok(ordre.ok && ordre.results.join(",") === "0,1,2,3,4,5",
+    "★ l'audio est remonté dans l'ORDRE du texte, pas dans l'ordre d'arrivée",
+    ordre.ok ? ordre.results.join(",") : "échec inattendu");
+
+  // ② La limite : jamais plus de `concurrency` requêtes en vol (l'API Google
+  //    n'est pas bombardée par un texte long).
+  let enVol = 0, maxEnVol = 0;
+  await parallelMap([1,2,3,4,5,6,7,8,9], 3, async () => {
+    enVol++; maxEnVol = Math.max(maxEnVol, enVol);
+    await sleep(8);
+    enVol--;
+    return 0;
+  });
+  ok(maxEnVol <= 3, "jamais plus de 3 morceaux en vol (limite respectée)", `max=${maxEnVol}`);
+  ok(maxEnVol === 3, "…et les 3 emplacements servent vraiment (donc c'est bien plus rapide)", `max=${maxEnVol}`);
+
+  // ③ La vitesse : 6 morceaux de 40 ms en série = 240 ms ; en parallèle (3),
+  //    on doit tomber autour de 80-120 ms.
+  const t0 = Date.now();
+  await parallelMap([1,2,3,4,5,6], 3, async () => { await sleep(40); return 0; });
+  const ecoule = Date.now() - t0;
+  ok(ecoule < 170, "★ 6 morceaux en parallèle = bien plus rapide que l'un après l'autre", `${ecoule} ms au lieu de ~240 ms`);
+
+  // ④ L'ÉCHEC : un seul morceau en échec => tout est annulé, et on sait LEQUEL.
+  let lances = 0;
+  const echec = await parallelMap([1,2,3,4,5,6], 2, async (_x, i) => {
+    lances++;
+    if (i === 3) throw new Error("Gemini a refusé");
+    await sleep(10);
+    return i;
+  });
+  ok(!echec.ok, "un morceau en échec fait échouer la génération complète (aucun audio partiel)");
+  const indexFautif = echec.ok ? null : echec.index;
+  const messageFautif = echec.ok ? "" : String((echec.error as Error)?.message ?? echec.error);
+  ok(indexFautif === 3, "…et l'index du morceau fautif est remonté", String(indexFautif));
+  ok(messageFautif.includes("refusé"), "…avec le message d'erreur d'origine (pour le support)", messageFautif);
+  ok(lances <= 4, "après l'échec, plus aucune nouvelle requête n'est lancée", `${lances} requêtes`);
+
+  // ⑤ Les cas limites : liste vide, concurrence absurde (0, énorme).
+  const vide = await parallelMap([], 3, async () => 1);
+  ok(vide.ok && vide.results.length === 0, "texte vide : rien n'est lancé, et ce n'est pas une erreur");
+  const zero = await parallelMap([1,2,3], 0, async (x) => x * 2);
+  ok(zero.ok && zero.results.join(",") === "2,4,6", "concurrence 0 : retour à 1 à la fois (jamais de blocage)");
+  const enorme = await parallelMap([1,2,3], 999, async (x) => x * 2);
+  ok(enorme.ok && enorme.results.join(",") === "2,4,6", "concurrence 999 : bornée au nombre de morceaux");
+})();
+
+section("15. RÉSUMÉ");
 console.log(`\n  Tests réussis : ${pass}   |   Échecs : ${fail}`);
 if (fail === 0) console.log("\n  ✅ LE DOUBLE MOTEUR FONCTIONNE — les deux modes sont opérationnels.\n");
 else console.log("\n  ❌ Corriger les échecs ci-dessus.\n");

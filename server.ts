@@ -38,6 +38,7 @@ import {
   describeEngine,
   legacyFidelityReport,
   splitIntoChunksForTTS,
+  parallelMap,
 } from "./tts/engine";
 import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
 import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
@@ -1143,14 +1144,30 @@ async function synthesizeWithRetry(
   console.log(`[TTS] ${cleanFullText.length} chars → ${chunks.length} morceau(x) (voice=${selectedVoiceName}, model=${TTS_MODEL})`);
 
   const gapBytes = Math.round(TTS_BYTES_PER_SECOND * (TTS_CHUNK_GAP_MS / 1000));
-  const pcmChunks: Buffer[] = [];
 
-  for (let ci = 0; ci < chunks.length; ci++) {
+  // ── COMBIEN DE MORCEAUX EN MÊME TEMPS ? ─────────────────────────────────
+  // 3 par défaut. C'est le réglage qui décide de la rapidité sur un texte
+  // long : 4 morceaux prenaient 4 fois le temps d'un seul, ils prennent
+  // maintenant ~1,5 fois. Réglable sans redéployer : TTS_CHUNK_CONCURRENCY.
+  // On ne monte pas plus haut que 4 pour ne pas déclencher de refus (429)
+  // côté Google — les retries resteraient sinon plus lents que le gain.
+  const parallelisme = (() => {
+    const n = Number(process.env.TTS_CHUNK_CONCURRENCY);
+    if (Number.isFinite(n) && n >= 1) return Math.max(1, Math.min(4, Math.floor(n)));
+    return 3;
+  })();
+
+  // ── GÉNÉRATION DES MORCEAUX (en parallèle, mais résultat ORDONNÉ) ───────
+  // Chaque morceau a droit à ses propres retries, exactement comme avant.
+  // Un seul morceau définitivement en échec → génération ANNULÉE (aucun
+  // audio partiel renvoyé, aucun point débité) : le comportement de
+  // facturation est STRICTEMENT inchangé.
+  const generation = await parallelMap(chunks, parallelisme, async (chunk, ci) => {
     const isLastChunk = ci === chunks.length - 1;
 
     // FIX TTS-D : intro "..." uniquement sur le 1er morceau,
     // pause finale "..." uniquement sur le dernier.
-    let chunkText = normalizeTextForTTS(chunks[ci], isLastChunk);
+    let chunkText = normalizeTextForTTS(chunk, isLastChunk);
     if (ci === 0) chunkText = injectNaturalFiller(chunkText);
 
     // ── Construction de la requête par le MOTEUR TTS ─────────────────────
@@ -1167,14 +1184,8 @@ async function synthesizeWithRetry(
       model: TTS_MODEL,
       rawText: chunkText,
       voiceName: selectedVoiceName,
-      // En mode modern on ne transmet que vitesse/hauteur ; l'émotion est
-      // déduite par le moteur depuis les balises de sons du transcript.
       style: TTS_ENGINE_MODE === "modern" ? modernStyle : null,
-      // Le « comment dire » propre à la voix (ex-« Speaker: » des DIRECTOR'S
-      // NOTES). Mode modern uniquement : en legacy, le persona ci-dessous le
-      // porte déjà en entier.
       character: TTS_ENGINE_MODE === "modern" ? character : null,
-      // On n'invente AUCUN style à partir des balises (voir TTS_AUTO_STYLE).
       autoStyle: TTS_AUTO_STYLE,
       legacyPersona: persona,
       legacyNotes: [
@@ -1184,24 +1195,18 @@ async function synthesizeWithRetry(
       ],
       output: "pcm",
     });
-    const requestBody = built.body;
 
     if (built.warnings.length) {
       console.warn(`[TTS] Morceau ${ci + 1} — ${built.warnings.join(" | ")}`);
     }
 
-    let chunkBuffer: Buffer | null = null;
     let lastChunkError: any = null;
-
-    // Chaque morceau a droit à ses propres retries. Si UN SEUL morceau
-    // échoue définitivement → génération ANNULÉE (jamais d'audio partiel
-    // renvoyé, jamais de points débités pour un son incomplet).
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const pcmBuffer = await callGeminiTTSNonStreaming(requestBody);
+        const pcmBuffer = await callGeminiTTSNonStreaming(built.body);
         if (!pcmBuffer || pcmBuffer.length <= 100) throw new Error("Audio vide ou trop court");
-        chunkBuffer = pcmBuffer;
-        break;
+        console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${pcmBuffer.length} bytes PCM`);
+        return pcmBuffer;
       } catch (err: any) {
         lastChunkError = err;
         console.error(`[TTS ✗] Morceau ${ci + 1}/${chunks.length} — tentative ${attempt}/${maxRetries} échouée : ${err?.message || err}`);
@@ -1212,19 +1217,26 @@ async function synthesizeWithRetry(
       }
     }
 
-    if (!chunkBuffer) {
-      console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${maxRetries} tentatives — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
-      return {
-        pcmBuffer: null,
-        error: `Morceau ${ci + 1}/${chunks.length} : ${lastChunkError?.message || "Erreur de génération audio"}`,
-        usedStreaming: false,
-        chunkCount: chunks.length
-      };
-    }
+    console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${maxRetries} tentatives — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
+    throw lastChunkError || new Error("Erreur de génération audio");
+  });
 
-    console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${chunkBuffer.length} bytes PCM`);
-    if (pcmChunks.length > 0) pcmChunks.push(Buffer.alloc(gapBytes)); // silence naturel entre morceaux
-    pcmChunks.push(chunkBuffer);
+  if (!generation.ok) {
+    const errFautive: any = generation.error;
+    return {
+      pcmBuffer: null,
+      error: `Morceau ${generation.index + 1}/${chunks.length} : ${errFautive?.message || "Erreur de génération audio"}`,
+      usedStreaming: false,
+      chunkCount: chunks.length,
+    };
+  }
+
+  // FIX TTS-C : assemblage DANS L'ORDRE du texte (jamais dans l'ordre
+  // d'arrivée des réponses) + un court silence naturel entre les morceaux.
+  const pcmChunks: Buffer[] = [];
+  for (let i = 0; i < generation.results.length; i++) {
+    if (pcmChunks.length > 0) pcmChunks.push(Buffer.alloc(gapBytes));
+    pcmChunks.push(generation.results[i]);
   }
 
   const totalBuffer = Buffer.concat(pcmChunks);
@@ -1246,7 +1258,7 @@ async function synthesizeWithRetry(
     }
   }
 
-  console.log(`[TTS ✓] Génération complète — ${chunks.length} morceau(x), ${totalBuffer.length} bytes PCM (~${totalSeconds.toFixed(1)}s), voice=${selectedVoiceName}`);
+  console.log(`[TTS ✓] Génération complète — ${chunks.length} morceau(x) en ${parallelisme} parallèle(s), ${totalBuffer.length} bytes PCM (~${totalSeconds.toFixed(1)}s), voice=${selectedVoiceName}`);
   return { pcmBuffer: totalBuffer, error: null, usedStreaming: false, chunkCount: chunks.length };
 }
 
@@ -2679,7 +2691,28 @@ Style vocal souhaité : ${style || "excited"}`;
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    // ── CACHE NAVIGATEUR ────────────────────────────────────────────────────
+    // Sans consigne de cache, le navigateur REVALIDait tout à chaque visite :
+    // 1 Mo de JS à re-télécharger, sur données mobiles, à chaque ouverture.
+    // Les fichiers de /assets/ portent une empreinte dans leur nom (le
+    // contenu ne change jamais sans changer d'adresse) : on peut donc les
+    // garder UN AN, et la visite suivante est quasi instantanée.
+    // index.html, lui, ne doit JAMAIS être gardé (sinon l'utilisateur reste
+    // bloqué sur une ancienne version après un déploiement).
+    app.use(express.static(distPath, {
+      index: false,
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, must-revalidate");
+        } else if (/\.(png|jpe?g|svg|webp|ico|woff2?|ttf|mp3|wav)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=2592000");
+        }
+      },
+    }));
     app.use("/api", (req, res, next) => {
       if (req.method === "GET" || req.method === "HEAD") return res.status(404).json({ error: "Endpoint API introuvable." });
       return res.status(404).json({ error: "Endpoint API ou méthode introuvable." });

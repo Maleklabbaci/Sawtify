@@ -726,3 +726,65 @@ export function estEquilibre(text: string): boolean {
   }
   return ouverts === 0;
 }
+
+/* ============================================================================
+ *  GÉNÉRATION EN PARALLÈLE — la rapidité sur les textes longs
+ * ============================================================================
+ *  Un texte long est découpé en plusieurs morceaux (splitIntoChunksForTTS).
+ *  Les générer l'un APRÈS l'autre multipliait l'attente par le nombre de
+ *  morceaux : un texte de 3 morceaux attendait 3 fois le temps d'un seul.
+ *
+ *  `parallelMap` donne EXACTEMENT le même résultat, mais en lançant jusqu'à
+ *  `concurrency` morceaux en même temps. Garanties (vérifiées par
+ *  `npm run test:tts`) :
+ *    • l'ORDRE du résultat est celui de la liste d'entrée — l'audio ne peut
+ *      pas se retrouver dans le désordre ;
+ *    • jamais plus de `concurrency` tâches en vol : pas de rafale sur l'API ;
+ *    • dès qu'une tâche échoue, plus aucune NOUVELLE tâche n'est lancée, et
+ *      l'échec remonte avec son index (le serveur annule alors TOUT : aucun
+ *      audio partiel renvoyé, aucun point débité) ;
+ *    • une liste vide ne lance rien et réussit.
+ */
+export type ParallelMapResult<R> = {
+  /** false = au moins une tâche a échoué (résultat inutilisable en l'état). */
+  ok: boolean;
+  /** Résultats DANS L'ORDRE de la liste d'entrée (vide si `ok` = false). */
+  results: R[];
+  /** Index de la 1re tâche en échec, -1 si tout s'est bien passé. */
+  index: number;
+  /** Erreur de la 1re tâche en échec, null si tout s'est bien passé. */
+  error: unknown | null;
+};
+
+export async function parallelMap<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  run: (item: T, index: number) => Promise<R>
+): Promise<ParallelMapResult<R>> {
+  const results = new Array<R>(items.length);
+  if (items.length === 0) return { ok: true, results, index: -1, error: null };
+
+  const lanes = Math.max(1, Math.min(Math.floor(concurrency) || 1, items.length));
+  let next = 0;
+  let failure: { index: number; error: unknown } | null = null;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      if (failure) return;               // un échec suffit : on n'en lance plus
+      const index = next++;
+      if (index >= items.length) return;
+      try {
+        results[index] = await run(items[index], index);
+      } catch (error) {
+        if (!failure) failure = { index, error };
+        return;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: lanes }, () => worker()));
+  const echec = failure as { index: number; error: unknown } | null;
+  return echec
+    ? { ok: false, results: [], index: echec.index, error: echec.error }
+    : { ok: true, results, index: -1, error: null };
+}
