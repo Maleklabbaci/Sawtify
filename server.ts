@@ -807,6 +807,12 @@ const PREVIEW_WARM_STATE = {
   derniereErreur: null as string | null,
   debut: null as string | null,
   fin: null as string | null,
+  /* Un quota Gemini (code 429) n'est pas une panne : c'est le plus souvent une
+     limite PAR MINUTE. Ces deux champs disent si une nouvelle passe est déjà
+     programmée toute seule, et quand. */
+  quota_atteint: false,
+  reprises: 0,
+  prochaineTentative: null as string | null,
 };
 /** Adresse PUBLIQUE d'un aperçu stocké (bucket public → CDN Supabase). */
 const publicPreviewUrl = (key: string): string | null =>
@@ -2933,34 +2939,67 @@ Style vocal souhaité : ${style || "excited"}`;
       console.log(`[Aperçus] Suivi en direct : /api/v1/tts/preview-status`);
 
       let faits = 0, echecs = 0;
+      const MAX_TENTATIVES = 4;   // 1 essai, puis 3 reprises espacées
       for (const t of manquantes) {
         const key = previewKeyForVoice(t.voice.id);
-        try {
-          const dataUri = await generateVoicePreviewDataUri(t.voice.id, t.legacyId || t.voice.id);
-          PREVIEW_AUDIO_CACHE.set(key, dataUri);
-          await savePersistentPreview(key, dataUri);
-          PREVIEW_STORAGE_KEYS.add(key);
-          PREVIEW_WARM_STATE.faits = ++faits;
-          console.log(`[Aperçus ✓] ${t.voice.id} (${t.nameFr}) — ${faits}/${manquantes.length}`);
-        } catch (err: any) {
-          echecs++;
-          PREVIEW_WARM_STATE.echecs = echecs;
-          PREVIEW_WARM_STATE.derniereErreur = `${t.voice.id} : ${err?.message || err}`;
-          console.warn(`[Aperçus ✗] ${t.voice.id} : ${err?.message || err}`);
-          // Le stockage refuse tout (bucket absent ou non public) ? On ne
-          // gaspille pas 30 générations : on s'arrête tout de suite et on dit
-          // exactement quoi faire.
-          if (faits === 0 && echecs === 1) {
-            console.warn(`[Aperçus] Arrêt : le 1er enregistrement a échoué. Crée un bucket PUBLIC nommé « ${PREVIEW_BUCKET} » dans Supabase Storage, puis redémarre.`);
-            return;
+        let enregistre = false;
+        for (let tentative = 1; tentative <= MAX_TENTATIVES && !enregistre; tentative++) {
+          try {
+            const dataUri = await generateVoicePreviewDataUri(t.voice.id, t.legacyId || t.voice.id);
+            PREVIEW_AUDIO_CACHE.set(key, dataUri);
+            await savePersistentPreview(key, dataUri);
+            PREVIEW_STORAGE_KEYS.add(key);
+            PREVIEW_WARM_STATE.faits = ++faits;
+            PREVIEW_WARM_STATE.quota_atteint = false;
+            enregistre = true;
+            console.log(`[Aperçus ✓] ${t.voice.id} (${t.nameFr}) — ${faits}/${manquantes.length}${tentative > 1 ? ` (réussi à la tentative ${tentative})` : ""}`);
+          } catch (err: any) {
+            const msg = String(err?.message || err);
+            PREVIEW_WARM_STATE.derniereErreur = `${t.voice.id} : ${msg}`;
+            // « 429 / quota / RESOURCE_EXHAUSTED » ne veut PAS dire « échec » :
+            // ça veut dire « tu vas trop vite ». C'est presque toujours une
+            // limite PAR MINUTE — donc on attend et on recommence, au lieu de
+            // laisser la voix sans aperçu pour toujours.
+            const quota = /(^|\D)429(\D|$)|quota|RESOURCE_EXHAUSTED|rate ?limit|too many requests/i.test(msg);
+            PREVIEW_WARM_STATE.quota_atteint = quota;
+            if (quota && tentative < MAX_TENTATIVES) {
+              const attente = 20000 * tentative;   // 20 s, puis 40 s, puis 60 s
+              console.warn(`[Aperçus ⏳] ${t.voice.id} : quota atteint (429) — nouvelle tentative ${tentative + 1}/${MAX_TENTATIVES} dans ${Math.round(attente / 1000)} s.`);
+              await new Promise((r) => setTimeout(r, attente));
+            } else {
+              echecs++;
+              PREVIEW_WARM_STATE.echecs = echecs;
+              console.warn(`[Aperçus ✗] ${t.voice.id} : ${msg}`);
+              // Stockage qui refuse TOUT (bucket absent ou non public) : ce
+              // n'est pas un quota, inutile de gaspiller 30 générations. On
+              // s'arrête tout de suite et on dit exactement quoi faire.
+              if (faits === 0 && echecs === 1 && !quota) {
+                console.warn(`[Aperçus] Arrêt : le 1er enregistrement a échoué. Crée un bucket PUBLIC nommé « ${PREVIEW_BUCKET} » dans Supabase Storage, puis redémarre.`);
+                return;
+              }
+              break;
+            }
           }
         }
-        await new Promise((r) => setTimeout(r, 1200)); // on ne bouscule pas l'API
+        await new Promise((r) => setTimeout(r, 2000)); // on ne bouscule pas l'API
       }
       PREVIEW_WARM_STATE.en_cours = false;
       PREVIEW_WARM_STATE.fin = new Date().toISOString();
       PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
       console.log(`[Aperçus] Préchauffage terminé : ${faits} généré(s), ${echecs} échec(s). Coût ≈ ${(faits * 0.004).toFixed(3)} $ une seule fois.`);
+      // Il manque encore des voix ? On repasse TOUT SEUL dans 10 minutes : un
+      // quota remis à zéro au bout d'une minute suffira, et sinon les reprises
+      // finiront par passer. Rien à relancer à la main. 3 reprises maximum,
+      // pour ne jamais boucler sans fin.
+      if (echecs > 0 && PREVIEW_WARM_STATE.reprises < 3) {
+        PREVIEW_WARM_STATE.reprises += 1;
+        const dans = 10 * 60 * 1000;
+        PREVIEW_WARM_STATE.prochaineTentative = new Date(Date.now() + dans).toISOString();
+        console.log(`[Aperçus] ${echecs} voix encore sans aperçu → nouvelle passe automatique dans 10 min (reprise ${PREVIEW_WARM_STATE.reprises}/3).`);
+        setTimeout(() => { void warmMissingVoicePreviews(); }, dans);
+      } else if (echecs === 0) {
+        PREVIEW_WARM_STATE.prochaineTentative = null;
+      }
     } catch (err: any) {
       console.warn(`[Aperçus] Préchauffage impossible : ${err?.message || err}`);
     }

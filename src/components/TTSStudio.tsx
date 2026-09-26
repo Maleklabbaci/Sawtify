@@ -1002,22 +1002,35 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 const isSelected = voice.id === selectedVoiceId;
                 const isPreviewing = previewingVoiceId === voice.id;
                 return (
-                  <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setIsVoiceMenuOpen(false); }} className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setIsVoiceMenuOpen(false); }} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
+                    {/* flex-1 : le bloc de gauche PREND la place restante au lieu
+                        de pousser les boutons. Résultat : l'étoile et le bouton
+                        lecture tombent à la MÊME abscisse sur les 30 lignes, que
+                        la description fasse 12 ou 40 caractères. */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span className="text-[11px] font-medium text-slate-800 truncate block">{voice.name}</span>
                         <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
                       </div>
                     </div>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`p-1 rounded shrink-0 ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`} title="Favori">
-                      <Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} />
-                    </button>
-                    <button onClick={(e) => handlePreviewVoice(e, voice)} className={`p-1 rounded shrink-0 ${isPreviewing ? 'text-purple-600' : 'text-slate-400 hover:text-slate-700'}`}>
-                      {isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
-                    </button>
+                    {/* Colonne d'actions à largeur FIXE (2 × 28 px) : elle ne
+                        bouge plus jamais, donc plus d'effet « dents de scie ». */}
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'}`}
+                        title="Favori" aria-pressed={favoriteVoiceIds.includes(voice.id)}
+                        aria-label={isRTL ? "إضافة إلى المفضلة" : "Ajouter aux favoris"}>
+                        <Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} />
+                      </button>
+                      <button onClick={(e) => handlePreviewVoice(e, voice)}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition ${isPreviewing ? 'text-purple-600 bg-purple-50' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                        aria-label={isRTL ? "معاينة صوتية" : "Aperçu audio"}>
+                        {isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

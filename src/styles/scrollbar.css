@@ -3,19 +3,31 @@
   width: 6px;
   height: 6px;
 }
+/* Sans cette règle, Chrome affiche les deux petits BOUTONS-flèches en haut et
+   en bas de la barre (les triangles qu'on voyait dans le catalogue). */
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+/* Pouce gris ardoise, discret : le violet attirait l'œil sur un simple
+   ascenseur, ce qui n'a aucune raison d'être mis en avant. */
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e9d5ff;
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #c084fc;
+  background: rgba(100, 116, 139, 0.55);
+}
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
 }
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #e9d5ff transparent;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
 }
 
 /* Masquer la scrollbar tout en gardant le scroll (pour les tags horizontaux) */
