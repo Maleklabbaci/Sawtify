@@ -9,7 +9,15 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:tts": "tsx tts/selftest.ts",
+    "verif:balises": "tsx scripts/verifier-balises.ts",
+    "test:voix": "tsx tts/test-noms.ts",
+    "compare:tts": "tsx scripts/comparer-3.1-vs-3.8.ts",
+    "demo:langues": "tsx scripts/demo-langues.ts",
+    "apercus:voix": "tsx scripts/generer-apercus-voix.ts",
+    "test:apercus": "tsx tts/test-apercus.ts",
+    "verif:doc": "tsx scripts/verifier-doc-api.ts"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

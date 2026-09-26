@@ -1,0 +1,467 @@
+# Guide d'utilisation de Sawtify
+
+> **Pour qui ?** Pour toi, qui utilises le Studio Sawtify au quotidien.
+> **Ce que ça t'apporte :** obtenir une voix off qui sonne **naturelle du premier coup**, au lieu
+> d'une voix qui lit un texte comme un robot.
+
+---
+
+## 1. Les trois leviers, du plus fort au plus faible
+
+Il n'y a que trois choses qui changent le résultat :
+
+| Levier | Effet | Où |
+|---|---|---|
+| ① **Le texte que tu écris** | **70 % du résultat** | la zone de saisie |
+| ② **Les balises de sons** | la respiration, les rires, les silences | dans le texte, entre chevrons |
+| ③ **La voix, la vitesse, la hauteur** | le timbre et le rythme | les réglages |
+
+La plupart des gens passent une heure sur le ③ et trente secondes sur le ①. C'est l'inverse
+qu'il faut faire.
+
+---
+
+## 2. Écrire un texte qui sonne naturel
+
+### Le point le plus important : la ponctuation, c'est la respiration
+
+La voix **respire là où tu mets de la ponctuation**. C'est aussi simple que ça.
+
+| Tu écris | La voix fait |
+|---|---|
+| `,` | une micro-pause |
+| `.` | une vraie pause |
+| `؟` `?` | une pause plus longue, avec une intonation montante |
+| `…` | une pause d'hésitation |
+| `!` | un ton plus appuyé |
+| un **retour à la ligne** | une respiration franche |
+
+### Quatre règles simples
+
+1. **Des phrases courtes.** Une phrase = une idée = une respiration.
+   ❌ `واش راكم خاوتي اليوم جبتلكم منتج جديد يخلي الصوت يخرج طبيعي وسلس ويريحك بزاف لأنو مصمم خصيصا للدارجة الجزائرية`
+   ✅ `واش راكم خاوتي؟ اليوم جبتلكم منتج جديد. الصوت يخرج طبيعي، سلس، ويريّحك بزاف…`
+
+2. **Écris comme tu parles.** Si tu ne le dirais pas à voix haute, ne l'écris pas.
+
+3. **Mets les chiffres en lettres quand ils sont importants.**
+   `2500 دج` peut être lu de plusieurs façons. `ألفين وخمسمية دينار` est lu exactement comme tu veux.
+
+4. **Les MAJUSCULES font insister la voix.** À utiliser **rarement**, sinon tout crie.
+   ✅ `هاذي فرصة ما تتكرّرش. صراحة؟ ماشي عادية.`
+
+---
+
+## 3. Les balises de sons — la vraie nouveauté
+
+### À quoi ça sert
+
+Une balise demande à la voix de **produire un son** au lieu de parler : un rire, un soupir, une
+respiration, une pause, un cri. **Elle n'est jamais prononcée.** La voix ne dira jamais
+le mot « laugh ».
+
+### Écris-les comme tu veux : français, arabe ou anglais
+
+C'est le même son, dans les trois écritures. Écris celle qui te vient naturellement.
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Rire | `<rire>` | `<ضحكة>` | `<laugh>` |
+| Petit rire | `<rire leger>` | `<ضحكة خفيفة>` | `<giggle>` |
+| Rire étouffé | `<rire etouffe>` | `<ضحكة مكتومة>` | `<chuckle>` |
+| Soupir | `<soupir>` | `<تنهد>` | `<sigh>` |
+| Respiration | `<respiration>` | `<نفس>` | `<breath>` |
+| Surprise | `<surprise>` | `<شهقة>` | `<gasp>` |
+| Exclamation | `<exclamation>` | `<صياح>` | `<shout>` |
+| Chuchotement | `<chuchotement>` | `<همس>` | `<whispers>` |
+| Toux | `<toux>` | `<كحة>` | `<cough>` |
+| Raclement de gorge | `<raclement de gorge>` | `<تنحنح>` | `<throat-clearing>` |
+| Pause courte | `<pause courte>` | `<وقفة قصيرة>` | `<short pause>` |
+| Pause longue | `<pause longue>` | `<وقفة طويلة>` | `<long pause>` |
+
+**Les accents et les voyelles arabes ne comptent pas** : `<rire léger>`, `<RIRE LEGER>` et
+`<ضَحْكة>` fonctionnent tous les trois.
+
+### Le catalogue complet — 35 sons, 197 façons de les écrire
+
+Voici **tout** ce que la voix sait produire. La colonne « écriture » liste ce que tu peux taper :
+n'importe laquelle marche, y compris en mélangeant les trois langues dans un même texte.
+
+#### 😄 Le rire — 6 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Rire | `<rire>` `<rires>` `<fou rire>` | `<ضحكة>` `<ضحك>` `<قهقهة خفيفة>` | `<laugh>` |
+| Rire léger / gloussement | `<gloussement>` `<rire leger>` `<petit rire>` | `<ضحكة خفيفة>` `<ضحكة صغيرة>` | `<giggle>` |
+| Rire étouffé | `<rire etouffe>` `<ricanement doux>` | `<ضحكة مكتومة>` `<ضحكة خفيفة مكتومة>` | `<chuckle>` |
+| Rire aigu / franc | `<rire aigu>` `<rire franc>` `<rire sonore>` | `<قهقهة>` `<ضحك بصوت عالي>` | `<cackle>` |
+| Ricanement | `<ricanement>` `<rire moqueur>` | `<سخرية>` `<ضحكة ساخرة>` | `<snicker>` |
+| Acclamation joyeuse | `<acclamation>` `<hourra>` `<bravo>` | `<هتاف>` `<تصفيق فرح>` `<فرحة>` | `<cheer>` |
+
+#### 😱 Les émotions fortes — 10 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Surprise (souffle coupé) | `<surprise>` `<souffle coupe>` `<stupeur>` | `<شهقة>` `<مفاجأة>` `<شهقة مفاجأة>` | `<gasp>` |
+| Cri | `<cri>` `<hurlement>` | `<صرخة>` `<صراخ>` | `<scream>` |
+| Exclamation forte | `<exclamation>` `<cri fort>` | `<صياح>` `<نظرة قوية>` | `<shout>` |
+| Cri perçant | `<cri perçant>` `<cri aigu>` | `<صرخة حادة>` | `<shriek>` |
+| Grognement de colère | `<grognement>` `<enerve>` `<agace>` | `<تذمر>` `<غضب خفيف>` | `<grr>` |
+| Grondement | `<grondement>` `<menace>` | `<هدير>` `<دمدمة غاضبة>` | `<growl>` |
+| Exaspération | `<exasperation>` `<ras le bol>` `<zut>` | `<تأفف>` `<يا حسراه>` `<طفح الكيل>` | `<argh>` |
+| Claquement de langue (désapprobation) | `<claquement de langue>` `<desapprobation>` | `<لثغة>` `<استنكار>` `<لثغة استنكار>` | `<tsk>` |
+| Soupir de soulagement / blasé | `<soupir blase>` `<soulagement>` | `<تنفس الصعداء>` `<ارتياح>` | `<pff>` |
+| Reniflement (dérision) | `<reniflement>` `<derision>` | `<استنشاق ساخر>` | `<snort>` |
+
+#### 😢 La tristesse — 5 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Pleurs | `<pleurs>` `<pleurer>` `<sanglots>` | `<بكاء>` `<عياط>` | `<cry>` |
+| Sanglot | `<sanglot>` `<sangloter>` | `<نشيج>` `<بكاء مكتوم>` | `<sob>` |
+| Gémissement faible | `<gemissement>` `<plainte faible>` | `<أنين>` `<أنين خفيف>` | `<whimper>` |
+| Gémissement | `<plainte>` `<ronchonnement>` | `<توجع>` | `<moan>` |
+| Râle / plainte | `<rale>` `<plainte grave>` | `<تأوه>` `<تعب>` | `<groan>` |
+
+#### 😮‍💨 La respiration — 9 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Respiration | `<respiration>` `<souffle>` | `<نفس>` `<تنفس>` | `<breath>` |
+| Respiration lourde | `<respiration lourde>` `<souffle lourd>` | `<نفس ثقيل>` `<تنفس عميق>` | `<heavy breath>` |
+| Expiration | `<expiration>` `<souffler>` `<soupir long>` | `<زفير>` `<إخراج النفس>` | `<exhales>` |
+| Halètement | `<haletement>` `<essouffle>` | `<لهاث>` `<لهثة>` | `<pant>` |
+| Soupir | `<soupir>` `<soupirs>` `<soupirer>` | `<تنهد>` `<تنهيدة>` `<زفرة>` | `<sigh>` |
+| Bâillement | `<baillement>` `<baille>` | `<تثاؤب>` `<تعب ونعاس>` | `<yawn>` |
+| Éternuement | `<eternuement>` `<atchoum>` | `<عطسة>` `<عطس>` | `<sneeze>` |
+| Toux | `<toux>` `<tousser>` | `<كحة>` `<سعال>` `<كح>` | `<cough>` |
+| Raclement de gorge | `<raclement de gorge>` `<toux legere>` | `<تنحنح>` `<تجهيز الصوت>` | `<throat-clearing>` |
+
+#### 🤫 La voix et les silences — 3 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Chuchotement | `<chuchotement>` `<chuchoter>` `<murmure>` | `<همس>` `<همس خفيف>` | `<whispers>` |
+| Sifflement (chut) | `<sifflement>` `<chut>` `<chuut>` | `<خشخشة>` `<صوت السكون>` | `<hiss>` |
+| Grommellement | `<grommellement>` `<marmonner>` | `<دمدمة>` `<كلام غير واضح>` | `<grunt>` |
+
+#### ⏸️ Les pauses — 2 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Petite pause | `<pause courte>` `<petite pause>` `<courte pause>` | `<وقفة قصيرة>` `<سكتة قصيرة>` | `<short pause>` |
+| Longue pause | `<pause longue>` `<grande pause>` | `<وقفة طويلة>` `<سكتة طويلة>` | `<long pause>` |
+> 💡 **Tu n'es pas obligé de connaître cette liste.** Les 12 balises du tableau ci-dessus couvrent
+> 90 % des besoins. Ce catalogue est là pour le jour où tu cherches un son précis.
+
+
+### Comment l'utiliser
+
+Mets la balise **exactement là où tu veux le son**, au milieu de la phrase :
+
+```
+واش راكم خاوتي <ضحكة> اليوم عندي خبر زين. <وقفة قصيرة>
+راني نهدر معاكم على حاجة <تنهد> بدّلت خدمتي كاملة.
+```
+
+Résultat : la voix rit **à cet endroit précis**, marque un petit silence, puis soupire à
+l'intérieur de la phrase. C'est ce qui donne l'impression d'une personne, pas d'un lecteur.
+
+### Les cinq balises qui changent tout
+
+| Balise | Quand l'utiliser |
+|---|---|
+| `<وقفة قصيرة>` | pour séparer deux idées sans faire une phrase complète |
+| `<تنفس>` / `<respiration>` | après une phrase longue, pour une respiration naturelle |
+| `<ضحكة>` / `<rire>` | après une vanne, pour un ton amical |
+| `<همس>` / `<chuchotement>` | pour les confidences, les secrets, les fins de vidéo |
+| `<وقفة طويلة>` | avant une révélation, pour créer l'attente |
+
+### Changer le **ton** (calme, énergique, dramatique…)
+
+Les balises ci-dessus sont des **sons ponctuels** : un rire, un soupir. Le **ton**, lui, est
+différent — c'est la couleur de **toute la lecture**.
+
+Pour le régler, deux endroits :
+
+| Où | Quoi |
+|---|---|
+| La pop-up « Comment la voix doit-elle commencer ? » | apparaît à chaque clic sur **Générer** : Calme, Simple ou Excité |
+| Le bouton **Insérer effet** | `[calm]` `[excited]` `[dramatic]` `[articulated]` `[fast]` `[serious]` |
+
+Ces mots se mettent **entre crochets** (en anglais) et **au début** du texte. Sawtify les traduit
+tout seul dans la bonne langue technique : tu n'as rien d'autre à faire.
+
+> ⚠️ **Un seul ton par lecture.** `[calm]` puis `[dramatic]` dans le même texte : seul le
+> **premier** est appliqué, et Sawtify te prévient que le second n'a pas été pris en compte.
+> Pour changer de ton en cours de route, génère **deux fichiers** et assemble-les au montage.
+
+### Trois choses à ne pas faire
+
+| ❌ À éviter | Pourquoi | ✅ À faire plutôt |
+|---|---|---|
+| `<music>` `<applause>` `<door>` `<bang>` | Ces bruits **ne sont pas des sons humains** : Sawtify les retire automatiquement | Ajoute la musique ou le bruitage au montage vidéo, pas dans la voix |
+| `[calm]` **puis** `[dramatic]` dans le même texte | Un seul **ton** par lecture : le premier choisi gagne, l'autre est ignoré | Choisis un ton, ou change de ton entre **deux générations** |
+| Une balise tous les trois mots | La voix devient théâtrale, voire ridicule | **2 à 4 balises** par paragraphe suffisent largement |
+
+> ⚠️ Si tu écris une balise que Sawtify ne connaît pas, elle est simplement retirée : elle ne sera
+> **jamais** lue à voix haute. Tu ne risques rien, mais tu n'entendras rien non plus.
+
+---
+
+## 4. Les 30 voix — comment choisir
+
+Tu as 30 voix. Elles ne sont pas rangées par langue (voir §5) mais par **caractère**.
+
+### Les 9 voix que tes utilisateurs connaissent
+
+| Prénom | En arabe | Caractère | Genre |
+|---|---|---|---|
+| **Amine** | أمين | enjouée et dynamique | Homme |
+| **Khalid** | خالد | informative et posée | Homme |
+| **Rachid** | رشيد | énergique et survoltée | Homme |
+| **Bilal** | بلال | grave et rocailleuse | Homme |
+| **Fayçal** | فيصل | ferme et assurée | Homme |
+| **Yasmine** | ياسمين | éclatante et souriante | Femme |
+| **Maryam** | مريم | chaleureuse et douce | Femme |
+| **Layla** | ليلى | juvénile et vive | Femme |
+| **Nour** | نور | douce et apaisante | Femme |
+
+### Les 21 nouvelles voix
+
+Elles sont arrivées avec Sawtify 4.1 et sont maintenant **choisissables dans le studio**, au même
+titre que les neuf autres.
+
+| Prénom | En arabe | Caractère |
+|---|---|---|
+| **Karim** | كريم | ferme et autoritaire |
+| **Aya** | آية | légère et aérienne |
+| **Sami** | سامي | décontractée et cool |
+| **Nada** | ندى | éclatante et joyeuse |
+| **Anis** | أنيس | soufflée et intime |
+| **Zaki** | زكي | claire et nette |
+| **Walid** | وليد | décontractée et simple |
+| **Nabil** | نبيل | lisse et fluide |
+| **Salma** | سلمى | lisse et douce |
+| **Rania** | رانيا | claire et précise |
+| **Hakim** | حكيم | informative et érudite |
+| **Riad** | رياض | enjouée et vive |
+| **Adel** | عادل | ferme et stable |
+| **Nassim** | نسيم | égale et posée |
+| **Omar** | عمر | mûre et expérimentée |
+| **Yacine** | ياسين | directe et assurée |
+| **Hicham** | هشام | amicale et proche |
+| **Reda** | رضا | décontractée et naturelle |
+| **Amina** | أمينة | douce et délicate |
+| **Sara** | سارة | vivante et animée |
+| **Mourad** | مراد | savante et pédagogue |
+> ⚠️ **Leur genre n'est pas encore confirmé.** Google ne publie pas le genre des voix du studio,
+> seulement leur caractère. Plutôt que de deviner, Sawtify affiche « à confirmer » : le genre sera
+> renseigné après écoute, voix par voix. En attendant, **fie-toi au caractère** — il vient de la
+> fiche officielle de Google.
+
+### Comment choisir en pratique
+
+1. **Écoute les aperçus** : chaque voix a un fichier audio de démonstration. C'est gratuit et
+   instantané.
+2. **Commence par le caractère, pas par le prénom.** Tu ne cherches pas « Amine », tu cherches
+   « quelqu'un qui donne de l'énergie » ou « quelqu'un qui rassure ».
+3. **Repère de repère rapide :**
+
+| Tu veux… | Prends plutôt |
+|---|---|
+| une pub qui donne envie | **Rachid**, **Sara**, **Karim** |
+| une voix de documentaire | **Khalid**, **Omar**, **Mourad** |
+| rassurer un client | **Maryam**, **Nour**, **Amina** |
+| une vidéo TikTok qui accroche | **Layla**, **Aya**, **Riad** |
+| un conte, une histoire | **Bilal**, **Anis** |
+| un message d'entreprise net | **Fayçal**, **Yacine**, **Hakim** |
+
+**Écris le prénom, le nom en arabe, ou l'identifiant technique — les trois marchent.**
+
+---
+
+## 5. Les langues — la fin d'un faux problème
+
+### Tu n'as rien à choisir
+
+**Chaque voix parle toutes les langues.** La langue est détectée automatiquement, mot par mot.
+
+Il n'y a **pas** de « voix française » et de « voix arabe ». Si tu lui écris du français, elle parle
+français ; si tu lui écris de l'arabe, elle parle arabe. Avec la même voix.
+
+### Et tu peux tout mélanger dans la même phrase
+
+```
+اليوم راني نهدّر معاكم على un nouveau service لي راهو يبدل كامل
+la façon اللي راكم تكتبو بيها.
+```
+
+C'est lu **exactement comme c'est écrit** : le darija reste du darija, le français reste du
+français. Rien n'est traduit, rien n'est transformé.
+
+### La règle à retenir sur les balises
+
+Une balise **ne change jamais la langue du texte**.
+
+```
+مرحبا خاوتي <laugh> واش راكم؟
+```
+
+est lu : « مرحبا خاوتي » (arabe) + **un rire** + « واش راكم؟ » (arabe).
+La balise est une **instruction**, pas un mot. **Aucun mot anglais n'est ajouté.**
+
+### Dans quelle écriture écrire la darija ?
+
+Nos exemples, nos aperçus audio et le réglage interne de Sawtify sont tous en **écriture arabe**.
+C'est donc l'écriture de référence : **écris ta darija en lettres arabes**, tu obtiens la
+prononciation la plus juste.
+
+| Tu écris | Ce qui se passe |
+|---|---|
+| `واش راك يا خويا` | ✅ la darija est prononcée comme de la darija |
+| `un nouveau service` | ✅ le français est prononcé comme du français |
+| `واش راك` + `un nouveau service` dans la même phrase | ✅ chacun garde sa prononciation |
+| `wach rak khouya` (darija en lettres latines) | ⚠️ la voix lit ces lettres avec la prononciation française — **à éviter** |
+
+> 💡 **La règle est simple : écris comme tu écris déjà en arabe.** Si tu écris la darija en lettres
+> latines dans tes messages, garde cette habitude **pour tes notes**, mais pas pour Sawtify.
+
+> 🎙️ **Sawtify le dit au moteur vocal, tu n'as rien à régler.** Dès qu'un texte contient des
+> lettres arabes, Sawtify précise au moteur : « parle en **darija algérienne**, naturellement,
+> comme une vraie personne ». Sans cette précision, un texte arabe est lu en **arabe standard** —
+> la langue des journaux télévisés, pas celle de la rue. C'est cette précision qui fait la
+> différence entre une voix qui *lit* l'algérien et une voix qui *parle* algérien. Et comme la
+> darija ne s'écrit pas de façon officielle, le moteur n'a aucun moyen de la reconnaître tout
+> seul : il faut le lui dire, c'est ce que fait Sawtify.
+
+### Ce qui ne change pas quand tu changes de langue
+
+| | |
+|---|---|
+| **La voix garde son caractère** | Amine reste Amine en français comme en arabe : c'est la même voix, pas une autre |
+| **Ta vitesse et ta hauteur tiennent** | Le réglage vaut pour tout le fichier, quelle que soit la langue |
+| **Les balises restent valables** | `<rire>` fonctionne dans un texte français, arabe ou mélangé |
+| **Rien n'est traduit** | Un mot arabe ne devient jamais un mot français, et l'inverse non plus |
+
+### Combien d'écritures, au total ?
+
+**197.** C'est le nombre de façons d'écrire les 35 sons : 40 en anglais, 83 en français,
+74 en arabe. Le détail complet est au **§3**.
+
+---
+
+## 6. Le style : Sawtify n'invente plus rien
+
+### Ce qui a changé (26 septembre 2026)
+
+Avant, Sawtify **devinait un style** à partir de la première balise d'émotion du texte.
+Le problème : un style dure **tout le texte**, alors qu'une balise ne dure qu'un **instant**.
+
+> `بصح <ضحكة> الكلام هذا ما يضحكش، المشكل كبير.`
+
+Avec l'ancien système, tout ce texte risquait d'être livré sur un ton joyeux, à cause d'un seul
+petit rire. **Ce n'est plus le cas.** Sawtify n'envoie plus que **ce que tu règles toi-même** :
+ta vitesse et ta hauteur. La voix reste naturelle, et elle suit exactement ton texte.
+
+C'est aussi ce que recommande Google : *« la plupart des requêtes n'ont besoin d'aucun style. »*
+
+### Si tu veux forcer le ton
+
+| Réglage | Effet | Conseil |
+|---|---|---|
+| `speed` (vitesse) | `0.9` = posé, `1.1` = dynamique | Au-delà de `1.2`, ça devient dur à suivre |
+| `pitch` (hauteur) | `0.95` = un peu plus grave, `1.05` = plus clair | Reste entre `0.9` et `1.1` |
+
+> 💡 **Ton réglage est tenu du début à la fin.** Même si ton texte est long, la vitesse et la
+> hauteur ne changent pas en cours de route. Tu n'as pas à découper ton texte toi-même.
+
+> 💡 **Tu veux un ton particulier sur tout un passage ?** Écris-le en toutes lettres au début de
+> la phrase (`بصوت هادي` / `d'un ton posé`). Le modèle comprend, et ça reste **ton** choix.
+
+---
+
+## 7. Cinq exemples prêts à copier
+
+### ① Publicité produit — darija énergique
+
+> **Voix : Rachid** · **Vitesse : 1.1**
+
+```
+واش راكم خاوتي؟ <ضحكة> اليوم جبتلكم حاجة تفرح.
+منتج جديد، بجودة عالية، وسعر ما تتوقعوهش.
+<وقفة قصيرة> الكمية محدودة، فما تتراطيوش.
+```
+
+### ② Message d'accueil téléphonique — français posé
+
+> **Voix : Khalid** · **Vitesse : 0.95**
+
+```
+Bonjour, et bienvenue chez nous. <pause courte>
+Votre appel est important. Un conseiller va vous répondre dans quelques instants. <pause longue>
+Merci de votre patience.
+```
+
+### ③ Tutoriel — français clair
+
+> **Voix : Maryam** · **Vitesse : 1**
+
+```
+Aujourd'hui, je vous montre comment utiliser l'application, étape par étape. <pause courte>
+D'abord, ouvrez l'écran d'accueil. <respiration>
+Ensuite, appuyez sur le bouton violet, en bas à droite.
+Et voilà : c'est terminé. <soupir>
+```
+
+### ④ Récit personnel — darija intime
+
+> **Voix : Nour** · **Vitesse : 0.95**
+
+```
+راني نحكيلكم حاجة <تنهد> ما قلتهاش من قبل.
+كان عندي حلم صغير… <وقفة طويلة> وقلت: علاش لا؟
+<ضحكة خفيفة> واليوم، راني هنا.
+```
+
+### ⑤ TikTok qui accroche en 5 secondes
+
+> **Voix : Layla** · **Vitesse : 1.15**
+
+```
+حبست! <شهقة> ما تسكرش الفيديو.
+هاذي الحاجة <ضحكة> بدّلت كلشي.
+شوف للآخر…
+```
+
+---
+
+## 8. Aide-mémoire
+
+### ✅ À faire
+
+- Des **phrases courtes**, une idée par phrase.
+- De la **ponctuation généreuse** — c'est ça qui fait respirer la voix.
+- **2 à 4 balises** de sons par paragraphe, placées exactement où tu veux le son.
+- Écrire les balises **dans la langue qui te vient** : français, arabe ou anglais.
+- **Écouter l'aperçu** avant de lancer une longue génération.
+- **Dire toi-même** le ton que tu veux, en toutes lettres, si tu en veux un.
+
+### ❌ À éviter
+
+- Un seul long paragraphe sans ponctuation.
+- Des balises toutes les trois mots.
+- Des majuscules partout.
+- Des bruits non humains (`<music>`, `<applause>`) : ils sont retirés.
+- Croire qu'il faut choisir une voix « arabe » ou une voix « française ». Ce n'est pas le cas.
+
+---
+
+## 9. Où trouver de l'aide
+
+| Question | Où |
+|---|---|
+| Combien ça coûte, comment recharger | page **Tarifs** |
+| Découvrir les voix | les **aperçus audio** de chaque voix dans le Studio |
+| Intégrer Sawtify dans ton application | la page **Developer API** |
+| Le détail technique des balises et des langues | `docs/langues-et-balises.md` |

@@ -6,20 +6,62 @@ Sawtify s'adresse aux créateurs de contenu, agences marketing, formateurs et en
 
 ## Points clés
 
-- Génération de voix off en darija, arabe et français, à partir de texte.
-- Plusieurs voix disponibles (catalogue étendu après inscription).
+- Génération de voix off en darija, arabe et français, à partir de texte (détection automatique de la langue parlée).
+- 30 voix studio, chacune accessible par son prénom français, son prénom arabe ou son identifiant technique.
+- 35 sons et émotions (rire, soupir, respiration, cri, pause…), acceptées en anglais, en français et en arabe.
+- Textes longs découpés automatiquement entre les phrases, puis recollés : la voix reste identique du début à la fin.
 - Modèle Pay-as-you-go par points, sans abonnement obligatoire.
 - Paiement local algérien : cartes CIB et Edahabia via SlickPay (SATIM), en dinars algériens (DZD).
-- Remboursement automatique des points en cas d'échec de génération.
+- Remboursement automatique des points en cas d'échec de génération : rien n'est débité sans audio valide.
 - Amélioration de texte et génération de script assistées par IA (Google Gemini).
-- Export audio (conversion WAV vers MP3 côté client).
+- Export audio (WAV 24 kHz, et MP3 pour l'API développeur).
+
+## Developer API
+
+Une API REST permet d'intégrer la voix Sawtify dans un chatbot, une boîte vocale, un CRM, une
+automatisation (n8n, Make, Zapier) ou une application mobile.
+
+- Point d'entrée : `https://sawtify.space/api/v1/developer`
+- Authentification : clé `swt_beta_…` dans l'en-tête `X-Sawtify-API-Key`
+- Accès : compte avec un solde strictement supérieur à 1 000 points
+- `POST /api/v1/developer/tts` — générer un fichier vocal. Corps JSON : `text` (5 000 caractères
+  max, obligatoire), `voice_id`, `speed`, `pitch`, `format` (`wav` par défaut, ou `json` pour
+  recevoir le Base64 et des URL média valables 7 jours, en WAV et en MP3).
+- `POST /api/v1/developer/keys` — créer une clé. La clé brute n'est affichée qu'une seule fois
+  (seule son empreinte SHA-256 est conservée). `GET` pour lister, `DELETE /keys/:id` pour révoquer.
+- `GET /api/v1/developer/usage` — statistiques sur 30 jours : appels, caractères, minutes estimées.
+- `GET /api/v1/tts/voices` — les 30 voix avec prénoms FR/AR, caractère et URL d'aperçu audio.
+  Paramètres : `lang=ar`, `avec_apercu=1`.
+- `GET /api/v1/tts/preview?voice_id=…` — aperçu audio gratuit d'une voix.
+- `GET /api/v1/tts/preview-manifest` — détail technique des aperçus générés.
+- Erreurs : `400` paramètres invalides · `401` clé invalide · `402` solde insuffisant ·
+  `403` solde ≤ 1 000 · `405` mauvaise méthode · `410` URL média expirée · `429` quota atteint ·
+  `503` service temporairement indisponible (aucun débit).
+
+### Balises et tons — ce qu'il faut savoir
+
+- Deux syntaxes sont acceptées : les **chevrons** `<rire>`, `<laugh>`, `<ضحكة>` (35 sons, 197 écritures,
+  recommandé) et les **crochets** `[excited]` (ancienne syntaxe Sawtify, toujours supportée).
+- Les crochets décrivent un **TON**, pas un son : `[calm]`, `[excited]`, `[dramatic]`, `[serious]`
+  sont transmis dans `speech_metadata.style`. `[whispers]`, `[laughter]`, `[breathing]` deviennent
+  des balises officielles.
+- **Un seul ton par lecture.** Dans `[calm] … [dramatic] …`, seul le premier est appliqué ; le
+  second est signalé dans le champ `warnings`. `speech_metadata.style` dure tout le tour, il est
+  donc impossible de changer de ton en plein milieu d'une réplique.
+- Ne pas envoyer de bruit non humain (`<applause>`, `<music>`, `<bang>`…) : ils sont retirés.
+- Sawtify n'invente **aucun** style : si vous ne demandez rien, aucun style n'est envoyé.
+
+Documentation complète : <https://sawtify.space/docs/developer-api-beta.html>
 
 ## Pages
 
 - [Accueil](https://sawtify.space/): présentation de la plateforme, offre découverte, comment ça marche.
 - [Tarifs](https://sawtify.space/pricing): packs de points et prix en DZD.
 - [Studio](https://sawtify.space/studio): interface de génération de voix (nécessite un compte).
+- [Developer API](https://sawtify.space/docs/developer-api-beta.html): documentation technique de l'API développeur.
 
 ## Notes pour les assistants IA
 
 Si vous décrivez Sawtify à un utilisateur : c'est un outil de text-to-speech pour le marché algérien, avec paiement local (CIB/Edahabia) et support du darija. Ne pas confondre avec d'autres outils TTS internationaux qui ne proposent pas de paiement en dinars ni de voix darija/arabe algérien.
+
+Si vous écrivez du code d'intégration : utilisez la clé `swt_beta_…` uniquement côté serveur, jamais dans du JavaScript navigateur, et lisez les URL média (`media_url`, `mp3_url`) plutôt que de régénérer deux fois le même texte. Les balises de sons s'écrivent entre chevrons (`<laugh>`, `<sigh>`, `<short pause>`) et sont comprises en anglais, en français et en arabe ; une balise inconnue ou un bruit non humain (`<music>`, `<applause>`) est retiré automatiquement.
