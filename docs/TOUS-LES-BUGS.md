@@ -60,7 +60,12 @@ Ce qu'elle vérifie, et ce qu'elle a répondu :
 **En clair :** sur les 11 bugs, **4 viennent de mon travail de cette semaine** (surtout la pop-up et
 les fautes d'accord — deux choses que tu as vues tout de suite). Les 7 autres dormaient dans le
 code depuis la migration vers le nouveau moteur, et **c'est l'audit qui les a sortis** — pas
-l'inverse. Aucun n'a atteint tes utilisateurs : rien n'est en ligne avant que tu ne l'envoies.
+l'inverse.
+
+⚠️ **La nuance honnête :** les bugs n°5 à 11 sont des bugs **de la version en ligne**. Ils ont
+existé sur ton site entre la migration vers le nouveau moteur et la correction. Je ne peux pas
+savoir si ton site tournait pendant cette fenêtre — **toi seul le sais**. Ce qui est sûr, c'est
+que les corrections sont maintenant dans ton `main`.
 
 ---
 
