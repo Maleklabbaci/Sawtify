@@ -205,15 +205,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         </div>
       )}
 
-      {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Points Pills — recharge rapide, pas des "plans" */}
+      <div className="flex flex-wrap justify-center gap-3">
         {creditPacks.map((pack: CreditPack) => {
           const isSelected = selectedPack.id === pack.id;
-          const isPopular = pack.isPopular;
 
           return (
-            <div
+            <button
               key={pack.id}
+              type="button"
               onClick={() => {
                 setSelectedPackId(pack.id);
                 setPaymentUrl(null);
@@ -222,66 +222,25 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 setIsCheckoutOpen(true);
               }}
               className={`
-                relative rounded-2xl p-6 transition-all duration-300 cursor-pointer
-                border-2 flex flex-col justify-between
+                flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm transition-all
                 ${isSelected
-                  ? 'bg-white border-purple-600 shadow-lg ring-2 ring-purple-600/20'
-                  : 'bg-white border-slate-200 hover:border-purple-300 hover:shadow-md'}
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:border-purple-300 hover:shadow-sm'}
               `}
             >
-              {isPopular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
-                    {language === 'ar' ? 'الأكثر شعبية' : 'Plus populaire'}
-                  </span>
-                </div>
+              <Zap className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-purple-500'}`} />
+              <span>{pack.points} {language === 'ar' ? 'نقطة' : 'pts'}</span>
+              <span className={`text-xs ${isSelected ? 'text-purple-100' : 'text-slate-400'}`}>
+                · {pack.priceDZD.toLocaleString()} DZD
+              </span>
+              {pack.bonusPercent && (
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                  isSelected ? 'bg-white/20 text-white' : 'bg-purple-50 text-purple-700'
+                }`}>
+                  +{pack.bonusPercent}%
+                </span>
               )}
-
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isSelected ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {pack.points >= 1000 ? <Building2 className="w-5 h-5" /> : <Layers className="w-5 h-5" />}
-                  </div>
-                  {pack.bonusPercent && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                      +{pack.bonusPercent}%
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="text-xl font-bold text-slate-900">{pack.name}</h3>
-                <p className="text-sm text-slate-500 mt-1 min-h-[40px]">{pack.tagline}</p>
-
-                <div className="mt-6 pt-6 border-t border-slate-100">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-extrabold text-slate-900">
-                      {pack.priceDZD.toLocaleString()}
-                    </span>
-                    <span className="text-sm font-bold text-slate-500">DZD</span>
-                  </div>
-                  <div className="text-sm font-semibold text-purple-600 mt-1">
-                    +{pack.points} pts ({Math.floor(pack.points / 20)} générations)
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className={`mt-6 w-full py-3 rounded-xl text-sm font-bold transition-all ${
-                  isSelected
-                    ? 'bg-purple-600 text-white shadow-md hover:bg-purple-700'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {isSelected ? (
-                  <Check className="w-4 h-4 mx-auto" />
-                ) : (
-                  language === 'ar' ? 'اختر' : 'Choisir'
-                )}
-              </button>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -298,7 +257,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           >
             <button
               onClick={() => setIsCheckoutOpen(false)}
-              className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10 w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              className={`absolute top-4 z-20 w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition ${isRTL ? 'left-4' : 'right-4'}`}
             >
               <X className="w-5 h-5" />
             </button>
