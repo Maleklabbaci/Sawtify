@@ -4,148 +4,58 @@
 
 ---
 
-## Les 3 fichiers
+## État au 26/09 à 14 h — après vérification de TON déploiement
 
-| Fichier | Ce qui change |
+J'ai extrait ce que tu as mis en ligne et je l'ai testé. **Verdict :**
+
+### ✅ Ce qui est déjà bon chez toi
+
+| | |
 |---|---|
-| `src/components/WhatsNewV41.tsx` | **réécrit** — la pop-up d'accueil, dans le style des autres modales |
-| `src/data/voicesV41.ts` | **modifié** — les descriptions des 21 nouvelles voix |
-| `src/components/TTSStudio.tsx` | **1 ligne** — le mot « Prêt ✓ » de la barre de résultat |
+| **Les 30 voix** | ✅ **parfaits** — 13 femmes / 17 hommes, les 4 fichiers d'accord (16/16) |
+| `src/data/voices.ts` | ✅ identique à ma version |
+| `WaveformPlayer.tsx` | ✅ **ta version est meilleure** — je l'ai adoptée |
+| `TTSStudio.tsx` | ✅ **ton anti-lag du brouillon est meilleur** — adopté |
+| `tts/voices.ts` | ✅ même contenu (seuls les commentaires diffèrent) |
 
-Aucun autre fichier n'est concerné. Ni le serveur, ni la base de données, ni le paiement,
-ni le moteur vocal.
+### 👍 Tes 5 prénoms sont MEILLEURS que les miens — adoptés
 
----
-
-## ① La pop-up — `WhatsNewV41.tsx`
-
-### Ce qui n'allait pas
-
-Elle avait été construite comme un **diaporama animé** : 5 écrans, pastilles de progression, gros
-chiffres en dégradé, halos qui bougent, fond flouté (14 px). Résultat : on aurait dit un jeu, pas
-Sawtify.
-
-Elle était en plus posée à l'étage `z-[200]` — **au-dessus de tout**, y compris des messages
-importants du studio (« solde insuffisant », « ajoute des points »), qui pouvaient donc passer
-inaperçus.
-
-### Ce qui a changé
-
-| | Avant | Après |
+| Voix | Moi | **Toi (gardé)** |
 |---|---|---|
-| Forme | 5 écrans à faire défiler | **une seule carte**, 4 lignes courtes |
-| Style | feuille de style maison (`snwt-`), halos, dégradés, flou | **le gabarit de la plateforme**, Tailwind uniquement |
-| Police | forcée par la pop-up | celle de la plateforme (`html[lang]`), automatique |
-| Étage | `z-[200]` — au-dessus de tout | **`z-[70]`** — en dessous de toutes les autres couches |
-| Fermeture | bouton + fond | bouton + fond **+ touche Échap** |
+| Kore | Karima | **Ines** / إيناس |
+| Callirrhoe | Samia | **Feriel** / فريال |
+| Laomedeia | Rym | **Hanane** / حنان |
+| Gacrux | Souad | **Widad** / وداد |
+| Sadachbia | Sofiane | **Fares** / فارس |
 
-Elle reprend maintenant **exactement** le gabarit de la modale « Comment la voix doit-elle
-commencer ? » du studio :
+« Fares » est un vrai prénom masculin, là où mon « Sofiane » héritait d'un vieux
+identifiant féminin. **Ta version gagne, je ne l'écrase pas.**
 
-```
-fixed inset-0 z-[70] … bg-slate-950/60 backdrop-blur-sm
-w-full max-w-sm rounded-3xl border border-purple-200 bg-white p-6 shadow-2xl
-kicker : text-xs font-black uppercase tracking-[.14em] text-purple-600
-titre  : text-base font-extrabold text-slate-900
-texte  : text-xs leading-5 text-slate-500
-```
+*Une seule correction dans tes 5 lignes :* « Voix vivante et animée » sur Sadachbia
+(une voix d'**homme**) → « Voix vivant et animé ».
 
-### Les 4 nouveautés annoncées
+### ⚠️ Ce qui manque encore — 5 fichiers
 
-1. 30 voix au lieu de 9 — dont 21 nouvelles
-2. 35 sons d'émotion, écrits de 197 façons
-3. Prononciation de la darija entièrement retravaillée
-4. Écoute n'importe quelle voix gratuitement avant de choisir
-
-Deux boutons en bas : **« Commencer à créer »** (violet) et **« Ajouter des points »**.
-
-> ⚠️ La clé de mémorisation n'a pas changé (`sawtify_whats_new_seen`). Les visiteurs qui ont déjà
-> fermé la 4.1 **ne la reverront pas**. Pour la remontrer à tout le monde, il suffit de changer
-> `WHATS_NEW_VERSION` en haut du fichier (par exemple `'4.2'`) : le simple changement de cette
-> ligne relance la pop-up chez tout le monde.
-
----
-
-## ② La barre de résultat — `TTSStudio.tsx` (1 ligne)
-
-Dans la barre qui apparaît **après une génération**, le badge vert affichait « Prêt ✓ » — écrit en
-français **en dur**. Résultat : il restait en français même quand l'interface du studio est en
-arabe, au milieu d'un écran entièrement traduit.
-
-C'était le **seul** texte français non traduit de tout `TTSStudio.tsx` (vérifié par balayage
-automatique de tous les textes affichés). Il dit maintenant :
-
-| Langue | Avant | Après |
-|---|---|---|
-| Français | Prêt ✓ | Prêt ✓ |
-| Arabe | Prêt ✓ ❌ | **جاهز ✓** ✅ |
-
-Une seule ligne change, et rien d'autre dans ce fichier.
-
----
-
-## ③ L'écriture des voix — `voicesV41.ts`
-
-La ligne affichée sous chaque voix est construite comme ça :
-
-```
-Darja algérienne • Voix {{ descripteur }}
-```
-
-Or **« voix » est féminin en français** — et les 21 descripteurs étaient au **masculin**. Ça se
-lisait dès la première ouverture de la liste :
-
-| Avant ❌ | Après ✅ |
+| Fichier | Ce qu'il apporte |
 |---|---|
-| Voix **léger et aérien** | Voix **légère et aérienne** |
-| Voix **décontracté** (×3) | Voix **décontractée** |
-| Voix **éclatant** | Voix **éclatante** |
-| Voix **soufflé et aéré** | Voix **soufflée et aérée** |
-| Voix **clair** (×2) | Voix **claire** |
-| Voix **informatif** | Voix **informative** |
-| Voix **enjoué** | Voix **enjouée** |
-| Voix **égal et posé** | Voix **égale et posée** |
-| Voix **mûr** | Voix **mûre** |
-| Voix **direct et assuré** | Voix **directe et assurée** |
-| Voix **amical** | Voix **amicale** |
-| Voix **doux et délicat** | Voix **douce et délicate** |
-| Voix **vivant** | Voix **vivante** |
-| Voix **savant et érudit** | Voix **savante et érudite** |
+| **`src/components/WhatsNewV41.tsx`** | **la pop-up.** Ce qui est en ligne est encore la version **diaporama** (9 écrans, `z-50`) — celle dont tu as dit « on dirait jouer ». Ma version : 1 seul écran, gabarit de tes modales, `z-[70]` |
+| `server.ts` | liste des 13 voix féminines (tu as 6 → 7 voix reçoivent un texte d'homme en mode de secours) + générateur raccourci |
+| `src/components/TTSStudio.tsx` | **1 ligne** — le badge « Prêt ✓ » → « جاهز ✓ » en arabe |
+| `tts/test-noms.ts` + `tts/test-apercus.ts` | chez toi **5 tests échouent** : ce sont les anciens tests, pas les sources |
+| `package.json` + `scripts/verifier-voix.ts` | *(optionnel)* la commande `npm run verif:voix` |
 
-Trois libellés **arabes** se lisaient mal eux aussi :
+### 📊 Contrôle de ton déploiement
 
-| Avant | Après | Pourquoi |
-|---|---|---|
-| `صوت متنفس` | `صوت نفَسي وخفيف` | « متنفس » décrit une pièce aérée, pas une voix |
-| `صوت عالِم` | `صوت مثقّف ورصين` | « عالِم » est un titre (savant), pas un timbre |
-| `صوت معلوماتي` | `صوت إخباري` | « معلوماتي » est un calque ; l'arabe dit « إخباري » |
+```
+compile .................... ✅ 0 erreur
+construction ............... ✅ OK
+les 30 voix ................ ✅ 16/16
+moteur vocal ............... ✅ 177/177
+tests des voix ............. ❌ 19/3  (tests périmés, pas un bug)
+tests des aperçus .......... ❌ 37/2  (idem)
+```
 
-Une consigne a été ajoutée en tête du fichier pour que l'accord ne soit pas reperdu :
-**tout descripteur décrit « Voix », donc au féminin.**
+**En un mot : ton déploiement est SAIN. Il manque la pop-up, 1 ligne, et 2 fichiers de tests.**
 
 ---
 
-## Comment déployer
-
-1. Remplacer les **3 fichiers** dans le dépôt, aux mêmes chemins.
-2. Envoyer sur la branche qui sert la production.
-3. Render reconstruit le site (~1 à 2 minutes). C'est tout.
-
-Aucune migration de base de données, aucune variable d'environnement, aucun redémarrage de
-serveur à prévoir.
-
----
-
-## Vérifié
-
-```
-contrôle de syntaxe TypeScript ...... 0 erreur
-qualité du code ..................... 0 erreur
-compilation du site ................. OK en 6,3 s
-moteur vocal ........................ 177 / 177
-noms des voix ....................... 22 / 22
-aperçus audio ....................... 39 / 39
-documentation ....................... 65 / 65
-────────────────────────────────────────────────
-TOTAL ............................... 303 vérifications, 0 échec
-```
