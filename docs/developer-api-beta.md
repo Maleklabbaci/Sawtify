@@ -500,6 +500,19 @@ curl -o ancien-message.mp3 \
 dates, empreinte du script) plus `a_valider_a_loreille`, la liste des voix dont le genre reste
 à confirmer. Renvoie `404` si aucun aperçu n'a encore été généré.
 
+### Où en sont les aperçus
+
+`GET /api/v1/tts/preview-status` — l'avancement de la fabrication des 30 aperçus de voix.
+Les aperçus manquants sont fabriqués **automatiquement** par le serveur, en tâche de fond, au
+démarrage (texte **100 % darija**, consigne « lis exactement ce qui est écrit ») : il n'y a donc
+aucune commande à lancer. Réponse :
+
+```json
+{ "prets": 12, "total": 30, "restant": 18, "en_cours": true, "script_version": 2 }
+```
+
+`voix_manquantes` liste les voix pas encore prêtes. Aucune donnée sensible.
+
 ### Mauvaise méthode
 
 `GET /api/v1/developer/tts` renvoie **`405 Method Not Allowed`** avec un message d'aide :
@@ -585,6 +598,7 @@ données, aucune clé n'est lisible. En contrepartie, **une clé perdue est déf
 | **`mp3_url`** | Version MP3, plus légère, pratique pour WhatsApp et les widgets web |
 | **`/api/v1/tts/voices`** | Catalogue complet avec URL d'aperçu |
 | **`/api/v1/tts/preview-manifest`** | Détail technique des aperçus générés |
+| **`/api/v1/tts/preview-status`** | Avancement de la fabrication des 30 aperçus |
 | **`/api/v1/developer/usage`** | Statistiques sur 30 jours, par jour |
 | **Champ `source`** sur `/preview` | Indique si l'audio vient d'un fichier figé ou d'une génération |
 

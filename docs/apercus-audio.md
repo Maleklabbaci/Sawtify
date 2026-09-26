@@ -72,6 +72,23 @@ clairement — il ne gaspille pas 30 générations.
 
 Pour désactiver : variable d'environnement **`TTS_WARM_PREVIEWS=0`**.
 
+**Suivre l'avancement depuis un navigateur**, sans terminal :
+
+```
+https://sawtify.space/api/v1/tts/preview-status
+```
+
+```json
+{ "prets": 12, "total": 30, "restant": 18, "en_cours": true, "voix_manquantes": ["…"] }
+```
+
+Il suffit de rafraîchir la page : le compteur monte jusqu'à `30 / 30` (≈ 4 minutes
+au total, un aperçu toutes les 5 à 8 secondes). **Aucune commande à lancer.**
+
+Une fois terminé, le studio sert l'aperçu **directement depuis le CDN Supabase**
+(adresse publique, aucun téléchargement serveur, cache navigateur) : le ▶ répond
+en quelques dizaines de millisecondes, et **aucun point n'est facturé**.
+
 ### Bonus : une seule génération par voix, quelle que soit l'écriture
 
 Les aperçus sont désormais enregistrés sous une clé **canonique**

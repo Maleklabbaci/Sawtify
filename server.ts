@@ -788,6 +788,29 @@ const VOICE_PREVIEW_SCRIPTS: Record<string, string> = Object.fromEntries(
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
 const PREVIEW_BUCKET = "voice-previews";
+/**
+ * Les aperçus DÉJÀ présents dans le stockage (clé canonique `studio_<voix>`).
+ * Rempli par le préchauffage au démarrage, et mis à jour à chaque nouvel
+ * aperçu enregistré. Sert à répondre « oui, l'aperçu existe » SANS
+ * télécharger le fichier : on renvoie alors son adresse publique (le
+ * navigateur la charge depuis le CDN, et le serveur ne garde rien en mémoire).
+ */
+const PREVIEW_STORAGE_KEYS: Set<string> = new Set();
+/** Où en est le préchauffage des aperçus (visible sur /api/v1/tts/preview-status). */
+const PREVIEW_WARM_STATE = {
+  demarre: false,
+  en_cours: false,
+  total: 0,
+  faits: 0,
+  echecs: 0,
+  termines: 0,
+  derniereErreur: null as string | null,
+  debut: null as string | null,
+  fin: null as string | null,
+};
+/** Adresse PUBLIQUE d'un aperçu stocké (bucket public → CDN Supabase). */
+const publicPreviewUrl = (key: string): string | null =>
+  SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/${PREVIEW_BUCKET}/${key}.wav` : null;
 /** Dossier local des aperçus générés par `npm run apercus:voix`. */
 const PREVIEW_DIR = path.join(process.cwd(), "storage", "voice-previews");
 
@@ -2060,9 +2083,19 @@ async function startServer() {
     // aperçu généré une fois (par le préchauffage ou par n'importe quel
     // utilisateur) est servi à tous, même si la voix est écrite autrement.
     const canonicalKey = previewKeyForVoice(selectedVoiceName);
+    // 1) On SAIT qu'il existe (index du préchauffage) → adresse directe du CDN.
+    if (PREVIEW_STORAGE_KEYS.has(canonicalKey)) {
+      const url = publicPreviewUrl(canonicalKey);
+      if (url) {
+        return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName, audio_url: url, duration_seconds: PREVIEW_INDEX.get(selectedVoiceName)?.durationSeconds ?? 2.5, cached: true, source: "supabase-cdn" });
+      }
+    }
+    // 2) Sinon on vérifie une fois (et on mémorise pour les fois suivantes).
     const canonicalPreview = await loadPersistentPreview(canonicalKey);
     if (canonicalPreview) {
-      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName, audio_url: canonicalPreview, duration_seconds: PREVIEW_INDEX.get(selectedVoiceName)?.durationSeconds ?? 2.5, cached: true, source: "supabase" });
+      PREVIEW_STORAGE_KEYS.add(canonicalKey);
+      const url = publicPreviewUrl(canonicalKey) || canonicalPreview;
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName, audio_url: url, duration_seconds: PREVIEW_INDEX.get(selectedVoiceName)?.durationSeconds ?? 2.5, cached: true, source: "supabase" });
     }
     const inflight = PREVIEW_INFLIGHT.get(cacheKey);
     if (inflight) {
@@ -2119,6 +2152,37 @@ async function startServer() {
   };
   app.get("/api/v1/tts/preview", previewLimiter, handleTTSPreview);
   app.get("/api/tts/preview", previewLimiter, handleTTSPreview);
+
+  /* ===================================================================
+     SUIVI DES APERÇUS — « où en est la génération des 30 voix ? »
+     -------------------------------------------------------------------
+     Réponse lisible directement dans un navigateur :
+       { "prets": 12, "total": 30, "en_cours": true, "restant": 18, ... }
+     Aucune donnée sensible : que des noms de voix et des compteurs.
+     =================================================================== */
+  const handlePreviewStatus = (_req: express.Request, res: express.Response) => {
+    const total = previewTargets().length;
+    const prets = previewTargets().filter((t) => PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.voice.id))).length;
+    const manquants = previewTargets()
+      .filter((t) => !PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.voice.id)))
+      .map((t) => t.voice.id);
+    res.set("Cache-Control", "no-store");
+    res.json({
+      prets,
+      total,
+      restant: total - prets,
+      en_cours: PREVIEW_WARM_STATE.en_cours,
+      mode: "inutile de lancer une commande : le serveur fabrique les aperçus manquants tout seul, en tâche de fond, au démarrage",
+      script_version: AUDITION_SCRIPT_VERSION,
+      langues: "100 % darija algérienne",
+      bucket: PREVIEW_BUCKET,
+      bucket_public: Boolean(SUPABASE_URL),
+      voix_manquantes: manquants,
+      detail: PREVIEW_WARM_STATE,
+    });
+  };
+  app.get("/api/v1/tts/preview-status", handlePreviewStatus);
+  app.get("/api/tts/preview-status", handlePreviewStatus);
 
   /* ===================================================================
      LISTE DES 30 VOIX (API)
@@ -2820,6 +2884,10 @@ Style vocal souhaité : ${style || "excited"}`;
     try {
       // 1) Que possède-t-on déjà ? (un seul appel réseau)
       const { data: fichiers } = await supabaseClient.storage.from(PREVIEW_BUCKET).list("", { limit: 1000 });
+      for (const f of fichiers || []) {
+        const nom = String((f as any).name || "");
+        if (nom.endsWith(".wav")) PREVIEW_STORAGE_KEYS.add(nom.replace(/\.wav$/, ""));
+      }
       const presents = new Set((fichiers || []).map((f: any) => String(f.name)));
       const manquantes = previewTargets().filter((t) => {
         if (presents.has(`${previewKeyForVoice(t.voice.id)}.wav`)) return false;
@@ -2828,10 +2896,21 @@ Style vocal souhaité : ${style || "excited"}`;
       });
 
       if (manquantes.length === 0) {
+        PREVIEW_WARM_STATE.demarre = true;
+        PREVIEW_WARM_STATE.en_cours = false;
+        PREVIEW_WARM_STATE.total = previewTargets().length;
+        PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
+        PREVIEW_WARM_STATE.fin = new Date().toISOString();
         console.log(`[Aperçus] Les ${previewTargets().length} aperçus sont déjà en place — rien à générer.`);
         return;
       }
+      PREVIEW_WARM_STATE.demarre = true;
+      PREVIEW_WARM_STATE.en_cours = true;
+      PREVIEW_WARM_STATE.total = previewTargets().length;
+      PREVIEW_WARM_STATE.termines = presents.size;
+      PREVIEW_WARM_STATE.debut = new Date().toISOString();
       console.log(`[Aperçus] ${manquantes.length} aperçu(x) manquant(s) → génération en tâche de fond (le site reste disponible).`);
+      console.log(`[Aperçus] Suivi en direct : /api/v1/tts/preview-status`);
 
       let faits = 0, echecs = 0;
       for (const t of manquantes) {
@@ -2840,10 +2919,13 @@ Style vocal souhaité : ${style || "excited"}`;
           const dataUri = await generateVoicePreviewDataUri(t.voice.id, t.legacyId || t.voice.id);
           PREVIEW_AUDIO_CACHE.set(key, dataUri);
           await savePersistentPreview(key, dataUri);
-          faits++;
+          PREVIEW_STORAGE_KEYS.add(key);
+          PREVIEW_WARM_STATE.faits = ++faits;
           console.log(`[Aperçus ✓] ${t.voice.id} (${t.nameFr}) — ${faits}/${manquantes.length}`);
         } catch (err: any) {
           echecs++;
+          PREVIEW_WARM_STATE.echecs = echecs;
+          PREVIEW_WARM_STATE.derniereErreur = `${t.voice.id} : ${err?.message || err}`;
           console.warn(`[Aperçus ✗] ${t.voice.id} : ${err?.message || err}`);
           // Le stockage refuse tout (bucket absent ou non public) ? On ne
           // gaspille pas 30 générations : on s'arrête tout de suite et on dit
@@ -2855,6 +2937,9 @@ Style vocal souhaité : ${style || "excited"}`;
         }
         await new Promise((r) => setTimeout(r, 1200)); // on ne bouscule pas l'API
       }
+      PREVIEW_WARM_STATE.en_cours = false;
+      PREVIEW_WARM_STATE.fin = new Date().toISOString();
+      PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
       console.log(`[Aperçus] Préchauffage terminé : ${faits} généré(s), ${echecs} échec(s). Coût ≈ ${(faits * 0.004).toFixed(3)} $ une seule fois.`);
     } catch (err: any) {
       console.warn(`[Aperçus] Préchauffage impossible : ${err?.message || err}`);

@@ -215,6 +215,7 @@ print("Points débités :", data["points_deducted"], "| Reste :", data["remainin
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/tts/voices</code></td><td>publique</td><td>Les 30 voix + URL d'aperçu · <code>lang=ar</code>, <code>avec_apercu=1</code></td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/tts/preview</code></td><td>publique</td><td>Aperçu audio gratuit d'une voix · <code>?voice_id=Amine</code></td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/tts/preview-manifest</code></td><td>publique</td><td>Détail technique des aperçus générés</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/tts/preview-status</code></td><td>publique</td><td>Avancement de la fabrication des 30 aperçus · <code>prets</code>/<code>total</code></td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/developer/keys</code></td><td>session Sawtify</td><td>Créer une clé → <code>201</code></td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/developer/keys</code></td><td>session Sawtify</td><td>Lister tes clés (20 dernières)</td></tr>
 <tr><td><span class="method del">DELETE</span></td><td><code>/api/v1/developer/keys/:id</code></td><td>session Sawtify</td><td>Révoquer une clé (immédiat)</td></tr>
@@ -284,6 +285,7 @@ print("Points débités :", data["points_deducted"], "| Reste :", data["remainin
 <tr><td><b><code>mp3_url</code></b></td><td>Version MP3 plus légère, pratique pour WhatsApp et les widgets web</td></tr>
 <tr><td><b><code>/api/v1/tts/voices</code></b></td><td>Catalogue complet avec URL d'aperçu</td></tr>
 <tr><td><b><code>/api/v1/tts/preview-manifest</code></b></td><td>Détail technique des aperçus générés</td></tr>
+<tr><td><b><code>/api/v1/tts/preview-status</code></b></td><td>Avancement de la fabrication des 30 aperçus de voix</td></tr>
 <tr><td><b><code>/api/v1/developer/usage</code></b></td><td>Statistiques sur 30 jours, détaillées par jour</td></tr>
 <tr><td><b>Champ <code>source</code></b></td><td>Indique si l'audio vient d'un fichier figé ou d'une génération</td></tr>
 </table></div>
