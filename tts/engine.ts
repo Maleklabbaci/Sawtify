@@ -130,6 +130,32 @@ export function toLegacyTranscript(modernText: string): string {
 //  2. CONSTRUCTION DE LA DEMANDE (le cœur du double moteur)
 // ============================================================================
 
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ *  LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — 26/09/2026
+ * --------------------------------------------------------------------------
+ *  Demande du propriétaire : « ce que ça prononce, c'est exactement les mêmes
+ *  lettres et les mêmes mots écrits ; il n'ajoute rien de lui-même, rien. »
+ *
+ *  ⚠️ SOURCE UNIQUE : le serveur (toutes les générations) ET le générateur
+ *  d'aperçus de voix utilisent CETTE constante. Il n'y a donc jamais deux
+ *  versions de la phrase qui pourraient diverger.
+ *
+ *  Elle part dans `speech_metadata.style` (3.8) ou dans les DIRECTOR'S NOTES
+ *  (3.1) — JAMAIS dans le texte à lire, sinon Gemini la prononcerait.
+ *
+ *  Pour la retirer sans redéployer :  TTS_STRICT_VERBATIM=0
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+export const VERBATIM_INSTRUCTION =
+  process.env.TTS_STRICT_VERBATIM === "0"
+    ? null
+    : "Read the transcript exactly as written, the same letters and the same words: add nothing, change nothing, repeat nothing, skip nothing.";
+
+/** Version courte pour les aperçus (même règle, une seule phrase). */
+export const VERBATIM_INSTRUCTION_COURTE =
+  "Read the transcript exactly as written: add nothing, change nothing.";
+
 export type BuildTtsRequestOptions = {
   /** Modèle exact (ex. "gemini-3.8-flash-tts"). */
   model: string;

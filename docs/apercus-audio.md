@@ -1,5 +1,12 @@
 # Les 30 aperçus audio — comment ça marche
 
+> **⚠️ RÈGLE ABSOLUE — 100 % DARIJA ALGÉRIENNE (26/09/2026).**
+> Tous les textes d'aperçu sont écrits en **darija parlée**. Aucune tournure
+> d'arabe classique : « يعطيكم الصحة » (pas « شكراً »), « آخر تقنية » (pas
+> « أحدث تقنية »), « تشد اللي يسمعك » (pas « تجذب السامع »), « للحكاية »
+> (pas « للسرد »), « البلاصة » (pas « المكان »).
+> `npm run test:apercus` **refuse** tout texte qui repart en arabe classique.
+>
 > **En une phrase :** un script génère **un fichier audio par voix** (30 fichiers), une fois pour
 > toutes, et le serveur les sert **sans jamais rappeler Google**. Tu écoutes, tu valides les
 > genres, c'est fini.

@@ -167,6 +167,47 @@ if (existsSync(chemin)) {
 }
 
 // ===========================================================================
+section("7. 100 % DARIJA — aucun retour à l'arabe classique");
+{
+  // Les diacritiques sont retirés avant comparaison : « نقدّم » = « نقدم ».
+  const nu = (t: string) => t.replace(/[\u064b-\u0652\u0670]/g, "");
+  const textes: [string, string][] = [
+    ["script d'audition", AUDITION_SCRIPT],
+    ...Object.entries(VOICE_PREVIEW_TEXTS),
+  ];
+
+  // ① CE QUI EST INTERDIT : tournures d'arabe classique (relevées le 26/09).
+  const CLASSIQUE = [
+    "تجذب", "السامع", "تمتعوا", "نقدم", "أحدث", "السرد", "اقرب",
+    "بنطق دقيق", "دافئ", "والهادئ", "المكان الصحيح", "نقية", "استمعوا",
+    "بطبيعية", "المبالغة", "مثقفة",
+  ];
+  const fautifs = textes
+    .filter(([, t]) => CLASSIQUE.some((w) => nu(t).includes(w)))
+    .map(([nom]) => nom);
+  check("aucune tournure d'arabe classique dans les 31 textes", fautifs.length === 0,
+    fautifs.join(", "));
+
+  // ② CE QUI EST EXIGÉ : un texte sans le moindre marqueur darija est un texte
+  //    écrit en arabe standard — donc refusé.
+  const DARIJA = /(خاوتي|خويا|واش|راني|هاذي|هاذ|باش|تاع|ديالك|ديالكم|كيما|هكاك|بزاف|بلا ما|اللي|تهدر|نورمال|وحدة|صحا|حوس|يولي|صحة|العزاز|كاملين|يقول|كيف كي|بلاصة)/;
+  const sansDarija = textes.filter(([, t]) => !DARIJA.test(nu(t))).map(([nom]) => nom);
+  check("★ chaque texte contient au moins un marqueur darija", sansDarija.length === 0,
+    sansDarija.join(", "));
+
+  // ③ Le script d'audition : les formules algériennes attendues.
+  check("★ le script salue à l'algérienne (خاوتي / واش راكم)",
+    /خاوتي/.test(nu(AUDITION_SCRIPT)) && /واش راكم/.test(nu(AUDITION_SCRIPT)));
+  check("★ …et remercie à l'algérienne (يعطيكم الصحة), pas en arabe classique",
+    /يعطيكم الصحة/.test(nu(AUDITION_SCRIPT)));
+
+  // ④ Version 2 exigée : le texte ayant changé, les anciens aperçus sont périmés
+  //    et le serveur les refuse (l'empreinte a changé).
+  check("le script d'audition est en version 2 (réécriture darija)",
+    AUDITION_SCRIPT_VERSION >= 2, `v${AUDITION_SCRIPT_VERSION}`);
+}
+
+// ===========================================================================
 console.log(`\n${"═".repeat(78)}`);
 console.log(`  RÉSULTAT : ${ok} réussis, ${ko} échoués sur ${ok + ko} vérifications`);
 if (ko) {

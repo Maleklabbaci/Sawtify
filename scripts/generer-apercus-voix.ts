@@ -29,7 +29,7 @@ import {
   previewTargets, previewFileName, validateManifest,
   type VoicePreviewEntry, type VoicePreviewManifest,
 } from "../tts/voicePreviews";
-import { buildTtsRequest, extractAudioFromResponse } from "../tts/engine";
+import { buildTtsRequest, extractAudioFromResponse, VERBATIM_INSTRUCTION_COURTE } from "../tts/engine";
 
 // ── Configuration ───────────────────────────────────────────────────────────
 const envFile = (() => { try { return readFileSync(".env", "utf8"); } catch { return ""; } })();
@@ -73,6 +73,9 @@ async function generatePreview(voiceId: string): Promise<{ pcm: Buffer } | { err
     rawText: AUDITION_SCRIPT,
     voiceName: voiceId,
     style: null,           // le script contient déjà ses balises de sons
+    // Même règle que la production : la voix lit EXACTEMENT le texte écrit,
+    // sans rien ajouter ni répéter.
+    verbatimInstruction: VERBATIM_INSTRUCTION_COURTE,
     output: "pcm",
   });
 

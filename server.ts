@@ -39,6 +39,9 @@ import {
   legacyFidelityReport,
   splitIntoChunksForTTS,
   parallelMap,
+  // « Lis exactement ce qui est écrit » — source UNIQUE, partagée avec le
+  // générateur d'aperçus de voix (voir tts/engine.ts).
+  VERBATIM_INSTRUCTION,
 } from "./tts/engine";
 import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
 import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
@@ -769,17 +772,18 @@ const VOICE_DELIVERY: Record<string, string> = {
 // le caractère) gardent une indication neutre — jamais rien de contradictoire.
 const VOICE_DELIVERY_FALLBACK = "warm, confident and natural";
 
-const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
-  voice_amin: "سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي.",
-  voice_yasmin: "مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق وصوت دافئ.",
-  voice_khalid: "السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي.",
-  voice_maryam: "سلام، استمعوا لنطق دارجة جزائرية نقية وسلسة، تزيد لمسة احترافية لكل الفيديوهات.",
-  voice_rashid: "يا هلا بيكم خاوتنا العزاز! هاذي تجربة صوتية جزائرية قوية وحماسية!",
-  voice_layla: "أهلاً وسهلاً بيكم! صوت حيوي وخفيف، يوالم ستوريات إنستغرام وتيك توك.",
-  voice_bilal: "صحا خاوتي، مع صوتيفي الصوت يخرج طبيعي وسلس كأنو متحدث جزائري حقيقي.",
-  voice_nour: "مرحباً بيكم، تمتعوا بنطق دارجة واضحة، بنبرة خفيفة ومريحة تسمعها بلا ما تعيا.",
-  voice_faycal: "واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر احترافية للمشروع ديالك، راك في المكان الصحيح."
-};
+// ── LES 9 IDENTIFIANTS HISTORIQUES (voice_amin, voice_yasmin…) ─────────────
+// Ils pointent vers la MÊME voix que dans le catalogue : le texte prononcé est
+// donc celui de `VOICE_PREVIEW_TEXTS`, sans la moindre copie à maintenir.
+// Avant, ce tableau recopiait 9 phrases — restées en arabe classique après la
+// réécriture 100 % darija du 26/09/2026, donc prêtes à ressortir en MSA chez
+// un ancien client. Désormais impossible : une seule source.
+const VOICE_PREVIEW_SCRIPTS: Record<string, string> = Object.fromEntries(
+  Object.entries(LEGACY_VOICE_MIGRATION).map(([legacyId, studioVoice]) => [
+    legacyId,
+    VOICE_PREVIEW_TEXTS[studioVoice as string] || AUDITION_SCRIPT,
+  ])
+);
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
@@ -1094,25 +1098,6 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 // bufferisait toute la réponse avant de parser (aucun gain de latence) et
 // était la source principale des blocages et coupures aléatoires.
 // ===================================================================
-// ══════════════════════════════════════════════════════════════════════════
-//  LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — 26/09/2026
-// --------------------------------------------------------------------------
-//  Demande du propriétaire : « ce que ça prononce, c'est exactement les mêmes
-//  lettres et les mêmes mots écrits ; il n'ajoute rien de lui-même, rien. »
-//
-//  Cette phrase unique part avec TOUTES les générations (studio, aperçus de
-//  voix, API développeur) :
-//    • en 3.8 → première consigne de `speech_metadata.style` ;
-//    • en 3.1 → première ligne des DIRECTOR'S NOTES.
-//  Elle n'est JAMAIS écrite dans le texte à lire — sinon Gemini la
-//  prononcerait. C'est `buildTtsRequest()` qui s'en charge (voir tts/engine.ts).
-//
-//  Pour la retirer sans redéployer :  TTS_STRICT_VERBATIM=0
-// ══════════════════════════════════════════════════════════════════════════
-const VERBATIM_INSTRUCTION =
-  process.env.TTS_STRICT_VERBATIM === "0"
-    ? null
-    : "Read the transcript exactly as written, the same letters and the same words: add nothing, change nothing, repeat nothing, skip nothing.";
 
 async function synthesizeWithRetry(
   rawText: string,
