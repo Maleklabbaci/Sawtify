@@ -82,6 +82,79 @@ C'est le même son, dans les trois écritures. Écris celle qui te vient naturel
 **Les accents et les voyelles arabes ne comptent pas** : `<rire léger>`, `<RIRE LEGER>` et
 `<ضَحْكة>` fonctionnent tous les trois.
 
+### Le catalogue complet — 35 sons, 197 façons de les écrire
+
+Voici **tout** ce que la voix sait produire. La colonne « écriture » liste ce que tu peux taper :
+n'importe laquelle marche, y compris en mélangeant les trois langues dans un même texte.
+
+#### 😄 Le rire — 6 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Rire | `<rire>` `<rires>` `<fou rire>` | `<ضحكة>` `<ضحك>` `<قهقهة خفيفة>` | `<laugh>` |
+| Rire léger / gloussement | `<gloussement>` `<rire leger>` `<petit rire>` | `<ضحكة خفيفة>` `<ضحكة صغيرة>` | `<giggle>` |
+| Rire étouffé | `<rire etouffe>` `<ricanement doux>` | `<ضحكة مكتومة>` `<ضحكة خفيفة مكتومة>` | `<chuckle>` |
+| Rire aigu / franc | `<rire aigu>` `<rire franc>` `<rire sonore>` | `<قهقهة>` `<ضحك بصوت عالي>` | `<cackle>` |
+| Ricanement | `<ricanement>` `<rire moqueur>` | `<سخرية>` `<ضحكة ساخرة>` | `<snicker>` |
+| Acclamation joyeuse | `<acclamation>` `<hourra>` `<bravo>` | `<هتاف>` `<تصفيق فرح>` `<فرحة>` | `<cheer>` |
+
+#### 😱 Les émotions fortes — 10 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Surprise (souffle coupé) | `<surprise>` `<souffle coupe>` `<stupeur>` | `<شهقة>` `<مفاجأة>` `<شهقة مفاجأة>` | `<gasp>` |
+| Cri | `<cri>` `<hurlement>` | `<صرخة>` `<صراخ>` | `<scream>` |
+| Exclamation forte | `<exclamation>` `<cri fort>` | `<صياح>` `<نظرة قوية>` | `<shout>` |
+| Cri perçant | `<cri perçant>` `<cri aigu>` | `<صرخة حادة>` | `<shriek>` |
+| Grognement de colère | `<grognement>` `<enerve>` `<agace>` | `<تذمر>` `<غضب خفيف>` | `<grr>` |
+| Grondement | `<grondement>` `<menace>` | `<هدير>` `<دمدمة غاضبة>` | `<growl>` |
+| Exaspération | `<exasperation>` `<ras le bol>` `<zut>` | `<تأفف>` `<يا حسراه>` `<طفح الكيل>` | `<argh>` |
+| Claquement de langue (désapprobation) | `<claquement de langue>` `<desapprobation>` | `<لثغة>` `<استنكار>` `<لثغة استنكار>` | `<tsk>` |
+| Soupir de soulagement / blasé | `<soupir blase>` `<soulagement>` | `<تنفس الصعداء>` `<ارتياح>` | `<pff>` |
+| Reniflement (dérision) | `<reniflement>` `<derision>` | `<استنشاق ساخر>` | `<snort>` |
+
+#### 😢 La tristesse — 5 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Pleurs | `<pleurs>` `<pleurer>` `<sanglots>` | `<بكاء>` `<عياط>` | `<cry>` |
+| Sanglot | `<sanglot>` `<sangloter>` | `<نشيج>` `<بكاء مكتوم>` | `<sob>` |
+| Gémissement faible | `<gemissement>` `<plainte faible>` | `<أنين>` `<أنين خفيف>` | `<whimper>` |
+| Gémissement | `<plainte>` `<ronchonnement>` | `<توجع>` | `<moan>` |
+| Râle / plainte | `<rale>` `<plainte grave>` | `<تأوه>` `<تعب>` | `<groan>` |
+
+#### 😮‍💨 La respiration — 9 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Respiration | `<respiration>` `<souffle>` | `<نفس>` `<تنفس>` | `<breath>` |
+| Respiration lourde | `<respiration lourde>` `<souffle lourd>` | `<نفس ثقيل>` `<تنفس عميق>` | `<heavy breath>` |
+| Expiration | `<expiration>` `<souffler>` `<soupir long>` | `<زفير>` `<إخراج النفس>` | `<exhales>` |
+| Halètement | `<haletement>` `<essouffle>` | `<لهاث>` `<لهثة>` | `<pant>` |
+| Soupir | `<soupir>` `<soupirs>` `<soupirer>` | `<تنهد>` `<تنهيدة>` `<زفرة>` | `<sigh>` |
+| Bâillement | `<baillement>` `<baille>` | `<تثاؤب>` `<تعب ونعاس>` | `<yawn>` |
+| Éternuement | `<eternuement>` `<atchoum>` | `<عطسة>` `<عطس>` | `<sneeze>` |
+| Toux | `<toux>` `<tousser>` | `<كحة>` `<سعال>` `<كح>` | `<cough>` |
+| Raclement de gorge | `<raclement de gorge>` `<toux legere>` | `<تنحنح>` `<تجهيز الصوت>` | `<throat-clearing>` |
+
+#### 🤫 La voix et les silences — 3 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Chuchotement | `<chuchotement>` `<chuchoter>` `<murmure>` | `<همس>` `<همس خفيف>` | `<whispers>` |
+| Sifflement (chut) | `<sifflement>` `<chut>` `<chuut>` | `<خشخشة>` `<صوت السكون>` | `<hiss>` |
+| Grommellement | `<grommellement>` `<marmonner>` | `<دمدمة>` `<كلام غير واضح>` | `<grunt>` |
+
+#### ⏸️ Les pauses — 2 sons
+
+| Le son | En français | En arabe | En anglais |
+|---|---|---|---|
+| Petite pause | `<pause courte>` `<petite pause>` `<courte pause>` | `<وقفة قصيرة>` `<سكتة قصيرة>` | `<short pause>` |
+| Longue pause | `<pause longue>` `<grande pause>` | `<وقفة طويلة>` `<سكتة طويلة>` | `<long pause>` |
+> 💡 **Tu n'es pas obligé de connaître cette liste.** Les 12 balises du tableau ci-dessus couvrent
+> 90 % des besoins. Ce catalogue est là pour le jour où tu cherches un son précis.
+
+
 ### Comment l'utiliser
 
 Mets la balise **exactement là où tu veux le son**, au milieu de la phrase :
@@ -142,22 +215,50 @@ Tu as 30 voix. Elles ne sont pas rangées par langue (voir §5) mais par **carac
 
 ### Les 9 voix que tes utilisateurs connaissent
 
-| Prénom | Nom en arabe | Caractère | Genre |
+| Prénom | En arabe | Caractère | Genre |
 |---|---|---|---|
-| Amine | أمين | Enjouée et dynamique | Homme |
-| Khalid | خالد | Informative et posée (documentaire) | Homme |
-| Rachid | رشيد | Énergique et survoltée | Homme |
-| Bilal | بلال | Grave et rocailleuse (conteur) | Homme |
-| Fayçal | فيصل | Ferme et assurée (persuasive) | Homme |
-| Yasmine | ياسمين | Éclatante et souriante | Femme |
-| Maryam | مريم | Chaleureuse et douce | Femme |
-| Layla | ليلى | Juvénile et vive (réseaux sociaux) | Femme |
-| Nour | نور | Douce et apaisante | Femme |
+| **Amine** | أمين | enjouée et dynamique | Homme |
+| **Khalid** | خالد | informative et posée | Homme |
+| **Rachid** | رشيد | énergique et survoltée | Homme |
+| **Bilal** | بلال | grave et rocailleuse | Homme |
+| **Fayçal** | فيصل | ferme et assurée | Homme |
+| **Yasmine** | ياسمين | éclatante et souriante | Femme |
+| **Maryam** | مريم | chaleureuse et douce | Femme |
+| **Layla** | ليلى | juvénile et vive | Femme |
+| **Nour** | نور | douce et apaisante | Femme |
 
-### Les 21 nouvelles
+### Les 21 nouvelles voix
 
-Karim, Aya, Sami, Nada, Anis, Zaki, Walid, Nabil, Salma, Rania, Hakim, Riad, Adel, Nassim,
-Omar, Yacine, Hicham, Reda, Amina, Sara, Mourad.
+Elles sont arrivées avec Sawtify 4.1 et sont maintenant **choisissables dans le studio**, au même
+titre que les neuf autres.
+
+| Prénom | En arabe | Caractère |
+|---|---|---|
+| **Karim** | كريم | ferme et autoritaire |
+| **Aya** | آية | légère et aérienne |
+| **Sami** | سامي | décontractée et cool |
+| **Nada** | ندى | éclatante et joyeuse |
+| **Anis** | أنيس | soufflée et intime |
+| **Zaki** | زكي | claire et nette |
+| **Walid** | وليد | décontractée et simple |
+| **Nabil** | نبيل | lisse et fluide |
+| **Salma** | سلمى | lisse et douce |
+| **Rania** | رانيا | claire et précise |
+| **Hakim** | حكيم | informative et érudite |
+| **Riad** | رياض | enjouée et vive |
+| **Adel** | عادل | ferme et stable |
+| **Nassim** | نسيم | égale et posée |
+| **Omar** | عمر | mûre et expérimentée |
+| **Yacine** | ياسين | directe et assurée |
+| **Hicham** | هشام | amicale et proche |
+| **Reda** | رضا | décontractée et naturelle |
+| **Amina** | أمينة | douce et délicate |
+| **Sara** | سارة | vivante et animée |
+| **Mourad** | مراد | savante et pédagogue |
+> ⚠️ **Leur genre n'est pas encore confirmé.** Google ne publie pas le genre des voix du studio,
+> seulement leur caractère. Plutôt que de deviner, Sawtify affiche « à confirmer » : le genre sera
+> renseigné après écoute, voix par voix. En attendant, **fie-toi au caractère** — il vient de la
+> fiche officielle de Google.
 
 ### Comment choisir en pratique
 
@@ -169,12 +270,12 @@ Omar, Yacine, Hicham, Reda, Amina, Sara, Mourad.
 
 | Tu veux… | Prends plutôt |
 |---|---|
-| une pub qui donne envie | Rachid, Karim, Sadachbia |
-| une voix de documentaire | Khalid, Gacrux, Sadaltager |
-| rassurer un client | Maryam, Nour, Vindemiatrix |
-| une vidéo TikTok qui accroche | Layla, Aya, Laomedeia |
-| un conte, une histoire | Bilal, Enceladus |
-| un message d'entreprise net | Fayçal, Pulcherrima, Rasalgethi |
+| une pub qui donne envie | **Rachid**, **Sara**, **Karim** |
+| une voix de documentaire | **Khalid**, **Omar**, **Mourad** |
+| rassurer un client | **Maryam**, **Nour**, **Amina** |
+| une vidéo TikTok qui accroche | **Layla**, **Aya**, **Riad** |
+| un conte, une histoire | **Bilal**, **Anis** |
+| un message d'entreprise net | **Fayçal**, **Yacine**, **Hakim** |
 
 **Écris le prénom, le nom en arabe, ou l'identifiant technique — les trois marchent.**
 
@@ -209,6 +310,36 @@ Une balise **ne change jamais la langue du texte**.
 
 est lu : « مرحبا خاوتي » (arabe) + **un rire** + « واش راكم؟ » (arabe).
 La balise est une **instruction**, pas un mot. **Aucun mot anglais n'est ajouté.**
+
+### Dans quelle écriture écrire la darija ?
+
+Nos exemples, nos aperçus audio et le réglage interne de Sawtify sont tous en **écriture arabe**.
+C'est donc l'écriture de référence : **écris ta darija en lettres arabes**, tu obtiens la
+prononciation la plus juste.
+
+| Tu écris | Ce qui se passe |
+|---|---|
+| `واش راك يا خويا` | ✅ la darija est prononcée comme de la darija |
+| `un nouveau service` | ✅ le français est prononcé comme du français |
+| `واش راك` + `un nouveau service` dans la même phrase | ✅ chacun garde sa prononciation |
+| `wach rak khouya` (darija en lettres latines) | ⚠️ la voix lit ces lettres avec la prononciation française — **à éviter** |
+
+> 💡 **La règle est simple : écris comme tu écris déjà en arabe.** Si tu écris la darija en lettres
+> latines dans tes messages, garde cette habitude **pour tes notes**, mais pas pour Sawtify.
+
+### Ce qui ne change pas quand tu changes de langue
+
+| | |
+|---|---|
+| **La voix garde son caractère** | Amine reste Amine en français comme en arabe : c'est la même voix, pas une autre |
+| **Ta vitesse et ta hauteur tiennent** | Le réglage vaut pour tout le fichier, quelle que soit la langue |
+| **Les balises restent valables** | `<rire>` fonctionne dans un texte français, arabe ou mélangé |
+| **Rien n'est traduit** | Un mot arabe ne devient jamais un mot français, et l'inverse non plus |
+
+### Combien d'écritures, au total ?
+
+**197.** C'est le nombre de façons d'écrire les 35 sons : 40 en anglais, 83 en français,
+74 en arabe. Le détail complet est au **§3**.
 
 ---
 

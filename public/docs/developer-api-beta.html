@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Documentation Developer API Beta · Sawtify</title>
-<meta name="description" content="Documentation complète de la Developer API Sawtify : 30 voix, 40 balises de sons en français, arabe et anglais, génération WAV et MP3, exemples cURL, JavaScript et Python.">
+<meta name="description" content="Documentation complète de la Developer API Sawtify : 30 voix, 35 sons en 197 écritures (français, arabe, anglais), génération WAV et MP3, exemples cURL, JavaScript et Python.">
 <style>
 :root{--purple:#7c3aed;--purple-dark:#5b21b6;--ink:#172033;--muted:#64748b;--line:#e8eaf0;--soft:#f8f7ff;--green:#059669}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#f8fafc;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.65}
@@ -121,7 +121,7 @@ input[type=search]:focus{outline:2px solid #ddd6fe;border-color:var(--purple)}
 <span class="pill h">Astuce 1</span> Les accents et la vocalisation arabe ne comptent pas : <code>&lt;rire léger&gt;</code> = <code>&lt;RIRE LEGER&gt;</code> = <code>&lt;ضَحْكة&gt;</code> = <code>&lt;ضحكة&gt;</code>.<br>
 <span class="pill f">Astuce 2</span> La langue parlée ne change jamais : une balise anglaise dans un texte arabe ne fait pas passer le texte en anglais.
 </div>
-<div class="callout warn" style="margin-top:16px"><div>⚠️</div><div><strong>Ce qui n'est pas accepté</strong>Les bruits non humains (<code>&lt;applause&gt;</code>, <code>&lt;music&gt;</code>, <code>&lt;bang&gt;</code>, <code>&lt;door&gt;</code>…) sont <b>retirés automatiquement</b> : ils seraient lus tels quels. L'ancienne syntaxe à crochets reste supportée, mais elle décrit un <b>ton</b>, pas un son : <code>[calm]</code> <code>[excited]</code> <code>[dramatic]</code> passent par <code>speech_metadata.style</code>. <b>Un seul ton par lecture</b> — le premier gagne, le suivant est signalé dans <code>warnings</code>. Les chevrons restent recommandés (40 sons contre 11 écritures).</div></div>
+<div class="callout warn" style="margin-top:16px"><div>⚠️</div><div><strong>Ce qui n'est pas accepté</strong>Les bruits non humains (<code>&lt;applause&gt;</code>, <code>&lt;music&gt;</code>, <code>&lt;bang&gt;</code>, <code>&lt;door&gt;</code>…) sont <b>retirés automatiquement</b> : ils seraient lus tels quels. L'ancienne syntaxe à crochets reste supportée, mais elle décrit un <b>ton</b>, pas un son : <code>[calm]</code> <code>[excited]</code> <code>[dramatic]</code> passent par <code>speech_metadata.style</code>. <b>Un seul ton par lecture</b> — le premier gagne, le suivant est signalé dans <code>warnings</code>. Les chevrons restent recommandés (35 sons contre 11 écritures).</div></div>
 </section>
 
 <section class="section" id="tts"><h2>Générer un fichier vocal</h2>
@@ -280,7 +280,7 @@ print("Points débités :", data["points_deducted"], "| Reste :", data["remainin
 <div class="card"><table class="table"><tr><th>Nouveauté</th><th>Détail</th></tr>
 <tr><td><b>30 voix</b> au lieu de 9</td><td>Voir <a href="#voices">Les 30 voix</a></td></tr>
 <tr><td><b>3 écritures par voix</b></td><td>Prénom FR, prénom AR, identifiant technique — plus l'ancien <code>voice_*</code></td></tr>
-<tr><td><b>40 balises de sons</b></td><td>En anglais, français ou arabe — voir <a href="#tags">Balises de sons</a></td></tr>
+<tr><td><b>35 sons, 197 écritures</b></td><td>En anglais, français ou arabe — voir <a href="#tags">Balises de sons</a></td></tr>
 <tr><td><b><code>mp3_url</code></b></td><td>Version MP3 plus légère, pratique pour WhatsApp et les widgets web</td></tr>
 <tr><td><b><code>/api/v1/tts/voices</code></b></td><td>Catalogue complet avec URL d'aperçu</td></tr>
 <tr><td><b><code>/api/v1/tts/preview-manifest</code></b></td><td>Détail technique des aperçus générés</td></tr>

@@ -22,18 +22,18 @@ Les deux sont listées plus bas, noir sur blanc.
 | 4 | Les 26 imports pointent vers un fichier qui existe | ✅ 26 / 26 |
 | 5 | Le frontend n'a pas été touché (hors autorisation) | ✅ **1 seul fichier** : `src/data/codeSnippets.ts`, sur ton accord explicite |
 | 6 | Toutes les routes de l'API sont déclarées | ✅ 7 / 7 |
-| 7 | La suite de tests complète | ✅ **267 vérifications, 0 échec** |
+| 7 | La suite de tests complète | ✅ **282 vérifications chiffrées, 0 échec** |
 | 8 | Aucun test n'a été désactivé ou contourné | ✅ vérifié |
 
 ### Le détail des tests
 
 | Commande | Résultat | Ce qu'elle prouve |
 |---|---|---|
-| `npm run test:tts` | **117 / 117** | le moteur vocal, les deux modes, le découpage, les balises, le style |
+| `npm run test:tts` | **156 / 156** | le moteur vocal, les deux modes, le découpage, les balises, le style |
 | `npm run test:voix` | **22 / 22** | les 90 écritures d'un nom tombent sur la bonne voix |
-| `npm run verif:balises` | **40 / 40** | les 40 balises officielles Google sont intégrées |
+| `npm run verif:balises` | **✅ complet** | les 40 balises officielles Google sont intégrées |
 | `npm run test:apercus` | **39 / 39** | les aperçus ; passera à **43 / 43** après ta génération |
-| `npm run verif:doc` | **49 / 49** | la documentation correspond au code |
+| `npm run verif:doc` | **65 / 65** | la documentation correspond au code |
 
 ---
 
@@ -78,8 +78,8 @@ message : c'est du texte, pas de la casse.
 - Les anciens identifiants (`voice_dz_amine`, `voice_dz_rachid`…) restent des alias : **aucune
   intégration existante n'est cassée**.
 
-### Les 40 balises de sons
-- **40 sons**, écrits de **197 façons** : 40 en anglais, 83 en français, 74 en arabe.
+### Les 35 sons
+- **35 sons**, écrits de **197 façons** : 40 écritures en anglais, 83 en français, 74 en arabe.
 - `<laugh>` = `<rire>` = `<ضحكة>`. Les accents et la vocalisation arabe ne comptent pas.
 - La langue parlée **ne change jamais** : une balise anglaise dans un texte arabe ne fait pas
   passer le texte en anglais.
@@ -117,7 +117,7 @@ que le défaut 1 vivait depuis le début.
 
 ### La documentation
 - **Développeur** : réécrite (`docs/developer-api-beta.md` + la page HTML), avec les 30 voix, les
-  40 balises et leurs écritures FR/AR, toutes les routes, les codes `201`/`405`/`410` qui
+  35 sons et leurs écritures FR/AR, toutes les routes, les codes `201`/`405`/`410` qui
   manquaient, `mp3_url`, et les vraies limites.
 - **Utilisateur** : `docs/guide-utilisateur.md` — les 3 leviers, la ponctuation, les balises,
   comment choisir une voix, 5 exemples prêts à copier.
@@ -168,7 +168,7 @@ Aucune n'est un bug, aucune n'a d'effet aujourd'hui :
 
 | Fichier | Ce qu'il contient |
 |---|---|
-| `tts/vocalTags.ts` | les 40 balises et leurs 197 écritures, l'analyseur, le garde-fou anti-fragment |
+| `tts/vocalTags.ts` | les 35 sons et leurs 197 écritures, l'analyseur, le garde-fou anti-fragment |
 | `tts/voices.ts` | les 30 voix studio et leurs descripteurs officiels |
 | `tts/voiceNames.ts` | les prénoms FR + AR, les 90 écritures, la résolution |
 | `tts/engine.ts` | le double moteur, le découpage protégé, la lecture de la réponse |
@@ -188,7 +188,7 @@ Aucune n'est un bug, aucune n'a d'effet aujourd'hui :
 
 ## Résumé en une phrase
 
-**Le backend est prêt et vérifié : 267 contrôles, 0 échec, tout est sur GitHub.** Il ne reste
+**Le backend est prêt et vérifié : 282 contrôles chiffrés + le catalogue complet des balises, 0 échec, tout est sur GitHub.** Il ne reste
 qu'une chose pour que ce soit totalement fini — **lancer `npm run apercus:voix`** et valider les
 21 genres à l'oreille. Et sur ta machine, lance `npm run lint` une fois : c'est la seule
 vérification que l'environnement d'ici ne permet pas.

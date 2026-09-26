@@ -274,7 +274,7 @@ un crochet ne décrit pas un son, il décrit un **TON** (une couleur qui dure to
 > Conséquence directe : `[excited]` **ne produit plus** la balise `<cheer>`, qui déclenchait un bruit
 > de foule au lieu d'une voix énergique (corrigé le 26/09/2026).
 
-**La syntaxe à chevrons reste recommandée** : elle est plus riche (40 sons contre 11 écritures) et
+**La syntaxe à chevrons reste recommandée** : elle est plus riche (35 sons contre 11 écritures) et
 conforme à la documentation Google.
 
 ---
@@ -581,7 +581,7 @@ données, aucune clé n'est lisible. En contrepartie, **une clé perdue est déf
 |---|---|
 | **30 voix** au lieu de 9 | Tableau complet au [§2](#2-les-30-voix) |
 | **3 écritures par voix** | Prénom FR, prénom AR, identifiant technique — plus l'ancien `voice_*` |
-| **40 balises de sons** | En anglais, français ou arabe → [§3](#3-les-balises-de-sons-et-démotions) |
+| **35 sons, 197 écritures** | En anglais, français ou arabe → [§3](#3-les-balises-de-sons-et-démotions) |
 | **`mp3_url`** | Version MP3, plus légère, pratique pour WhatsApp et les widgets web |
 | **`/api/v1/tts/voices`** | Catalogue complet avec URL d'aperçu |
 | **`/api/v1/tts/preview-manifest`** | Détail technique des aperçus générés |

@@ -8,7 +8,7 @@ Sawtify s'adresse aux créateurs de contenu, agences marketing, formateurs et en
 
 - Génération de voix off en darija, arabe et français, à partir de texte (détection automatique de la langue parlée).
 - 30 voix studio, chacune accessible par son prénom français, son prénom arabe ou son identifiant technique.
-- 40 balises de sons et d'émotions (rire, soupir, respiration, cri, pause…), acceptées en anglais, en français et en arabe.
+- 35 sons et émotions (rire, soupir, respiration, cri, pause…), acceptées en anglais, en français et en arabe.
 - Textes longs découpés automatiquement entre les phrases, puis recollés : la voix reste identique du début à la fin.
 - Modèle Pay-as-you-go par points, sans abonnement obligatoire.
 - Paiement local algérien : cartes CIB et Edahabia via SlickPay (SATIM), en dinars algériens (DZD).
@@ -40,7 +40,7 @@ automatisation (n8n, Make, Zapier) ou une application mobile.
 
 ### Balises et tons — ce qu'il faut savoir
 
-- Deux syntaxes sont acceptées : les **chevrons** `<rire>`, `<laugh>`, `<ضحكة>` (40 sons officiels,
+- Deux syntaxes sont acceptées : les **chevrons** `<rire>`, `<laugh>`, `<ضحكة>` (35 sons, 197 écritures,
   recommandé) et les **crochets** `[excited]` (ancienne syntaxe Sawtify, toujours supportée).
 - Les crochets décrivent un **TON**, pas un son : `[calm]`, `[excited]`, `[dramatic]`, `[serious]`
   sont transmis dans `speech_metadata.style`. `[whispers]`, `[laughter]`, `[breathing]` deviennent

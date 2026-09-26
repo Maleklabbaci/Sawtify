@@ -10,7 +10,7 @@
  *
  *  Il vérifie que :
  *    • les 30 voix sont documentées (prénom FR, prénom AR, identifiant, ancien ID)
- *    • les 40 balises officielles sont documentées, avec leurs écritures FR et AR
+ *    • les 35 sons officiels sont documentés, avec leurs écritures FR et AR
  *    • chaque route annoncée existe VRAIMENT dans server.ts
  *    • chaque route développeur de server.ts EST documentée (dans les 2 sens)
  *    • chaque code HTTP de la doc existe dans le code
@@ -71,7 +71,7 @@ check("aucune voix fantôme dans la page HTML (30 exactement)",
   `${(HTML.match(/\["[A-Za-z]+","[^"]+","[^"]+","[^"]+",/g) || []).length} entrées`);
 
 // ===========================================================================
-titre("2. LES 40 BALISES SONT DOCUMENTÉES (avec leurs écritures FR et AR)");
+titre("2. LES 35 SONS SONT DOCUMENTÉS (avec leurs écritures FR et AR)");
 // ===========================================================================
 const balisesManquantesMd: string[] = [];
 const balisesManquantesHtml: string[] = [];
@@ -85,8 +85,8 @@ for (const t of VOCAL_TAGS) {
   if (t.aliasesFr?.length && !t.aliasesFr.some((a) => MD.includes(a))) frManquants.push(t.tag);
   if (t.aliasesAr?.length && !t.aliasesAr.some((a) => MD.includes(a))) arManquants.push(t.tag);
 }
-check("les 40 balises officielles sont dans le markdown", balisesManquantesMd.length === 0, balisesManquantesMd.join(", "));
-check("les 40 balises officielles sont dans la page HTML", balisesManquantesHtml.length === 0, balisesManquantesHtml.join(", "));
+check("les 35 sons officiels sont dans le markdown", balisesManquantesMd.length === 0, balisesManquantesMd.join(", "));
+check("les 35 sons officiels sont dans la page HTML", balisesManquantesHtml.length === 0, balisesManquantesHtml.join(", "));
 check("chaque balise a au moins une écriture FRANÇAISE documentée", frManquants.length === 0, frManquants.join(", "));
 check("chaque balise a au moins une écriture ARABE documentée", arManquants.length === 0, arManquants.join(", "));
 
@@ -246,6 +246,33 @@ check("le guide dit que les accents ne comptent pas", /accents? .*ne comptent pa
 check("le guide prévient qu'un seul ton s'applique par lecture",
   GUIDE.includes("[calm]") && /un seul ton par lecture/i.test(GUIDE));
 check("le guide explique que les bruits non humains sont retirés", /retire automatiquement|retiré automatiquement|sont retirés/i.test(GUIDE));
+
+// ── Le guide doit contenir le CATALOGUE COMPLET, pas un extrait ─────────────
+// Avant le 26/09/2026 il ne montrait que 12 des 35 sons : un utilisateur ne
+// pouvait pas découvrir le reste. Ces trois contrôles empêchent le retour en
+// arrière — si un son est ajouté au catalogue, le guide devient rouge.
+const sonsAbsentsGuide = VOCAL_TAGS.filter((t) => !GUIDE.includes(t.tag));
+check("le guide liste les 35 sons du catalogue", sonsAbsentsGuide.length === 0,
+  sonsAbsentsGuide.map((t) => t.tag).join(", "));
+
+// …avec leurs écritures françaises ET arabes : le guide promet qu'on peut
+// écrire une balise dans les trois langues, il doit donc le MONTrer.
+const ecrituresAbsentes: string[] = [];
+for (const t of VOCAL_TAGS) {
+  for (const a of t.aliasesFr || []) if (!GUIDE.includes(a)) ecrituresAbsentes.push(a);
+  for (const a of t.aliasesAr || []) if (!GUIDE.includes(a)) ecrituresAbsentes.push(a);
+}
+check("le guide donne l'écriture FR et AR de chaque son", ecrituresAbsentes.length === 0,
+  ecrituresAbsentes.slice(0, 8).join(", ") + (ecrituresAbsentes.length > 8 ? " …" : ""));
+
+// Les 30 prénoms EN ARABE : le guide affiche les deux colonnes.
+const arabesManquants = VOICE_NAMES.filter((v) => v.ar && !GUIDE.includes(v.ar));
+check("les 30 prénoms arabes sont dans le guide", arabesManquants.length === 0,
+  arabesManquants.map((v) => v.ar).join(", "));
+
+check("le guide donne le nombre d'écritures (197)", GUIDE.includes("197"));
+check("le guide dit quelle écriture utiliser pour la darija",
+  /écriture de référence|lettres arabes/i.test(GUIDE));
 
 // ===========================================================================
 titre("9. EXEMPLES DE CODE DE L'INTERFACE (src/data/codeSnippets.ts)");

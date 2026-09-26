@@ -66,7 +66,7 @@ const SLIDES: Slide[] = [
     },
     puces: [
       { fr: '30 voix au lieu de 9', ar: '30 صوتاً بدل 9' },
-      { fr: '40 sons d’émotion, écrits en 197 langues de saisie', ar: '40 صوتاً تعبيرياً بـ 197 طريقة كتابة' },
+      { fr: '35 sons d’émotion, écrits de 197 façons', ar: '35 صوتاً تعبيرياً بـ 197 طريقة كتابة' },
       { fr: 'Prononciation de la darija entièrement retravaillée', ar: 'نطق الدارجة أُعيد بناؤه بالكامل' },
     ],
     legendeChiffre: { fr: 'mise à jour majeure', ar: 'تحديث رئيسي' },
@@ -89,7 +89,7 @@ const SLIDES: Slide[] = [
   },
   {
     kicker: { fr: 'LES ÉMOTIONS', ar: 'المشاعر' },
-    titre: { fr: '40 sons. 197 façons de les écrire.', ar: '40 صوتاً. 197 طريقة لكتابتها.' },
+    titre: { fr: '35 sons. 197 façons de les écrire.', ar: '35 صوتاً. 197 طريقة لكتابتها.' },
     sousTitre: {
       fr: 'Rire, soupir, respiration, cri, chuchotement, silence…',
       ar: 'ضحكة، تنهيدة، نفس، صيحة، همس، سكوت…',

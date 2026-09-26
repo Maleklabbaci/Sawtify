@@ -82,7 +82,7 @@ C'est exactement pour ça que tout le nettoyage existe : une balise qui arrivera
 | 1 | **Sortir le style du texte** vers `speech_metadata.style` | ✅ fait |
 | 2 | **Remplacer les blocs « Director's Notes »** (1re cause de dérive de voix) | ✅ aucune note de personnage n'est envoyée en 3.8 |
 | 3 | Un `part` par locuteur pour le dialogue | ➖ multi-voix désactivé (ton choix) |
-| 4 | **Balises en crochets angle**, sons humains seulement | ✅ 40 balises, bruits non humains retirés |
+| 4 | **Balises en crochets angle**, sons humains seulement | ✅ 35 sons, bruits non humains retirés |
 | 5 | **Le mode unary renvoie du WAV**, plus du PCM brut | ✅ double protection (voir §3) |
 
 ### Le catalogue des sons
