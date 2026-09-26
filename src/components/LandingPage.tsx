@@ -31,6 +31,9 @@ import {
   Lock,
   Timer,
   Sparkles,
+  Wallet,
+  Infinity as InfinityIcon,
+  Crown,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView } from "motion/react";
 import TestimonialsWidget from "./TestimonialsWidget";
@@ -51,6 +54,13 @@ const PURPLE_SOFT = "#F0E8FA";
 const PURPLE_GLOW = "rgba(107, 45, 188, 0.45)";
 const GREEN = "#0E7A45";
 const AMBER = "#E9A13B";
+/* ─── LUXE : l'or maîtrisé. Chaque élément doré est un accent, jamais un
+   aplat : fine règle, liseré, dégradé. C'est ce qui sépare le « doré » du
+   « luxe ». Utilisé aussi par les nouveaux blocs de réassurance. ─── */
+const GOLD = "#C9A227";
+const GOLD_LIGHT = "#EBD79A";
+const GOLD_DEEP = "#8A6A14";
+const GOLD_GRAD = "linear-gradient(180deg, #EFDDA8 0%, #C9A227 55%, #A6811B 100%)";
 const CLAY = "#C2452A";
 const BORDER = "#E5DCCB";
 const BG_VIDEO_URL =
@@ -253,14 +263,18 @@ const SectionHead = ({ eyebrow, title, sub, center = false, font, ar }: {
 }) => (
   <div className={center ? "text-center mx-auto max-w-2xl" : "max-w-2xl"}>
     {eyebrow && (
-      <Kicker ar={ar} className="block mb-3 text-[11.5px]" style={{ color: PURPLE }}>
-        {eyebrow}
-      </Kicker>
+      <span className={`flex items-center gap-2.5 mb-3.5 ${center ? "justify-center" : ""}`}>
+        <span className="h-[1.5px] w-7 rounded-full" style={{ background: GOLD_GRAD }} aria-hidden />
+        <Kicker ar={ar} className="text-[11.5px]" style={{ color: GOLD_DEEP }}>
+          {eyebrow}
+        </Kicker>
+        {center && <span className="h-[1.5px] w-7 rounded-full" style={{ background: GOLD_GRAD }} aria-hidden />}
+      </span>
     )}
-    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.08] tracking-[-0.015em] font-extrabold" style={{ color: INK, fontFamily: font }}>
+    <h2 className="text-[clamp(1.9rem,4.2vw,3.1rem)] leading-[1.08] tracking-[-0.02em] font-extrabold" style={{ color: INK, fontFamily: font }}>
       {title}
     </h2>
-    {sub && <p className="mt-4 text-[14px] text-[#1A0F2E]/65 leading-relaxed">{sub}</p>}
+    {sub && <p className="mt-5 text-[14px] text-[#1A0F2E]/65 leading-relaxed">{sub}</p>}
   </div>
 );
 
@@ -792,6 +806,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     heroSub: isRTL
       ? "نصّك بالدارجة يولي صوت طبيعي في 30 ثانية — بلا ستوديو، بلا ميكرو، بلا انتظار. 50 نقطة هدية وقت التسجيل، بلا بطاقة وبلا التزام."
       : "Votre texte en darija devient une voix naturelle en 30 secondes — sans studio, sans micro, sans attente. 50 points offerts à l'inscription, sans carte, sans engagement.",
+    /* Ancrage de prix : le repère du marché (1 500–3 000 DZD la minute en
+       studio) face au prix réel. Les deux montants viennent du comparatif. */
+    studioPrice: isRTL ? "في الستوديو" : "En studio",
+    priceOld: isRTL ? "8 000 – 20 000 دج" : "8 000 à 20 000 DZD",
+    priceNow: isRTL ? "من 500 دج" : "dès 500 DZD",
     welcomeChip: isRTL ? "50 نقطة هدية — بلا بطاقة، بلا التزام" : "50 points offerts — sans carte, sans engagement",
     creators: isRTL ? "مستخدم" : "créateurs",
     check1: isRTL ? "الدفع بالذهبية أو CIB" : "Paiement Edahabia / CIB",
@@ -1211,7 +1230,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="max-w-3xl mx-auto text-center">
               <SlideUp>
                 <Kicker ar={isRTL} className="inline-flex items-center gap-1.5 text-[12px] mb-4 px-3 py-1 rounded-full"
-                  style={{ color: "#fff", background: "rgba(107,45,188,0.65)", backdropFilter: "blur(6px)" }}>
+                  style={{ color: "#fff", background: "rgba(16,7,34,0.55)", border: "1px solid rgba(201,162,39,0.55)", backdropFilter: "blur(8px)", boxShadow: "0 8px 24px -14px rgba(0,0,0,0.7)" }}>
                   <Sparkles className="w-3.5 h-3.5" /> {t.heroKicker}
                 </Kicker>
               </SlideUp>
@@ -1230,7 +1249,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       preserveAspectRatio="none"
                       aria-hidden
                     >
-                      <path d="M2 8 C 40 2, 80 11, 120 6 S 180 3, 198 7" fill="none" stroke={AMBER} strokeWidth="4.5" strokeLinecap="round" />
+                      <path d="M2 8 C 40 2, 80 11, 120 6 S 180 3, 198 7" fill="none" stroke={GOLD_LIGHT} strokeWidth="4" strokeLinecap="round" />
                     </svg>
                   </span>
                 </h1>
@@ -1259,6 +1278,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </span>
                     {isIntroPlaying ? (isRTL ? "إيقاف الصوت" : "Pause de l'intro") : (isRTL ? "تشغيل التقديم" : "Play l'intro")}
                   </button>
+                </div>
+                {/* Ancrage de prix — le premier chiffre lu est celui du
+                    studio, donc « 500 DZD » paraît léger, pas cher. */}
+                <div className="mt-6 inline-flex items-center justify-center gap-2.5 flex-wrap rounded-full px-4 py-2"
+                  style={{ background: "rgba(16,7,34,0.55)", border: "1px solid rgba(201,162,39,0.5)", backdropFilter: "blur(8px)" }}>
+                  <span className="text-[11.5px] font-semibold text-white/65">{t.studioPrice}</span>
+                  <span className="text-[12.5px] font-bold line-through" style={{ color: "rgba(255,255,255,0.5)" }}>{t.priceOld}</span>
+                  <ArrowIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[13px] font-extrabold" style={{ color: GOLD_LIGHT }}>{t.priceNow}</span>
                 </div>
                 <p className="mt-4 text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: AMBER }}>
                   <Gift className="w-4 h-4" /> {t.welcomeChip}
@@ -1289,8 +1317,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]"
-                  style={{ borderColor: "rgba(107,45,188,0.25)" }}
+                <div className="rounded-2xl border bg-white overflow-hidden shadow-[0_34px_80px_-26px_rgba(0,0,0,0.75)]"
+                  style={{ borderColor: "rgba(201,162,39,0.45)", boxShadow: "0 0 0 1px rgba(201,162,39,0.18), 0 34px 80px -26px rgba(0,0,0,0.75)" }}
                   onMouseEnter={() => setPauseRotate(true)} onMouseLeave={() => setPauseRotate(false)}
                   onFocusCapture={() => setPauseRotate(true)} onBlurCapture={() => setPauseRotate(false)}>
                   <div className="flex items-center gap-1.5 px-4 h-10" style={{ background: INK }}>
@@ -1406,7 +1434,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </SlideUp>
 
         {/* ═══ BANDE MARQUEE (encre) ═══ */}
-        <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: PURPLE_DARK }} aria-hidden>
+        <section className="marquee overflow-hidden py-3.5 border-y" style={{ background: INK, borderColor: "rgba(201,162,39,0.45)" }} aria-hidden>
           <div dir="ltr" className="marquee-track flex w-max items-center">
             {[0, 1].map((copy) => (
               <div key={copy} className="flex items-center shrink-0">
@@ -1779,6 +1807,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ═══ TARIFS ═══ */}
+        {/* ═══ RÉASSURANCE — les 4 promesses qui lèvent le frein d'achat ═══
+            Toutes vérifiables : aucun point débité en cas d'échec (le serveur
+            ne débite qu'après une génération réussie), points sans expiration,
+            paiement en dinars via SATIM, aucun abonnement. */}
+        <section className="pt-4 pb-14 sm:pb-20" aria-label={isRTL ? "ضمانات" : "Nos garanties"}>
+          <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
+            <SlideUp>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { icon: ShieldCheck, fr: "Aucun point débité si la génération échoue", ar: "ما تنقصش النقاط إذا فشل التوليد" },
+                  { icon: InfinityIcon, fr: "Points sans date d'expiration", ar: "النقاط ما تنتهيش، تبقى عندك" },
+                  { icon: Wallet, fr: "Paiement en dinars — SATIM (CIB & Edahabia)", ar: "الدفع بالدينار عبر SATIM (CIB و الذهبية)" },
+                  { icon: Check, fr: "Sans abonnement — vous payez seulement vos audios", ar: "بلا اشتراك — تخلّص غير على واش تولّد" },
+                ].map((item, i) => {
+                  const Icone = item.icon;
+                  return (
+                    <div key={i} className="relative rounded-2xl bg-white p-5 h-full card-lift overflow-hidden"
+                      style={{ border: `1px solid ${BORDER}`, boxShadow: "0 14px 34px -26px rgba(26,15,46,0.45)" }}>
+                      <span className="absolute inset-x-6 top-0 h-[2px]" aria-hidden
+                        style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                      <span className="w-10 h-10 rounded-xl flex items-center justify-center mb-3.5"
+                        style={{ background: "#FBF7EA", color: GOLD_DEEP, border: "1px solid rgba(201,162,39,0.35)" }}>
+                        <Icone className="w-5 h-5" />
+                      </span>
+                      <p className="text-[13.5px] font-semibold leading-snug" style={{ color: INK }}>
+                        {isRTL ? item.ar : item.fr}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </SlideUp>
+          </div>
+        </section>
+
         <section id="pricing" className="py-16 sm:py-24 scroll-mt-[130px]">
           <div className="mx-auto max-w-[1280px] px-5 sm:px-6">
             <SlideUp>
@@ -1790,9 +1853,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="mb-10 mt-10 max-w-2xl mx-auto">
                 <button type="button" onClick={goSignup}
                   className="relative w-full rounded-2xl border-2 border-dashed text-start focus-ring transition hover:bg-[#FDF6E3]"
-                  style={{ borderColor: AMBER, background: "#FCF4E0" }}>
+                  style={{ borderColor: "rgba(201,162,39,0.65)", background: "#FBF7EA" }}>
                   <span className="flex items-center gap-4 px-4 sm:px-5 py-4">
-                    <span className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: AMBER, color: INK }}>
+                    <span className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: GOLD_GRAD, color: INK }}>
                       <Gift className="w-5 h-5" />
                     </span>
                     <span className="flex-1 min-w-0">
@@ -1812,13 +1875,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <SlideUp key={p.pts} delay={i * 0.06}>
                   <div className={`relative rounded-2xl border p-6 h-full flex flex-col card-lift ${p.featured ? "text-white" : "bg-white"}`}
                     style={p.featured ? {
-                      borderColor: PURPLE,
+                      borderColor: "rgba(201,162,39,0.9)",
                       background: `linear-gradient(160deg, ${PURPLE} 0%, ${PURPLE_DARK} 100%)`,
-                      boxShadow: "0 22px 46px -20px rgba(107,45,188,0.6)",
+                      boxShadow: "0 0 0 1px rgba(201,162,39,0.35), 0 26px 54px -20px rgba(107,45,188,0.7)",
                     } : { borderColor: BORDER }}>
                     {p.featured && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-extrabold whitespace-nowrap"
-                        style={{ background: AMBER, color: INK }}>
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full text-[10px] font-extrabold whitespace-nowrap flex items-center gap-1.5"
+                        style={{ background: GOLD_GRAD, color: INK, boxShadow: "0 8px 20px -8px rgba(166,129,27,0.9)" }}>
+                        <Crown className="w-3 h-3 shrink-0" />
                         <Kicker ar={isRTL} className="text-[10px]">{t.popular}</Kicker>
                       </div>
                     )}
@@ -1843,7 +1907,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
                     <button type="button" onClick={goSignup}
                       className="h-11 rounded-xl text-[13px] font-bold transition focus-ring mt-4 text-white hover:brightness-110"
-                      style={p.featured ? { background: INK } : { background: PURPLE }}>
+                      style={p.featured
+                        ? { background: GOLD_GRAD, color: INK, boxShadow: "0 14px 30px -14px rgba(166,129,27,0.9)" }
+                        : { background: PURPLE }}>
                       {t.choose}
                     </button>
                   </div>
@@ -1923,8 +1989,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span key={i} className="w-1.5 rounded-full bg-white" style={{ height: h }} />
                   ))}
                 </div>
-                <div className="absolute top-7 end-7 w-2.5 h-2.5 rotate-45" style={{ background: AMBER }} aria-hidden />
-                <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-30 blur-3xl" style={{ background: "radial-gradient(circle, #E9A13B 0%, transparent 70%)" }} aria-hidden />
+                <div className="absolute top-7 end-7 w-2.5 h-2.5 rotate-45" style={{ background: GOLD }} aria-hidden />
+                <div className="absolute inset-x-10 top-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, rgba(235,215,154,0.9), transparent)" }} aria-hidden />
+                <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-30 blur-3xl" style={{ background: "radial-gradient(circle, #C9A227 0%, transparent 70%)" }} aria-hidden />
                 <div className="relative">
                   <h2 className="text-[clamp(2rem,5vw,3.6rem)] leading-[1.06] font-extrabold" style={{ fontFamily: display }}>
                     {t.ctaTitle}
@@ -1932,7 +1999,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <p className="mt-4 text-[15px] text-white/80 max-w-md mx-auto">{t.ctaSub}</p>
                   {countdown && (
                     <div className="mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-extrabold"
-                      style={{ background: AMBER, color: INK }}>
+                      style={{ background: GOLD_GRAD, color: INK }}>
                       <Timer className="w-4 h-4" />
                       <span>{t.expiresIn}</span>
                       <Mono dir="ltr" className="tabular-nums">{countdown.h}:{countdown.m}:{countdown.s}</Mono>
@@ -1940,7 +2007,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   )}
                   <button type="button" onClick={goSignup}
                     className="mt-8 inline-flex items-center gap-2 h-14 px-8 rounded-full font-extrabold text-[15px] transition focus-ring hover:scale-[1.02]"
-                    style={{ background: PAPER, color: PURPLE }}>
+                    style={{ background: GOLD_GRAD, color: INK, boxShadow: "0 18px 40px -16px rgba(166,129,27,0.85)" }}>
                     {t.tryFree}
                     <ArrowIcon className="w-4 h-4" />
                   </button>
