@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
   ExternalLink, RefreshCw, Building2, Layers, CheckCircle2,
@@ -165,7 +166,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12 pb-24">
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 pb-16">
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -245,14 +246,28 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         })}
       </div>
 
-      {/* Checkout Popup — s'ouvre directement au clic sur un pack */}
-      {isCheckoutOpen && (
+      {/* Checkout Popup — s'ouvre directement au clic sur un pack. Rendu via portail
+          directement dans <body> pour échapper à tout conteneur parent (max-w, overflow, transform)
+          qui pourrait casser le "position: fixed" et écraser la taille du popup. */}
+      {isCheckoutOpen && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 15, 20, 0.6)',
+            backdropFilter: 'blur(4px)',
+            padding: '16px',
+            overflowY: 'auto',
+          }}
           onClick={() => setIsCheckoutOpen(false)}
         >
           <div
-            className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full my-8 overflow-hidden relative"
+            className="bg-white rounded-3xl shadow-2xl overflow-hidden relative"
+            style={{ maxWidth: '960px', width: '100%', margin: 'auto' }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -571,52 +586,53 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         )}
       </div>
         </div>
-      )}
+      , document.body)}
 
       {/* FAQ Section */}
-      <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6 pt-8 border-t border-slate-100">
-        <div className="p-6 rounded-2xl bg-purple-50 border border-purple-100 space-y-3">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-purple-600" />
+      <div className="max-w-3xl mx-auto divide-y divide-slate-100 border-t border-b border-slate-100">
+        <div className="flex items-start gap-3 py-4">
+          <Zap className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+          <div>
             <h3 className="text-sm font-bold text-slate-900">
               {language === 'ar' ? 'كيف أستخدم النقاط؟' : 'Comment utiliser les points?'}
             </h3>
+            <p className="text-sm text-slate-500">
+              {language === 'ar'
+                ? 'كل تسجيل صوتي يستهلك 20 نقطة فقط'
+                : 'Chaque génération vocale consomme 20 points'}
+            </p>
           </div>
-          <p className="text-sm text-slate-600">
-            {language === 'ar'
-              ? 'كل تسجيل صوتي يستهلك 20 نقطة فقط'
-              : 'Chaque génération vocale consomme 20 points'}
-          </p>
         </div>
 
-        <div className="p-6 rounded-2xl bg-purple-50 border border-purple-100 space-y-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-purple-600" />
+        <div className="flex items-start gap-3 py-4">
+          <ShieldCheck className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+          <div>
             <h3 className="text-sm font-bold text-slate-900">
               {language === 'ar' ? 'هل الدفع آمن؟' : 'Paiement sécurisé?'}
             </h3>
+            <p className="text-sm text-slate-500">
+              {language === 'ar'
+                ? 'مدفوعات مشفرة عبر SATIM مع حماية SSL 256-bit'
+                : 'Paiements cryptés via SATIM avec protection SSL 256-bit'}
+            </p>
           </div>
-          <p className="text-sm text-slate-600">
-            {language === 'ar'
-              ? 'مدفوعات مشفرة عبر SATIM مع حماية SSL 256-bit'
-              : 'Paiements cryptés via SATIM avec protection SSL 256-bit'}
-          </p>
         </div>
 
-        <div className="p-6 rounded-2xl bg-purple-50 border border-purple-100 space-y-3">
-          <div className="flex items-center gap-2">
-            <HelpCircle className="w-5 h-5 text-purple-600" />
+        <div className="flex items-start gap-3 py-4">
+          <HelpCircle className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+          <div>
             <h3 className="text-sm font-bold text-slate-900">
               {language === 'ar' ? 'هل تنتهي صلاحية النقاط؟' : 'Les points expirent-ils?'}
             </h3>
+            <p className="text-sm text-slate-500">
+              {language === 'ar'
+                ? 'لا، نقاطك تبقى متاحة مدى الحياة'
+                : 'Non, vos points restent disponibles à vie'}
+            </p>
           </div>
-          <p className="text-sm text-slate-600">
-            {language === 'ar'
-              ? 'لا، نقاطك تبقى متاحة مدى الحياة'
-              : 'Non, vos points restent disponibles à vie'}
-          </p>
         </div>
       </div>
+
 
       {/* Confirmation Popup — affiché AVANT d'ouvrir la page de paiement SATIM */}
       {showConfirmModal && (
