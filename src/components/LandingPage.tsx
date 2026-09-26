@@ -51,7 +51,7 @@ const INK = "#1A0F2E";
 const PURPLE = "#6B2DBC";
 const PURPLE_DARK = "#4A1E87";
 const PURPLE_SOFT = "#F0E8FA";
-const PURPLE_GLOW = "rgba(107, 45, 188, 0.45)";
+const PURPLE_GLOW = "rgba(107, 45, 188, 0.26)";
 const GREEN = "#0E7A45";
 /* Accent clair pour les fonds sombres (photo, noir) : le violet de marque y
    serait trop sourd. C'est LE détail violet du hero. */
@@ -96,9 +96,6 @@ const GlobalStyles = () => (
     #sawtify-landing .hov-ink:hover, #sawtify-landing .hov-ink:focus-visible { border-color: rgba(26,15,46,0.5); }
     @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 ${PURPLE_GLOW}; } 70% { box-shadow: 0 0 0 18px rgba(107,45,188,0); } }
     #sawtify-landing .pulse-glow { animation: pulse-glow 2.4s infinite; }
-    @keyframes shine { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
-    #sawtify-landing .shine { position: relative; overflow: hidden; }
-    #sawtify-landing .shine::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%); animation: shine 3.5s ease-in-out infinite; pointer-events: none; }
     @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     #sawtify-landing .float { animation: float-y 4.5s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
@@ -1222,7 +1219,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <SlideUp delay={0.22}>
                 <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
                   <button type="button" onClick={goSignup}
-                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
+                    className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
                     style={{ background: INK, boxShadow: "0 14px 32px -14px rgba(11,7,19,0.8)" }}>
                     {t.tryFree}
                   </button>
@@ -1473,7 +1470,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
                 <button type="button" onClick={goSignup}
-                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110 shine"
+                  className="h-12 px-7 rounded-full text-[14px] font-bold text-white focus-ring transition hover:brightness-110"
                   style={{ background: INK, boxShadow: "0 14px 32px -14px rgba(11,7,19,0.8)" }}>
                   {t.tryFree}
                 </button>
@@ -2166,7 +2163,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 )}
                 <button type="button" onClick={() => { setExitOpen(false); goSignup(); }}
-                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring shine"
+                  className="mt-5 w-full h-12 rounded-xl font-bold text-[14px] text-white transition hover:brightness-110 focus-ring"
                   style={{ background: INK, boxShadow: "0 14px 32px -14px rgba(11,7,19,0.8)" }}>
                   {t.exitCta}
                 </button>
