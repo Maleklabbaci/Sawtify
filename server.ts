@@ -213,7 +213,11 @@ const TTS_UNLOCK_BALANCE_THRESHOLD = Number(process.env.TTS_UNLOCK_BALANCE_THRES
 // FIX COST-6 : plafonne la durée audio générable par les comptes free_trial
 // (jamais eu de transaction complétée) à ~30-40s, pour couper le coût max
 // d'une génération 100% gratuite. N'affecte pas les comptes ayant déjà payé.
-const FREE_TRIAL_MAX_DURATION_SECONDS = Number(process.env.FREE_TRIAL_MAX_DURATION_SECONDS) || 35;
+const FREE_TRIAL_MAX_DURATION_SECONDS = Number(process.env.FREE_TRIAL_MAX_DURATION_SECONDS) || 45;
+// Après ce nombre de points déjà dépensés (générations passées), le plafond
+// d'essai gratuit (FREE_TRIAL_MAX_DURATION_SECONDS) est levé : l'utilisateur
+// retombe alors sous la limite normale de caractères (TTS_MAX_CHARS_DEFAULT).
+const FREE_TRIAL_UNLOCK_POINTS_THRESHOLD = Number(process.env.FREE_TRIAL_UNLOCK_POINTS_THRESHOLD) || 100;
 
 function hashApiKey(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -1746,12 +1750,19 @@ async function startServer() {
       if (!userId) return res.status(401).json({ error: "Authentification requise." });
       if (!supabaseClient) return res.status(503).json({ error: "Base de données indisponible." });
 
-      const [balanceBeforeGeneration, paidTxCountResult] = await Promise.all([
+      const [balanceBeforeGeneration, paidTxCountResult, pointsSpentResult] = await Promise.all([
         getUserBalance(userId),
         supabaseClient.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed"),
+        supabaseClient.from("voice_generations").select("points_deducted").eq("user_id", userId),
       ]);
       const paidTransactionCount = paidTxCountResult.count || 0;
       const isPaidUser = paidTransactionCount > 0;
+      const totalPointsSpent = (pointsSpentResult.data || []).reduce(
+        (sum: number, row: any) => sum + Number(row.points_deducted || 0), 0
+      );
+      // FIX COST-6bis : passé ce seuil de points déjà consommés, on considère l'utilisateur
+      // suffisamment engagé pour lever le plafond de durée de l'essai gratuit, même sans paiement.
+      const hasUnlockedFreeTrialCap = isPaidUser || totalPointsSpent >= FREE_TRIAL_UNLOCK_POINTS_THRESHOLD;
 
       if (balanceBeforeGeneration === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
       if (balanceBeforeGeneration !== null && balanceBeforeGeneration < BASE_POINTS_COST) {
@@ -1771,8 +1782,9 @@ async function startServer() {
         });
       }
 
-      // FIX COST-6 : plafonne la durée pour les comptes free_trial (aucune transaction payée).
-      if (!isPaidUser) {
+      // FIX COST-6 : plafonne la durée pour les comptes qui n'ont ni payé, ni dépassé
+      // le seuil de points déjà dépensés (FREE_TRIAL_UNLOCK_POINTS_THRESHOLD).
+      if (!hasUnlockedFreeTrialCap) {
         const freeTrialMaxChars = FREE_TRIAL_MAX_DURATION_SECONDS * TTS_CHARS_PER_SECOND_ESTIMATE;
         if (text.trim().length > freeTrialMaxChars) {
           return res.status(400).json({
