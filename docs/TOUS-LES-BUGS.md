@@ -111,11 +111,43 @@ Le détail complet est dans `docs/MODIF-26-09-popup-et-voix.md`.
 | 6 | **Les 3 réglages SlickPay** dans Render | je n'ai pas accès à ton tableau de bord Render |
 | 7 | **Les e-mails Supabase** | envoyés par Supabase, pas par Sawtify |
 | 8 | **`RechargeModal.tsx`** | meuble oublié, utilisé par personne |
-| 9 | **Une autre session travaille sur le même dépôt** | il existe une branche `arena/01a0d1f6-sawtify` avec d'autres modifications. Si tu déploies les deux, elles peuvent entrer en conflit |
+| 9 | **Il existe DEUX versions de ton site dans le dépôt** | voir la section ⑥ ci-dessous — **c'est le point le plus important de ce document** |
 
 ---
 
-## ⑥ MA LIMITE, dite clairement
+## ⑥ ⚠️ ATTENTION — IL Y A DEUX VERSIONS DE TON SITE
+
+En vérifiant, je suis tombé sur quelque chose que tu ne peux pas deviner depuis ton écran.
+
+**Ton dépôt contient deux versions du site, qui ne partagent pas la même histoire :**
+
+| | `main` (la tienne) | `arena/01a0d1f6-sawtify` (une autre) |
+|---|---|---|
+| Dernière modification | **aujourd'hui** | **24 septembre** (2 jours avant) |
+| Nombre de modifications | 2 | 303 |
+| Le dossier `tts/` (le moteur vocal) | ✅ oui | ❌ **absent** |
+| **La correction darija** | ✅ **oui** | ❌ **non** |
+| **Le caractère de la voix** | ✅ **oui** | ❌ **non** |
+| Les 30 voix et les balises | ✅ oui | ❌ non |
+| WhatsApp dans l'admin, messages d'accueil | ❌ non | ✅ oui |
+| Correctifs de déploiement / page blanche | ❌ non | ✅ oui |
+
+**Ce que ça veut dire, en une phrase :** la version `arena/01a0d1f6-sawtify` **fait revenir le bug de
+la darija**. Elle a été faite sur une base plus ancienne, avant que le moteur vocal existe.
+
+**Donc :**
+- ✅ Continue à déployer depuis **`main`** — c'est là que tout ton travail récent est.
+- ⚠️ **Ne mélange jamais les deux.** Si quelqu'un fusionne `arena/01a0d1f6-sawtify` dans `main`,
+  ça **supprime le dossier `tts/`** et la darija redevient de l'arabe de journal télévisé.
+- 💡 Si des choses t'intéressent dans l'autre version (WhatsApp dans l'admin, correctifs de
+  déploiement), il faut les reprendre **une par une, à la main** — pas les fusionner.
+
+C'est probablement une autre session de travail sur le même dépôt. Je préfère te le dire
+maintenant plutôt que tu le découvres après un déploiement.
+
+---
+
+## ⑦ MA LIMITE, dite clairement
 
 **Je ne peux pas écouter ce que produit le moteur vocal.** Je n'ai pas de clé API. Tout ce que
 j'affirme sur le son, je le déduis de **ce qui part réellement à Google** — et ça, je le vérifie au
@@ -126,7 +158,7 @@ C'est exactement pour ça que `npm run apercus:voix` est la prochaine étape : *
 
 ---
 
-## ⑦ L'état actuel, mesuré à l'instant
+## ⑧ L'état actuel, mesuré à l'instant
 
 ```
 diag:darija ......... LA DARIJA FONCTIONNE (6/6)
