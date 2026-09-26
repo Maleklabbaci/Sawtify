@@ -44,6 +44,7 @@ Ce qu'elle vérifie, et ce qu'elle a répondu :
 | 2 | Elle était posée à `z-[200]`, donc **au-dessus de tout** — un message « solde insuffisant » pouvait passer inaperçu derrière | ✅ `b5f57e5` |
 | 3 | **17 fautes d'accord** dans les descriptions des voix : « Voix décontracté », « Voix clair », « Voix enjoué », « Voix mûr »… (« voix » est féminin) | ✅ `b5f57e5` |
 | 4 | Trois libellés arabes qui se lisaient mal (`صوت متنفس`, `صوت عالِم`, `صوت معلوماتي`) | ✅ `b5f57e5` |
+| 4bis | **« Prêt ✓ » restait en français** en arabe, dans la barre qui apparaît après une génération | ✅ (voir ci-dessous) |
 
 ### Ceux qui **existaient avant** et qui auraient touché tes utilisateurs
 
@@ -85,12 +86,16 @@ code de production.** Il ne reste que deux fichiers à envoyer.
 
 ---
 
-## ④ LES 2 FICHIERS À ENVOYER
+## ④ LES 3 FICHIERS À ENVOYER
 
 | Fichier | Ce qu'il corrige |
 |---|---|
-| `src/components/WhatsNewV41.tsx` | la pop-up (bug 1 et 2) |
-| `src/data/voicesV41.ts` | l'écriture des voix (bug 3 et 4) |
+| `src/components/WhatsNewV41.tsx` | la pop-up (bugs 1 et 2) |
+| `src/data/voicesV41.ts` | l'écriture des voix (bugs 3 et 4) |
+| `src/components/TTSStudio.tsx` | « Prêt ✓ » en français au lieu de « جاهز ✓ » (bug 4bis) — **1 ligne** |
+
+Les trois sont **autonomes** : ils n'utilisent que des éléments déjà présents en ligne. Il n'y a
+rien à câbler, rien à configurer, aucune autre modification à faire.
 
 Le détail complet est dans `docs/MODIF-26-09-popup-et-voix.md`.
 
@@ -104,14 +109,59 @@ Le détail complet est dans `docs/MODIF-26-09-popup-et-voix.md`.
 | # | Sujet | Pourquoi ce n'est pas fait |
 |---|---|---|
 | 1 | **Les 30 aperçus audio** | il faut **ta clé API** (~3 dinars). Sans eux, on ne peut pas écouter les voix |
-| 2 | **Le genre des 21 nouvelles voix** | Google **ne le publie pas**. Seule ton oreille peut trancher |
-| 3 | **Le filtre Hommes / Femmes** ne montre que 5 H et 4 F sur 30 | parce que le genre des 21 autres est inconnu (conséquence du n°2) |
+| 2 | **Le genre des 21 nouvelles voix** | Google ne le publie pas — **mais on peut le MESURER** : `npm run analyser:genre` (voir ci-dessous) |
+| 3 | **Le filtre Hommes / Femmes** ne montre que 5 H et 4 F sur 30 | parce que le genre des 21 autres est inconnu — se règle avec le n°2 |
 | 4 | **Les 4 voix régionales** | chantier jamais commencé |
 | 5 | **`AUDIO_L16` ou `audio/l16` ?** | ✅ **TRANCHÉ le 26/09 — le code est juste**, voir ci-dessous |
 | 6 | **Les 3 réglages SlickPay** dans Render | je n'ai pas accès à ton tableau de bord Render |
 | 7 | **Les e-mails Supabase** | envoyés par Supabase, pas par Sawtify |
 | 8 | **`RechargeModal.tsx`** | meuble oublié, utilisé par personne |
 | 9 | **Il existe DEUX versions de ton site dans le dépôt** | voir la section ⑥ ci-dessous — **c'est le point le plus important de ce document** |
+
+### Les voix : homme ou femme ? — la réponse honnête est NON
+
+Tu as demandé : « les voix, est-ce femme, est-ce homme, tu es sûr ? »
+
+**Non, je ne suis pas sûr — et personne ne peut l'être à ma place.** Google publie 30 voix mais
+**ne dit pas lesquelles sont des hommes et lesquelles sont des femmes**. C'est écrit noir sur
+blanc dans sa documentation : elle ne donne qu'un descripteur de caractère (« Bright », « Upbeat »,
+« Informative »…), **jamais le genre**.
+
+État exact dans Sawtify aujourd'hui :
+
+| | Nombre | Genre |
+|---|---|---|
+| Les 9 voix algériennes (Amin, Yasmine, Karim…) | 9 | ✅ **connu** — 5 hommes, 4 femmes (choix éditorial) |
+| Les 21 nouvelles voix (Puck, Kore, Fenrir…) | 21 | ❓ **inconnu** — Google ne le publie pas |
+
+C'est pour ça que le filtre « Femmes » ne montre que 4 voix et « Hommes » seulement 5 : les 21
+autres n'apparaissent que dans « Toutes ». Le code dit `'unknown'` — il **ne devine pas**.
+
+**Mais on peut le MESURER, et c'est fait :**
+
+```bash
+npm run apercus:voix      # fabrique les 30 aperçus  (nécessite ta clé, ~3 dinars)
+npm run analyser:genre    # les mesure, et propose un classement
+```
+
+Comment ça marche, en une phrase : **une voix grave vibre lentement, une voix aiguë vibre vite.**
+Le script découpe chaque aperçu, mesure la fréquence fondamentale de chaque tranche parlée, prend
+la médiane, et propose :
+
+| Fréquence mesurée | Proposition |
+|---|---|
+| moins de 150 Hz | voix d'homme |
+| plus de 175 Hz | voix de femme |
+| entre les deux | **à trancher à l'oreille** (le script ne tranche pas) |
+
+Testé sur deux voix fabriquées à fréquence connue : **110 Hz → « homme »** et **215 Hz → « femme »**,
+les deux justes.
+
+⚠️ **Ce n'est pas une vérité absolue** : une voix d'homme très haut perchée peut se tromper de case.
+Le script écrit une **proposition** dans `storage/genre-mesure.json` — **il ne modifie rien tout
+seul**. On corrigera le catalogue avec ce que ton oreille confirme.
+
+---
 
 ### Le doute `AUDIO_L16` — TRANCHÉ, le code avait raison
 

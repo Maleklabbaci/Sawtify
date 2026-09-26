@@ -1,15 +1,16 @@
 # Ce qu'il faut déployer — pop-up 4.1 + écriture des voix
 
-**26 septembre 2026.** Deux corrections, **deux fichiers**, rien d'autre à toucher.
+**26 septembre 2026.** Trois corrections, **trois fichiers**, rien d'autre à toucher.
 
 ---
 
-## Les 2 fichiers
+## Les 3 fichiers
 
 | Fichier | Ce qui change |
 |---|---|
 | `src/components/WhatsNewV41.tsx` | **réécrit** — la pop-up d'accueil, dans le style des autres modales |
 | `src/data/voicesV41.ts` | **modifié** — les descriptions des 21 nouvelles voix |
+| `src/components/TTSStudio.tsx` | **1 ligne** — le mot « Prêt ✓ » de la barre de résultat |
 
 Aucun autre fichier n'est concerné. Ni le serveur, ni la base de données, ni le paiement,
 ni le moteur vocal.
@@ -65,7 +66,25 @@ Deux boutons en bas : **« Commencer à créer »** (violet) et **« Ajouter des
 
 ---
 
-## ② L'écriture des voix — `voicesV41.ts`
+## ② La barre de résultat — `TTSStudio.tsx` (1 ligne)
+
+Dans la barre qui apparaît **après une génération**, le badge vert affichait « Prêt ✓ » — écrit en
+français **en dur**. Résultat : il restait en français même quand l'interface du studio est en
+arabe, au milieu d'un écran entièrement traduit.
+
+C'était le **seul** texte français non traduit de tout `TTSStudio.tsx` (vérifié par balayage
+automatique de tous les textes affichés). Il dit maintenant :
+
+| Langue | Avant | Après |
+|---|---|---|
+| Français | Prêt ✓ | Prêt ✓ |
+| Arabe | Prêt ✓ ❌ | **جاهز ✓** ✅ |
+
+Une seule ligne change, et rien d'autre dans ce fichier.
+
+---
+
+## ③ L'écriture des voix — `voicesV41.ts`
 
 La ligne affichée sous chaque voix est construite comme ça :
 
@@ -108,7 +127,7 @@ Une consigne a été ajoutée en tête du fichier pour que l'accord ne soit pas 
 
 ## Comment déployer
 
-1. Remplacer les **2 fichiers** dans le dépôt, aux mêmes chemins.
+1. Remplacer les **3 fichiers** dans le dépôt, aux mêmes chemins.
 2. Envoyer sur la branche qui sert la production.
 3. Render reconstruit le site (~1 à 2 minutes). C'est tout.
 
