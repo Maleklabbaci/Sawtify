@@ -417,6 +417,68 @@ const force = buildTtsRequest({
   ok((langLegacy.body as any).contents[0].parts[0].speech_metadata === undefined,
       "mode 3.1 : aucun speech_metadata (non supporté)");
 
+  section("13quater. LE CARACTÈRE DE LA VOIX EST REDIT AU MODÈLE");
+
+  // ── CE QUI MANQUAIT ─────────────────────────────────────────────────────
+  // L'ancien prompt 3.1 portait une ligne « Speaker: » qui décrivait le jeu de
+  // la voix (« Amin, a young friendly Algerian man. Casual, upbeat, talking
+  // like a friend. »). Le passage à la 3.8 a supprimé tout le bloc DIRECTOR'S
+  // NOTES — à raison — et cette ligne est partie avec. La voix ne recevait
+  // plus que du texte brut, sans aucune indication de jeu.
+  const avecCaractere = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "واش راك يا خويا؟", voiceName: "Puck",
+    character: "casual, upbeat, like a friend talking",
+  });
+  const caractereStyle: string =
+    (avecCaractere.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(/casual, upbeat, like a friend talking/.test(caractereStyle),
+      "★ le caractère de la voix (ex-« Speaker: ») arrive bien dans `style`");
+  ok(/Algerian Darija/.test(caractereStyle) && caractereStyle.indexOf("Darija") < caractereStyle.indexOf("casual"),
+      "la LANGUE passe avant le caractère (l'information la plus structurante d'abord)");
+
+  // ── LA RÈGLE ANTI-CONTRADICTION ─────────────────────────────────────────
+  // « calme et posé » + « énergique et punchy » dans le même style = deux
+  // ordres opposés → la voix dérive. Le ton demandé par l'utilisateur GAGNE.
+  const tonGagne = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "[calm] واش راك يا خويا؟", voiceName: "Puck",
+    character: "high energy, punchy, hype announcer",
+  });
+  const tonGagneStyle: string =
+    (tonGagne.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(/calm and composed/.test(tonGagneStyle), "★ ton demandé présent");
+  ok(!/punchy|high energy/i.test(tonGagneStyle),
+      "★ ★ le caractère opposé est ÉCARTÉ : jamais « calme » ET « énergique » ensemble");
+
+  // Un ton neutre (`[natural]` → aucune consigne) ne doit PAS faire disparaître
+  // le caractère : il n'y a alors aucune contradiction à éviter.
+  const tonNeutre = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "[natural] واش راك يا خويا؟", voiceName: "Puck",
+    character: "soft, calm and soothing",
+  });
+  ok(/soft, calm and soothing/.test(
+        (tonNeutre.body as any).contents[0].parts[0].speech_metadata?.style || ""),
+      "★ un ton neutre ne fait pas disparaître le caractère");
+
+  // ── LE MODE 3.1 N'EST PAS TOUCHÉ ────────────────────────────────────────
+  // En legacy, le caractère reste dans la ligne « Speaker: », en entier.
+  const legacyCaractere = buildTtsRequest({
+    model: "gemini-3.1-flash-tts-preview", rawText: "واش راك", voiceName: "Puck",
+    legacyPersona: "Amin, a young friendly Algerian man. Casual, upbeat, talking like a friend.",
+    character: "casual, upbeat, like a friend talking",
+  });
+  const legacyTexte = String((legacyCaractere.body as any).contents[0].parts[0].text || "");
+  ok(/Speaker: Amin, a young friendly Algerian man/.test(legacyTexte),
+      "mode 3.1 : la ligne « Speaker: » complète est intacte");
+  ok((legacyCaractere.body as any).contents[0].parts[0].speech_metadata === undefined,
+      "mode 3.1 : le caractère ne déborde pas dans un speech_metadata inexistant");
+
+  // Sans caractère fourni, rien n'est ajouté : on n'invente jamais rien.
+  const sansCaractere = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "Bonjour tout le monde.", voiceName: "Puck",
+  });
+  ok((sansCaractere.body as any).contents[0].parts[0].speech_metadata === undefined,
+      "★ aucune voix de caractère inventée quand il n'y en a pas");
+
   section("13bis. LES EFFETS DU MENU FONT TOUS QUELQUE CHOSE (correctif du 26/09)");
 
   // RÉGRESSION HISTORIQUE : l'app parlait encore la langue 3.1, où `[calm]`

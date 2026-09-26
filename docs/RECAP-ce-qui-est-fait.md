@@ -22,14 +22,14 @@ Les deux sont listées plus bas, noir sur blanc.
 | 4 | Les 26 imports pointent vers un fichier qui existe | ✅ 26 / 26 |
 | 5 | Le frontend n'a pas été touché (hors autorisation) | ✅ **1 seul fichier** : `src/data/codeSnippets.ts`, sur ton accord explicite |
 | 6 | Toutes les routes de l'API sont déclarées | ✅ 7 / 7 |
-| 7 | La suite de tests complète | ✅ **295 vérifications chiffrées, 0 échec** |
+| 7 | La suite de tests complète | ✅ **303 vérifications chiffrées, 0 échec** |
 | 8 | Aucun test n'a été désactivé ou contourné | ✅ vérifié |
 
 ### Le détail des tests
 
 | Commande | Résultat | Ce qu'elle prouve |
 |---|---|---|
-| `npm run test:tts` | **169 / 169** | le moteur vocal, les deux modes, le découpage, les balises, le style |
+| `npm run test:tts` | **177 / 177** | le moteur vocal, les deux modes, le découpage, les balises, le style |
 | `npm run test:voix` | **22 / 22** | les 90 écritures d'un nom tombent sur la bonne voix |
 | `npm run verif:balises` | **✅ complet** | les 40 balises officielles Google sont intégrées |
 | `npm run test:apercus` | **39 / 39** | les aperçus ; passera à **43 / 43** après ta génération |
@@ -97,13 +97,18 @@ message : c'est du texte, pas de la casse.
 1. **Une balise pouvait être coupée en deux** sur les textes longs, et les deux moitiés partaient
    brutes vers Gemini (qui risquait de les prononcer). Corrigé, et balayé sur 261 positions.
 2. **Un fragment de balise pouvait quand même atteindre Gemini** (`<laugh` non fermé). Corrigé.
-3. **La darija n'était plus annoncée au modèle** (trouvé le 26/09 au soir). Depuis le passage à la
+3. **La darija n'était plus annoncée au modèle, et la voix n'avait plus de caractère**
+   (trouvés le 26/09 au soir, en comparant avec l'ancien `server.ts`). Depuis le passage à la
    3.8, la requête ne disait plus *dans quelle langue* parler. Un texte en lettres arabes était
    donc lu en **arabe standard** — la langue des journaux télévisés — et non en algérien parlé.
    La darija n'ayant pas d'orthographe officielle, le modèle ne pouvait pas le deviner seul :
    c'était **la** cause principale du défaut de prononciation. Corrigé, **13 nouveaux tests**.
    Au passage, un second défaut trouvé dans la même ligne de code : **la vitesse écrasait le ton**
    demandé (« `[calm]` + vitesse rapide » n'envoyait que la vitesse, le calme disparaissait).
+   Et le troisième, même cause : la ligne `Speaker: Amin, a young friendly Algerian man…` de
+   l'ancien prompt avait disparu avec le reste → la voix ne recevait plus **aucune indication de
+   jeu**. Elle revient, en version courte, et **s'efface dès que tu demandes un ton explicite**
+   (pour ne jamais envoyer « calme » et « énergique » en même temps).
 
 Le découpeur a été déplacé dans le module testé : c'est précisément parce qu'il était intestable
 que le défaut 1 vivait depuis le début.
@@ -194,7 +199,7 @@ Aucune n'était un bug, aucune n'avait d'effet :
 
 ## Résumé en une phrase
 
-**Le backend est prêt et vérifié : 295 contrôles chiffrés + le catalogue complet des balises, 0 échec, tout est sur GitHub.** Il ne reste
+**Le backend est prêt et vérifié : 303 contrôles chiffrés + le catalogue complet des balises, 0 échec, tout est sur GitHub.** Il ne reste
 qu'une chose pour que ce soit totalement fini — **lancer `npm run apercus:voix`** et valider les
 21 genres à l'oreille. Et sur ta machine, lance `npm run lint` une fois : c'est la seule
 vérification que l'environnement d'ici ne permet pas.

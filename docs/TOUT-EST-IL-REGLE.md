@@ -156,13 +156,13 @@ Tout le reste est fait.
 ## ⑦ Les chiffres, vérifiés à l'instant
 
 ```
-moteur vocal            169 / 169
+moteur vocal            177 / 177
 noms des voix            22 /  22
 balises officielles      ✅ complet (40 balises, 5 sections)
 aperçus audio            39 /  39
 documentation            65 /  65
 ───────────────────────────────────
-TOTAL                   335 vérifications, 0 échec
+TOTAL                   343 vérifications, 0 échec
 
 contrôle de syntaxe     0 erreur
 qualité du code         0 erreur

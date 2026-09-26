@@ -727,6 +727,40 @@ const VOICE_PERSONAS: Record<string, string> = {
   voice_nour:   "Nour, a soft calm Algerian woman. Soothing, slow, relaxing.",
 };
 
+/* ===================================================================   LE CARACTÈRE DE LA VOIX, VERSION COURTE (pour le mode 3.8)
+   ────────────────────────────────────────────────────────────────────
+   En 3.1, ce caractère voyageait dans la ligne « Speaker: » des DIRECTOR'S
+   NOTES de l'ancien prompt :
+
+       Speaker: Amin, a young friendly Algerian man. Casual, upbeat,
+                talking like a friend.
+
+   Le passage à la 3.8 a supprimé ce bloc — à raison, Google en fait la 1re
+   cause de dérive de voix — et l'information est partie avec. Résultat : la
+   voix ne savait plus DU TOUT comment parler, elle ne recevait qu'un texte à
+   lire.
+
+   On la remet ici, mais en gardant seulement la partie « comment dire » :
+   le nom et l'identité (« Amin, a young friendly Algerian man ») n'ont rien
+   à faire dans un champ de style — c'est la VOIX choisie qui porte le
+   personnage (Puck = Upbeat, Charon = Informative…). Ce qui manquait, c'est
+   l'indication de JEU, et elle tient en 5 mots.
+   ========================================================================== */
+const VOICE_DELIVERY: Record<string, string> = {
+  voice_amin:   "casual, upbeat, like a friend talking",
+  voice_khalid: "calm, measured, documentary narration",
+  voice_rashid: "high energy, punchy, hype announcer",
+  voice_bilal:  "warm and deep, intimate storytelling",
+  voice_faycal: "confident, direct, persuasive",
+  voice_yasmin: "bright and cheerful, lively",
+  voice_maryam: "warm and gentle, reassuring",
+  voice_layla:  "youthful and playful, bubbly",
+  voice_nour:   "soft, calm and soothing",
+};
+// Les voix hors de cette table (les 21 nouvelles, dont Google ne publie pas
+// le caractère) gardent une indication neutre — jamais rien de contradictoire.
+const VOICE_DELIVERY_FALLBACK = "warm, confident and natural";
+
 const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
   voice_amin: "سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي.",
   voice_yasmin: "مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق وصوت دافئ.",
@@ -1076,6 +1110,8 @@ async function synthesizeWithRetry(
       : "Natural conversational pace.";
   const pitchNote = pitch >= 1.1 ? "Slightly higher pitch, lively." : pitch <= 0.9 ? "Slightly lower pitch, grounded." : "";
   const emotionNote = buildEmotionPromptInstruction(emotionTags);
+  // Version courte du persona, pour le champ `style` du 3.8 (voir VOICE_DELIVERY).
+  const character = VOICE_DELIVERY[originalVoiceId] || VOICE_DELIVERY_FALLBACK;
 
   // ── Style pour le mode MODERN (3.8) ──────────────────────────────────────
   // En 3.8, le « comment dire » vit dans `speech_metadata.style` et doit
@@ -1127,6 +1163,10 @@ async function synthesizeWithRetry(
       // En mode modern on ne transmet que vitesse/hauteur ; l'émotion est
       // déduite par le moteur depuis les balises de sons du transcript.
       style: TTS_ENGINE_MODE === "modern" ? modernStyle : null,
+      // Le « comment dire » propre à la voix (ex-« Speaker: » des DIRECTOR'S
+      // NOTES). Mode modern uniquement : en legacy, le persona ci-dessous le
+      // porte déjà en entier.
+      character: TTS_ENGINE_MODE === "modern" ? character : null,
       // On n'invente AUCUN style à partir des balises (voir TTS_AUTO_STYLE).
       autoStyle: TTS_AUTO_STYLE,
       legacyPersona: persona,

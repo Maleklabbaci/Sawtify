@@ -319,9 +319,53 @@ calm and composed from the very first word, soft and soothing throughout, speaki
 
 (④ le style déduit des balises reste éteint par défaut, comme décidé le 26/09.)
 
+### Et un troisième élément, retrouvé en comparant avec l'ancien fichier
+
+En relisant le prompt d'origine, on s'aperçoit que le bloc « DIRECTOR'S NOTES » ne portait pas
+seulement la langue. Il y avait aussi :
+
+```
+Speaker: Amin, a young friendly Algerian man. Casual, upbeat, talking like a friend.
+```
+
+Cette ligne disait à la voix **comment jouer**. Elle est partie avec le bloc. En 3.8, la voix ne
+recevait donc plus qu'un texte brut, sans la moindre indication de jeu.
+
+**On ne la remet pas telle quelle.** Le nom et l'identité (« Amin, a young friendly Algerian man »)
+n'ont rien à faire dans un champ de style : en 3.8, c'est la **voix choisie** qui porte le
+personnage (Puck = *Upbeat*, Charon = *Informative*, Fenrir = *Excitable*…, les descripteurs
+officiels de Google). Ce qui manquait, c'est **l'indication de jeu**, et elle tient en cinq mots :
+
+| Voix | Ce qui part maintenant dans `style` |
+|---|---|
+| Amine | `casual, upbeat, like a friend talking` |
+| Khalid | `calm, measured, documentary narration` |
+| Rachid | `high energy, punchy, hype announcer` |
+| Bilal | `warm and deep, intimate storytelling` |
+| Fayçal | `confident, direct, persuasive` |
+| Yasmine | `bright and cheerful, lively` |
+| Maryam | `warm and gentle, reassuring` |
+| Layla | `youthful and playful, bubbly` |
+| Nour | `soft, calm and soothing` |
+
+Les 21 autres voix (dont Google ne publie pas le caractère) reçoivent une indication neutre :
+`warm, confident and natural`.
+
+#### La règle anti-contradiction
+
+Si l'utilisateur a demandé un ton explicite, **le caractère est écarté**. Sans ça on enverrait
+« calme et posé » **et** « énergique et punchy » dans la même consigne : deux ordres opposés, et la
+voix dériverait au lieu d'obéir. Le ton de l'utilisateur gagne toujours.
+
+```
+[calm] + voix Rachid
+    avant : … high energy, punchy, hype announcer        ← contredit le calme
+    après : … calm and composed from the very first word  ← le caractère s'efface
+```
+
 ### Couverture
 
-**13 nouveaux tests** (§13ter du test interne) verrouillent les deux défauts :
+**21 nouveaux tests** (§13ter et §13quater du test interne) verrouillent ces trois défauts :
 
 - un texte en darija reçoit bien la consigne ;
 - un texte **sans** arabe n'en reçoit **aucune** — vérifié jusqu'au mot « Darija » absent ;
@@ -348,13 +392,13 @@ lisait donc comme de l'arabe standard — et au passage, la vitesse écrasait le
 Les trois sont corrigés et couverts par des tests de régression.
 
 ```
-moteur TTS            169 / 169   (112 au moment de cet audit, +57 depuis)
+moteur TTS            177 / 177   (112 au moment de cet audit, +65 depuis)
 noms des voix          22 / 22
 balises officielles    40 / 40
 aperçus audio          39 / 39
 documentation          65 / 65
 ─────────────────────────────────
-TOTAL                 335 vérifications, 0 échec
+TOTAL                 343 vérifications, 0 échec
 ```
 
 **Et le seul écart qui restait avec la doc — le style automatique — a été corrigé le même jour :

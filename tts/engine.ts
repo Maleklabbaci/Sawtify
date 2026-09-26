@@ -143,6 +143,23 @@ export type BuildTtsRequestOptions = {
    * Mode legacy → est préfixé au texte (comportement actuel de Sawtify).
    */
   style?: string | null;
+  /**
+   * CARACTÈRE de la voix (mode modern 3.8) — le « comment dire » propre à la
+   * voix choisie, en quelques mots. Ex. pour Amin : « casual, upbeat, like a
+   * friend talking ».
+   *
+   * C'est la version COURTE et moderne de `legacyPersona`. En 3.1, ce
+   * caractère voyageait dans la ligne « Speaker: » des DIRECTOR'S NOTES ; ce
+   * bloc n'existe plus en 3.8 (Google en fait la 1re cause de dérive de voix),
+   * donc l'information avait disparu. Elle revient ici, dans le seul canal
+   * prévu pour ce qui vaut sur tout le tour de parole : `speech_metadata.style`.
+   *
+   * ⚠️ RÈGLE : si l'utilisateur a demandé un TON explicite (`[calm]`,
+   * `[excited]`…), le caractère est ÉCARTÉ. Sinon on enverrait deux consignes
+   * contradictoires — « calme et posé » + « énergique et punchy » — et la voix
+   * dériverait au lieu d'obéir.
+   */
+  character?: string | null;
   /** Persona legacy (mode 3.1 uniquement) — ex. "Amin, a young friendly…". */
   legacyPersona?: string | null;
   /** Notes legacy additionnelles (mode 3.1) — pace, pitch, ton. */
@@ -283,9 +300,14 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   const styleExplicite = (opts.style || "").trim();
   const styleDemande = (parsed.requestedStyle || "").trim();
   const styleDeduit = opts.autoStyle ? parsed.suggestedStyle || "" : "";
+  // ⑤ LE CARACTÈRE DE LA VOIX (version courte du « Speaker: » de l'ancien
+  //    prompt). Il est ÉCARTÉ dès que l'utilisateur a demandé un ton explicite :
+  //    « calme et posé » + « énergique et punchy » dans le même style, c'est
+  //    deux ordres contradictoires — la voix dériverait au lieu d'obéir.
+  const caractere = styleDemande ? "" : (opts.character || "").trim();
   const effectiveStyle = [
     languageInstruction(parsed.text),
-    styleDemande,
+    styleDemande || caractere,
     styleExplicite,
     styleDeduit,
   ]
