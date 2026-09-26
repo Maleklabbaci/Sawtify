@@ -292,9 +292,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     previousMp3UrlRef.current = mp3Url;
   }, [mp3Url]);
 
-  // Auto-save draft
+  // Auto-save draft (debounce 500ms : sans ça, chaque frappe écrivait dans
+  // localStorage — perceptible sur un texte long, surtout sur téléphone d'entrée de gamme).
   useEffect(() => {
-    try { localStorage.setItem('sawtify_draft_text', text); } catch {}
+    const id = setTimeout(() => {
+      try { localStorage.setItem('sawtify_draft_text', text); } catch {}
+    }, 500);
+    return () => clearTimeout(id);
   }, [text]);
 
   // ------------------------------------------------------------------
