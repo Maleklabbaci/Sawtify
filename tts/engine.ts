@@ -130,6 +130,32 @@ export function toLegacyTranscript(modernText: string): string {
 //  2. CONSTRUCTION DE LA DEMANDE (le cœur du double moteur)
 // ============================================================================
 
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ *  LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — 26/09/2026
+ * --------------------------------------------------------------------------
+ *  Demande du propriétaire : « ce que ça prononce, c'est exactement les mêmes
+ *  lettres et les mêmes mots écrits ; il n'ajoute rien de lui-même, rien. »
+ *
+ *  ⚠️ SOURCE UNIQUE : le serveur (toutes les générations) ET le générateur
+ *  d'aperçus de voix utilisent CETTE constante. Il n'y a donc jamais deux
+ *  versions de la phrase qui pourraient diverger.
+ *
+ *  Elle part dans `speech_metadata.style` (3.8) ou dans les DIRECTOR'S NOTES
+ *  (3.1) — JAMAIS dans le texte à lire, sinon Gemini la prononcerait.
+ *
+ *  Pour la retirer sans redéployer :  TTS_STRICT_VERBATIM=0
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+export const VERBATIM_INSTRUCTION =
+  process.env.TTS_STRICT_VERBATIM === "0"
+    ? null
+    : "Read the transcript exactly as written, the same letters and the same words: add nothing, change nothing, repeat nothing, skip nothing.";
+
+/** Version courte pour les aperçus (même règle, une seule phrase). */
+export const VERBATIM_INSTRUCTION_COURTE =
+  "Read the transcript exactly as written: add nothing, change nothing.";
+
 export type BuildTtsRequestOptions = {
   /** Modèle exact (ex. "gemini-3.8-flash-tts"). */
   model: string;
@@ -160,6 +186,20 @@ export type BuildTtsRequestOptions = {
    * dériverait au lieu d'obéir.
    */
   character?: string | null;
+  /**
+   * LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — demande du propriétaire
+   * (26/09/2026) : « ce que ça prononce = exactement les mêmes lettres, les
+   * mêmes mots écrits ; il n'ajoute rien de lui-même. »
+   *
+   * Une phrase COURTE, placée EN TÊTE des consignes :
+   *   • mode modern (3.8) → 1re consigne de `speech_metadata.style` ;
+   *   • mode legacy (3.1) → 1re ligne des DIRECTOR'S NOTES.
+   *
+   * `null` / absent → aucun ajout : le comportement d'avant, à l'identique.
+   * (La doc Google prévient que « extra prompt text increases drift » : c'est
+   *  pour ça qu'on n'envoie QU'UNE phrase, et jamais dans le transcript.)
+   */
+  verbatimInstruction?: string | null;
   /** Persona legacy (mode 3.1 uniquement) — ex. "Amin, a young friendly…". */
   legacyPersona?: string | null;
   /** Notes legacy additionnelles (mode 3.1) — pace, pitch, ton. */
@@ -305,7 +345,11 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   //    « calme et posé » + « énergique et punchy » dans le même style, c'est
   //    deux ordres contradictoires — la voix dériverait au lieu d'obéir.
   const caractere = styleDemande ? "" : (opts.character || "").trim();
+  // ⓪ LECTURE CONFORME — toujours EN PREMIER : c'est la consigne qui prime
+  //    sur toutes les autres (« lis exactement ce qui est écrit »).
+  const verbatim = (opts.verbatimInstruction || "").trim();
   const effectiveStyle = [
+    verbatim,
     languageInstruction(parsed.text),
     styleDemande || caractere,
     styleExplicite,
@@ -366,6 +410,10 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       : "";
 
     const noteLines: string[] = [];
+    // En premier, la règle de lecture : c'est elle qui décide de ce qui est
+    // prononcé. Elle ne doit JAMAIS se retrouver dans le TRANSCRIPT ci-dessous
+    // (sinon Gemini la lirait à voix haute).
+    if (verbatim) noteLines.push(verbatim);
     if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
     noteLines.push("Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.");
     for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);
@@ -725,4 +773,66 @@ export function estEquilibre(text: string): boolean {
     else if (c === ">") ouverts = Math.max(0, ouverts - 1);
   }
   return ouverts === 0;
+}
+
+/* ============================================================================
+ *  GÉNÉRATION EN PARALLÈLE — la rapidité sur les textes longs
+ * ============================================================================
+ *  Un texte long est découpé en plusieurs morceaux (splitIntoChunksForTTS).
+ *  Les générer l'un APRÈS l'autre multipliait l'attente par le nombre de
+ *  morceaux : un texte de 3 morceaux attendait 3 fois le temps d'un seul.
+ *
+ *  `parallelMap` donne EXACTEMENT le même résultat, mais en lançant jusqu'à
+ *  `concurrency` morceaux en même temps. Garanties (vérifiées par
+ *  `npm run test:tts`) :
+ *    • l'ORDRE du résultat est celui de la liste d'entrée — l'audio ne peut
+ *      pas se retrouver dans le désordre ;
+ *    • jamais plus de `concurrency` tâches en vol : pas de rafale sur l'API ;
+ *    • dès qu'une tâche échoue, plus aucune NOUVELLE tâche n'est lancée, et
+ *      l'échec remonte avec son index (le serveur annule alors TOUT : aucun
+ *      audio partiel renvoyé, aucun point débité) ;
+ *    • une liste vide ne lance rien et réussit.
+ */
+export type ParallelMapResult<R> = {
+  /** false = au moins une tâche a échoué (résultat inutilisable en l'état). */
+  ok: boolean;
+  /** Résultats DANS L'ORDRE de la liste d'entrée (vide si `ok` = false). */
+  results: R[];
+  /** Index de la 1re tâche en échec, -1 si tout s'est bien passé. */
+  index: number;
+  /** Erreur de la 1re tâche en échec, null si tout s'est bien passé. */
+  error: unknown | null;
+};
+
+export async function parallelMap<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  run: (item: T, index: number) => Promise<R>
+): Promise<ParallelMapResult<R>> {
+  const results = new Array<R>(items.length);
+  if (items.length === 0) return { ok: true, results, index: -1, error: null };
+
+  const lanes = Math.max(1, Math.min(Math.floor(concurrency) || 1, items.length));
+  let next = 0;
+  let failure: { index: number; error: unknown } | null = null;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      if (failure) return;               // un échec suffit : on n'en lance plus
+      const index = next++;
+      if (index >= items.length) return;
+      try {
+        results[index] = await run(items[index], index);
+      } catch (error) {
+        if (!failure) failure = { index, error };
+        return;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: lanes }, () => worker()));
+  const echec = failure as { index: number; error: unknown } | null;
+  return echec
+    ? { ok: false, results: [], index: echec.index, error: echec.error }
+    : { ok: true, results, index: -1, error: null };
 }

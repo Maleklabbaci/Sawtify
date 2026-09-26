@@ -38,6 +38,10 @@ import {
   describeEngine,
   legacyFidelityReport,
   splitIntoChunksForTTS,
+  parallelMap,
+  // « Lis exactement ce qui est écrit » — source UNIQUE, partagée avec le
+  // générateur d'aperçus de voix (voir tts/engine.ts).
+  VERBATIM_INSTRUCTION,
 } from "./tts/engine";
 import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
 import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
@@ -768,21 +772,45 @@ const VOICE_DELIVERY: Record<string, string> = {
 // le caractère) gardent une indication neutre — jamais rien de contradictoire.
 const VOICE_DELIVERY_FALLBACK = "warm, confident and natural";
 
-const VOICE_PREVIEW_SCRIPTS: Record<string, string> = {
-  voice_amin: "سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي.",
-  voice_yasmin: "مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق وصوت دافئ.",
-  voice_khalid: "السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي.",
-  voice_maryam: "سلام، استمعوا لنطق دارجة جزائرية نقية وسلسة، تزيد لمسة احترافية لكل الفيديوهات.",
-  voice_rashid: "يا هلا بيكم خاوتنا العزاز! هاذي تجربة صوتية جزائرية قوية وحماسية!",
-  voice_layla: "أهلاً وسهلاً بيكم! صوت حيوي وخفيف، يوالم ستوريات إنستغرام وتيك توك.",
-  voice_bilal: "صحا خاوتي، مع صوتيفي الصوت يخرج طبيعي وسلس كأنو متحدث جزائري حقيقي.",
-  voice_nour: "مرحباً بيكم، تمتعوا بنطق دارجة واضحة، بنبرة خفيفة ومريحة تسمعها بلا ما تعيا.",
-  voice_faycal: "واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر احترافية للمشروع ديالك، راك في المكان الصحيح."
-};
+// ── LES 9 IDENTIFIANTS HISTORIQUES (voice_amin, voice_yasmin…) ─────────────
+// Ils pointent vers la MÊME voix que dans le catalogue : le texte prononcé est
+// donc celui de `VOICE_PREVIEW_TEXTS`, sans la moindre copie à maintenir.
+// Avant, ce tableau recopiait 9 phrases — restées en arabe classique après la
+// réécriture 100 % darija du 26/09/2026, donc prêtes à ressortir en MSA chez
+// un ancien client. Désormais impossible : une seule source.
+const VOICE_PREVIEW_SCRIPTS: Record<string, string> = Object.fromEntries(
+  Object.entries(LEGACY_VOICE_MIGRATION).map(([legacyId, studioVoice]) => [
+    legacyId,
+    VOICE_PREVIEW_TEXTS[studioVoice as string] || AUDITION_SCRIPT,
+  ])
+);
 
 const PREVIEW_AUDIO_CACHE: Map<string, string> = new Map();
 const PREVIEW_INFLIGHT: Map<string, Promise<string>> = new Map();
 const PREVIEW_BUCKET = "voice-previews";
+/**
+ * Les aperçus DÉJÀ présents dans le stockage (clé canonique `studio_<voix>`).
+ * Rempli par le préchauffage au démarrage, et mis à jour à chaque nouvel
+ * aperçu enregistré. Sert à répondre « oui, l'aperçu existe » SANS
+ * télécharger le fichier : on renvoie alors son adresse publique (le
+ * navigateur la charge depuis le CDN, et le serveur ne garde rien en mémoire).
+ */
+const PREVIEW_STORAGE_KEYS: Set<string> = new Set();
+/** Où en est le préchauffage des aperçus (visible sur /api/v1/tts/preview-status). */
+const PREVIEW_WARM_STATE = {
+  demarre: false,
+  en_cours: false,
+  total: 0,
+  faits: 0,
+  echecs: 0,
+  termines: 0,
+  derniereErreur: null as string | null,
+  debut: null as string | null,
+  fin: null as string | null,
+};
+/** Adresse PUBLIQUE d'un aperçu stocké (bucket public → CDN Supabase). */
+const publicPreviewUrl = (key: string): string | null =>
+  SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/${PREVIEW_BUCKET}/${key}.wav` : null;
 /** Dossier local des aperçus générés par `npm run apercus:voix`. */
 const PREVIEW_DIR = path.join(process.cwd(), "storage", "voice-previews");
 
@@ -874,6 +902,42 @@ async function loadPersistentPreview(cacheKey: string): Promise<string | null> {
     PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
     return dataUri;
   } catch { return null; }
+}
+
+/**
+ * CLÉ CANONIQUE D'UN APERÇU — `studio_<nom technique de la voix>`.
+ *
+ * ⚠️ POURQUOI PAS LA CLÉ DE LA REQUÊTE : celle-ci contient l'identifiant
+ * envoyé par le client ET la vitesse/hauteur. « Amin », « voice_amin », le
+ * slug « amin » et le prénom arabe désignent LA MÊME VOIX — ils créaient donc
+ * jusqu'à 4 entrées différentes dans le stockage, donc 4 générations payées
+ * et 4 fichiers identiques. Avec cette clé canonique, une seule : l'aperçu
+ * généré une fois est servi à tout le monde, quelle que soit l'écriture
+ * utilisée (c'est aussi la clé déjà utilisée par le cache mémoire de
+ * `getCachedPreviewUrl`, donc les deux se répondent).
+ */
+const previewKeyForVoice = (voiceName: string): string => `studio_${voiceName}`;
+
+/** Texte d'aperçu d'une voix (vitrine si elle existe, sinon audition). */
+function previewScriptForVoice(voiceName: string, voiceId: string): string {
+  return (
+    VOICE_PREVIEW_TEXTS[voiceName] ||
+    VOICE_PREVIEW_SCRIPTS[voiceId] ||
+    VOICE_PREVIEW_SCRIPTS[voiceName] ||
+    AUDITION_SCRIPT
+  );
+}
+
+/**
+ * Génère l'aperçu d'UNE voix et renvoie un data-URI WAV prêt à servir.
+ * Utilisé par la route publique ET par le préchauffage du démarrage : il n'y
+ * a donc qu'un seul code qui sait fabriquer un aperçu.
+ */
+async function generateVoicePreviewDataUri(voiceName: string, voiceId: string): Promise<string> {
+  const script = previewScriptForVoice(voiceName, voiceId);
+  const { pcmBuffer, error } = await synthesizeWithRetry(script, voiceName, 3, 1.0, 1.0, voiceId, []);
+  if (!pcmBuffer || error) throw new Error(error || "Audio d'aperçu vide");
+  return `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
 }
 
 async function savePersistentPreview(cacheKey: string, dataUri: string): Promise<void> {
@@ -1093,6 +1157,7 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 // bufferisait toute la réponse avant de parser (aucun gain de latence) et
 // était la source principale des blocages et coupures aléatoires.
 // ===================================================================
+
 async function synthesizeWithRetry(
   rawText: string,
   selectedVoiceName: string,
@@ -1143,14 +1208,30 @@ async function synthesizeWithRetry(
   console.log(`[TTS] ${cleanFullText.length} chars → ${chunks.length} morceau(x) (voice=${selectedVoiceName}, model=${TTS_MODEL})`);
 
   const gapBytes = Math.round(TTS_BYTES_PER_SECOND * (TTS_CHUNK_GAP_MS / 1000));
-  const pcmChunks: Buffer[] = [];
 
-  for (let ci = 0; ci < chunks.length; ci++) {
+  // ── COMBIEN DE MORCEAUX EN MÊME TEMPS ? ─────────────────────────────────
+  // 3 par défaut. C'est le réglage qui décide de la rapidité sur un texte
+  // long : 4 morceaux prenaient 4 fois le temps d'un seul, ils prennent
+  // maintenant ~1,5 fois. Réglable sans redéployer : TTS_CHUNK_CONCURRENCY.
+  // On ne monte pas plus haut que 4 pour ne pas déclencher de refus (429)
+  // côté Google — les retries resteraient sinon plus lents que le gain.
+  const parallelisme = (() => {
+    const n = Number(process.env.TTS_CHUNK_CONCURRENCY);
+    if (Number.isFinite(n) && n >= 1) return Math.max(1, Math.min(4, Math.floor(n)));
+    return 3;
+  })();
+
+  // ── GÉNÉRATION DES MORCEAUX (en parallèle, mais résultat ORDONNÉ) ───────
+  // Chaque morceau a droit à ses propres retries, exactement comme avant.
+  // Un seul morceau définitivement en échec → génération ANNULÉE (aucun
+  // audio partiel renvoyé, aucun point débité) : le comportement de
+  // facturation est STRICTEMENT inchangé.
+  const generation = await parallelMap(chunks, parallelisme, async (chunk, ci) => {
     const isLastChunk = ci === chunks.length - 1;
 
     // FIX TTS-D : intro "..." uniquement sur le 1er morceau,
     // pause finale "..." uniquement sur le dernier.
-    let chunkText = normalizeTextForTTS(chunks[ci], isLastChunk);
+    let chunkText = normalizeTextForTTS(chunk, isLastChunk);
     if (ci === 0) chunkText = injectNaturalFiller(chunkText);
 
     // ── Construction de la requête par le MOTEUR TTS ─────────────────────
@@ -1167,14 +1248,8 @@ async function synthesizeWithRetry(
       model: TTS_MODEL,
       rawText: chunkText,
       voiceName: selectedVoiceName,
-      // En mode modern on ne transmet que vitesse/hauteur ; l'émotion est
-      // déduite par le moteur depuis les balises de sons du transcript.
       style: TTS_ENGINE_MODE === "modern" ? modernStyle : null,
-      // Le « comment dire » propre à la voix (ex-« Speaker: » des DIRECTOR'S
-      // NOTES). Mode modern uniquement : en legacy, le persona ci-dessous le
-      // porte déjà en entier.
       character: TTS_ENGINE_MODE === "modern" ? character : null,
-      // On n'invente AUCUN style à partir des balises (voir TTS_AUTO_STYLE).
       autoStyle: TTS_AUTO_STYLE,
       legacyPersona: persona,
       legacyNotes: [
@@ -1182,26 +1257,22 @@ async function synthesizeWithRetry(
         pitchNote ? `Pitch: ${pitchNote}` : "",
         emotionNote ? `Tone: ${emotionNote}` : "",
       ],
+      // « Lis exactement ce qui est écrit » — voir VERBATIM_INSTRUCTION.
+      verbatimInstruction: VERBATIM_INSTRUCTION,
       output: "pcm",
     });
-    const requestBody = built.body;
 
     if (built.warnings.length) {
       console.warn(`[TTS] Morceau ${ci + 1} — ${built.warnings.join(" | ")}`);
     }
 
-    let chunkBuffer: Buffer | null = null;
     let lastChunkError: any = null;
-
-    // Chaque morceau a droit à ses propres retries. Si UN SEUL morceau
-    // échoue définitivement → génération ANNULÉE (jamais d'audio partiel
-    // renvoyé, jamais de points débités pour un son incomplet).
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const pcmBuffer = await callGeminiTTSNonStreaming(requestBody);
+        const pcmBuffer = await callGeminiTTSNonStreaming(built.body);
         if (!pcmBuffer || pcmBuffer.length <= 100) throw new Error("Audio vide ou trop court");
-        chunkBuffer = pcmBuffer;
-        break;
+        console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${pcmBuffer.length} bytes PCM`);
+        return pcmBuffer;
       } catch (err: any) {
         lastChunkError = err;
         console.error(`[TTS ✗] Morceau ${ci + 1}/${chunks.length} — tentative ${attempt}/${maxRetries} échouée : ${err?.message || err}`);
@@ -1212,19 +1283,26 @@ async function synthesizeWithRetry(
       }
     }
 
-    if (!chunkBuffer) {
-      console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${maxRetries} tentatives — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
-      return {
-        pcmBuffer: null,
-        error: `Morceau ${ci + 1}/${chunks.length} : ${lastChunkError?.message || "Erreur de génération audio"}`,
-        usedStreaming: false,
-        chunkCount: chunks.length
-      };
-    }
+    console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${maxRetries} tentatives — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
+    throw lastChunkError || new Error("Erreur de génération audio");
+  });
 
-    console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${chunkBuffer.length} bytes PCM`);
-    if (pcmChunks.length > 0) pcmChunks.push(Buffer.alloc(gapBytes)); // silence naturel entre morceaux
-    pcmChunks.push(chunkBuffer);
+  if (!generation.ok) {
+    const errFautive: any = generation.error;
+    return {
+      pcmBuffer: null,
+      error: `Morceau ${generation.index + 1}/${chunks.length} : ${errFautive?.message || "Erreur de génération audio"}`,
+      usedStreaming: false,
+      chunkCount: chunks.length,
+    };
+  }
+
+  // FIX TTS-C : assemblage DANS L'ORDRE du texte (jamais dans l'ordre
+  // d'arrivée des réponses) + un court silence naturel entre les morceaux.
+  const pcmChunks: Buffer[] = [];
+  for (let i = 0; i < generation.results.length; i++) {
+    if (pcmChunks.length > 0) pcmChunks.push(Buffer.alloc(gapBytes));
+    pcmChunks.push(generation.results[i]);
   }
 
   const totalBuffer = Buffer.concat(pcmChunks);
@@ -1246,7 +1324,7 @@ async function synthesizeWithRetry(
     }
   }
 
-  console.log(`[TTS ✓] Génération complète — ${chunks.length} morceau(x), ${totalBuffer.length} bytes PCM (~${totalSeconds.toFixed(1)}s), voice=${selectedVoiceName}`);
+  console.log(`[TTS ✓] Génération complète — ${chunks.length} morceau(x) en ${parallelisme} parallèle(s), ${totalBuffer.length} bytes PCM (~${totalSeconds.toFixed(1)}s), voice=${selectedVoiceName}`);
   return { pcmBuffer: totalBuffer, error: null, usedStreaming: false, chunkCount: chunks.length };
 }
 
@@ -1999,6 +2077,26 @@ async function startServer() {
     if (PREVIEW_AUDIO_CACHE.has(cacheKey)) {
       return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: PREVIEW_AUDIO_CACHE.get(cacheKey)!, duration_seconds: 2.5, cached: true, source: "memory" });
     }
+
+    // ── APERÇU DÉJÀ FABRIQUÉ, TOUTES ÉCRITURES CONFONDUES ────────────────
+    // On interroge la clé canonique AVANT de dépenser un appel Gemini : un
+    // aperçu généré une fois (par le préchauffage ou par n'importe quel
+    // utilisateur) est servi à tous, même si la voix est écrite autrement.
+    const canonicalKey = previewKeyForVoice(selectedVoiceName);
+    // 1) On SAIT qu'il existe (index du préchauffage) → adresse directe du CDN.
+    if (PREVIEW_STORAGE_KEYS.has(canonicalKey)) {
+      const url = publicPreviewUrl(canonicalKey);
+      if (url) {
+        return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName, audio_url: url, duration_seconds: PREVIEW_INDEX.get(selectedVoiceName)?.durationSeconds ?? 2.5, cached: true, source: "supabase-cdn" });
+      }
+    }
+    // 2) Sinon on vérifie une fois (et on mémorise pour les fois suivantes).
+    const canonicalPreview = await loadPersistentPreview(canonicalKey);
+    if (canonicalPreview) {
+      PREVIEW_STORAGE_KEYS.add(canonicalKey);
+      const url = publicPreviewUrl(canonicalKey) || canonicalPreview;
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, display_name: voiceNameEntry(selectedVoiceName)?.fr || selectedVoiceName, audio_url: url, duration_seconds: PREVIEW_INDEX.get(selectedVoiceName)?.durationSeconds ?? 2.5, cached: true, source: "supabase" });
+    }
     const inflight = PREVIEW_INFLIGHT.get(cacheKey);
     if (inflight) {
       try {
@@ -2009,10 +2107,11 @@ async function startServer() {
       }
     }
 
-    const persistentPreview = await loadPersistentPreview(cacheKey);
-    if (persistentPreview) {
-      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: persistentPreview, duration_seconds: 2.5, cached: true, source: "storage" });
-    }
+    // ⚠️ NE PAS relire l'ANCIENNE clé de stockage (« voice_amin_Puck_1.0_1.0 ») :
+    // ces fichiers datent d'avant la réécriture 100 % darija et contiennent
+    // l'ancien texte en arabe classique. Les servir, c'est faire entendre à
+    // l'utilisateur l'ancienne version — exactement ce qu'on ne veut pas.
+    // Ils sont supprimés du stockage par le préchauffage (voir plus bas).
 
     // Texte de l'aperçu : d'abord le texte « vitrine » propre à la voix,
     // sinon l'ancien script pour compatibilité, sinon le script d'audition.
@@ -2035,7 +2134,10 @@ async function startServer() {
       }
       const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
       PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
-      await savePersistentPreview(cacheKey, dataUri);
+      // Enregistrement sous la clé CANONIQUE : c'est ce qui fait qu'un seul
+      // aperçu suffit pour toutes les écritures de la même voix.
+      PREVIEW_AUDIO_CACHE.set(canonicalKey, dataUri);
+      await savePersistentPreview(canonicalKey, dataUri);
       await recordGeminiUsage({ userId: previewUserId, operation: "preview", characters: sampleScript.length, success: true, model: TTS_MODEL, metadata: { voice: voiceId, free: true } });
       return dataUri;
     })();
@@ -2051,6 +2153,37 @@ async function startServer() {
   };
   app.get("/api/v1/tts/preview", previewLimiter, handleTTSPreview);
   app.get("/api/tts/preview", previewLimiter, handleTTSPreview);
+
+  /* ===================================================================
+     SUIVI DES APERÇUS — « où en est la génération des 30 voix ? »
+     -------------------------------------------------------------------
+     Réponse lisible directement dans un navigateur :
+       { "prets": 12, "total": 30, "en_cours": true, "restant": 18, ... }
+     Aucune donnée sensible : que des noms de voix et des compteurs.
+     =================================================================== */
+  const handlePreviewStatus = (_req: express.Request, res: express.Response) => {
+    const total = previewTargets().length;
+    const prets = previewTargets().filter((t) => PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.voice.id))).length;
+    const manquants = previewTargets()
+      .filter((t) => !PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.voice.id)))
+      .map((t) => t.voice.id);
+    res.set("Cache-Control", "no-store");
+    res.json({
+      prets,
+      total,
+      restant: total - prets,
+      en_cours: PREVIEW_WARM_STATE.en_cours,
+      mode: "inutile de lancer une commande : le serveur fabrique les aperçus manquants tout seul, en tâche de fond, au démarrage",
+      script_version: AUDITION_SCRIPT_VERSION,
+      langues: "100 % darija algérienne",
+      bucket: PREVIEW_BUCKET,
+      bucket_public: Boolean(SUPABASE_URL),
+      voix_manquantes: manquants,
+      detail: PREVIEW_WARM_STATE,
+    });
+  };
+  app.get("/api/v1/tts/preview-status", handlePreviewStatus);
+  app.get("/api/tts/preview-status", handlePreviewStatus);
 
   /* ===================================================================
      LISTE DES 30 VOIX (API)
@@ -2679,7 +2812,28 @@ Style vocal souhaité : ${style || "excited"}`;
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    // ── CACHE NAVIGATEUR ────────────────────────────────────────────────────
+    // Sans consigne de cache, le navigateur REVALIDait tout à chaque visite :
+    // 1 Mo de JS à re-télécharger, sur données mobiles, à chaque ouverture.
+    // Les fichiers de /assets/ portent une empreinte dans leur nom (le
+    // contenu ne change jamais sans changer d'adresse) : on peut donc les
+    // garder UN AN, et la visite suivante est quasi instantanée.
+    // index.html, lui, ne doit JAMAIS être gardé (sinon l'utilisateur reste
+    // bloqué sur une ancienne version après un déploiement).
+    app.use(express.static(distPath, {
+      index: false,
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, must-revalidate");
+        } else if (/\.(png|jpe?g|svg|webp|ico|woff2?|ttf|mp3|wav)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=2592000");
+        }
+      },
+    }));
     app.use("/api", (req, res, next) => {
       if (req.method === "GET" || req.method === "HEAD") return res.status(404).json({ error: "Endpoint API introuvable." });
       return res.status(404).json({ error: "Endpoint API ou méthode introuvable." });
@@ -2693,8 +2847,130 @@ Style vocal souhaité : ${style || "excited"}`;
     res.status(error?.status || 500).json({ error: error?.message || "Erreur interne du serveur." });
   });
 
+  /* ===================================================================
+     PRÉCHAUFFAGE DES APERÇUS DE VOIX — 26/09/2026
+     -------------------------------------------------------------------
+     POURQUOI : sans ça, le 1er visiteur qui clique ▶ sur une voix attend
+     4 à 8 secondes pendant que l'aperçu se fabrique. Et chaque fois qu'un
+     utilisateur écrit la voix autrement (« Amin », « voice_amin », le nom
+     arabe…), c'était une NOUVELLE génération payée pour le même son.
+
+     CE QUE FAIT CETTE FONCTION, au démarrage :
+       • regarde quelles voix ont déjà un aperçu dans le stockage ;
+       • fabrique les manquants UN PAR UN, en tâche de fond (le site répond
+         normalement pendant ce temps — rien n'est bloqué) ;
+       • les enregistre définitivement (le coût n'est payé qu'UNE fois).
+
+     COÛT : 30 aperçus ≈ 3 DZD au total, une seule fois. Ensuite, plus jamais.
+     Le texte prononcé est celui de `VOICE_PREVIEW_TEXTS`, en darija, et la
+     voix reçoit la consigne « lis exactement ce qui est écrit ».
+
+     POUR DÉSACTIVER : variable TTS_WARM_PREVIEWS=0 (aucun redéploiement du
+     code n'est nécessaire, c'est un simple réglage).
+     =================================================================== */
+  async function warmMissingVoicePreviews(): Promise<void> {
+    if (process.env.TTS_WARM_PREVIEWS === "0") {
+      console.log("[Aperçus] Préchauffage désactivé (TTS_WARM_PREVIEWS=0).");
+      return;
+    }
+    if (!process.env.GEMINI_API_KEY) {
+      console.log("[Aperçus] Préchauffage ignoré : GEMINI_API_KEY absente (normal en local).");
+      return;
+    }
+    if (!supabaseClient) {
+      console.log("[Aperçus] Préchauffage ignoré : stockage Supabase indisponible — un aperçu généré serait perdu au redémarrage.");
+      return;
+    }
+
+    try {
+      // 1) Que possède-t-on déjà ? (un seul appel réseau)
+      const { data: fichiers } = await supabaseClient.storage.from(PREVIEW_BUCKET).list("", { limit: 1000 });
+      for (const f of fichiers || []) {
+        const nom = String((f as any).name || "");
+        if (nom.endsWith(".wav")) PREVIEW_STORAGE_KEYS.add(nom.replace(/\.wav$/, ""));
+      }
+      const presents = new Set((fichiers || []).map((f: any) => String(f.name)));
+
+      // ── MÉNAGE : les aperçus au FORMAT PÉRIMÉ ────────────────────────────
+      // Avant le 26/09/2026, un aperçu était enregistré sous la clé de la
+      // requête : « voice_amin_Puck_1.0_1.0.wav ». Ces fichiers contiennent
+      // l'ANCIEN texte (arabe classique) et un ancien mapping de voix
+      // (« voice_yacine » pointait sur Puck — c'est désormais Pulcherrima).
+      // Le nouveau code ne les lit plus ; on les supprime pour ne pas laisser
+      // de faux aperçus dormir dans le stockage. Le format valide aujourd'hui
+      // est « studio_<Voix>.wav » — jamais touché par ce ménage.
+      const ANCIEN_FORMAT = /^.+_[0-9]+\.[0-9]+_[0-9]+\.[0-9]+\.wav$/;
+      const anciens = (fichiers || [])
+        .map((f: any) => String(f.name))
+        .filter((n) => ANCIEN_FORMAT.test(n) && !n.startsWith("studio_"));
+      if (anciens.length) {
+        const { error: errSupp } = await supabaseClient.storage.from(PREVIEW_BUCKET).remove(anciens);
+        if (errSupp) console.warn(`[Aperçus] Ménage impossible : ${errSupp.message}`);
+        else console.log(`[Aperçus] ${anciens.length} ancien(s) aperçu(s) supprimé(s) — format périmé, texte en arabe classique : ${anciens.join(", ")}`);
+      }
+      const manquantes = previewTargets().filter((t) => {
+        // Seul le format CANONIQUE compte : « studio_<voix>.wav ».
+        if (presents.has(`${previewKeyForVoice(t.voice.id)}.wav`)) return false;
+        if (getCachedPreviewUrl(t.voice.id)) return false;  // local ou mémoire
+        return true;
+      });
+
+      if (manquantes.length === 0) {
+        PREVIEW_WARM_STATE.demarre = true;
+        PREVIEW_WARM_STATE.en_cours = false;
+        PREVIEW_WARM_STATE.total = previewTargets().length;
+        PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
+        PREVIEW_WARM_STATE.fin = new Date().toISOString();
+        console.log(`[Aperçus] Les ${previewTargets().length} aperçus sont déjà en place — rien à générer.`);
+        return;
+      }
+      PREVIEW_WARM_STATE.demarre = true;
+      PREVIEW_WARM_STATE.en_cours = true;
+      PREVIEW_WARM_STATE.total = previewTargets().length;
+      PREVIEW_WARM_STATE.termines = presents.size;
+      PREVIEW_WARM_STATE.debut = new Date().toISOString();
+      console.log(`[Aperçus] ${manquantes.length} aperçu(x) manquant(s) → génération en tâche de fond (le site reste disponible).`);
+      console.log(`[Aperçus] Suivi en direct : /api/v1/tts/preview-status`);
+
+      let faits = 0, echecs = 0;
+      for (const t of manquantes) {
+        const key = previewKeyForVoice(t.voice.id);
+        try {
+          const dataUri = await generateVoicePreviewDataUri(t.voice.id, t.legacyId || t.voice.id);
+          PREVIEW_AUDIO_CACHE.set(key, dataUri);
+          await savePersistentPreview(key, dataUri);
+          PREVIEW_STORAGE_KEYS.add(key);
+          PREVIEW_WARM_STATE.faits = ++faits;
+          console.log(`[Aperçus ✓] ${t.voice.id} (${t.nameFr}) — ${faits}/${manquantes.length}`);
+        } catch (err: any) {
+          echecs++;
+          PREVIEW_WARM_STATE.echecs = echecs;
+          PREVIEW_WARM_STATE.derniereErreur = `${t.voice.id} : ${err?.message || err}`;
+          console.warn(`[Aperçus ✗] ${t.voice.id} : ${err?.message || err}`);
+          // Le stockage refuse tout (bucket absent ou non public) ? On ne
+          // gaspille pas 30 générations : on s'arrête tout de suite et on dit
+          // exactement quoi faire.
+          if (faits === 0 && echecs === 1) {
+            console.warn(`[Aperçus] Arrêt : le 1er enregistrement a échoué. Crée un bucket PUBLIC nommé « ${PREVIEW_BUCKET} » dans Supabase Storage, puis redémarre.`);
+            return;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 1200)); // on ne bouscule pas l'API
+      }
+      PREVIEW_WARM_STATE.en_cours = false;
+      PREVIEW_WARM_STATE.fin = new Date().toISOString();
+      PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
+      console.log(`[Aperçus] Préchauffage terminé : ${faits} généré(s), ${echecs} échec(s). Coût ≈ ${(faits * 0.004).toFixed(3)} $ une seule fois.`);
+    } catch (err: any) {
+      console.warn(`[Aperçus] Préchauffage impossible : ${err?.message || err}`);
+    }
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    // Les aperçus manquants se fabriquent tout seuls, en tâche de fond :
+    // aucune commande à lancer, aucun terminal. Voir warmMissingVoicePreviews.
+    setTimeout(() => { void warmMissingVoicePreviews(); }, 3000);
     void cleanupExpiredGenerations();
     setInterval(() => void cleanupExpiredGenerations(), 24 * 60 * 60 * 1000).unref();
   });

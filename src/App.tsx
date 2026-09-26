@@ -19,9 +19,15 @@ const LoginModal = lazy(() => import('./components/LoginModal').then(m => ({ def
 const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ default: m.SigninModal })));
 const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').then(m => ({ default: m.SetPasswordScreen })));
 
-// Import direct de TTSStudio (pas de lazy) pour éviter le Suspense bloquant au démarrage
-// Si le fichier est trop lourd, le code splitting peut être fait plus tard avec un ErrorBoundary
-import { TTSStudio } from './components/TTSStudio';
+// ── LE STUDIO ARRIVE A LA DEMANDE ────────────────────────────────────────
+// Il pesait une grosse part du JS de demarrage. Or un visiteur qui arrive
+// d'une pub voit la page d'accueil, pas le studio : il telechargeait donc
+// tout le studio pour rien (donnees mobiles gaspillees, affichage retarde).
+// Le studio est desormais charge a part — MAIS precharge en avance pendant
+// que le navigateur est libre (voir l'effet plus bas) : quand l'utilisateur
+// clique, le fichier est deja la, et l'ouverture reste instantanee.
+const importStudio = () => import('./components/TTSStudio');
+const TTSStudio = lazy(() => importStudio().then((m) => ({ default: m.TTSStudio })));
 
 /**
  * Loader minimal : ne bloque pas l'interface, juste un indicateur subtil.
@@ -113,6 +119,26 @@ function AppContent() {
     }, 5000); // 5 secondes max
     return () => clearTimeout(timer);
   }, [isCheckingSession]);
+
+  // Prechargement du studio : il se telecharge en tache de fond, jamais
+  // devant l'utilisateur. Une erreur ici est sans consequence : l'import
+  // « a la demande » du studio reessaiera tout seul au moment de l'ouverture.
+  React.useEffect(() => {
+    const preload = () => { importStudio().catch(() => {}); };
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(preload, { timeout: 3000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(preload, 1500);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // Session detectee = l'utilisateur va vouloir le studio : on le telecharge
+  // tout de suite, sans attendre le clic.
+  React.useEffect(() => {
+    if (isLoggedIn) importStudio().catch(() => {});
+  }, [isLoggedIn]);
 
   React.useEffect(() => {
     if (!isLoggedIn) return;
@@ -482,12 +508,14 @@ function AppContent() {
         >
           {/* Studio : PAS DE SUSPENSE (chargement direct pour éviter le blocage) */}
           {activeTab === 'studio' && (
-            <TTSStudio
-              balance={balance}
-              onDeductPoints={handleDeductPoints}
-              onOpenRecharge={() => navigateTo('pricing')}
-              recentGenerations={generations}
-            />
+            <Suspense fallback={<MinimalLoader />}>
+              <TTSStudio
+                balance={balance}
+                onDeductPoints={handleDeductPoints}
+                onOpenRecharge={() => navigateTo('pricing')}
+                recentGenerations={generations}
+              />
+            </Suspense>
           )}
 
           {/* Autres pages : Suspense OK car ce sont des pages secondaires */}
