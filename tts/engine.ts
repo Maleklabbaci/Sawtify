@@ -438,3 +438,146 @@ export function legacyFidelityReport(): LegacyFidelityReport {
 export function tagsLostInLegacyMode(): VocalTag[] {
   return legacyFidelityReport().dropped;
 }
+
+// ============================================================================
+//  5. DÉCOUPAGE DU TEXTE LONG — SANS JAMAIS COUPER UNE BALISE
+// ============================================================================
+//  ⚠️ DÉFAUT CORRIGÉ (audit du 26/09/2026)
+//
+//  Le découpage se faisait mot à mot. Or trois balises officielles contiennent
+//  un ESPACE : <short pause>, <long pause>, <heavy breath>. Si l'une d'elles
+//  tombait sur la frontière des 800 caractères, elle était coupée en deux :
+//
+//      morceau 1 se terminait par  « ... كلمة112 <short »
+//      morceau 2 commençait par    « pause> كلمة113 ... »
+//
+//  Et comme un « < » sans « > » n'est pas reconnu comme une balise, le
+//  garde-fou ne voyait RIEN : les deux moitiés partaient BRUTES vers Gemini.
+//  La voix risquait donc de prononcer « inférieur à shorts, pause supérieur à ».
+//
+//  Correctif : on remplace chaque balise par un jeton sans espace et sans
+//  ponctuation AVANT de découper, puis on la remet en place APRÈS. Le
+//  découpage ne peut plus, par construction, toucher l'intérieur d'une balise.
+// ============================================================================
+
+/** Taille de morceau par défaut (le serveur passe la sienne). */
+export const CHUNK_MAX_CHARS_DEFAULT = 800;
+
+/** Sentinelle de contrôle, impossible à taper au clavier. */
+const SENTINELLE = "\u0001";
+
+const indexVersLettres = (n: number): string => {
+  let s = "";
+  n += 1;
+  while (n > 0) {
+    s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+};
+
+const lettresVersIndex = (s: string): number => {
+  let n = 0;
+  for (const c of s) n = n * 26 + (c.charCodeAt(0) - 64);
+  return n - 1;
+};
+
+/**
+ * Remplace chaque balise `<...>` par un jeton insécable.
+ * Le jeton ne contient ni espace, ni ponctuation, ni chiffre : aucune étape du
+ * découpage ne peut le casser, et il survit à `normalizeTextForTTS`.
+ */
+export function protegerBalises(text: string): { texte: string; balises: string[] } {
+  const balises: string[] = [];
+  // On retire d'abord toute sentinelle déjà présente dans le texte utilisateur.
+  const propre = text.split(SENTINELLE).join(" ");
+  const texte = propre.replace(/<[^<>\n]*>/g, (m) => {
+    balises.push(m);
+    return `${SENTINELLE}SAWTIFY${indexVersLettres(balises.length - 1)}${SENTINELLE}`;
+  });
+  return { texte, balises };
+}
+
+/** Remet les vraies balises à la place des jetons. */
+export function restaurerBalises(text: string, balises: string[]): string {
+  return text.replace(
+    new RegExp(`${SENTINELLE}SAWTIFY([A-Z]+)${SENTINELLE}`, "g"),
+    (_m, lettres: string) => balises[lettresVersIndex(lettres)] ?? " "
+  );
+}
+
+/** Filet de sécurité : un bloc sans AUCUNE ponctuation → coupe par mots. */
+export function hardSplitByWords(text: string, maxChars: number): string[] {
+  const words = text.split(" ");
+  const out: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (cur && (cur + " " + w).length > maxChars) { out.push(cur); cur = w; }
+    else cur = cur ? cur + " " + w : w;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Découpe un texte long en morceaux ≤ maxChars, en respectant les phrases.
+ *
+ * GARANTIE : aucune balise `<...>` n'est jamais coupée, quelle que soit sa
+ * position dans le texte. Vérifié par `npm run test:tts`.
+ */
+export function splitIntoChunksForTTS(text: string, maxChars = CHUNK_MAX_CHARS_DEFAULT): string[] {
+  // ① On met les balises à l'abri AVANT tout découpage.
+  const { texte, balises } = protegerBalises(text);
+  const restitue = (c: string) => restaurerBalises(c, balises);
+
+  const trimmed = texte.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxChars) return [restitue(trimmed)];
+
+  // ② Découpe sur les fins de phrase : . ! ؟ ? …
+  const sentences = trimmed.split(/(?<=[.!?؟…])\s+/).filter(Boolean);
+
+  // ③ Les phrases trop longues → coupe sur la ponctuation secondaire : ، ؛ , ; :
+  const pieces: string[] = [];
+  for (const s of sentences) {
+    if (s.length <= maxChars) { pieces.push(s); continue; }
+    const sub = s.split(/(?<=[،؛:,])\s+/).filter(Boolean);
+    for (const p of sub) {
+      if (p.length <= maxChars) pieces.push(p);
+      else pieces.push(...hardSplitByWords(p, maxChars));
+    }
+  }
+
+  // ④ Regroupe les pièces en morceaux ≤ maxChars
+  const chunks: string[] = [];
+  let current = "";
+  for (const p of pieces) {
+    if (current && (current + " " + p).length > maxChars) {
+      chunks.push(current.trim());
+      current = p;
+    } else {
+      current = current ? current + " " + p : p;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  // ⑤ On remet les vraies balises, puis on jette tout morceau déséquilibré.
+  return chunks
+    .filter((c) => c.length > 0)
+    .map(restitue)
+    .filter((c) => estEquilibre(c));
+}
+
+/**
+ * Vrai si chaque « < » a son « > ». Un morceau déséquilibré contient un
+ * fragment de balise : on préfère le JETER plutôt que de laisser Gemini
+ * prononcer un bout de balise.
+ */
+export function estEquilibre(text: string): boolean {
+  let ouverts = 0;
+  for (const c of text) {
+    if (c === "<") ouverts++;
+    else if (c === ">") ouverts = Math.max(0, ouverts - 1);
+  }
+  return ouverts === 0;
+}

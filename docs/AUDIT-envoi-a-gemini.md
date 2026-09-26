@@ -1,0 +1,249 @@
+# Audit — ce que le backend envoie vraiment à Gemini
+
+**Date :** 26 septembre 2026 · **Périmètre :** le JSON envoyé au modèle de voix, comparé à la
+documentation officielle Google.
+
+---
+
+## Avertissement
+
+Les deux PDF que tu avais joints (`gemini-3.8-flash-tts.md.pdf` et `speech-generation.md.pdf`)
+**ne sont jamais arrivés dans l'espace de travail** — j'ai cherché partout, il n'y a aucun PDF.
+Je n'ai donc pas pu les ouvrir.
+
+À la place, j'ai comparé le code aux **pages officielles Google dont ces PDF sont les impressions** :
+
+- `ai.google.dev/gemini-api/docs/generate-content/speech-generation` (mise à jour du 24/09/2026)
+- `ai.google.dev/gemini-api/docs/speech-generation` (variante Interactions API)
+
+Si tes PDF contiennent autre chose que ces pages, dis-le-moi et je compare à nouveau.
+
+---
+
+## 1. La requête réellement envoyée (mode 3.8, celui qui tourne)
+
+Texte : `واش راكم خاوتي <ضحكة> راني هنا <وقفة قصيرة> بكل سرور.` · Voix : Amine · Vitesse : rapide
+
+```json
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "... واش راكم خاوتي <laugh> راني هنا <short pause> بكل سرور.",
+          "speech_metadata": { "style": "speaking rapidly" }
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "responseModalities": ["AUDIO"],
+    "responseFormat": {
+      "audio": { "mimeType": "AUDIO_L16", "sampleRate": 24000 }
+    },
+    "speechConfig": {
+      "voiceConfig": { "voice": "Puck" }
+    }
+  }
+}
+```
+
+**Ce qui est envoyé au modèle, c'est ce `text` — rien d'autre.** Le texte parlé reste en darija,
+les balises arabes (`<ضحكة>`, `<وقفة قصيرة>`) sont devenues les balises anglaises officielles
+(`<laugh>`, `<short pause>`), et les instructions de jeu partent **à part**, dans
+`speech_metadata.style`.
+
+### Ce texte est-il prononcé tel quel ?
+
+Non. Les balises sont des **instructions**, pas des mots : Google les interprète et ne les lit pas.
+C'est exactement pour ça que tout le nettoyage existe : une balise qui arriverait mal formée
+**serait**, elle, lue à voix haute.
+
+---
+
+## 2. Comparaison ligne par ligne avec la documentation
+
+### La requête
+
+| Ce que dit la doc Google | Ce que fait Sawtify | |
+|---|---|---|
+| `contents[].role = "user"` | identique | ✅ |
+| `contents[].parts[].text` = transcript **verbatim** | identique | ✅ |
+| `parts[].speech_metadata.style` = jeu **soutenu** | identique | ✅ |
+| `generationConfig.responseModalities = ["AUDIO"]` | identique | ✅ |
+| `generationConfig.speechConfig.voiceConfig.voice` | identique (le **nouveau** champ, pas l'ancien) | ✅ |
+| `generationConfig.responseFormat.audio.mimeType` + `sampleRate` | identique, forcé à `AUDIO_L16` / 24000 | ✅ |
+
+### Les 5 points du guide de migration
+
+| # | Ce que demande Google pour passer à 3.8 | Sawtify |
+|---|---|---|
+| 1 | **Sortir le style du texte** vers `speech_metadata.style` | ✅ fait |
+| 2 | **Remplacer les blocs « Director's Notes »** (1re cause de dérive de voix) | ✅ aucune note de personnage n'est envoyée en 3.8 |
+| 3 | Un `part` par locuteur pour le dialogue | ➖ multi-voix désactivé (ton choix) |
+| 4 | **Balises en crochets angle**, sons humains seulement | ✅ 40 balises, bruits non humains retirés |
+| 5 | **Le mode unary renvoie du WAV**, plus du PCM brut | ✅ double protection (voir §3) |
+
+### Le catalogue des sons
+
+| Ce que dit la doc | Sawtify |
+|---|---|
+| 35 sons recommandés | ✅ les 35 |
+| Variantes `<laughter>`, `<chuckles>`, `<sighs>`, `<phew>`, `<whispering>` | ✅ les 5 acceptées |
+| « Éviter les effets non vocaux (applaudissements, chocs) » | ✅ retirés automatiquement, et signalés |
+| Les pauses s'écrivent `<short pause>` / `<long pause>` | ✅ |
+| Les MAJUSCULES appuient un mot | ✅ transmis tel quel |
+| Ne pas écrire d'instruction du genre « garde la même voix » | ✅ aucune n'est envoyée |
+
+### Deux points où Sawtify s'écarte (volontairement ou non)
+
+| Sujet | Doc Google | Sawtify | Verdict |
+|---|---|---|---|
+| Backchannels `\|oh hmm\|` | pour le dialogue à 2 voix | non utilisés | ➖ hors périmètre |
+| **Style automatique** | « Synthétise d'abord **sans style** : la plupart des requêtes n'en ont pas besoin. Ajoute un style **court**, seulement pour ajuster. » | un style est injecté dès qu'une balise porteuse d'émotion est présente | ⚠️ **écart réel — voir §5** |
+
+---
+
+## 3. La protection anti-régression WAV — correcte
+
+La doc prévient : en 3.8, une requête normale renvoie un **WAV complet** (en-tête RIFF de
+44 octets), alors que le pipeline Sawtify attend du **PCM brut**.
+
+Sawtify se protège **deux fois** :
+
+1. il **demande** explicitement `AUDIO_L16` (donc du PCM brut) ;
+2. s'il reçoit quand même un WAV, `stripWavHeader()` retire l'en-tête en parcourant les blocs
+   RIFF — pas juste en sautant 44 octets.
+
+Sans ça : un craquement en début de piste, une durée faussée, et **des points facturés trop haut**.
+
+Vérifié : ✅
+
+---
+
+## 4. Les deux défauts trouvés — corrigés
+
+### ❌ Défaut 1 — une balise pouvait être coupée en deux et **partir brute** vers Gemini
+
+**C'est le défaut sérieux.** Le découpage des textes longs (au-delà de 800 caractères) se faisait
+mot à mot. Or **trois balises officielles contiennent un espace** :
+
+`<short pause>` · `<long pause>` · `<heavy breath>`
+
+Quand l'une d'elles tombait sur la frontière des 800 caractères :
+
+```
+morceau 1 se terminait par :  "…كلمة111 كلمة112 <short"
+morceau 2 commençait par   :  "pause> كلمة113…"
+```
+
+Et voici le vrai problème : **le garde-fou ne voyait rien**. Un `<` sans `>` n'est pas reconnu
+comme une balise, donc `unknownTags` restait vide et les deux moitiés partaient telles quelles.
+Gemini pouvait prononcer « inférieur à shorts, pause supérieur à ».
+
+Résultat du balayage (chaque balise placée à **chacune des 261 positions** d'un texte long) :
+
+| Avant | Après |
+|---|---|
+| ❌ `<short pause>`, `<long pause>`, `<heavy breath>` cassées sur 2 positions chacune | ✅ **0 casse sur 261 positions, pour les 6 balises testées** |
+
+**Correctif :** chaque balise est remplacée par un jeton **sans espace, sans ponctuation et sans
+chiffre** avant le découpage, puis remise en place après. Le découpage ne peut plus, par
+construction, toucher l'intérieur d'une balise. Les morceaux déséquilibrés sont en plus jetés.
+
+### ❌ Défaut 2 — un fragment de balise pouvait quand même atteindre Gemini
+
+Défense en profondeur : même sans découpage, un utilisateur peut taper `<laugh` sans fermer, ou
+un texte peut être tronqué. Le `<` orphelin partait brut.
+
+**Correctif :** `parseTranscript()` compte maintenant les chevrons qui **restent** une fois toutes
+les balises bien formées retirées, les supprime, et le signale :
+
+```
+"كلمة112 <short"      →  envoyé : "كلمة112 short"     · signalé : fragment de balise sans paire (1)
+"pause> كلمة113"      →  envoyé : "pause كلمة113"     · signalé : fragment de balise sans paire (1)
+"سليم <laugh> هنا"    →  envoyé : "سليم <laugh> هنا" · signalé : —   ← balise VALIDE préservée
+```
+
+Le premier jet de ce correctif avait lui-même un bug (il supprimait **aussi** les balises
+valides) — attrapé par les tests avant toute livraison.
+
+### Le découpeur est maintenant dans le module testé
+
+`splitIntoChunksForTTS()` vivait dans `server.ts`, donc **non testable**. Il est déplacé dans
+`tts/engine.ts` et couvert par **23 nouvelles vérifications**. C'est ce qui a permis de trouver
+le défaut 1 : un code qu'on ne peut pas tester est un code qui casse en silence.
+
+---
+
+## 5. Ce qu'il reste à décider (pas des bugs, des choix)
+
+### ⚠️ Le style automatique va plus loin que ce que recommande Google
+
+Aujourd'hui, en 3.8, si tu ne règles aucun style, Sawtify en **invente un** à partir de la
+première balise « porteuse d'émotion » du texte. Exemples :
+
+| Ton texte | Style appliqué à **tout** le texte |
+|---|---|
+| `… <ضحكة> …` | `cheerful and amused` |
+| `… <صرخة> …` | `terrified or exhilarated, screaming` |
+| `… <تنهد> …` | `weary` |
+
+**Pourquoi c'est un problème :** Google dit explicitement que `style` est **soutenu** (ça dure tout
+le tour) alors qu'une balise est **ponctuelle** (ça arrive à un instant précis). Si tu écris :
+
+> `بصح <ضحكة> الكلام هذا ما يضحكش، المشكل كبير.`
+
+Tout le texte risque d'être livré sur un ton joyeux — alors que la balise ne visait qu'un seul mot.
+
+Et la doc va plus loin : *« Synthétise d'abord **sans style** : la plupart des requêtes n'en ont
+pas besoin. »* Aujourd'hui Sawtify en met un presque toujours.
+
+**Trois options :**
+
+| | Quoi | Effet |
+|---|---|---|
+| **A** | Ne plus rien inventer : `style` ne contient que ce que **toi** tu règles (vitesse, hauteur) | 100 % conforme à Google, comportement le plus prévisible |
+| **B** | N'inventer que les styles **soutenus par nature** (`whispering`, `crying`, `weary`) et jamais les explosions ponctuelles (`laugh`, `scream`, `gasp`, `cheer`) | garde un peu d'automatisme sans contresens |
+| **C** | Ne rien changer | le plus expressif, mais parfois à côté de l'intention |
+
+> ⚠️ À ne pas confondre avec les **styles automatiques par voix et par région** dont on a parlé
+> (chantier 6–7, pas encore commencé). Ça, c'est un autre mécanisme. Celui-ci existe **déjà** en
+> production.
+
+### Autres remarques, par ordre d'importance
+
+| # | Constat | Gravité | Recommandation |
+|---|---|---|---|
+| 1 | La clé API voyage dans l'URL (`…:generateContent?key=…`) au lieu de l'en-tête `x-goog-api-key` | faible | La doc REST utilise l'en-tête. Une clé dans une URL peut se retrouver dans des journaux ou un proxy. À changer si tu veux — je n'ai pas pu tester sans ta clé. |
+| 2 | `responseModalities` s'écrit `["audio"]` (minuscules) en mode 3.1 et `["AUDIO"]` en 3.8 | faible | Incohérence, pas un bug : l'ancien mode fonctionne depuis toujours. À uniformiser. |
+| 3 | La reconnaissance des modèles `^gemini-(3\.[89]\|[4-9]\.\d+)` classerait `gemini-3.10` en mode **legacy** | faible, futur | Aucun impact aujourd'hui. À corriger avant la sortie d'un 3.10. |
+| 4 | Les notes du mode 3.1 annoncent `[calm]` et `[very fast]`, deux balises que le code ne produit jamais | cosmétique | Texte du prompt à nettoyer. |
+| 5 | Les « Director's Notes » existent toujours en mode 3.1 | normal | C'est le comportement historique, conservé exprès pour pouvoir revenir en arrière. Google déconseille ces blocs **en 3.8 seulement**. |
+
+---
+
+## 6. Verdict
+
+**Le JSON envoyé à Gemini est correct** : il correspond exactement à la forme officielle, champ
+par champ, et respecte les 5 points du guide de migration. Rien n'est envoyé en trop, rien ne
+manque.
+
+**Mais il y avait deux vrais défauts — tous les deux sur le même thème :** faire en sorte qu'un
+fragment de balise ne puisse **jamais** partir brut vers le modèle. Le premier était sérieux
+(une balise de pause coupée en deux sur les textes longs). Les deux sont corrigés et couverts par
+des tests de régression.
+
+```
+moteur TTS            112 / 112   (89 avant l'audit, +23 nouveaux tests)
+noms des voix          22 / 22
+balises officielles    40 / 40
+aperçus audio          43 / 43
+documentation          49 / 49
+─────────────────────────────────
+TOTAL                 266 vérifications, 0 échec
+```
+
+**La seule chose qui reste en écart avec la doc, c'est le style automatique (§5).** Ce n'est pas
+un bug — c'est une décision produit qui t'appartient.

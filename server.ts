@@ -37,6 +37,7 @@ import {
   resolveEngineMode,
   describeEngine,
   legacyFidelityReport,
+  splitIntoChunksForTTS,
 } from "./tts/engine";
 import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
 import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
@@ -944,52 +945,9 @@ function getRegionGuide(region: string): string { return REGION_GUIDES[region] |
 // On coupe UNIQUEMENT sur des fins de phrase (jamais au milieu d'un mot ou
 // d'une idée) pour que les coutures entre morceaux soient inaudibles.
 // ===================================================================
-function hardSplitByWords(text: string, maxChars: number): string[] {
-  // Filet de sécurité : un bloc sans AUCUNE ponctuation (rare) → coupe par mots.
-  const words = text.split(" ");
-  const out: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    if (cur && (cur + " " + w).length > maxChars) { out.push(cur); cur = w; }
-    else cur = cur ? cur + " " + w : w;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out;
-}
+// hardSplitByWords() vit désormais dans tts/engine.ts — testée automatiquement.
 
-function splitIntoChunksForTTS(text: string, maxChars = TTS_CHUNK_MAX_CHARS): string[] {
-  const trimmed = text.trim();
-  if (!trimmed) return [];
-  if (trimmed.length <= maxChars) return [trimmed];
-
-  // 1) Découpe sur les fins de phrase : . ! ؟ ? …
-  const sentences = trimmed.split(/(?<=[.!?؟…])\s+/).filter(Boolean);
-
-  // 2) Les phrases trop longues → coupe sur la ponctuation secondaire : ، ؛ , ; :
-  const pieces: string[] = [];
-  for (const s of sentences) {
-    if (s.length <= maxChars) { pieces.push(s); continue; }
-    const sub = s.split(/(?<=[،؛:,])\s+/).filter(Boolean);
-    for (const p of sub) {
-      if (p.length <= maxChars) pieces.push(p);
-      else pieces.push(...hardSplitByWords(p, maxChars));
-    }
-  }
-
-  // 3) Regroupe les pièces en morceaux ≤ maxChars
-  const chunks: string[] = [];
-  let current = "";
-  for (const p of pieces) {
-    if (current && (current + " " + p).length > maxChars) {
-      chunks.push(current.trim());
-      current = p;
-    } else {
-      current = current ? current + " " + p : p;
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  return chunks.filter((c) => c.length > 0);
-}
+// splitIntoChunksForTTS() vit désormais dans tts/engine.ts — testée automatiquement.
 
 // ===================================================================
 //  FIX TTS-A + FIX TTS-B : APPEL GEMINI TTS NON-STREAMING AVEC CHRONOMÈTRE

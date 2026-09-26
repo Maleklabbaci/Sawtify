@@ -6,6 +6,7 @@ import { VOCAL_TAGS, parseTranscript, validateTagsOnly, tagsByCategory, allAccep
 import {
   resolveEngineMode, buildTtsRequest, stripWavHeader, extractAudioFromResponse,
   toLegacyTranscript, describeEngine, pcmDurationSeconds, legacyFidelityReport,
+  splitIntoChunksForTTS, protegerBalises, restaurerBalises, estEquilibre,
 } from "./engine";
 
 let pass = 0, fail = 0;
@@ -209,8 +210,78 @@ ok(counts.arabes >= 70, `écritures arabes acceptées : ${counts.arabes}`);
 ok(allAcceptedTagStrings().length >= 190, `total : ${allAcceptedTagStrings().length} façons d'écrire une balise`);
 ok(officialTagStrings().every((t) => /^<[a-z -]+>$/.test(t)), "les balises envoyées à Google sont TOUTES en anglais officiel");
 
+
 // ─────────────────────────────────────────────────────────────────────────────
-section("11. RÉSUMÉ");
+//  ⚠️ DÉFAUT TROUVÉ À L'AUDIT DU 26/09/2026 — ne jamais régresser.
+//
+//  Le découpage des textes longs se faisait mot à mot. Trois balises
+//  officielles contiennent un ESPACE (<short pause>, <long pause>,
+//  <heavy breath>) : si l'une tombait sur la frontière des 800 caractères,
+//  elle finissait en « <short » d'un côté et « pause> » de l'autre.
+//  Et comme un « < » sans « > » n'est pas reconnu comme balise, les deux
+//  moitiés partaient BRUTES vers Gemini.
+// ─────────────────────────────────────────────────────────────────────────────
+section("11. DÉCOUPAGE DES TEXTES LONGS — aucune balise ne doit être coupée");
+
+const motsTest: string[] = [];
+for (let i = 0; i < 260; i++) motsTest.push("كلمة" + i); // ≈ 1800 caractères, aucune ponctuation
+
+const balisesAMots = ["<short pause>", "<long pause>", "<heavy breath>"];
+const balisesUnMot = ["<sigh>", "<whispers>", "<throat-clearing>", "<laugh>", "<gasp>"];
+
+for (const balise of [...balisesAMots, ...balisesUnMot]) {
+  let cassees = 0, perdues = 0, positions = 0;
+  for (let pos = 0; pos <= motsTest.length; pos++) {
+    const avant = motsTest.slice(0, pos).join(" ");
+    const apres = motsTest.slice(pos).join(" ");
+    const texte = avant ? avant + " " + balise + " " + apres : balise + " " + apres;
+    const morceaux = splitIntoChunksForTTS(texte, 800);
+    positions++;
+    if (morceaux.some((c) => !estEquilibre(c))) cassees++;
+    if (!morceaux.some((c) => c.includes(balise))) perdues++;
+  }
+  ok(cassees === 0 && perdues === 0, `★ ${balise} intacte sur ${positions} positions (cassées : ${cassees}, perdues : ${perdues})`);
+}
+
+// La protection est réversible et n'abîme pas le texte sans balise.
+const avecBalises = "أولاً <laugh> ثم <short pause> وأخيراً.";
+const protege = protegerBalises(avecBalises);
+ok(!/<|>/.test(protege.texte), "les balises sont remplacées par des jetons insécables");
+ok(protege.balises.length === 2, "les 2 balises sont mises de côté");
+ok(restaurerBalises(protege.texte, protege.balises) === avecBalises, "★ restauration EXACTE du texte d'origine");
+ok(protegerBalises("بلا باليز").balises.length === 0, "texte sans balise : rien n'est mis de côté");
+
+// Un texte court ne doit pas être découpé du tout.
+ok(splitIntoChunksForTTS("جملة قصيرة <sigh> هنا", 800).length === 1, "texte court → 1 seul morceau");
+ok(splitIntoChunksForTTS("", 800).length === 0, "texte vide → 0 morceau");
+// La découpe doit toujours respecter le plafond.
+const longTexte = Array.from({ length: 400 }, (_, i) => "كلمة" + i).join(" ") + " <short pause> نهاية.";
+ok(splitIntoChunksForTTS(longTexte, 800).every((c) => c.length <= 800), "aucun morceau ne dépasse la limite de 800 caractères");
+
+// ─────────────────────────────────────────────────────────────────────────────
+section("12. FRAGMENTS DE BALISE — jamais envoyés bruts à Google");
+
+// Un « < » sans « > » (texte tronqué, faute de frappe, découpe brutale) ne doit
+// JAMAIS atteindre Gemini : la voix risquerait de le prononcer.
+const fragmentOuvrant = parseTranscript("كلمة112 <short");
+ok(!fragmentOuvrant.text.includes("<"), "★ chevron orphelin ouvrant retiré du texte envoyé");
+ok(fragmentOuvrant.unknownTags.length === 1, "chevron orphelin signalé à l'utilisateur");
+
+const fragmentFermant = parseTranscript("pause> كلمة113");
+ok(!fragmentFermant.text.includes(">"), "★ chevron orphelin fermant retiré du texte envoyé");
+
+const jamaisFerme = parseTranscript("<laugh بلا إغلاق");
+ok(!/<laugh/.test(jamaisFerme.text), "balise jamais fermée retirée (sinon elle serait lue)");
+
+// ⚠️ Le garde-fou ne doit PAS toucher aux balises valides.
+const balisesValides = parseTranscript("سليم <laugh> هنا <sigh> تماماً");
+ok(balisesValides.text.includes("<laugh>"), "★ une balise VALIDE en milieu de phrase est préservée");
+ok(balisesValides.text.includes("<sigh>"), "★ deux balises valides sont préservées");
+ok(balisesValides.unknownTags.length === 0, "aucune fausse alerte sur un texte sain");
+ok(balisesValides.tags.length === 2, "les 2 balises valides sont bien reconnues");
+
+// ─────────────────────────────────────────────────────────────────────────────
+section("13. RÉSUMÉ");
 console.log(`\n  Tests réussis : ${pass}   |   Échecs : ${fail}`);
 if (fail === 0) console.log("\n  ✅ LE DOUBLE MOTEUR FONCTIONNE — les deux modes sont opérationnels.\n");
 else console.log("\n  ❌ Corriger les échecs ci-dessus.\n");

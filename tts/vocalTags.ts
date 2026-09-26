@@ -290,10 +290,26 @@ export function parseTranscript(raw: string): ParsedTranscript {
     }
   );
 
-  // 3) Espaces propres (sans toucher aux retours à la ligne significatifs).
+  // 3) GARDE-FOU : un « < » ou un « > » ORPHELIN (sans paire) est un fragment
+  //    de balise — par exemple un texte découpé en plein milieu d'une balise,
+  //    ou un utilisateur qui a tapé « <laugh » sans fermer. Un tel fragment
+  //    n'est pas reconnu par l'étape 2 (il n'a pas de « > ») : il partirait
+  //    BRUT vers Gemini, qui risquerait de le prononcer.
+  //    On le retire donc, et on le signale.
+  //    On compte les chevrons qui RESTENT une fois toutes les balises bien
+  //    formées retirées — jamais les chevrons des balises valides.
+  const restant = text.replace(/<[^<>\n]*>/g, "");
+  const nbOrphelins = (restant.match(/[<>]/g) || []).length;
+  if (nbOrphelins > 0) {
+    unknownTags.push(`fragment de balise sans paire (${nbOrphelins})`);
+    // On remplace soit une balise complète (inchangée), soit un chevron orphelin.
+    text = text.replace(/<[^<>\n]*>|[<>]/g, (m) => (m.length === 1 ? " " : m));
+  }
+
+  // 4) Espaces propres (sans toucher aux retours à la ligne significatifs).
   text = text.replace(/[ \t]{2,}/g, " ").replace(/ +([,.;!?؟،؛:])/g, "$1").trim();
 
-  // 4) Style suggéré : première balise porteuse d'une émotion, hors silences.
+  // 5) Style suggéré : première balise porteuse d'une émotion, hors silences.
   //    L'ordre est celui du texte (garanti par la passe unique ci-dessus).
   const withStyle = tags.find((t) => !t.isPause && t.styleHint);
   const suggestedStyle = withStyle?.styleHint ?? null;
