@@ -2437,14 +2437,14 @@ SECTEUR DÉTECTÉ : ${detectedSector}
 DEMANDE DU CLIENT (à suivre au mot près si elle contient des instructions précises — sujet, mots à inclure, ton, longueur) : "${product}"
 
 🎯 STRUCTURE PAR DÉFAUT (uniquement si le client ne donne pas d'instructions contraires) :
-1. ACCROCHE (HOOK) [3-5 sec] -> "${selectedHook}"
-2. LE PROBLÈME [8-12 sec] -> "${selectedProblem}"
-3. LA SOLUTION & PREUVE [15-20 sec] -> "${selectedSolution}" ET "${selectedProof}"
-4. APPEL À L'ACTION (CTA) [5 sec] -> "${selectedCTA}"
+1. ACCROCHE (HOOK) [2-3 sec] -> "${selectedHook}"
+2. LE PROBLÈME [5-7 sec] -> "${selectedProblem}"
+3. LA SOLUTION & PREUVE [8-11 sec] -> "${selectedSolution}" ET "${selectedProof}"
+4. APPEL À L'ACTION (CTA) [3-4 sec] -> "${selectedCTA}"
 
 ⚠️ RÈGLE ABSOLUE : si la demande du client précise un sujet exact, des mots à utiliser, une durée, ou "suis exactement ce que je dis" — IGNORE la structure ci-dessus et écris uniquement ce qui est demandé, sans l'étirer artificiellement.${customInstructionsBlock}
 
-⚠️ CONTRAINTES GÉNÉRALES : Fluide en Darija, ${wordTarget ? `environ ${wordTarget} mots (± 15%)` : "90 à 120 mots par défaut si aucune longueur n'est précisée"}, PAS DE TITRE, JUSTE LE TEXTE.
+⚠️ CONTRAINTES GÉNÉRALES : Fluide en Darija, ${wordTarget ? `environ ${wordTarget} mots (± 15%)` : "45 à 60 mots par défaut (≈20-25 secondes à l'oral, format vidéo courte) si aucune longueur n'est précisée"}, PAS DE TITRE, JUSTE LE TEXTE.
 Style vocal souhaité : ${style || "excited"}`;
 
       const scriptCallStart = Date.now();
