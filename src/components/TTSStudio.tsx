@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
+import { tagsByCategory } from '../../tts/vocalTags';
+import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, sendAIFeedback } from '../services/api';
 import { convertWavToMp3 } from '../utils/audioConverter';
@@ -15,6 +17,25 @@ import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils
 import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
+
+// ==========================================================================
+// BALISES VOCALES `<...>` — catalogue officiel (tts/vocalTags.ts)
+// --------------------------------------------------------------------------
+// Le menu « إدراج تأثير / Insérer effet » liste les 35 sons humains officiels
+// de Gemini 3.8, groupés par famille (`<laugh>`, `<sigh>`, `<short pause>`…).
+// AUCUNE liste recopiée ici : la source reste `tts/vocalTags.ts`.
+// ==========================================================================
+const VOCAL_BURSTS = tagsByCategory();
+const VOCAL_BURST_COUNT = Object.values(VOCAL_BURSTS).reduce((n, l) => n + l.length, 0);
+
+const BURST_SECTIONS: { category: TagCategory; ar: string; fr: string }[] = [
+  { category: 'rire', ar: 'ضحك وفرح', fr: 'Rire et joie' },
+  { category: 'emotion_forte', ar: 'انفعالات قوية', fr: 'Émotions fortes' },
+  { category: 'tristesse', ar: 'حزن وبكاء', fr: 'Tristesse et pleurs' },
+  { category: 'respiration', ar: 'نفس وجسد', fr: 'Respiration et corps' },
+  { category: 'voix', ar: 'نبرات الصوت', fr: 'Voix' },
+  { category: 'silence', ar: 'وقفات صمت', fr: 'Silences (pause)' },
+];
 
 // ==========================================================================
 // UTILITAIRES
@@ -779,9 +800,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </button>
                 
                 {isEmotionsMenuOpen && (
-                  <div className="absolute top-full mt-1.5 start-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-64 max-h-72 overflow-y-auto custom-scrollbar">
+                  <div className="absolute top-full mt-1.5 start-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-72 max-h-96 overflow-y-auto custom-scrollbar">
                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pb-1.5 border-b border-slate-100 mb-1.5">
                       {language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}
+                    </div>
+
+                    {/* ① النبرة : تدوم على كامل النص (ليست لحظية). */}
+                    <div className="text-[9px] font-bold text-purple-500 uppercase tracking-wider px-1.5 pb-1 mb-1">
+                      {language === 'ar' ? '🎚️ نبرة الأداء (كامل النص)' : '🎚️ Ton (toute la lecture)'}
                     </div>
                     <div className="grid grid-cols-2 gap-1">
                       {styleTags.map((tagObj) => (
@@ -794,6 +820,30 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                         </button>
                       ))}
                     </div>
+
+                    {/* ② كل الأصوات البشرية `<...>` (35) — تُدرج كما هي. */}
+                    <div className="text-[9px] font-bold text-purple-500 uppercase tracking-wider px-1.5 pt-2.5 pb-1 mb-1">
+                      {language === 'ar' ? `🔊 أصوات بشرية (${VOCAL_BURST_COUNT})` : `🔊 Sons humains (${VOCAL_BURST_COUNT})`}
+                    </div>
+                    {BURST_SECTIONS.map((section) => (
+                      <div key={section.category}>
+                        <div className="text-[9px] font-semibold text-slate-400 px-1.5 pt-2 pb-1">
+                          {language === 'ar' ? section.ar : section.fr}
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          {(VOCAL_BURSTS[section.category] || []).map((v) => (
+                            <button
+                              key={v.tag}
+                              onClick={() => handleInsertTag(v.tag)}
+                              title={`${v.tag} — ${language === 'ar' ? v.ar : v.fr}`}
+                              className="px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 transition cursor-pointer text-start">
+                              <span className="block text-[10px] font-semibold text-slate-700">{language === 'ar' ? v.ar : v.fr}</span>
+                              <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{v.tag}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   )}
                 </div>
@@ -1035,7 +1085,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             <div className="flex flex-col min-w-0 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-white truncate max-w-[130px]">{currentVoice.name}</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">Prêt ✓</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">{language === 'ar' ? 'جاهز ✓' : 'Prêt ✓'}</span>
               </div>
               <span className="text-[10px] text-purple-300 font-mono mt-0.5">
                 {formatTime(currentTime)} / {formatTime(audioDuration)}
