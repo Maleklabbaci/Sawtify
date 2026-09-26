@@ -15,12 +15,12 @@
  *  techniques. L'utilisateur écrit « Amine », « أمين » ou « Puck » —
  *  les trois fonctionnent et donnent la même voix.
  *
- *  ⚠️ IMPORTANT — LES 21 NOUVELLES VOIX
- *  Google ne publie PAS le genre de ses voix studio. Les prénoms proposés
- *  ci-dessous sont donc des PROPOSITIONS à valider à l'oreille.
- *  Si un prénom ne colle pas (voix masculine avec un prénom féminin),
- *  c'est ICI qu'il faut le changer — UN SEUL endroit, et c'est réglé
- *  partout (API, interface, historique).
+ *  LES 21 NOUVELLES VOIX — genre et prénoms confirmés le 26/09
+ *  Genre officiel Google (catalogue Gemini TTS). 5 prénoms de la première
+ *  proposition ne collaient pas au genre réel de la voix (Karim/Riad/Omar
+ *  posés sur des voix officiellement féminines, Sara sur une voix
+ *  masculine) : renommés en Ines, Hanane, Widad, Feriel, Fares — mêmes
+ *  slugs que côté interface (src/data/voicesV41.ts), à garder synchronisés.
  * ============================================================================
  */
 
@@ -39,7 +39,7 @@ export type VoiceNameEntry = {
   /** Descripteur officiel Google, traduit. */
   caractereFr: string;
   caractereAr: string;
-  /** Genre PROBABLE — présent uniquement pour les 9 voix historiques. */
+  /** Genre officiel Google, confirmé sur les 30 voix. */
   gender: "male" | "female" | "unknown";
   /** true = prénom à confirmer à l'oreille (voix jamais utilisée avant). */
   aConfirmer?: boolean;
@@ -70,27 +70,27 @@ export const VOICE_NAMES: VoiceNameEntry[] = [
   //  LES 21 NOUVELLES VOIX — prénoms PROPOSÉS, à confirmer à l'écoute
   //  (aConfirmer: true → à valider quand tu généreras les aperçus audio)
   // ═══════════════════════════════════════════════════════════════════════
-  { id: "Kore",          fr: "Karim",   ar: "كريم",   slug: "karim",   caractereFr: "Voix ferme et autoritaire",     caractereAr: "حازم وواثق",     gender: "unknown", aConfirmer: true },
-  { id: "Aoede",         fr: "Aya",     ar: "آية",    slug: "aya",     caractereFr: "Voix légère et aérienne",       caractereAr: "خفيفة ومشرقة",   gender: "unknown", aConfirmer: true },
-  { id: "Callirrhoe",    fr: "Sami",    ar: "سامي",   slug: "sami",    caractereFr: "Voix décontractée et cool",      caractereAr: "مرتاح وهادئ",    gender: "unknown", aConfirmer: true },
-  { id: "Autonoe",       fr: "Nada",    ar: "ندى",    slug: "nada",    caractereFr: "Voix éclatante et joyeuse",     caractereAr: "مشرقة وفرحة",    gender: "unknown", aConfirmer: true },
-  { id: "Enceladus",     fr: "Anis",    ar: "أنيس",   slug: "anis",    caractereFr: "Voix soufflée et intime",       caractereAr: "هامسة وقريبة",   gender: "unknown", aConfirmer: true },
-  { id: "Iapetus",       fr: "Zaki",    ar: "زكي",    slug: "zaki",    caractereFr: "Voix claire et nette",          caractereAr: "واضح ونقي",      gender: "unknown", aConfirmer: true },
-  { id: "Umbriel",       fr: "Walid",   ar: "وليد",   slug: "walid",   caractereFr: "Voix décontractée et simple",    caractereAr: "عفوي وهادئ",     gender: "unknown", aConfirmer: true },
-  { id: "Algieba",       fr: "Nabil",   ar: "نبيل",   slug: "nabil",   caractereFr: "Voix lisse et fluide",          caractereAr: "سلس وسهل",       gender: "unknown", aConfirmer: true },
-  { id: "Despina",       fr: "Salma",   ar: "سلمى",   slug: "salma",   caractereFr: "Voix lisse et douce",           caractereAr: "ناعمة وسلسة",    gender: "unknown", aConfirmer: true },
-  { id: "Erinome",       fr: "Rania",   ar: "رانيا",  slug: "rania",   caractereFr: "Voix claire et précise",        caractereAr: "واضحة ومحددة",   gender: "unknown", aConfirmer: true },
-  { id: "Rasalgethi",    fr: "Hakim",   ar: "حكيم",   slug: "hakim",   caractereFr: "Voix informative et érudite",     caractereAr: "معلوماتي ومثقف", gender: "unknown", aConfirmer: true },
-  { id: "Laomedeia",     fr: "Riad",    ar: "رياض",   slug: "riad",    caractereFr: "Voix enjouée et vive",            caractereAr: "مرح وخفيف",      gender: "unknown", aConfirmer: true },
-  { id: "Alnilam",       fr: "Adel",    ar: "عادل",   slug: "adel",    caractereFr: "Voix ferme et stable",          caractereAr: "حازم ومتوازن",   gender: "unknown", aConfirmer: true },
-  { id: "Schedar",       fr: "Nassim",  ar: "نسيم",   slug: "nassim",  caractereFr: "Voix égale et posée",             caractereAr: "متوازن وهادئ",   gender: "unknown", aConfirmer: true },
-  { id: "Gacrux",        fr: "Omar",    ar: "عمر",    slug: "omar",    caractereFr: "Voix mûre et expérimentée",     caractereAr: "ناضجة وحكيمة",   gender: "unknown", aConfirmer: true },
-  { id: "Pulcherrima",   fr: "Yacine",  ar: "ياسين",  slug: "yacine",  caractereFr: "Voix directe et assurée",       caractereAr: "مباشرة وواثقة",  gender: "unknown", aConfirmer: true },
-  { id: "Achird",        fr: "Hicham",  ar: "هشام",   slug: "hicham",  caractereFr: "Voix amicale et proche",        caractereAr: "ودود وقريب",     gender: "unknown", aConfirmer: true },
-  { id: "Zubenelgenubi", fr: "Reda",    ar: "رضا",    slug: "reda",    caractereFr: "Voix décontractée et naturelle", caractereAr: "عفوي وطبيعي",    gender: "unknown", aConfirmer: true },
-  { id: "Vindemiatrix",  fr: "Amina",   ar: "أمينة",  slug: "amina",   caractereFr: "Voix douce et délicate",        caractereAr: "لطيفة ورقيقة",   gender: "unknown", aConfirmer: true },
-  { id: "Sadachbia",     fr: "Sara",    ar: "سارة",   slug: "sara",    caractereFr: "Voix vivante et animée",        caractereAr: "حيوية ونشيطة",   gender: "unknown", aConfirmer: true },
-  { id: "Sadaltager",    fr: "Mourad",  ar: "مراد",   slug: "mourad",  caractereFr: "Voix savante et pédagogue",     caractereAr: "مثقف ومعلّم",    gender: "unknown", aConfirmer: true },
+  { id: "Kore",          fr: "Ines",    ar: "إيناس",  slug: "ines",    caractereFr: "Voix ferme et autoritaire",     caractereAr: "حازم وواثق",     gender: "female" },
+  { id: "Aoede",         fr: "Aya",     ar: "آية",    slug: "aya",     caractereFr: "Voix légère et aérienne",       caractereAr: "خفيفة ومشرقة",   gender: "female" },
+  { id: "Callirrhoe",    fr: "Feriel",  ar: "فريال",  slug: "feriel",  caractereFr: "Voix décontractée et cool",      caractereAr: "مرتاح وهادئ",    gender: "female" },
+  { id: "Autonoe",       fr: "Nada",    ar: "ندى",    slug: "nada",    caractereFr: "Voix éclatante et joyeuse",     caractereAr: "مشرقة وفرحة",    gender: "female" },
+  { id: "Enceladus",     fr: "Anis",    ar: "أنيس",   slug: "anis",    caractereFr: "Voix soufflée et intime",       caractereAr: "هامسة وقريبة",   gender: "male" },
+  { id: "Iapetus",       fr: "Zaki",    ar: "زكي",    slug: "zaki",    caractereFr: "Voix claire et nette",          caractereAr: "واضح ونقي",      gender: "male" },
+  { id: "Umbriel",       fr: "Walid",   ar: "وليد",   slug: "walid",   caractereFr: "Voix décontractée et simple",    caractereAr: "عفوي وهادئ",     gender: "male" },
+  { id: "Algieba",       fr: "Nabil",   ar: "نبيل",   slug: "nabil",   caractereFr: "Voix lisse et fluide",          caractereAr: "سلس وسهل",       gender: "male" },
+  { id: "Despina",       fr: "Salma",   ar: "سلمى",   slug: "salma",   caractereFr: "Voix lisse et douce",           caractereAr: "ناعمة وسلسة",    gender: "female" },
+  { id: "Erinome",       fr: "Rania",   ar: "رانيا",  slug: "rania",   caractereFr: "Voix claire et précise",        caractereAr: "واضحة ومحددة",   gender: "female" },
+  { id: "Rasalgethi",    fr: "Hakim",   ar: "حكيم",   slug: "hakim",   caractereFr: "Voix informative et érudite",     caractereAr: "معلوماتي ومثقف", gender: "male" },
+  { id: "Laomedeia",     fr: "Hanane",  ar: "حنان",   slug: "hanane",  caractereFr: "Voix enjouée et vive",            caractereAr: "مرح وخفيف",      gender: "female" },
+  { id: "Alnilam",       fr: "Adel",    ar: "عادل",   slug: "adel",    caractereFr: "Voix ferme et stable",          caractereAr: "حازم ومتوازن",   gender: "male" },
+  { id: "Schedar",       fr: "Nassim",  ar: "نسيم",   slug: "nassim",  caractereFr: "Voix égale et posée",             caractereAr: "متوازن وهادئ",   gender: "male" },
+  { id: "Gacrux",        fr: "Widad",   ar: "وداد",   slug: "widad",   caractereFr: "Voix mûre et expérimentée",     caractereAr: "ناضجة وحكيمة",   gender: "female" },
+  { id: "Pulcherrima",   fr: "Yacine",  ar: "ياسين",  slug: "yacine",  caractereFr: "Voix directe et assurée",       caractereAr: "مباشرة وواثقة",  gender: "male" },
+  { id: "Achird",        fr: "Hicham",  ar: "هشام",   slug: "hicham",  caractereFr: "Voix amicale et proche",        caractereAr: "ودود وقريب",     gender: "male" },
+  { id: "Zubenelgenubi", fr: "Reda",    ar: "رضا",    slug: "reda",    caractereFr: "Voix décontractée et naturelle", caractereAr: "عفوي وطبيعي",    gender: "male" },
+  { id: "Vindemiatrix",  fr: "Amina",   ar: "أمينة",  slug: "amina",   caractereFr: "Voix douce et délicate",        caractereAr: "لطيفة ورقيقة",   gender: "female" },
+  { id: "Sadachbia",     fr: "Fares",   ar: "فارس",   slug: "fares",   caractereFr: "Voix vivante et animée",        caractereAr: "حيوية ونشيطة",   gender: "male" },
+  { id: "Sadaltager",    fr: "Mourad",  ar: "مراد",   slug: "mourad",  caractereFr: "Voix savante et pédagogue",     caractereAr: "مثقف ومعلّم",    gender: "male" },
 ];
 
 /** Vérification : chaque voix studio doit avoir son prénom. */
