@@ -612,7 +612,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         )}
       </div>
         </div>
-        </div>
       )}
 
       {/* FAQ Section */}
