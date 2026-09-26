@@ -14,6 +14,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
 import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
+import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
 
 // ==========================================================================
 // UTILITAIRES
@@ -99,6 +100,21 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   // explicitement si la voix démarre calme, neutre ou excitée.
   const [showStartToneModal, setShowStartToneModal] = useState<boolean>(false);
   const startToneRef = useRef<'calm' | 'natural' | 'excited' | null>(null);
+
+  // Pop-up « Quoi de neuf en 4.1 » : s'ouvre toute seule à la PREMIÈRE entrée
+  // dans le studio, puis reste accessible via le bouton « Nouveautés ».
+  const [showWhatsNew, setShowWhatsNew] = useState<boolean>(false);
+  useEffect(() => {
+    if (shouldShowWhatsNew()) {
+      // On marque comme vue dès l'OUVERTURE : fermer la page en pleine lecture
+      // ne la fera pas réapparaître en boucle à la prochaine visite.
+      markWhatsNewSeen();
+      // Léger différé : laisse le studio s'afficher d'abord, la pop-up arrive
+      // ensuite — c'est plus élégant qu'un écran noir qui saute.
+      const id = setTimeout(() => setShowWhatsNew(true), 550);
+      return () => clearTimeout(id);
+    }
+  }, []);
 
 
   // Menu emotions
@@ -747,8 +763,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           <div className="bg-white border border-slate-200/80 rounded-2xl min-h-[400px] lg:min-h-0 flex-none flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative lg:h-full lg:flex-1">
             
             {/* Header */}
-            <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
-              <div className="relative" ref={emotionsMenuRef}>
+              <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
+                <div className="flex min-w-0 items-center gap-2">
+                <div className="relative" ref={emotionsMenuRef}>
                 <button 
                   onClick={() => setIsEmotionsMenuOpen(!isEmotionsMenuOpen)}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
@@ -774,10 +791,23 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
-              
-              <div className="text-[11px] text-slate-400 font-num">
+                  )}
+                </div>
+
+                {/* Rappel des nouveautés : la pop-up ne s'affiche qu'une fois,
+                    ce bouton permet de la revoir (et de la montrer à quelqu'un). */}
+                <button
+                  type="button"
+                  onClick={() => setShowWhatsNew(true)}
+                  title={language === 'ar' ? 'ما الجديد في 4.1' : 'Nouveautés de la version 4.1'}
+                  className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-2 py-1.5 text-[10px] font-extrabold text-violet-700 transition hover:border-violet-300 hover:from-violet-100 hover:to-fuchsia-100 sm:px-2.5"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span className="hidden sm:inline">{language === 'ar' ? 'جديد 4.1' : 'Nouveautés 4.1'}</span>
+                </button>
+                </div>
+                
+                <div className="text-[11px] text-slate-400 font-num">
                 <span className={`font-semibold ${text.length >= maxChars * 0.9 ? 'text-amber-600' : 'text-slate-600'}`}>{text.length}</span> / {maxChars}
                 {balance < TTS_UNLOCK_BALANCE_THRESHOLD && (
                   <span className="ml-1 text-slate-400">(débloquez {TTS_MAX_CHARS_UNLOCKED} à {TTS_UNLOCK_BALANCE_THRESHOLD}+ points)</span>
@@ -1182,6 +1212,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
           </div>
         </div>
+      )}
+
+      {/* « Quoi de neuf en 4.1 » — première visite, ou bouton « Nouveautés ».
+          « Commencer à créer » ferme la pop-up : le studio est déjà derrière. */}
+      {showWhatsNew && (
+        <WhatsNewV41
+          onClose={() => setShowWhatsNew(false)}
+          onStart={() => setShowWhatsNew(false)}
+          onSupport={() => { setShowWhatsNew(false); onOpenRecharge(); }}
+        />
       )}
     </div>
   );
