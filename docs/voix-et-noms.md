@@ -79,15 +79,15 @@ pour que le prénom corresponde enfin au genre réel de la voix.
 | 7 | `Sulafat` | **Maryam** | مريم | Voix chaleureuse et douce | ✅ femme |
 | 8 | `Leda` | **Layla** | ليلى | Voix juvénile et vive | ✅ femme |
 | 9 | `Achernar` | **Nour** | نور | Voix douce et apaisante | ✅ femme |
-| 10 | `Kore` | **Karima** | كريمة | Voix ferme et autoritaire | 🆕 femme |
+| 10 | `Kore` | **Ines** | إيناس | Voix ferme et autoritaire | 🆕 femme |
 | 11 | `Aoede` | **Aya** | آية | Voix légère et aérienne | 🆕 femme |
-| 12 | `Callirrhoe` | **Samia** | سامية | Voix décontractée et cool | 🆕 femme |
+| 12 | `Callirrhoe` | **Feriel** | فريال | Voix décontractée et cool | 🆕 femme |
 | 13 | `Autonoe` | **Nada** | ندى | Voix éclatante et joyeuse | 🆕 femme |
 | 14 | `Despina` | **Salma** | سلمى | Voix lisse et douce | 🆕 femme |
 | 15 | `Erinome` | **Rania** | رانيا | Voix claire et précise | 🆕 femme |
-| 16 | `Laomedeia` | **Rym** | ريم | Voix enjouée et vive | 🆕 femme |
+| 16 | `Laomedeia` | **Hanane** | حنان | Voix enjouée et vive | 🆕 femme |
 | 17 | `Vindemiatrix` | **Nassima** | نسيمة | Voix douce et délicate | 🆕 femme |
-| 18 | `Gacrux` | **Souad** | سعاد | Voix mûre et expérimentée | 🆕 femme |
+| 18 | `Gacrux` | **Widad** | وداد | Voix mûre et expérimentée | 🆕 femme |
 | 19 | `Enceladus` | **Anis** | أنيس | Voix soufflée et intime | 🆕 homme |
 | 20 | `Iapetus` | **Zaki** | زكي | Voix claire et nette | 🆕 homme |
 | 21 | `Umbriel` | **Walid** | وليد | Voix décontractée et simple | 🆕 homme |
@@ -98,7 +98,7 @@ pour que le prénom corresponde enfin au genre réel de la voix.
 | 26 | `Zubenelgenubi` | **Reda** | رضا | Voix décontractée et naturelle | 🆕 homme |
 | 27 | `Pulcherrima` | **Yacine** | ياسين | Voix directe et assurée | 🆕 homme |
 | 28 | `Schedar` | **Amir** | أمير | Voix égale et posée | 🆕 homme |
-| 29 | `Sadachbia` | **Sofiane** | سفيان | Voix vivante et animée | 🆕 homme |
+| 29 | `Sadachbia` | **Fares** | فارس | Voix vivante et animée | 🆕 homme |
 | 30 | `Sadaltager` | **Mourad** | مراد | Voix savante et pédagogue | 🆕 homme |
 
 **Les femmes d'abord** (9 F), **les hommes ensuite** (12 H) : c'est l'ordre affiché
@@ -136,7 +136,7 @@ Il compare les quatre fichiers qui décrivent les voix et refuse toute incohére
 | Nom technique | `Puck` | ✅ |
 | **Ancien identifiant Sawtify** | `voice_amin` | ✅ |
 | Nouvelle voix en français | `Karima` | ✅ |
-| Nouvelle voix en arabe | `كريمة` | ✅ |
+| Nouvelle voix en arabe | `إيناس` | ✅ |
 | Voix sur mesure (à venir) | `voice_xyz` | ✅ |
 | Voix inexistante | `inconnu` | 🛡️ repli sûr → `Amine` |
 

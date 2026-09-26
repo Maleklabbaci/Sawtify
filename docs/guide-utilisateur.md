@@ -234,15 +234,15 @@ c'est l'ordre affiché quand aucun filtre n'est actif.
 
 | Prénom | En arabe | Caractère | Genre |
 |---|---|---|---|
-| **Karima** | كريمة | ferme et autoritaire | Femme |
+| **Ines** | إيناس | ferme et autoritaire | Femme |
 | **Aya** | آية | légère et aérienne | Femme |
-| **Samia** | سامية | décontractée et cool | Femme |
+| **Feriel** | فريال | décontractée et cool | Femme |
 | **Nada** | ندى | éclatante et joyeuse | Femme |
 | **Salma** | سلمى | lisse et douce | Femme |
 | **Rania** | رانيا | claire et précise | Femme |
-| **Rym** | ريم | enjouée et vive | Femme |
+| **Hanane** | حنان | enjouée et vive | Femme |
 | **Nassima** | نسيمة | douce et délicate | Femme |
-| **Souad** | سعاد | mûre et expérimentée | Femme |
+| **Widad** | وداد | mûre et expérimentée | Femme |
 | **Anis** | أنيس | soufflée et intime | Homme |
 | **Zaki** | زكي | claire et nette | Homme |
 | **Walid** | وليد | décontractée et simple | Homme |
@@ -253,18 +253,18 @@ c'est l'ordre affiché quand aucun filtre n'est actif.
 | **Reda** | رضا | décontractée et naturelle | Homme |
 | **Yacine** | ياسين | directe et assurée | Homme |
 | **Amir** | أمير | égale et posée | Homme |
-| **Sofiane** | سفيان | vivante et animée | Homme |
+| **Fares** | فارس | vivante et animée | Homme |
 | **Mourad** | مراد | savante et pédagogue | Homme |
 > ✅ **Le genre de chaque voix est désormais connu.** Google ne le publie pas, mais une liste de
 > référence vérifiée (13 femmes, 17 hommes) a permis de tout remettre d'aplomb : **13 voix de
 > femme** et **17 voix d'homme**, chacune avec un prénom qui correspond à sa vraie voix.
 ---|---|
-| une pub qui donne envie | **Rachid**, **Yacine**, **Karima** |
+| une pub qui donne envie | **Rachid**, **Yacine**, **Ines** |
 | une voix de documentaire | **Khalid**, **Omar**, **Mourad** |
 | rassurer un client | **Maryam**, **Nour**, **Amina** |
 | une vidéo TikTok qui accroche | **Layla**, **Aya**, **Riad** |
 | un conte, une histoire | **Bilal**, **Anis** |
-| un message d'entreprise net | **Fayçal**, **Souad**, **Hakim** |
+| un message d'entreprise net | **Fayçal**, **Widad**, **Hakim** |
 
 **Écris le prénom, le nom en arabe, ou l'identifiant technique — les trois marchent.**
 

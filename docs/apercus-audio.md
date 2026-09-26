@@ -76,7 +76,7 @@ Tu ne paies jamais deux fois le même aperçu.
 ```json
 {
   "voiceId": "Kore",
-  "nameFr": "Karima",
+  "nameFr": "Ines",
   "nameAr": "كريم",
   "file": "kore.wav",
   "url": "https://…/storage/v1/object/public/voice-previews/kore.wav",

@@ -70,15 +70,15 @@ type NouvelleVoix = {
 const NOUVELLES_VOIX: NouvelleVoix[] = [
   // Les femmes d'abord (9), les hommes ensuite (12) : ordre du catalogue.
   // ── Femmes (9) ──────────────────────────────────────────────────────────
-  { slug: 'karim', geminiVoice: 'Kore', name: 'Karima', nameAr: 'كريمة', caractere: 'Ferme', caractereAr: 'حازم', icon: 'mic', category: 'formal', gender: 'female' },
+  { slug: 'ines', geminiVoice: 'Kore', name: 'Ines', nameAr: 'إيناس', caractere: 'Ferme', caractereAr: 'حازم', icon: 'mic', category: 'formal', gender: 'female' },
   { slug: 'aya', geminiVoice: 'Aoede', name: 'Aya', nameAr: 'آية', caractere: 'Légère et aérienne', caractereAr: 'خفيف', icon: 'sparkles', category: 'social', gender: 'female' },
-  { slug: 'sami', geminiVoice: 'Callirrhoe', name: 'Samia', nameAr: 'سامية', caractere: 'Décontractée', caractereAr: 'مرتاح', icon: 'podcast', category: 'social', gender: 'female' },
+  { slug: 'feriel', geminiVoice: 'Callirrhoe', name: 'Feriel', nameAr: 'فريال', caractere: 'Décontractée', caractereAr: 'مرتاح', icon: 'podcast', category: 'social', gender: 'female' },
   { slug: 'nada', geminiVoice: 'Autonoe', name: 'Nada', nameAr: 'ندى', caractere: 'Éclatante', caractereAr: 'مشرق', icon: 'sparkles', category: 'commercial', gender: 'female' },
   { slug: 'salma', geminiVoice: 'Despina', name: 'Salma', nameAr: 'سلمى', caractere: 'Lisse', caractereAr: 'سلس', icon: 'sparkles', category: 'narrative', gender: 'female' },
   { slug: 'rania', geminiVoice: 'Erinome', name: 'Rania', nameAr: 'رانيا', caractere: 'Claire', caractereAr: 'واضح', icon: 'mic', category: 'formal', gender: 'female' },
-  { slug: 'riad', geminiVoice: 'Laomedeia', name: 'Rym', nameAr: 'ريم', caractere: 'Enjouée', caractereAr: 'مرح', icon: 'flame', category: 'commercial', gender: 'female' },
+  { slug: 'hanane', geminiVoice: 'Laomedeia', name: 'Hanane', nameAr: 'حنان', caractere: 'Enjouée', caractereAr: 'مرح', icon: 'flame', category: 'commercial', gender: 'female' },
   { slug: 'nassim', geminiVoice: 'Vindemiatrix', name: 'Nassima', nameAr: 'نسيمة', caractere: 'Douce', caractereAr: 'ناعم', icon: 'audio-lines', category: 'narrative', gender: 'female' },
-  { slug: 'omar', geminiVoice: 'Gacrux', name: 'Souad', nameAr: 'سعاد', caractere: 'Mûre', caractereAr: 'ناضج', icon: 'headphones', category: 'narrative', gender: 'female' },
+  { slug: 'widad', geminiVoice: 'Gacrux', name: 'Widad', nameAr: 'وداد', caractere: 'Mûre', caractereAr: 'ناضج', icon: 'headphones', category: 'narrative', gender: 'female' },
   // ── Hommes (12) ─────────────────────────────────────────────────────────
   { slug: 'anis', geminiVoice: 'Enceladus', name: 'Anis', nameAr: 'أنيس', caractere: 'Soufflé et aéré', caractereAr: 'نفَسي وخفيف', icon: 'volume-2', category: 'narrative', gender: 'male' },
   { slug: 'zaki', geminiVoice: 'Iapetus', name: 'Zaki', nameAr: 'زكي', caractere: 'Clair', caractereAr: 'واضح', icon: 'mic', category: 'formal', gender: 'male' },
@@ -90,7 +90,7 @@ const NOUVELLES_VOIX: NouvelleVoix[] = [
   { slug: 'reda', geminiVoice: 'Zubenelgenubi', name: 'Reda', nameAr: 'رضا', caractere: 'Décontracté', caractereAr: 'عفوي', icon: 'radio', category: 'social', gender: 'male' },
   { slug: 'yacine', geminiVoice: 'Pulcherrima', name: 'Yacine', nameAr: 'ياسين', caractere: 'Direct et assuré', caractereAr: 'مباشر', icon: 'megaphone', category: 'commercial', gender: 'male' },
   { slug: 'amina', geminiVoice: 'Schedar', name: 'Amir', nameAr: 'أمير', caractere: 'Égal et posé', caractereAr: 'متوازن', icon: 'sparkles', category: 'narrative', gender: 'male' },
-  { slug: 'sara', geminiVoice: 'Sadachbia', name: 'Sofiane', nameAr: 'سفيان', caractere: 'Vivant', caractereAr: 'حيوي', icon: 'zap', category: 'social', gender: 'male' },
+  { slug: 'fares', geminiVoice: 'Sadachbia', name: 'Fares', nameAr: 'فارس', caractere: 'Vivant', caractereAr: 'حيوي', icon: 'zap', category: 'social', gender: 'male' },
   { slug: 'mourad', geminiVoice: 'Sadaltager', name: 'Mourad', nameAr: 'مراد', caractere: 'Savant et érudit', caractereAr: 'مثقّف ورصين', icon: 'headphones', category: 'formal', gender: 'male' },
 ];
 

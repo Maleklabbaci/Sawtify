@@ -84,15 +84,15 @@ export const VOICE_NAMES: VoiceNameEntry[] = [
   //    c'est l'identifiant stocké dans l'historique des utilisateurs.
   // ═══════════════════════════════════════════════════════════════════════
   // ── Femmes (9) ──────────────────────────────────────────────────────────
-  { id: "Kore", fr: "Karima", ar: "كريمة", slug: "karim", caractereFr: "Voix ferme et autoritaire", caractereAr: "حازمة وواثقة", gender: "female" },
+  { id: "Kore", fr: "Ines", ar: "إيناس", slug: "ines", caractereFr: "Voix ferme et autoritaire", caractereAr: "حازمة وواثقة", gender: "female" },
   { id: "Aoede", fr: "Aya", ar: "آية", slug: "aya", caractereFr: "Voix légère et aérienne", caractereAr: "خفيفة ومشرقة", gender: "female" },
-  { id: "Callirrhoe", fr: "Samia", ar: "سامية", slug: "sami", caractereFr: "Voix décontractée et cool", caractereAr: "مرتاحة وهادئة", gender: "female" },
+  { id: "Callirrhoe", fr: "Feriel", ar: "فريال", slug: "feriel", caractereFr: "Voix décontractée et cool", caractereAr: "مرتاحة وهادئة", gender: "female" },
   { id: "Autonoe", fr: "Nada", ar: "ندى", slug: "nada", caractereFr: "Voix éclatante et joyeuse", caractereAr: "مشرقة وفرحة", gender: "female" },
   { id: "Despina", fr: "Salma", ar: "سلمى", slug: "salma", caractereFr: "Voix lisse et douce", caractereAr: "ناعمة وسلسة", gender: "female" },
   { id: "Erinome", fr: "Rania", ar: "رانيا", slug: "rania", caractereFr: "Voix claire et précise", caractereAr: "واضحة ومحددة", gender: "female" },
-  { id: "Laomedeia", fr: "Rym", ar: "ريم", slug: "riad", caractereFr: "Voix enjouée et vive", caractereAr: "مرحة وخفيفة", gender: "female" },
+  { id: "Laomedeia", fr: "Hanane", ar: "حنان", slug: "hanane", caractereFr: "Voix enjouée et vive", caractereAr: "مرحة وخفيفة", gender: "female" },
   { id: "Vindemiatrix", fr: "Nassima", ar: "نسيمة", slug: "nassim", caractereFr: "Voix douce et délicate", caractereAr: "ناعمة ولطيفة", gender: "female" },
-  { id: "Gacrux", fr: "Souad", ar: "سعاد", slug: "omar", caractereFr: "Voix mûre et expérimentée", caractereAr: "ناضجة وحكيمة", gender: "female" },
+  { id: "Gacrux", fr: "Widad", ar: "وداد", slug: "widad", caractereFr: "Voix mûre et expérimentée", caractereAr: "ناضجة وحكيمة", gender: "female" },
   // ── Hommes (12) ─────────────────────────────────────────────────────────
   { id: "Enceladus", fr: "Anis", ar: "أنيس", slug: "anis", caractereFr: "Voix soufflée et intime", caractereAr: "نفَسي وخفيف", gender: "male" },
   { id: "Iapetus", fr: "Zaki", ar: "زكي", slug: "zaki", caractereFr: "Voix claire et nette", caractereAr: "واضح ونقي", gender: "male" },
@@ -104,7 +104,7 @@ export const VOICE_NAMES: VoiceNameEntry[] = [
   { id: "Zubenelgenubi", fr: "Reda", ar: "رضا", slug: "reda", caractereFr: "Voix décontractée et naturelle", caractereAr: "عفوي وطبيعي", gender: "male" },
   { id: "Pulcherrima", fr: "Yacine", ar: "ياسين", slug: "yacine", caractereFr: "Voix directe et assurée", caractereAr: "مباشر وواثق", gender: "male" },
   { id: "Schedar", fr: "Amir", ar: "أمير", slug: "amina", caractereFr: "Voix égale et posée", caractereAr: "متوازن وهادئ", gender: "male" },
-  { id: "Sadachbia", fr: "Sofiane", ar: "سفيان", slug: "sara", caractereFr: "Voix vivante et animée", caractereAr: "حيوي ونشيط", gender: "male" },
+  { id: "Sadachbia", fr: "Fares", ar: "فارس", slug: "fares", caractereFr: "Voix vivante et animée", caractereAr: "حيوي ونشيط", gender: "male" },
   { id: "Sadaltager", fr: "Mourad", ar: "مراد", slug: "mourad", caractereFr: "Voix savante et pédagogue", caractereAr: "مثقّف ورصين", gender: "male" },
 ];
 

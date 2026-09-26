@@ -97,15 +97,15 @@ aucune intégration existante n'est cassée.
 | 7 | Maryam | مريم | `Sulafat` | `voice_maryam` | femme |
 | 8 | Layla | ليلى | `Leda` | `voice_layla` | femme |
 | 9 | Nour | نور | `Achernar` | `voice_nour` | femme |
-| 10 | Karima | كريمة | `Kore` | — | femme |
+| 10 | Ines | إيناس | `Kore` | — | femme |
 | 11 | Aya | آية | `Aoede` | — | femme |
-| 12 | Samia | سامية | `Callirrhoe` | — | femme |
+| 12 | Feriel | فريال | `Callirrhoe` | — | femme |
 | 13 | Nada | ندى | `Autonoe` | — | femme |
 | 14 | Salma | سلمى | `Despina` | — | femme |
 | 15 | Rania | رانيا | `Erinome` | — | femme |
-| 16 | Rym | ريم | `Laomedeia` | — | femme |
+| 16 | Hanane | حنان | `Laomedeia` | — | femme |
 | 17 | Nassima | نسيمة | `Vindemiatrix` | — | femme |
-| 18 | Souad | سعاد | `Gacrux` | — | femme |
+| 18 | Widad | وداد | `Gacrux` | — | femme |
 | 19 | Anis | أنيس | `Enceladus` | — | homme |
 | 20 | Zaki | زكي | `Iapetus` | — | homme |
 | 21 | Walid | وليد | `Umbriel` | — | homme |
@@ -116,7 +116,7 @@ aucune intégration existante n'est cassée.
 | 26 | Reda | رضا | `Zubenelgenubi` | — | homme |
 | 27 | Yacine | ياسين | `Pulcherrima` | — | homme |
 | 28 | Amir | أمير | `Schedar` | — | homme |
-| 29 | Sofiane | سفيان | `Sadachbia` | — | homme |
+| 29 | Fares | فارس | `Sadachbia` | — | homme |
 | 30 | Mourad | مراد | `Sadaltager` | — | homme |
 **Les 30 genres sont désormais connus** (13 femmes, 17 hommes) et chaque `voice_name`
 correspond à la bonne voix. La colonne « Ancien ID » rappelle l'identifiant historique : il
