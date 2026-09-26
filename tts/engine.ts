@@ -225,6 +225,10 @@ export type BuildTtsRequestOptions = {
   autoStyle?: boolean;
   /** true pour logger le nettoyage des balises (diagnostic). */
   debug?: boolean;
+  /** Registre de langue choisi explicitement (darija par défaut). */
+  register?: Register | null;
+  /** Intensité émotionnelle choisie explicitement (normal par défaut). */
+  intensity?: Intensity | null;
 };
 
 export type BuildTtsRequestResult = {
@@ -265,10 +269,47 @@ export type BuildTtsRequestResult = {
    *  n'a aucune raison d'être prononcé en darija.
    * ════════════════════════════════════════════════════════════════════════
    */
-  export function languageInstruction(text: string): string {
-    const arabe = (String(text || "").match(/[\u0600-\u06FF]/g) || []).length;
-    if (arabe === 0) return "";
-    return "in Algerian Darija, natural and human, like a real person talking";
+  /** Registre de langue choisi explicitement par l'utilisateur (popup front). */
+  export type Register = "darija" | "fusha" | "francais";
+  /** Intensité émotionnelle choisie explicitement par l'utilisateur. */
+  export type Intensity = "low" | "normal" | "high";
+
+  /**
+   * MISE À JOUR 26/09/2026 — REGISTRE EXPLICITE, PLUS DE DEVINETTE.
+   * Détecter "darija" vs "فصحى" à la seule lecture du texte n'est PAS fiable
+   * (même alphabet arabe pour les deux) : on ne devine plus, l'utilisateur
+   * choisit son registre dans le front, et le serveur applique EXACTEMENT
+   * ce choix. Défaut = darija (biais voulu) si rien n'est fourni.
+   */
+  export function languageInstruction(text: string, register?: Register | null): string {
+    const reg = register || "darija";
+    if (reg === "francais") return "";
+    if (reg === "fusha") {
+      return "in classical Modern Standard Arabic (Fusha), formal and clear articulation — never Algerian Darija";
+    }
+    return "in Algerian Darija, never classical or formal Arabic (Fusha), natural and human like a real person talking; read any digit or number aloud in French, never in English";
+  }
+
+  /** Ligne "Language:" côté legacy (3.1) — même règle que ci-dessus. */
+  function legacyLanguageLine(register?: Register | null): string {
+    const reg = register || "darija";
+    if (reg === "francais") return "Language: French. Natural, human delivery, like a real person talking.";
+    if (reg === "fusha") return "Language: Modern Standard Arabic (Fusha, Arabic script). Formal and clear articulation, never Algerian Darija.";
+    return "Language: Algerian Darija (Arabic script), never classical or formal Arabic (Fusha). Natural, human delivery, like a real person talking. Read any digit or number in French, never English.";
+  }
+
+  /** Consigne d'intensité émotionnelle (mode moderne — speech_metadata.style). */
+  export function intensityInstruction(intensity?: Intensity | null): string {
+    if (intensity === "low") return "delivered subtly, understated, barely noticeable emotion";
+    if (intensity === "high") return "delivered intensely, strongly felt, very expressive emotion";
+    return "";
+  }
+
+  /** Ligne d'intensité côté legacy (3.1). Vide si intensité "normal". */
+  function legacyIntensityLine(intensity?: Intensity | null): string {
+    if (intensity === "low") return "Intensity: subtle, understated, barely noticeable emotion.";
+    if (intensity === "high") return "Intensity: intense, strongly felt, very expressive emotion.";
+    return "";
   }
 
   /**
@@ -350,7 +391,8 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   const verbatim = (opts.verbatimInstruction || "").trim();
   const effectiveStyle = [
     verbatim,
-    languageInstruction(parsed.text),
+    languageInstruction(parsed.text, opts.register),
+    intensityInstruction(opts.intensity),
     styleDemande || caractere,
     styleExplicite,
     styleDeduit,
@@ -415,7 +457,9 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
     // (sinon Gemini la lirait à voix haute).
     if (verbatim) noteLines.push(verbatim);
     if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
-    noteLines.push("Language: Algerian Darija (Arabic script). Natural, human delivery, like a real person talking.");
+    noteLines.push(legacyLanguageLine(opts.register));
+    const legacyIntensity = legacyIntensityLine(opts.intensity);
+    if (legacyIntensity) noteLines.push(legacyIntensity);
     for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);
 
     const noteBlock = `TTS the following transcript. Do not read these notes aloud.

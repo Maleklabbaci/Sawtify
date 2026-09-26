@@ -1171,7 +1171,9 @@ async function synthesizeWithRetry(
   speed = 1.0,
   pitch = 1.0,
   originalVoiceId: string = "",
-  emotionTags: string[] = []
+  emotionTags: string[] = [],
+  register: "darija" | "fusha" | "francais" = "darija",
+  intensity: "low" | "normal" | "high" = "normal"
 ): Promise<{ pcmBuffer: Buffer | null; error: string | null; usedStreaming: boolean; chunkCount: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée", usedStreaming: false, chunkCount: 0 };
@@ -1266,6 +1268,8 @@ async function synthesizeWithRetry(
       // « Lis exactement ce qui est écrit » — voir VERBATIM_INSTRUCTION.
       verbatimInstruction: VERBATIM_INSTRUCTION,
       output: "pcm",
+      register,
+      intensity,
     });
 
     if (built.warnings.length) {
@@ -1273,10 +1277,20 @@ async function synthesizeWithRetry(
     }
 
     let lastChunkError: any = null;
+    // Seuil de plausibilité par morceau : au moins 25% de la durée attendue
+    // pour CE morceau (et jamais moins de 0.05s). Avant, le seuil était fixe
+    // à 100 octets (~2 millisecondes) : ça ne rejetait quasiment RIEN — un
+    // morceau tronqué ou un souffle isolé passait comme "succès".
+    const minPlausibleBytes = Math.max(
+      2400,
+      Math.round((chunkText.length / TTS_CHARS_PER_SECOND_ESTIMATE) * TTS_BYTES_PER_SECOND * 0.25)
+    );
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const pcmBuffer = await callGeminiTTSNonStreaming(built.body);
-        if (!pcmBuffer || pcmBuffer.length <= 100) throw new Error("Audio vide ou trop court");
+        if (!pcmBuffer || pcmBuffer.length <= minPlausibleBytes) {
+          throw new Error(`Audio vide ou trop court (${pcmBuffer?.length || 0} octets, minimum plausible ${minPlausibleBytes})`);
+        }
         console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${pcmBuffer.length} bytes PCM`);
         return pcmBuffer;
       } catch (err: any) {
@@ -1317,13 +1331,20 @@ async function synthesizeWithRetry(
   // FIX TTS-E : garde-fou anti-troncature silencieuse. Si l'audio total est
   // absurdement plus court que ce que le texte devrait donner à l'oral
   // (~14 chars/s en darija), on rejette → 503 → aucun point débité.
-  if (cleanFullText.length > 150) {
+  // FIX TTS-E : garde-fou anti-troncature silencieuse — appliqué à TOUTE
+  // longueur de texte désormais (avant : uniquement > 150 caractères, donc un
+  // voix-off court de 4 secondes ~ 55 caractères n'était JAMAIS vérifié — un
+  // clip tronqué ou quasi-vide passait comme "succès" et était facturé).
+  // Tolérance plus large sur les textes courts (30% au lieu de 40%) : la
+  // pause fixe d'intro/fin pèse proportionnellement plus sur 4 secondes.
+  {
     const expectedSeconds = cleanFullText.length / TTS_CHARS_PER_SECOND_ESTIMATE;
-    if (totalSeconds < expectedSeconds * 0.4) {
-      console.error(`[TTS] ⚠️ Durée suspecte : ${totalSeconds.toFixed(1)}s générées pour ~${expectedSeconds.toFixed(0)}s attendues — REJET`);
+    const minRatio = expectedSeconds < 3 ? 0.3 : 0.4;
+    if (totalSeconds < expectedSeconds * minRatio) {
+      console.error(`[TTS] ⚠️ Durée suspecte : ${totalSeconds.toFixed(1)}s générées pour ~${expectedSeconds.toFixed(1)}s attendues — REJET`);
       return {
         pcmBuffer: null,
-        error: `Audio suspect : ${totalSeconds.toFixed(1)}s générées pour ~${expectedSeconds.toFixed(0)}s attendues`,
+        error: `Audio suspect : ${totalSeconds.toFixed(1)}s générées pour ~${expectedSeconds.toFixed(1)}s attendues`,
         usedStreaming: false,
         chunkCount: chunks.length
       };
@@ -1988,7 +2009,9 @@ async function startServer() {
   app.post("/api/v1/developer/tts", async (req, res) => {
     const key = await resolveDeveloperKey(req);
     if (!key || !supabaseClient) return res.status(401).json({ error: "Clé API Beta invalide ou absente." });
-    const { text, voice_id = "voice_amin", speed = 1, pitch = 1, format = "wav" } = req.body || {};
+    const { text, voice_id = "voice_amin", speed = 1, pitch = 1, format = "wav", register = "darija", intensity = "normal" } = req.body || {};
+    const safeDevRegister = ["darija", "fusha", "francais"].includes(register) ? register : "darija";
+    const safeDevIntensity = ["low", "normal", "high"].includes(intensity) ? intensity : "normal";
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "text est obligatoire." });
     if (text.length > TTS_MAX_CHARS_UNLOCKED) return res.status(400).json({ error: `text dépasse ${TTS_MAX_CHARS_UNLOCKED} caractères.` });
     if (format !== "wav" && format !== "json") return res.status(400).json({ error: "format doit être wav ou json." });
@@ -2007,7 +2030,7 @@ async function startServer() {
     const devApi = parseTranscript(text);
     const devTags = devApi.tags.map((t) => t.tag);
     const started = Date.now();
-    const generated = await synthesizeWithRetry(devApi.text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, devTags);
+    const generated = await synthesizeWithRetry(devApi.text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, devTags, safeDevRegister, safeDevIntensity);
     const usageCount = await recordGeminiUsage({ userId: key.userId, operation: "tts", characters: text.length, success: Boolean(generated.pcmBuffer), model: TTS_MODEL, metadata: { source: "developer_api", key_id: key.id } });
     if (!generated.pcmBuffer) return res.status(503).json({ error: "Génération indisponible; aucun point débité.", detail: generated.error });
     const duration = Math.round((generated.pcmBuffer.length / 48000) * 10) / 10;
@@ -2270,7 +2293,9 @@ async function startServer() {
     await TTS_CONCURRENCY(async () => {
       const startTime = Date.now();
       const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
-      const { text, voice, voice_id, speed = 1.0, pitch = 1.0 } = req.body;
+      const { text, voice, voice_id, speed = 1.0, pitch = 1.0, register = "darija", intensity = "normal" } = req.body;
+      const safeRegister = ["darija", "fusha", "francais"].includes(register) ? register : "darija";
+      const safeIntensity = ["low", "normal", "high"].includes(intensity) ? intensity : "normal";
       const requestedVoice = voice_id || voice || "voice_amin";
       const numSpeed = typeof speed === "number" ? speed : parseFloat(speed) || 1.0;
       const numPitch = typeof pitch === "number" ? pitch : parseFloat(pitch) || 1.0;
@@ -2354,7 +2379,11 @@ async function startServer() {
       const selectedVoiceName =
         resolveRequestedVoice(requestedVoice);
 
-      const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, 3, numSpeed, numPitch, requestedVoice, emotionTags);
+      // Un voix-off court (~4-7s, sous 100 caractères) coûte le même prix à
+      // retenter : on insiste plus fort (5 tentatives par morceau au lieu de
+      // 3) pour viser un résultat quasi garanti sur ce format très demandé.
+      const maxRetriesForThisCall = textForSpeech.trim().length < 100 ? 5 : 3;
+      const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, maxRetriesForThisCall, numSpeed, numPitch, requestedVoice, emotionTags, safeRegister, safeIntensity);
       // FIX COST-3 : génération payante → billable=true, séparée des previews gratuites (billable=false).
       logGeminiCall({ userId, callType: "tts", billable: true, pointsCost: BASE_POINTS_COST, charCount: text.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - startTime });
       const geminiUsageCount = await recordGeminiUsage({ userId, operation: "tts", characters: text.length, success: Boolean(pcmBuffer), model: TTS_MODEL, metadata: { voice: requestedVoice, chunks: chunkCount } });

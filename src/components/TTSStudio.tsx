@@ -125,6 +125,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   // explicitement si la voix démarre calme, neutre ou excitée.
   const [showStartToneModal, setShowStartToneModal] = useState<boolean>(false);
   const startToneRef = useRef<'calm' | 'natural' | 'excited' | null>(null);
+  // Étape 2 de la popup : registre de langue (darija/fusha/français) +
+  // intensité émotionnelle (low/normal/high), demandés APRÈS le ton de départ.
+  const [ttsStep, setTtsStep] = useState<'tone' | 'register'>('tone');
+  const [pendingRegister, setPendingRegister] = useState<'darija' | 'fusha' | 'francais'>('darija');
+  const [pendingIntensity, setPendingIntensity] = useState<'low' | 'normal' | 'high'>('normal');
+  const registerRef = useRef<'darija' | 'fusha' | 'francais'>('darija');
+  const intensityRef = useRef<'low' | 'normal' | 'high'>('normal');
 
   // Pop-up « Quoi de neuf en 4.1 » : s'ouvre toute seule à la PREMIÈRE entrée
   // dans le studio, puis reste accessible via le bouton « Nouveautés ».
@@ -410,7 +417,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const textToSend = startToneTag ? `${startToneTag} ${text.trim()}` : text;
 
       const response = await requestTTSGeneration({ 
-        text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags 
+        text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags,
+        register: registerRef.current, intensity: intensityRef.current
       }, balance);
 
 
@@ -500,6 +508,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
         generationRequestLockRef.current = false;
         startToneRef.current = null;
+        registerRef.current = 'darija';
+        intensityRef.current = 'normal';
         if (errMsg && !errMsg.includes('[QUEUE_BUSY]')) {
           try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
         }
@@ -509,6 +519,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const confirmStartTone = (tone: 'calm' | 'natural' | 'excited') => {
     startToneRef.current = tone;
+    // Passe à l'étape 2 (registre + intensité) au lieu de générer tout de suite.
+    setTtsStep('register');
+  };
+
+  const confirmRegisterAndIntensity = () => {
+    registerRef.current = pendingRegister;
+    intensityRef.current = pendingIntensity;
     setShowStartToneModal(false);
     handleGenerate();
   };
@@ -946,6 +963,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                     onClick={() => {
                       if (!text.trim() || balance < POINTS_COST) { setInsufficientAlert(true); return; }
                       if (isGenerating) return;
+                      setTtsStep('tone');
+                      setPendingRegister('darija');
+                      setPendingIntensity('normal');
                       setShowStartToneModal(true);
                     }} 
                     disabled={isGenerating || !text.trim()} 
@@ -1233,7 +1253,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   {language === 'ar' ? 'قبل التوليد' : 'Avant de générer'}
                 </p>
                 <h3 className="mt-1 text-base font-extrabold text-slate-900">
-                  {language === 'ar' ? 'كيف يبدأ الصوت؟' : 'Comment la voix doit-elle commencer ?'}
+                  {ttsStep === 'tone'
+                    ? (language === 'ar' ? 'كيف يبدأ الصوت؟' : 'Comment la voix doit-elle commencer ?')
+                    : (language === 'ar' ? 'اللغة والشدة' : 'Langue et intensité')}
                 </h3>
               </div>
               <button
@@ -1244,44 +1266,111 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              {language === 'ar'
-                ? 'أحيانًا يبدأ الصوت بحماس مباشرة وأحيانًا لا. اختر النبرة المطلوبة في أول كلمة.'
-                : 'La voix démarre parfois direct excitée, parfois non. Choisis le ton pour le tout premier mot.'}
-            </p>
+            {ttsStep === 'tone' ? (
+              <>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {language === 'ar'
+                    ? 'أحيانًا يبدأ الصوت بحماس مباشرة وأحيانًا لا. اختر النبرة المطلوبة في أول كلمة.'
+                    : 'La voix démarre parfois direct excitée, parfois non. Choisis le ton pour le tout premier mot.'}
+                </p>
 
-            <div className="mt-4 grid gap-2">
-              <button
-                onClick={() => confirmStartTone('calm')}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
-              >
-                <span className="text-xl">😌</span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'هادئ' : 'Calme'}</span>
-                  <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'بداية هادئة ومريحة' : 'Démarrage posé et apaisé'}</span>
-                </span>
-              </button>
-              <button
-                onClick={() => confirmStartTone('natural')}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
-              >
-                <span className="text-xl">🙂</span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'عادي' : 'Simple'}</span>
-                  <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'نبرة طبيعية وعفوية' : 'Ton neutre et spontané'}</span>
-                </span>
-              </button>
-              <button
-                onClick={() => confirmStartTone('excited')}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
-              >
-                <span className="text-xl">🤩</span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'متحمس' : 'Excité'}</span>
-                  <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'طاقة عالية من أول كلمة' : 'Énergie haute dès le premier mot'}</span>
-                </span>
-              </button>
-            </div>
+                <div className="mt-4 grid gap-2">
+                  <button
+                    onClick={() => confirmStartTone('calm')}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+                  >
+                    <span className="text-xl">😌</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'هادئ' : 'Calme'}</span>
+                      <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'بداية هادئة ومريحة' : 'Démarrage posé et apaisé'}</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => confirmStartTone('natural')}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+                  >
+                    <span className="text-xl">🙂</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'عادي' : 'Simple'}</span>
+                      <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'نبرة طبيعية وعفوية' : 'Ton neutre et spontané'}</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => confirmStartTone('excited')}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+                  >
+                    <span className="text-xl">🤩</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'متحمس' : 'Excité'}</span>
+                      <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'طاقة عالية من أول كلمة' : 'Énergie haute dès le premier mot'}</span>
+                    </span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {language === 'ar'
+                    ? 'اختر لغة النطق ثم شدة المشاعر.'
+                    : 'Choisis la langue de prononciation puis l\'intensité émotionnelle.'}
+                </p>
+
+                <p className="mt-4 text-[11px] font-black uppercase tracking-[.1em] text-slate-400">
+                  {language === 'ar' ? 'اللغة' : 'Registre de langue'}
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {([
+                    { id: 'darija' as const, emoji: '🇩🇿', fr: 'Darija', ar: 'دارجة' },
+                    { id: 'fusha' as const, emoji: '📖', fr: 'Fusha', ar: 'فصحى' },
+                    { id: 'francais' as const, emoji: '🇫🇷', fr: 'Français', ar: 'فرنسية' },
+                  ]).map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setPendingRegister(r.id)}
+                      className={`flex flex-col items-center gap-1 rounded-2xl border p-2.5 text-center transition ${pendingRegister === r.id ? 'border-purple-500 bg-purple-50' : 'border-slate-200 bg-slate-50 hover:border-purple-300'}`}
+                    >
+                      <span className="text-lg">{r.emoji}</span>
+                      <span className="text-[11px] font-bold text-slate-900">{language === 'ar' ? r.ar : r.fr}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <p className="mt-4 text-[11px] font-black uppercase tracking-[.1em] text-slate-400">
+                  {language === 'ar' ? 'شدة المشاعر' : 'Intensité émotionnelle'}
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {([
+                    { id: 'low' as const, emoji: '🔉', fr: 'Faible', ar: 'خفيفة' },
+                    { id: 'normal' as const, emoji: '🔊', fr: 'Normale', ar: 'عادية' },
+                    { id: 'high' as const, emoji: '📢', fr: 'Forte', ar: 'قوية' },
+                  ]).map((i) => (
+                    <button
+                      key={i.id}
+                      onClick={() => setPendingIntensity(i.id)}
+                      className={`flex flex-col items-center gap-1 rounded-2xl border p-2.5 text-center transition ${pendingIntensity === i.id ? 'border-purple-500 bg-purple-50' : 'border-slate-200 bg-slate-50 hover:border-purple-300'}`}
+                    >
+                      <span className="text-lg">{i.emoji}</span>
+                      <span className="text-[11px] font-bold text-slate-900">{language === 'ar' ? i.ar : i.fr}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex gap-2">
+                  <button
+                    onClick={() => setTtsStep('tone')}
+                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100"
+                  >
+                    {language === 'ar' ? 'رجوع' : 'Retour'}
+                  </button>
+                  <button
+                    onClick={confirmRegisterAndIntensity}
+                    className="flex-1 rounded-2xl bg-purple-600 px-3 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-500"
+                  >
+                    {language === 'ar' ? 'توليد' : 'Générer'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

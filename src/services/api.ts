@@ -8,6 +8,10 @@ export interface TTSApiRequest {
   speed: number;
   pitch: number;
   emotion_tags?: string[];
+  /** Registre de langue choisi dans la popup (défaut "darija" côté serveur). */
+  register?: 'darija' | 'fusha' | 'francais';
+  /** Intensité émotionnelle choisie dans la popup (défaut "normal" côté serveur). */
+  intensity?: 'low' | 'normal' | 'high';
 }
 
 export interface TTSApiResponse {
@@ -131,7 +135,9 @@ export async function requestTTSGeneration(params: TTSApiRequest, currentBalance
         voice_id: params.voice_id,
         speed: params.speed,
         pitch: params.pitch,
-        emotion_tags: params.emotion_tags || []
+        emotion_tags: params.emotion_tags || [],
+        register: params.register || 'darija',
+        intensity: params.intensity || 'normal'
       })
     });
 
