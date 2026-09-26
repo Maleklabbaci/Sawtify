@@ -818,7 +818,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       : "50 points offerts vous attendent — sans carte, sans engagement. Votre texte devient une voix en 30 secondes.",
     exitCta: isRTL ? "ياي، نستافد من الهدية" : "OK, je prends les 50 points",
     exitNo: isRTL ? "لا شكراً" : "Non merci",
-    popularTitle: isRTL ? "9 أصوات. هنا غي 3." : "9 voix. Ici, seulement 3.",
+    popularTitle: isRTL ? "30 صوتاً. هنا غي 3." : "30 voix. Ici, seulement 3.",
     popularSub: isRTL
       ? "أمين، ياسمين، خالد. الباقي تسمعو في الاستوديو."
       : "Amine, Yasmine, Khalid. Les autres s'écoutent dans le studio.",
@@ -847,8 +847,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     faqTitle: isRTL ? "أسئلة شائعة" : "Questions fréquentes",
     ctaTitle: isRTL ? "واش راك تنتضر؟" : "Alors, on commence ?",
     ctaSub: isRTL
-      ? "50 نقطة بالمجان. 9 أصوات. غي 3 هنا. بلا بطاقة — والصوت يخرجلك دوك."
-      : "50 points offerts. 9 voix. 3 seulement ici. Sans carte — la voix sort maintenant.",
+      ? "50 نقطة بالمجان. 30 صوتاً. غي 3 هنا. بلا بطاقة — والصوت يخرجلك دوك."
+      : "50 points offerts. 30 voix. 3 seulement ici. Sans carte — la voix sort maintenant.",
     footTag: isRTL ? "صُنع في الجزائر" : "Fait en Algérie",
     switchLang: isRTL ? "FR" : "ع",
     close: isRTL ? "إغلاق" : "Fermer",
@@ -916,7 +916,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const journeySteps = useMemo(() => [
     { n: "1", t: isRTL ? "اكتب" : "Écrire", d: isRTL ? "ألصق نصّك بالدارجة، بالعربية أو بالحروف اللاتينية." : "Collez votre texte en darija, en arabe ou en alphabet latin." },
-    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "9 أصوات. هنا نعرضو غي 3." : "9 voix. Ici, on n'en montre que 3." },
+    { n: "2", t: isRTL ? "اختر" : "Choisir", d: isRTL ? "30 صوتاً. هنا نعرضو غي 3." : "30 voix. Ici, on n'en montre que 3." },
     { n: "3", t: isRTL ? "اضبط" : "Régler", d: isRTL ? "السرعة، النبرة، التأثيرات… الباقي في الاستوديو." : "Vitesse, timbre, effets… le reste est dans le studio." },
     { n: "4", t: isRTL ? "حمّل" : "Télécharger", d: isRTL ? "MP3 أو WAV. بلا علامة مائية. استعمال تجاري." : "MP3 ou WAV. Sans filigrane. Usage commercial." },
   ], [isRTL]);
@@ -1074,7 +1074,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {isRTL ? (
           <>
             <title>صوتيفي — أول مولّد أصوات بالذكاء الاصطناعي للدارجة الجزائرية</title>
-            <meta name="description" content="صوتيفي: أول منصة تحويل النص إلى صوت متخصصة في الدارجة الجزائرية. دفع محلي CIB و Edahabia. 9 أصوات." />
+            <meta name="description" content="صوتيفي: أول منصة تحويل النص إلى صوت متخصصة في الدارجة الجزائرية. دفع محلي CIB و Edahabia. 30 صوتاً." />
             <html lang="ar" dir="rtl" />
             <meta property="og:title" content="صوتيفي — صوت بالدارجة الجزائرية" />
             <meta property="og:description" content="حوّل نصّك بالدارجة إلى صوت طبيعي في 30 ثانية. دفع محلي CIB و Edahabia." />
@@ -1083,7 +1083,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         ) : (
           <>
             <title>Sawtify — Voix IA Darija Algérienne | Text-to-Speech</title>
-            <meta name="description" content="Premier générateur de voix IA en darija algérienne. Convertissez texte en voix naturelle, paiement CIB & Edahabia. 9 voix." />
+            <meta name="description" content="Premier générateur de voix IA en darija algérienne. Convertissez texte en voix naturelle, paiement CIB & Edahabia. 30 voix." />
             <html lang="fr" dir="ltr" />
             <meta property="og:title" content="Sawtify — Voix Off Darija Algérienne" />
             <meta property="og:description" content="Premier générateur de voix IA en darija algérienne. Texte en voix naturelle, paiement CIB & Edahabia." />
@@ -1507,7 +1507,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3" style={{ background: PURPLE_SOFT, borderBottom: `1px solid ${BORDER}` }}>
                   <span className="w-8 shrink-0" />
                   <Kicker ar={isRTL} className="flex-1 text-[10.5px] text-[#1A0F2E]/45">
-                    {isRTL ? "القائمة · 9 أصوات" : "Piste · 9 voix"}
+                    {isRTL ? "القائمة · 30 صوتاً" : "Piste · 30 voix"}
                   </Kicker>
                   <Kicker ar={isRTL} className="hidden sm:block w-16 text-end text-[10.5px] text-[#1A0F2E]/45">
                     {isRTL ? "المدة" : "Durée"}

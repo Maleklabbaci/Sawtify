@@ -2,6 +2,8 @@ import { Voice, CreditPack } from '../types';
 
 export type LanguageCode = 'fr' | 'ar';
 
+import { VOICES_V41, VOICES_V41_AR } from './voicesV41';
+
 export const VOICES_FR: Voice[] = [
   {
     id: 'voice_amin',
@@ -19,7 +21,7 @@ export const VOICES_FR: Voice[] = [
   },
   {
     id: 'voice_yasmin',
-    geminiVoice: 'Kore',
+    geminiVoice: 'Zephyr',
     name: 'Yasmine',
     locale: 'ar-DZ',
     dialect: 'Darja algérienne • Voix féminine chaleureuse et souriante',
@@ -47,7 +49,7 @@ export const VOICES_FR: Voice[] = [
   },
   {
     id: 'voice_maryam',
-    geminiVoice: 'Zephyr',
+    geminiVoice: 'Sulafat',
     name: 'Maryam',
     locale: 'ar-DZ',
     dialect: 'Darja algérienne • Voix féminine douce et élégante',
@@ -75,7 +77,7 @@ export const VOICES_FR: Voice[] = [
   },
   {
     id: 'voice_layla',
-    geminiVoice: 'Aoede',
+    geminiVoice: 'Leda',
     name: 'Layla',
     locale: 'ar-DZ',
     dialect: 'Darja algérienne • Voix féminine moderne et rythmée',
@@ -89,7 +91,7 @@ export const VOICES_FR: Voice[] = [
   },
   {
     id: 'voice_bilal',
-    geminiVoice: 'Orus',
+    geminiVoice: 'Algenib',
     name: 'Bilal',
     locale: 'ar-DZ',
     dialect: 'Darja algérienne • Voix masculine profonde et narrative',
@@ -103,7 +105,7 @@ export const VOICES_FR: Voice[] = [
   },
   {
     id: 'voice_nour',
-    geminiVoice: 'Sulafat',
+    geminiVoice: 'Achernar',
     name: 'Nour',
     locale: 'ar-DZ',
     dialect: 'Darja algérienne • Voix féminine douce et limpide',
@@ -117,7 +119,7 @@ export const VOICES_FR: Voice[] = [
   },
   {
     id: 'voice_faycal',
-    geminiVoice: 'Leda',
+    geminiVoice: 'Orus',
     name: 'Fayçal',
     locale: 'ar-DZ',
     dialect: 'Darja algérienne • Voix masculine affirmée et directe',
@@ -128,7 +130,11 @@ export const VOICES_FR: Voice[] = [
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248187/faycel.mp3',
     badge: 'Commerce & Vente',
     styles: ['Assuré', 'Commercial', 'Direct']
-  }
+  },
+
+  // Sawtify 4.1 — les 21 nouvelles voix (voir voicesV41.ts).
+  ...VOICES_V41,
+
 ];
 
 export const VOICES_AR: Voice[] = [
@@ -148,7 +154,7 @@ export const VOICES_AR: Voice[] = [
   },
   {
     id: 'voice_yasmin',
-    geminiVoice: 'Kore',
+    geminiVoice: 'Zephyr',
     name: 'ياسمين',
     locale: 'ar-DZ',
     dialect: 'دارجة جزائرية • صوت نسائي دافئ ومبتسم',
@@ -176,7 +182,7 @@ export const VOICES_AR: Voice[] = [
   },
   {
     id: 'voice_maryam',
-    geminiVoice: 'Zephyr',
+    geminiVoice: 'Sulafat',
     name: 'مريم',
     locale: 'ar-DZ',
     dialect: 'دارجة جزائرية • صوت نسائي هادئ وأنيق',
@@ -204,7 +210,7 @@ export const VOICES_AR: Voice[] = [
   },
   {
     id: 'voice_layla',
-    geminiVoice: 'Aoede',
+    geminiVoice: 'Leda',
     name: 'ليلى',
     locale: 'ar-DZ',
     dialect: 'دارجة جزائرية • صوت نسائي عصري ومشرق',
@@ -218,7 +224,7 @@ export const VOICES_AR: Voice[] = [
   },
   {
     id: 'voice_bilal',
-    geminiVoice: 'Orus',
+    geminiVoice: 'Algenib',
     name: 'بلال',
     locale: 'ar-DZ',
     dialect: 'دارجة جزائرية • صوت رجالي دافئ وعميق',
@@ -232,7 +238,7 @@ export const VOICES_AR: Voice[] = [
   },
   {
     id: 'voice_nour',
-    geminiVoice: 'Sulafat',
+    geminiVoice: 'Achernar',
     name: 'نور',
     locale: 'ar-DZ',
     dialect: 'دارجة جزائرية • صوت نسائي ناعم وواضح',
@@ -246,7 +252,7 @@ export const VOICES_AR: Voice[] = [
   },
   {
     id: 'voice_faycal',
-    geminiVoice: 'Leda',
+    geminiVoice: 'Orus',
     name: 'فيصل',
     locale: 'ar-DZ',
     dialect: 'دارجة جزائرية • صوت رجالي واثق ومباشر',
@@ -257,7 +263,11 @@ export const VOICES_AR: Voice[] = [
     sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248187/faycel.mp3',
     badge: 'تجارة وتسويق',
     styles: ['واثق', 'تجاري', 'مباشر']
-  }
+  },
+
+  // Sawtify 4.1 — les 21 nouvelles voix (voir voicesV41.ts).
+  ...VOICES_V41_AR,
+
 ];
 
 export const CREDIT_PACKS_FR: CreditPack[] = [

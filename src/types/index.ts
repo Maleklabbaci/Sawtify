@@ -4,7 +4,11 @@ export interface Voice {
   geminiVoice?: string;
   locale: string;
   dialect: string;
-  gender: 'male' | 'female';
+  /**
+   * « unknown » = genre non publié par Google. On refuse de deviner :
+   * il se renseigne après écoute (npm run apercus:voix).
+   */
+  gender: 'male' | 'female' | 'unknown';
   icon: string;
   category: 'commercial' | 'narrative' | 'social' | 'formal';
   sampleText: string;
