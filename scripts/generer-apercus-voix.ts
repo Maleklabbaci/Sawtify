@@ -23,7 +23,7 @@
  */
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import {
   AUDITION_SCRIPT, AUDITION_SCRIPT_HASH, AUDITION_SCRIPT_VERSION,
   previewTargets, previewFileName, validateManifest,
@@ -282,6 +282,7 @@ Ou lance :
   if (UPLOAD) await upload("manifest.json", Buffer.from(JSON.stringify(manifest, null, 2)), "application/json");
 
   // ── Page d'audition ──
+  mkdirSync(dirname(AUDITION_PAGE), { recursive: true });
   writeFileSync(AUDITION_PAGE, buildAuditionPage(manifest));
 
   // ── Rapport ──
