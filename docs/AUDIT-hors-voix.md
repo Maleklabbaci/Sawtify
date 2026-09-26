@@ -107,8 +107,13 @@ le voie.
 | Tests du moteur | 117 | **151** |
 | Dont tests dédiés aux tons | 0 | **34** |
 | Effets morts dans le menu | 5 sur 9 | **0 sur 9** |
-| Contrôles de documentation | 49 | **60** |
-| **Total du projet** | 267 | **312, 0 échec** |
+| Contrôles de documentation | 49 | **65** |
+| **Total du projet** | 267 | **335, 0 échec** |
+
+> Ces compteurs sont ceux du soir du 26/09. Deux corrections ont été apportées depuis : le nombre
+> total est passé de 312 à **335** (13 tests pour la darija, 5 contrôles de documentation) et
+> **un troisième défaut de la voix a été trouvé puis corrigé** — la darija n'était plus annoncée au
+> modèle. Le détail est dans `AUDIT-envoi-a-gemini.md`, section 6.
 
 Un test parcourt **tout** le dictionnaire et exige que chaque ancienne balise produise un effet
 réel. Le bug ne peut plus revenir sans faire échouer la suite.
@@ -231,8 +236,8 @@ utilisateurs**.
 | 💳 Paiement | ✅ **solide** — 3 variables à vérifier dans Render |
 | 🔔 Notifications | ⚠️ messages à l'écran ✅ · e-mails = **Supabase à configurer** |
 | 🪟 Pop-ups | ✅ tous branchés · un vestige inutilisé |
-| 📄 Documentation | ✅ 4 documents à jour, **60 contrôles automatiques** |
-| 🧪 Tests | ✅ **312, 0 échec** |
+| 📄 Documentation | ✅ 4 documents à jour, **65 contrôles automatiques** |
+| 🧪 Tests | ✅ **335, 0 échec** |
 
 **En une phrase :** le « calme / excité / normal » était **réellement cassé**, je l'ai réparé
 sans toucher au site et avec 34 tests qui empêchent le retour du bug ; le paiement est bien

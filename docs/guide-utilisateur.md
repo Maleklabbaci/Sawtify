@@ -327,6 +327,14 @@ prononciation la plus juste.
 > 💡 **La règle est simple : écris comme tu écris déjà en arabe.** Si tu écris la darija en lettres
 > latines dans tes messages, garde cette habitude **pour tes notes**, mais pas pour Sawtify.
 
+> 🎙️ **Sawtify le dit au moteur vocal, tu n'as rien à régler.** Dès qu'un texte contient des
+> lettres arabes, Sawtify précise au moteur : « parle en **darija algérienne**, naturellement,
+> comme une vraie personne ». Sans cette précision, un texte arabe est lu en **arabe standard** —
+> la langue des journaux télévisés, pas celle de la rue. C'est cette précision qui fait la
+> différence entre une voix qui *lit* l'algérien et une voix qui *parle* algérien. Et comme la
+> darija ne s'écrit pas de façon officielle, le moteur n'a aucun moyen de la reconnaître tout
+> seul : il faut le lui dire, c'est ce que fait Sawtify.
+
 ### Ce qui ne change pas quand tu changes de langue
 
 | | |
