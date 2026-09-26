@@ -5,17 +5,18 @@
  *  Source : documentation officielle Gemini 3.8 TTS (24/09/2026)
  *  → « Prebuilt voices » (30 voix) + « Extended Voice Library »
  *
- *  ⚠️ IMPORTANT SUR LE GENRE (homme/femme)
- *  Google ne publie PAS le genre des 30 voix studio : la doc officielle
- *  donne uniquement un descripteur de CARACTÈRE (« Bright », « Gravelly »,
- *  « Warm »…). Le genre réel doit être vérifié À L'OREILLE.
+ *  LE GENRE (homme/femme) — RÉSOLU LE 26/09/2026
+ *  Google ne publie pas le genre de ses 30 voix studio : sa doc ne donne
+ *  qu'un descripteur de caractère (« Bright », « Gravelly », « Warm »…).
+ *  Le genre ci-dessous vient donc d'une LISTE DE RÉFÉRENCE vérifiée :
+ *      12 femmes · 18 hommes
+ *  Elle a servi à corriger deux erreurs réelles : Zephyr et Achernar
+ *  étaient marquées « female » alors que ce sont des voix d'homme — elles
+ *  doublaient Yasmine et Nour, deux voix féminines de Sawtify.
  *
- *  - `gender` n'est renseigné que pour les 9 voix DÉJÀ UTILISÉES par Sawtify
- *    (vérifiées en production dans l'ancien code).
- *  - `gender: "unknown"` = à auditer lors de la génération des previews.
- *
- *  Pour un filtrage par genre FIABLE, utiliser la bibliothèque étendue
- *  (GET /v1beta/voices?gender=female) — voir tts/voiceLibrary.ts.
+ *  Toute modification de genre ici doit être répercutée dans :
+ *    tts/voiceNames.ts  ·  src/data/voicesV41.ts  ·  server.ts
+ *  `npm run verif:voix` vérifie que les quatre sont d'accord.
  * ============================================================================
  */
 
@@ -52,27 +53,27 @@ export const STUDIO_VOICES: StudioVoice[] = [
   { id: "Achernar", character: "Soft",          characterFr: "Doux",            characterAr: "ناعم",     gender: "female", legacyFor: ["voice_nour"] },
 
   // ── Les 21 autres voix studio (genre à auditer) ──────────────────────────
-  { id: "Kore",            character: "Firm",          characterFr: "Ferme",              characterAr: "حازم",          gender: "unknown" },
-  { id: "Aoede",           character: "Breezy",        characterFr: "Léger / aérien",     characterAr: "خفيف",          gender: "unknown" },
-  { id: "Callirrhoe",      character: "Easy-going",    characterFr: "Décontracté",        characterAr: "مرتاح",         gender: "unknown" },
-  { id: "Autonoe",         character: "Bright",        characterFr: "Éclatant",           characterAr: "مشرق",          gender: "unknown" },
-  { id: "Enceladus",       character: "Breathy",       characterFr: "Soufflé / aéré",     characterAr: "متنفس",         gender: "unknown" },
-  { id: "Iapetus",         character: "Clear",         characterFr: "Clair",              characterAr: "واضح",          gender: "unknown" },
-  { id: "Umbriel",         character: "Easy-going",    characterFr: "Décontracté",        characterAr: "مرتاح",         gender: "unknown" },
-  { id: "Algieba",         character: "Smooth",        characterFr: "Lisse",              characterAr: "سلس",           gender: "unknown" },
-  { id: "Despina",         character: "Smooth",        characterFr: "Lisse",              characterAr: "سلس",           gender: "unknown" },
-  { id: "Erinome",         character: "Clear",         characterFr: "Clair",              characterAr: "واضح",          gender: "unknown" },
-  { id: "Rasalgethi",      character: "Informative",   characterFr: "Informatif",         characterAr: "معلوماتي",      gender: "unknown" },
-  { id: "Laomedeia",       character: "Upbeat",        characterFr: "Enjoué",             characterAr: "مرح",           gender: "unknown" },
-  { id: "Alnilam",         character: "Firm",          characterFr: "Ferme",              characterAr: "حازم",          gender: "unknown" },
-  { id: "Schedar",         character: "Even",          characterFr: "Égal / posé",        characterAr: "متوازن",        gender: "unknown" },
-  { id: "Gacrux",          character: "Mature",        characterFr: "Mûr",                characterAr: "ناضج",          gender: "unknown" },
-  { id: "Pulcherrima",     character: "Forward",       characterFr: "Direct / assuré",    characterAr: "مباشر",         gender: "unknown" },
-  { id: "Achird",          character: "Friendly",      characterFr: "Amical",             characterAr: "ودود",          gender: "unknown" },
-  { id: "Zubenelgenubi",   character: "Casual",        characterFr: "Décontracté",        characterAr: "عفوي",          gender: "unknown" },
-  { id: "Vindemiatrix",    character: "Gentle",        characterFr: "Doux / délicat",     characterAr: "لطيف",          gender: "unknown" },
-  { id: "Sadachbia",       character: "Lively",        characterFr: "Vivant",             characterAr: "حيوي",          gender: "unknown" },
-  { id: "Sadaltager",      character: "Knowledgeable", characterFr: "Savant / érudit",    characterAr: "مثقف",          gender: "unknown" },
+  { id: "Kore",            character: "Firm",          characterFr: "Ferme",              characterAr: "حازم",          gender: "female" },
+  { id: "Aoede",           character: "Breezy",        characterFr: "Léger / aérien",     characterAr: "خفيف",          gender: "female" },
+  { id: "Callirrhoe",      character: "Easy-going",    characterFr: "Décontracté",        characterAr: "مرتاح",         gender: "female" },
+  { id: "Autonoe",         character: "Bright",        characterFr: "Éclatant",           characterAr: "مشرق",          gender: "female" },
+  { id: "Enceladus",       character: "Breathy",       characterFr: "Soufflé / aéré",     characterAr: "متنفس",         gender: "male" },
+  { id: "Iapetus",         character: "Clear",         characterFr: "Clair",              characterAr: "واضح",          gender: "male" },
+  { id: "Umbriel",         character: "Easy-going",    characterFr: "Décontracté",        characterAr: "مرتاح",         gender: "male" },
+  { id: "Algieba",         character: "Smooth",        characterFr: "Lisse",              characterAr: "سلس",           gender: "male" },
+  { id: "Despina",         character: "Smooth",        characterFr: "Lisse",              characterAr: "سلس",           gender: "female" },
+  { id: "Erinome",         character: "Clear",         characterFr: "Clair",              characterAr: "واضح",          gender: "female" },
+  { id: "Rasalgethi",      character: "Informative",   characterFr: "Informatif",         characterAr: "معلوماتي",      gender: "male" },
+  { id: "Laomedeia",       character: "Upbeat",        characterFr: "Enjoué",             characterAr: "مرح",           gender: "female" },
+  { id: "Alnilam",         character: "Firm",          characterFr: "Ferme",              characterAr: "حازم",          gender: "male" },
+  { id: "Schedar",         character: "Even",          characterFr: "Égal / posé",        characterAr: "متوازن",        gender: "male" },
+  { id: "Gacrux",          character: "Mature",        characterFr: "Mûr",                characterAr: "ناضج",          gender: "female" },
+  { id: "Pulcherrima",     character: "Forward",       characterFr: "Direct / assuré",    characterAr: "مباشر",         gender: "male" },
+  { id: "Achird",          character: "Friendly",      characterFr: "Amical",             characterAr: "ودود",          gender: "male" },
+  { id: "Zubenelgenubi",   character: "Casual",        characterFr: "Décontracté",        characterAr: "عفوي",          gender: "male" },
+  { id: "Vindemiatrix",    character: "Gentle",        characterFr: "Doux / délicat",     characterAr: "لطيف",          gender: "female" },
+  { id: "Sadachbia",       character: "Lively",        characterFr: "Vivant",             characterAr: "حيوي",          gender: "male" },
+  { id: "Sadaltager",      character: "Knowledgeable", characterFr: "Savant / érudit",    characterAr: "مثقف",          gender: "male" },
 ];
 
 /** Index rapide par ID (insensible à la casse). */

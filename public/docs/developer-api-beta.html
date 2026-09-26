@@ -295,41 +295,41 @@ print("Points débités :", data["points_deducted"], "| Reste :", data["remainin
 
 <script>
 // ── Les 30 voix (source unique : tts/voiceNames.ts) ──
-const VOICES = [
-  ["Puck","Amine","أمين","amine","voice_amin","male"],
-  ["Charon","Khalid","خالد","khalid","voice_khalid","male"],
-  ["Fenrir","Rachid","رشيد","rachid","voice_rashid","male"],
-  ["Algenib","Bilal","بلال","bilal","voice_bilal","male"],
-  ["Orus","Fayçal","فيصل","faycal","voice_faycal","male"],
-  ["Zephyr","Yasmine","ياسمين","yasmin","voice_yasmin","female"],
-  ["Sulafat","Maryam","مريم","maryam","voice_maryam","female"],
-  ["Leda","Layla","ليلى","layla","voice_layla","female"],
-  ["Achernar","Nour","نور","nour","voice_nour","female"],
-  ["Kore","Karim","كريم","karim",null,"unknown"],
-  ["Aoede","Aya","آية","aya",null,"unknown"],
-  ["Callirrhoe","Sami","سامي","sami",null,"unknown"],
-  ["Autonoe","Nada","ندى","nada",null,"unknown"],
-  ["Enceladus","Anis","أنيس","anis",null,"unknown"],
-  ["Iapetus","Zaki","زكي","zaki",null,"unknown"],
-  ["Umbriel","Walid","وليد","walid",null,"unknown"],
-  ["Algieba","Nabil","نبيل","nabil",null,"unknown"],
-  ["Despina","Salma","سلمى","salma",null,"unknown"],
-  ["Erinome","Rania","رانيا","rania",null,"unknown"],
-  ["Rasalgethi","Hakim","حكيم","hakim",null,"unknown"],
-  ["Laomedeia","Riad","رياض","riad",null,"unknown"],
-  ["Alnilam","Adel","عادل","adel",null,"unknown"],
-  ["Schedar","Nassim","نسيم","nassim",null,"unknown"],
-  ["Gacrux","Omar","عمر","omar",null,"unknown"],
-  ["Pulcherrima","Yacine","ياسين","yacine",null,"unknown"],
-  ["Achird","Hicham","هشام","hicham",null,"unknown"],
-  ["Zubenelgenubi","Reda","رضا","reda",null,"unknown"],
-  ["Vindemiatrix","Amina","أمينة","amina",null,"unknown"],
-  ["Sadachbia","Sara","سارة","sara",null,"unknown"],
-  ["Sadaltager","Mourad","مراد","mourad",null,"unknown"]
+const VOICES = const VOICES = const VOICES = [
+   ["Puck","Amine","أمين","amin","\"voice_amin\"","male"],
+   ["Charon","Khalid","خالد","khalid","\"voice_khalid\"","male"],
+   ["Fenrir","Rachid","رشيد","rashid","\"voice_rashid\"","male"],
+   ["Algenib","Bilal","بلال","bilal","\"voice_bilal\"","male"],
+   ["Orus","Fayçal","فيصل","faycal","\"voice_faycal\"","male"],
+   ["Zephyr","Yasmine","ياسمين","yasmin","\"voice_yasmin\"","female"],
+   ["Sulafat","Maryam","مريم","maryam","\"voice_maryam\"","female"],
+   ["Leda","Layla","ليلى","layla","\"voice_layla\"","female"],
+   ["Achernar","Nour","نور","nour","\"voice_nour\"","female"],
+   ["Kore","Karima","كريمة","karim",null,"female"],
+   ["Aoede","Aya","آية","aya",null,"female"],
+   ["Callirrhoe","Samia","سامية","sami",null,"female"],
+   ["Autonoe","Nada","ندى","nada",null,"female"],
+   ["Despina","Salma","سلمى","salma",null,"female"],
+   ["Erinome","Rania","رانيا","rania",null,"female"],
+   ["Laomedeia","Rym","ريم","riad",null,"female"],
+   ["Vindemiatrix","Nassima","نسيمة","nassim",null,"female"],
+   ["Gacrux","Souad","سعاد","omar",null,"female"],
+   ["Enceladus","Anis","أنيس","anis",null,"male"],
+   ["Iapetus","Zaki","زكي","zaki",null,"male"],
+   ["Umbriel","Walid","وليد","walid",null,"male"],
+   ["Algieba","Nabil","نبيل","nabil",null,"male"],
+   ["Rasalgethi","Hakim","حكيم","hakim",null,"male"],
+   ["Alnilam","Adel","عادل","adel",null,"male"],
+   ["Achird","Hicham","هشام","hicham",null,"male"],
+   ["Zubenelgenubi","Reda","رضا","reda",null,"male"],
+   ["Pulcherrima","Yacine","ياسين","yacine",null,"male"],
+   ["Schedar","Amir","أمير","amina",null,"male"],
+   ["Sadachbia","Sofiane","سفيان","sara",null,"male"],
+   ["Sadaltager","Mourad","مراد","mourad",null,"male"],
 ];
 const genreLabel = (g) => g === "male" ? '<span class="pill h">homme</span>'
   : g === "female" ? '<span class="pill f">femme</span>'
-  : '<span class="pill q">à confirmer</span>';
+  : '<span class="pill q">—</span>';
 
 function renderVoices(filtre) {
   const f = (filtre || "").trim().toLowerCase();

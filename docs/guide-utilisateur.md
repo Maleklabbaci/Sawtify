@@ -229,53 +229,42 @@ Tu as 30 voix. Elles ne sont pas rangées par langue (voir §5) mais par **carac
 
 ### Les 21 nouvelles voix
 
-Elles sont arrivées avec Sawtify 4.1 et sont maintenant **choisissables dans le studio**, au même
-titre que les neuf autres.
+Elles sont arrivées avec Sawtify 4.1. **Les femmes viennent d'abord, les hommes ensuite** :
+c'est l'ordre affiché quand aucun filtre n'est actif.
 
-| Prénom | En arabe | Caractère |
-|---|---|---|
-| **Karim** | كريم | ferme et autoritaire |
-| **Aya** | آية | légère et aérienne |
-| **Sami** | سامي | décontractée et cool |
-| **Nada** | ندى | éclatante et joyeuse |
-| **Anis** | أنيس | soufflée et intime |
-| **Zaki** | زكي | claire et nette |
-| **Walid** | وليد | décontractée et simple |
-| **Nabil** | نبيل | lisse et fluide |
-| **Salma** | سلمى | lisse et douce |
-| **Rania** | رانيا | claire et précise |
-| **Hakim** | حكيم | informative et érudite |
-| **Riad** | رياض | enjouée et vive |
-| **Adel** | عادل | ferme et stable |
-| **Nassim** | نسيم | égale et posée |
-| **Omar** | عمر | mûre et expérimentée |
-| **Yacine** | ياسين | directe et assurée |
-| **Hicham** | هشام | amicale et proche |
-| **Reda** | رضا | décontractée et naturelle |
-| **Amina** | أمينة | douce et délicate |
-| **Sara** | سارة | vivante et animée |
-| **Mourad** | مراد | savante et pédagogue |
-> ⚠️ **Leur genre n'est pas encore confirmé.** Google ne publie pas le genre des voix du studio,
-> seulement leur caractère. Plutôt que de deviner, Sawtify affiche « à confirmer » : le genre sera
-> renseigné après écoute, voix par voix. En attendant, **fie-toi au caractère** — il vient de la
-> fiche officielle de Google.
-
-### Comment choisir en pratique
-
-1. **Écoute les aperçus** : chaque voix a un fichier audio de démonstration. C'est gratuit et
-   instantané.
-2. **Commence par le caractère, pas par le prénom.** Tu ne cherches pas « Amine », tu cherches
-   « quelqu'un qui donne de l'énergie » ou « quelqu'un qui rassure ».
-3. **Repère de repère rapide :**
-
-| Tu veux… | Prends plutôt |
-|---|---|
-| une pub qui donne envie | **Rachid**, **Sara**, **Karim** |
+| Prénom | En arabe | Caractère | Genre |
+|---|---|---|---|
+| **Karima** | كريمة | ferme et autoritaire | Femme |
+| **Aya** | آية | légère et aérienne | Femme |
+| **Samia** | سامية | décontractée et cool | Femme |
+| **Nada** | ندى | éclatante et joyeuse | Femme |
+| **Salma** | سلمى | lisse et douce | Femme |
+| **Rania** | رانيا | claire et précise | Femme |
+| **Rym** | ريم | enjouée et vive | Femme |
+| **Nassima** | نسيمة | douce et délicate | Femme |
+| **Souad** | سعاد | mûre et expérimentée | Femme |
+| **Anis** | أنيس | soufflée et intime | Homme |
+| **Zaki** | زكي | claire et nette | Homme |
+| **Walid** | وليد | décontractée et simple | Homme |
+| **Nabil** | نبيل | lisse et fluide | Homme |
+| **Hakim** | حكيم | informative et érudite | Homme |
+| **Adel** | عادل | ferme et stable | Homme |
+| **Hicham** | هشام | amicale et proche | Homme |
+| **Reda** | رضا | décontractée et naturelle | Homme |
+| **Yacine** | ياسين | directe et assurée | Homme |
+| **Amir** | أمير | égale et posée | Homme |
+| **Sofiane** | سفيان | vivante et animée | Homme |
+| **Mourad** | مراد | savante et pédagogue | Homme |
+> ✅ **Le genre de chaque voix est désormais connu.** Google ne le publie pas, mais une liste de
+> référence vérifiée (13 femmes, 17 hommes) a permis de tout remettre d'aplomb : **13 voix de
+> femme** et **17 voix d'homme**, chacune avec un prénom qui correspond à sa vraie voix.
+---|---|
+| une pub qui donne envie | **Rachid**, **Yacine**, **Karima** |
 | une voix de documentaire | **Khalid**, **Omar**, **Mourad** |
 | rassurer un client | **Maryam**, **Nour**, **Amina** |
 | une vidéo TikTok qui accroche | **Layla**, **Aya**, **Riad** |
 | un conte, une histoire | **Bilal**, **Anis** |
-| un message d'entreprise net | **Fayçal**, **Yacine**, **Hakim** |
+| un message d'entreprise net | **Fayçal**, **Souad**, **Hakim** |
 
 **Écris le prénom, le nom en arabe, ou l'identifiant technique — les trois marchent.**
 

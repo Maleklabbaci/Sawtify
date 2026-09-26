@@ -712,7 +712,17 @@ function resolveRequestedVoice(requested: unknown): string {
   return resolveVoiceName(String(requested || "")) || "Puck";
 }
 
-const FEMALE_GEMINI_VOICES = new Set(["Zephyr", "Kore", "Aoede", "Sulafat", "Leda", "Achernar"]);
+// Source : liste de reference verifiee (12 femmes / 18 hommes), 26/09/2026.
+// Les 2 erreurs corrigees : Zephyr et Achernar sont des voix d'HOMME
+// (elles servaient a Yasmine et Nour, deux voix feminines).
+// Source : liste de reference verifiee (13 femmes / 17 hommes), 26/09/2026.
+// Attention : Zephyr, Achernar et Gacrux sont des voix de FEMME, et
+// Pulcherrima / Schedar des voix d'HOMME — l'inverse de ce que
+// laissait croire la premiere liste.
+const FEMALE_GEMINI_VOICES = new Set([
+  "Achernar", "Aoede", "Autonoe", "Callirrhoe", "Despina", "Erinome",
+  "Gacrux", "Kore", "Laomedeia", "Leda", "Sulafat", "Vindemiatrix", "Zephyr",
+]);
 
 // FIX n°3 : persona EN CLAIR par voix (Audio Profile du guide officiel Google).
 const VOICE_PERSONAS: Record<string, string> = {

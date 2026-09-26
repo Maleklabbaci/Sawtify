@@ -97,30 +97,30 @@ aucune intégration existante n'est cassée.
 | 7 | Maryam | مريم | `Sulafat` | `voice_maryam` | femme |
 | 8 | Layla | ليلى | `Leda` | `voice_layla` | femme |
 | 9 | Nour | نور | `Achernar` | `voice_nour` | femme |
-| 10 | Karim | كريم | `Kore` | — | à confirmer |
-| 11 | Aya | آية | `Aoede` | — | à confirmer |
-| 12 | Sami | سامي | `Callirrhoe` | — | à confirmer |
-| 13 | Nada | ندى | `Autonoe` | — | à confirmer |
-| 14 | Anis | أنيس | `Enceladus` | — | à confirmer |
-| 15 | Zaki | زكي | `Iapetus` | — | à confirmer |
-| 16 | Walid | وليد | `Umbriel` | — | à confirmer |
-| 17 | Nabil | نبيل | `Algieba` | — | à confirmer |
-| 18 | Salma | سلمى | `Despina` | — | à confirmer |
-| 19 | Rania | رانيا | `Erinome` | — | à confirmer |
-| 20 | Hakim | حكيم | `Rasalgethi` | — | à confirmer |
-| 21 | Riad | رياض | `Laomedeia` | — | à confirmer |
-| 22 | Adel | عادل | `Alnilam` | — | à confirmer |
-| 23 | Nassim | نسيم | `Schedar` | — | à confirmer |
-| 24 | Omar | عمر | `Gacrux` | — | à confirmer |
-| 25 | Yacine | ياسين | `Pulcherrima` | — | à confirmer |
-| 26 | Hicham | هشام | `Achird` | — | à confirmer |
-| 27 | Reda | رضا | `Zubenelgenubi` | — | à confirmer |
-| 28 | Amina | أمينة | `Vindemiatrix` | — | à confirmer |
-| 29 | Sara | سارة | `Sadachbia` | — | à confirmer |
-| 30 | Mourad | مراد | `Sadaltager` | — | à confirmer |
-
-**« à confirmer »** signifie que Google ne publie pas le genre de ces voix : il sera confirmé à
-l'écoute, puis la colonne sera mise à jour. Cela ne change **rien** à l'usage de l'API.
+| 10 | Karima | كريمة | `Kore` | — | femme |
+| 11 | Aya | آية | `Aoede` | — | femme |
+| 12 | Samia | سامية | `Callirrhoe` | — | femme |
+| 13 | Nada | ندى | `Autonoe` | — | femme |
+| 14 | Salma | سلمى | `Despina` | — | femme |
+| 15 | Rania | رانيا | `Erinome` | — | femme |
+| 16 | Rym | ريم | `Laomedeia` | — | femme |
+| 17 | Nassima | نسيمة | `Vindemiatrix` | — | femme |
+| 18 | Souad | سعاد | `Gacrux` | — | femme |
+| 19 | Anis | أنيس | `Enceladus` | — | homme |
+| 20 | Zaki | زكي | `Iapetus` | — | homme |
+| 21 | Walid | وليد | `Umbriel` | — | homme |
+| 22 | Nabil | نبيل | `Algieba` | — | homme |
+| 23 | Hakim | حكيم | `Rasalgethi` | — | homme |
+| 24 | Adel | عادل | `Alnilam` | — | homme |
+| 25 | Hicham | هشام | `Achird` | — | homme |
+| 26 | Reda | رضا | `Zubenelgenubi` | — | homme |
+| 27 | Yacine | ياسين | `Pulcherrima` | — | homme |
+| 28 | Amir | أمير | `Schedar` | — | homme |
+| 29 | Sofiane | سفيان | `Sadachbia` | — | homme |
+| 30 | Mourad | مراد | `Sadaltager` | — | homme |
+**Les 30 genres sont désormais connus** (13 femmes, 17 hommes) et chaque `voice_name`
+correspond à la bonne voix. La colonne « Ancien ID » rappelle l'identifiant historique : il
+reste accepté pour toujours et ne s'arrête jamais de fonctionner.
 
 ### Comment choisir une voix ?
 

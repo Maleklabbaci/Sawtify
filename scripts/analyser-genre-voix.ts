@@ -55,14 +55,23 @@ const FICHIER_RESULTAT = path.join(RACINE, "storage", "genre-mesure.json");
 const SEUIL_HOMME_HZ = 150;
 const SEUIL_FEMME_HZ = 175;
 
-/* ── LES VOIX DÉJÀ CONNUES ─────────────────────────────────────────────────
- * Les 9 voix algériennes de Sawtify : leur genre est un choix éditorial, pas
- * une mesure. On ne les analyse pas, on les confirme telles quelles.               */
-const DEJA_CONNUES: Record<string, "male" | "female"> = {
-  Puck: "male", Charon: "male", Algenib: "male", Orus: "male",
-  Fenrir: "male", Sulafat: "male",
-  Kore: "female", Zephyr: "female", Achernar: "female", Leda: "female",
-  Aoede: "female",
+/* ── LA LISTE DE RÉFÉRENCE DES 30 VOIX ────────────────────────────────────
+ * Fournie le 26/09/2026 (2e version) : 13 femmes, 17 hommes. C'est elle qui fait foi.
+ * Ce script ne « découvre » donc plus rien : il VÉRIFIE que la mesure de
+ * l'audio confirme la liste. Un désaccord signale une erreur quelque part
+ * (mauvaise voix générée, aperçu mélangé, ou prénom mal attribué).          */
+export const GENRE_REFERENCE: Record<string, "male" | "female"> = {
+  // ── Femmes (13) ──
+  Zephyr: "female", Sulafat: "female", Leda: "female", Achernar: "female",
+  Kore: "female", Aoede: "female", Callirrhoe: "female", Autonoe: "female",
+  Despina: "female", Erinome: "female", Laomedeia: "female", Gacrux: "female",
+  Vindemiatrix: "female",
+  // ── Hommes (17) ──
+  Puck: "male", Charon: "male", Fenrir: "male", Algenib: "male",
+  Orus: "male", Enceladus: "male", Iapetus: "male", Umbriel: "male",
+  Algieba: "male", Rasalgethi: "male", Alnilam: "male", Schedar: "male",
+  Pulcherrima: "male", Achird: "male", Zubenelgenubi: "male", Sadachbia: "male",
+  Sadaltager: "male",
 };
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -258,8 +267,8 @@ for (const fichier of fichiers) {
     else if (m.f0 > SEUIL_FEMME_HZ) { genre = "femme"; dit = "aiguë → voix de femme"; femme++; }
     else { genre = "incertain"; dit = "entre les deux → à trancher à l'oreille"; incertain++; }
 
-    const connue = DEJA_CONNUES[nomVoix];
-    const marque = connue ? (connue === genre ? " ✓" : " ⚠️ contredit le catalogue") : "";
+    const connue = GENRE_REFERENCE[nomVoix];
+    const marque = connue ? (connue === genre ? " ✓" : " ⚠️ CONTREDIT LA LISTE") : "";
     ligne(`  ${nomVoix.padEnd(14)} ${String(Math.round(m.f0)).padStart(4)} Hz    ${dit}${marque}`);
 
     resultats[nomVoix] = { f0: Math.round(m.f0), genre, fiabilite: Number(m.fiabilite.toFixed(2)) };
@@ -275,17 +284,17 @@ ligne(`  ${homme} voix d'homme  ·  ${femme} voix de femme  ·  ${incertain} à 
 ligne();
 
 // vérification croisée : les 9 voix dont le genre est déjà choisi dans Sawtify
-const contredites = Object.entries(DEJA_CONNUES)
+const contredites = Object.entries(GENRE_REFERENCE)
   .filter(([nom, genre]) => resultats[nom] && resultats[nom].genre !== "incertain" && resultats[nom].genre !== genre)
   .map(([nom]) => nom);
 
 if (contredites.length) {
-  verdict(false, "la mesure contredit le catalogue", contredites.join(", "));
-  ligne("     → dans ce cas, c'est l'OREILLE qui tranche, pas le chiffre.");
+  verdict(false, "la mesure CONTREDIT la liste de référence", contredites.join(", "));
+  ligne("     → vérifie à l'oreille : c'est peut-être l'aperçu qui n'est pas la bonne voix.");
 } else {
-  const testees = Object.keys(DEJA_CONNUES).filter(n => resultats[n]);
-  if (testees.length) verdict(true, `les ${testees.length} voix déjà classées : la mesure confirme`);
-  else ligne("  ℹ️  aucune des 9 voix déjà classées n'est présente dans les aperçus");
+  const testees = Object.keys(GENRE_REFERENCE).filter(n => resultats[n]);
+  if (testees.length) verdict(true, `la mesure confirme la liste sur ${testees.length} voix`);
+  else ligne("  (aucun aperçu correspondant à la liste de référence)");
 }
 
 // on enregistre la proposition : rien n'est modifié automatiquement

@@ -21,16 +21,20 @@
  *     traduits par la table de migration, pour ne rien casser chez les
  *     utilisateurs existants.)
  *
- *  2) `gender: 'unknown'` EST VOLONTAIRE.
- *     Google ne publie pas le genre des voix studio — seulement un descripteur
- *     de caractère (« Bright », « Warm »…). Deviner le genre serait mentir à
- *     l'utilisateur. Le genre se renseigne après écoute, voix par voix.
- *     `npm run apercus:voix` puis la page /audition-voix.html servent à ça.
+ *  2) LE GENRE EST DÉSORMAIS CONNU POUR LES 30 VOIX.
+ *     Il vient de la liste de référence fournie par le propriétaire du
+ *     projet (12 femmes, 18 hommes), croisée avec le catalogue officiel.
+ *     Chaque prénom et chaque descripteur suit donc le genre RÉEL de la
+ *     voix : une voix féminine porte un prénom féminin et un descripteur
+ *     accordé au féminin. Plus aucun « unknown ».
+ *
+ *  3) L'ORDRE COMPTE : femmes d'abord, puis hommes. C'est ce qui donne un
+ *     catalogue lisible quand on ne filtre pas.
  */
 
 import type { Voice } from '../types';
 
-/** Genre non confirmé : voir règle n°2 en tête de fichier. */
+/** Conservé pour compatibilité : plus aucune voix ne l'utilise (règle n°2). */
 export const GENDER_A_CONFIRMER = 'unknown' as const;
 
 type NouvelleVoix = {
@@ -45,6 +49,8 @@ type NouvelleVoix = {
   caractereAr: string;
   icon: string;
   category: Voice['category'];
+  /** Genre RÉEL de la voix, vérifié auprès du catalogue officiel. */
+  gender: 'male' | 'female';
 };
 
 /**
@@ -62,27 +68,30 @@ type NouvelleVoix = {
  * Idem pour le champ arabe, qui suit directement « صوت ».
  */
 const NOUVELLES_VOIX: NouvelleVoix[] = [
-  { slug: 'karim',  geminiVoice: 'Kore',           name: 'Karim',  nameAr: 'كريم',   caractere: 'Ferme',            caractereAr: 'حازم',        icon: 'mic',         category: 'formal' },
-  { slug: 'aya',    geminiVoice: 'Aoede',          name: 'Aya',    nameAr: 'آية',    caractere: 'Légère et aérienne',  caractereAr: 'خفيف',        icon: 'sparkles',    category: 'social' },
-  { slug: 'sami',   geminiVoice: 'Callirrhoe',     name: 'Sami',   nameAr: 'سامي',   caractere: 'Décontractée',      caractereAr: 'مرتاح',       icon: 'podcast',     category: 'social' },
-  { slug: 'nada',   geminiVoice: 'Autonoe',        name: 'Nada',   nameAr: 'ندى',    caractere: 'Éclatante',         caractereAr: 'مشرق',        icon: 'sparkles',    category: 'commercial' },
-  { slug: 'anis',   geminiVoice: 'Enceladus',      name: 'Anis',   nameAr: 'أنيس',   caractere: 'Soufflée et aérée',  caractereAr: 'نفَسي وخفيف',       icon: 'volume-2',    category: 'narrative' },
-  { slug: 'zaki',   geminiVoice: 'Iapetus',        name: 'Zaki',   nameAr: 'زكي',    caractere: 'Claire',            caractereAr: 'واضح',        icon: 'mic',         category: 'formal' },
-  { slug: 'walid',  geminiVoice: 'Umbriel',        name: 'Walid',  nameAr: 'وليد',   caractere: 'Décontractée',      caractereAr: 'مرتاح',       icon: 'radio',       category: 'social' },
-  { slug: 'nabil',  geminiVoice: 'Algieba',        name: 'Nabil',  nameAr: 'نبيل',   caractere: 'Lisse',            caractereAr: 'ناعم',        icon: 'audio-lines', category: 'narrative' },
-  { slug: 'salma',  geminiVoice: 'Despina',        name: 'Salma',  nameAr: 'سلمى',   caractere: 'Lisse',            caractereAr: 'ناعم',        icon: 'sparkles',    category: 'narrative' },
-  { slug: 'rania',  geminiVoice: 'Erinome',        name: 'Rania',  nameAr: 'رانيا',  caractere: 'Claire',            caractereAr: 'واضح',        icon: 'mic',         category: 'formal' },
-  { slug: 'hakim',  geminiVoice: 'Rasalgethi',     name: 'Hakim',  nameAr: 'حكيم',   caractere: 'Informative',       caractereAr: 'إخباري',    icon: 'podcast',     category: 'formal' },
-  { slug: 'riad',   geminiVoice: 'Laomedeia',      name: 'Riad',   nameAr: 'رياض',   caractere: 'Enjouée',           caractereAr: 'مرح',         icon: 'flame',       category: 'commercial' },
-  { slug: 'adel',   geminiVoice: 'Alnilam',        name: 'Adel',   nameAr: 'عادل',   caractere: 'Ferme',            caractereAr: 'حازم',        icon: 'mic',         category: 'formal' },
-  { slug: 'nassim', geminiVoice: 'Schedar',        name: 'Nassim', nameAr: 'نسيم',   caractere: 'Égale et posée',     caractereAr: 'رزين',        icon: 'audio-lines', category: 'narrative' },
-  { slug: 'omar',   geminiVoice: 'Gacrux',         name: 'Omar',   nameAr: 'عمر',    caractere: 'Mûre',              caractereAr: 'ناضج',        icon: 'headphones',  category: 'narrative' },
-  { slug: 'yacine', geminiVoice: 'Pulcherrima',    name: 'Yacine', nameAr: 'ياسين',  caractere: 'Directe et assurée', caractereAr: 'واثق',        icon: 'megaphone',   category: 'commercial' },
-  { slug: 'hicham', geminiVoice: 'Achird',         name: 'Hicham', nameAr: 'هشام',   caractere: 'Amicale',           caractereAr: 'ودود',        icon: 'podcast',     category: 'social' },
-  { slug: 'reda',   geminiVoice: 'Zubenelgenubi',  name: 'Reda',   nameAr: 'رضا',    caractere: 'Décontractée',      caractereAr: 'مرتاح',       icon: 'radio',       category: 'social' },
-  { slug: 'amina',  geminiVoice: 'Vindemiatrix',   name: 'Amina',  nameAr: 'أمينة',  caractere: 'Douce et délicate',  caractereAr: 'لطيف',        icon: 'sparkles',    category: 'narrative' },
-  { slug: 'sara',   geminiVoice: 'Sadachbia',      name: 'Sara',   nameAr: 'سارة',   caractere: 'Vivante',           caractereAr: 'حيوي',        icon: 'zap',         category: 'social' },
-  { slug: 'mourad', geminiVoice: 'Sadaltager',     name: 'Mourad', nameAr: 'مراد',   caractere: 'Savante et érudite', caractereAr: 'مثقّف ورصين',       icon: 'headphones',  category: 'formal' },
+  // Les femmes d'abord (9), les hommes ensuite (12) : ordre du catalogue.
+  // ── Femmes (9) ──────────────────────────────────────────────────────────
+  { slug: 'karim', geminiVoice: 'Kore', name: 'Karima', nameAr: 'كريمة', caractere: 'Ferme', caractereAr: 'حازم', icon: 'mic', category: 'formal', gender: 'female' },
+  { slug: 'aya', geminiVoice: 'Aoede', name: 'Aya', nameAr: 'آية', caractere: 'Légère et aérienne', caractereAr: 'خفيف', icon: 'sparkles', category: 'social', gender: 'female' },
+  { slug: 'sami', geminiVoice: 'Callirrhoe', name: 'Samia', nameAr: 'سامية', caractere: 'Décontractée', caractereAr: 'مرتاح', icon: 'podcast', category: 'social', gender: 'female' },
+  { slug: 'nada', geminiVoice: 'Autonoe', name: 'Nada', nameAr: 'ندى', caractere: 'Éclatante', caractereAr: 'مشرق', icon: 'sparkles', category: 'commercial', gender: 'female' },
+  { slug: 'salma', geminiVoice: 'Despina', name: 'Salma', nameAr: 'سلمى', caractere: 'Lisse', caractereAr: 'سلس', icon: 'sparkles', category: 'narrative', gender: 'female' },
+  { slug: 'rania', geminiVoice: 'Erinome', name: 'Rania', nameAr: 'رانيا', caractere: 'Claire', caractereAr: 'واضح', icon: 'mic', category: 'formal', gender: 'female' },
+  { slug: 'riad', geminiVoice: 'Laomedeia', name: 'Rym', nameAr: 'ريم', caractere: 'Enjouée', caractereAr: 'مرح', icon: 'flame', category: 'commercial', gender: 'female' },
+  { slug: 'nassim', geminiVoice: 'Vindemiatrix', name: 'Nassima', nameAr: 'نسيمة', caractere: 'Douce', caractereAr: 'ناعم', icon: 'audio-lines', category: 'narrative', gender: 'female' },
+  { slug: 'omar', geminiVoice: 'Gacrux', name: 'Souad', nameAr: 'سعاد', caractere: 'Mûre', caractereAr: 'ناضج', icon: 'headphones', category: 'narrative', gender: 'female' },
+  // ── Hommes (12) ─────────────────────────────────────────────────────────
+  { slug: 'anis', geminiVoice: 'Enceladus', name: 'Anis', nameAr: 'أنيس', caractere: 'Soufflé et aéré', caractereAr: 'نفَسي وخفيف', icon: 'volume-2', category: 'narrative', gender: 'male' },
+  { slug: 'zaki', geminiVoice: 'Iapetus', name: 'Zaki', nameAr: 'زكي', caractere: 'Clair', caractereAr: 'واضح', icon: 'mic', category: 'formal', gender: 'male' },
+  { slug: 'walid', geminiVoice: 'Umbriel', name: 'Walid', nameAr: 'وليد', caractere: 'Décontracté', caractereAr: 'مرتاح', icon: 'radio', category: 'social', gender: 'male' },
+  { slug: 'nabil', geminiVoice: 'Algieba', name: 'Nabil', nameAr: 'نبيل', caractere: 'Lisse', caractereAr: 'سلس', icon: 'audio-lines', category: 'narrative', gender: 'male' },
+  { slug: 'hakim', geminiVoice: 'Rasalgethi', name: 'Hakim', nameAr: 'حكيم', caractere: 'Informatif', caractereAr: 'إخباري', icon: 'podcast', category: 'formal', gender: 'male' },
+  { slug: 'adel', geminiVoice: 'Alnilam', name: 'Adel', nameAr: 'عادل', caractere: 'Ferme', caractereAr: 'حازم', icon: 'mic', category: 'formal', gender: 'male' },
+  { slug: 'hicham', geminiVoice: 'Achird', name: 'Hicham', nameAr: 'هشام', caractere: 'Amical', caractereAr: 'ودود', icon: 'podcast', category: 'social', gender: 'male' },
+  { slug: 'reda', geminiVoice: 'Zubenelgenubi', name: 'Reda', nameAr: 'رضا', caractere: 'Décontracté', caractereAr: 'عفوي', icon: 'radio', category: 'social', gender: 'male' },
+  { slug: 'yacine', geminiVoice: 'Pulcherrima', name: 'Yacine', nameAr: 'ياسين', caractere: 'Direct et assuré', caractereAr: 'مباشر', icon: 'megaphone', category: 'commercial', gender: 'male' },
+  { slug: 'amina', geminiVoice: 'Schedar', name: 'Amir', nameAr: 'أمير', caractere: 'Égal et posé', caractereAr: 'متوازن', icon: 'sparkles', category: 'narrative', gender: 'male' },
+  { slug: 'sara', geminiVoice: 'Sadachbia', name: 'Sofiane', nameAr: 'سفيان', caractere: 'Vivant', caractereAr: 'حيوي', icon: 'zap', category: 'social', gender: 'male' },
+  { slug: 'mourad', geminiVoice: 'Sadaltager', name: 'Mourad', nameAr: 'مراد', caractere: 'Savant et érudit', caractereAr: 'مثقّف ورصين', icon: 'headphones', category: 'formal', gender: 'male' },
 ];
 
 /** Phrases d'exemple, choisies selon l'usage prévu de la voix. */
@@ -140,7 +149,7 @@ function versVoice(v: NouvelleVoix, lang: 'fr' | 'ar'): Voice {
     dialect: ar
       ? `دارجة جزائرية • صوت ${v.caractereAr}`
       : `Darja algérienne • Voix ${v.caractere.toLowerCase()}`,
-    gender: GENDER_A_CONFIRMER,
+    gender: v.gender,
     icon: v.icon,
     category: v.category,
     sampleText: ar ? EXEMPLES_AR[v.category] : EXEMPLES[v.category],

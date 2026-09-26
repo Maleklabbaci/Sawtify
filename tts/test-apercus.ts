@@ -63,9 +63,18 @@ const fichiers = targets.map((t) => previewFileName(t.voice.id));
 check("30 noms de fichiers distincts (aucun écrasement)", new Set(fichiers).size === 30);
 check("noms de fichiers sûrs (URL et système)", fichiers.every((f) => /^[a-z0-9-]+\.wav$/.test(f)), fichiers.filter((f) => !/^[a-z0-9-]+\.wav$/.test(f)).join(", "));
 
-const neuf = targets.slice(0, 9);
-check("les 9 voix historiques gardent leur identifiant Sawtify", neuf.every((t) => Boolean(t.legacyId)), neuf.filter((t) => !t.legacyId).map((t) => t.voice.id).join(", "));
-check("les 21 nouvelles n'ont pas d'identifiant historique", targets.slice(9).every((t) => !t.legacyId));
+// Les 9 voix des personas Sawtify portent un identifiant historique — pas
+// forcément les 9 premières du catalogue, qui suit l'ordre de Google.
+// Depuis le 26/09/2026 : la liste de référence confirme que Zephyr (Yasmine)
+// et Achernar (Nour) sont bien des voix de FEMME ; Pulcherrima et Schedar,
+// elles, sont des voix d'HOMME du catalogue général, sans identifiant.
+const VOIX_PERSONAS = ["Puck", "Charon", "Fenrir", "Algenib", "Orus", "Zephyr", "Sulafat", "Leda", "Achernar"];
+const avecLegacy = targets.filter((t) => Boolean(t.legacyId)).map((t) => t.voice.id).sort();
+check("les 9 voix des personas gardent leur identifiant Sawtify",
+  avecLegacy.join(",") === [...VOIX_PERSONAS].sort().join(","), avecLegacy.join(", "));
+check("les 21 autres voix n'ont aucun identifiant historique",
+  targets.filter((t) => !t.legacyId).length === 21,
+  `${targets.filter((t) => !t.legacyId).length}`);
 
 // ===========================================================================
 section("3. TEXTES D'APERÇU — un par voix, tous propres");
@@ -130,14 +139,14 @@ check("manifeste incomplet accepté mais signalé", vIncomplet.ok && vIncomplet.
 section("5. VALIDATION À L'OREILLE — 21 genres à confirmer");
 // ===========================================================================
 const aValider = voicesNeedingGenderValidation(null);
-check("21 voix à valider sans manifeste", aValider.length === 21, `${aValider.length} : ${aValider.slice(0, 3).join(", ")}…`);
-check("les 9 voix historiques ne sont pas à valider", !neuf.some((t) => aValider.includes(t.voice.id)));
+check("plus aucune voix à valider : le genre des 30 est connu", aValider.length === 0, `${aValider.length} restante(s)`);
+check("les 9 voix des personas ne sont pas à valider", !VOIX_PERSONAS.some((id) => aValider.includes(id)));
 const manifestValide: VoicePreviewManifest = {
   ...faux,
   voices: faux.voices.map((v) => (v.voiceId === "Kore" ? { ...v, gender: "male" as const } : v)),
 };
 check("une voix validée sort de la liste", !voicesNeedingGenderValidation(manifestValide).includes("Kore"));
-check("les autres restent à valider", voicesNeedingGenderValidation(manifestValide).length === 20);
+check("aucune voix à valider même avec un manifeste partiel", voicesNeedingGenderValidation(manifestValide).length === 0);
 
 // ===========================================================================
 section("6. MANIFESTE RÉEL S'IL EXISTE (généré par npm run apercus:voix)");

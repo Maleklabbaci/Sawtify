@@ -60,53 +60,69 @@ Ce que tes utilisateurs voient        Ce que Google reçoit
       « Amine »            ────►            "Puck"
       « أمين »              ────►            "Puck"
       « Yasmine »          ────►            "Zephyr"
-      « Karim »            ────►            "Kore"
+      « Karima »           ────►            "Kore"
 ```
 
 ### Les 30 voix, avec leurs prénoms
 
-**Les 9 prénoms historiques sont INCHANGÉS** (tes utilisateurs les connaissent déjà).
+**Les 9 prénoms historiques sont INCHANGÉS.** Les 21 autres ont été renommés le 26/09/2026
+pour que le prénom corresponde enfin au genre réel de la voix.
 
-| # | Technique | Prénom FR | Prénom AR | Caractère | |
+| # | Technique | Prénom FR | Prénom AR | Caractère | Genre |
 |---|---|---|---|---|---|
-| 1 | `Puck` | **Amine** | أمين | Voix enjouée et dynamique | ✅ |
-| 2 | `Charon` | **Khalid** | خالد | Voix informative et posée | ✅ |
-| 3 | `Fenrir` | **Rachid** | رشيد | Voix énergique et survoltée | ✅ |
-| 4 | `Algenib` | **Bilal** | بلال | Voix grave et rocailleuse | ✅ |
-| 5 | `Orus` | **Fayçal** | فيصل | Voix ferme et assurée | ✅ |
-| 6 | `Zephyr` | **Yasmine** | ياسمين | Voix éclatante et souriante | ✅ |
-| 7 | `Sulafat` | **Maryam** | مريم | Voix chaleureuse et douce | ✅ |
-| 8 | `Leda` | **Layla** | ليلى | Voix juvénile et vive | ✅ |
-| 9 | `Achernar` | **Nour** | نور | Voix douce et apaisante | ✅ |
-| 10 | `Kore` | **Karim** | كريم | Voix ferme et autoritaire | ⚠️ |
-| 11 | `Aoede` | **Aya** | آية | Voix légère et aérienne | ⚠️ |
-| 12 | `Callirrhoe` | **Sami** | سامي | Voix décontractée et cool | ⚠️ |
-| 13 | `Autonoe` | **Nada** | ندى | Voix éclatante et joyeuse | ⚠️ |
-| 14 | `Enceladus` | **Anis** | أنيس | Voix soufflée et intime | ⚠️ |
-| 15 | `Iapetus` | **Zaki** | زكي | Voix claire et nette | ⚠️ |
-| 16 | `Umbriel` | **Walid** | وليد | Voix décontractée et simple | ⚠️ |
-| 17 | `Algieba` | **Nabil** | نبيل | Voix lisse et fluide | ⚠️ |
-| 18 | `Despina` | **Salma** | سلمى | Voix lisse et douce | ⚠️ |
-| 19 | `Erinome` | **Rania** | رانيا | Voix claire et précise | ⚠️ |
-| 20 | `Rasalgethi` | **Hakim** | حكيم | Voix informative et érudite | ⚠️ |
-| 21 | `Laomedeia` | **Riad** | رياض | Voix enjouée et vive | ⚠️ |
-| 22 | `Alnilam` | **Adel** | عادل | Voix ferme et stable | ⚠️ |
-| 23 | `Schedar` | **Nassim** | نسيم | Voix égale et posée | ⚠️ |
-| 24 | `Gacrux` | **Omar** | عمر | Voix mûre et expérimentée | ⚠️ |
-| 25 | `Pulcherrima` | **Yacine** | ياسين | Voix directe et assurée | ⚠️ |
-| 26 | `Achird` | **Hicham** | هشام | Voix amicale et proche | ⚠️ |
-| 27 | `Zubenelgenubi` | **Reda** | رضا | Voix décontractée et naturelle | ⚠️ |
-| 28 | `Vindemiatrix` | **Amina** | أمينة | Voix douce et délicate | ⚠️ |
-| 29 | `Sadachbia` | **Sara** | سارة | Voix vivante et animée | ⚠️ |
-| 30 | `Sadaltager` | **Mourad** | مراد | Voix savante et pédagogue | ⚠️ |
+| 1 | `Puck` | **Amine** | أمين | Voix enjouée et dynamique | ✅ homme |
+| 2 | `Charon` | **Khalid** | خالد | Voix informative et posée | ✅ homme |
+| 3 | `Fenrir` | **Rachid** | رشيد | Voix énergique et survoltée | ✅ homme |
+| 4 | `Algenib` | **Bilal** | بلال | Voix grave et rocailleuse | ✅ homme |
+| 5 | `Orus` | **Fayçal** | فيصل | Voix ferme et assurée | ✅ homme |
+| 6 | `Zephyr` | **Yasmine** | ياسمين | Voix éclatante et souriante | ✅ femme |
+| 7 | `Sulafat` | **Maryam** | مريم | Voix chaleureuse et douce | ✅ femme |
+| 8 | `Leda` | **Layla** | ليلى | Voix juvénile et vive | ✅ femme |
+| 9 | `Achernar` | **Nour** | نور | Voix douce et apaisante | ✅ femme |
+| 10 | `Kore` | **Karima** | كريمة | Voix ferme et autoritaire | 🆕 femme |
+| 11 | `Aoede` | **Aya** | آية | Voix légère et aérienne | 🆕 femme |
+| 12 | `Callirrhoe` | **Samia** | سامية | Voix décontractée et cool | 🆕 femme |
+| 13 | `Autonoe` | **Nada** | ندى | Voix éclatante et joyeuse | 🆕 femme |
+| 14 | `Despina` | **Salma** | سلمى | Voix lisse et douce | 🆕 femme |
+| 15 | `Erinome` | **Rania** | رانيا | Voix claire et précise | 🆕 femme |
+| 16 | `Laomedeia` | **Rym** | ريم | Voix enjouée et vive | 🆕 femme |
+| 17 | `Vindemiatrix` | **Nassima** | نسيمة | Voix douce et délicate | 🆕 femme |
+| 18 | `Gacrux` | **Souad** | سعاد | Voix mûre et expérimentée | 🆕 femme |
+| 19 | `Enceladus` | **Anis** | أنيس | Voix soufflée et intime | 🆕 homme |
+| 20 | `Iapetus` | **Zaki** | زكي | Voix claire et nette | 🆕 homme |
+| 21 | `Umbriel` | **Walid** | وليد | Voix décontractée et simple | 🆕 homme |
+| 22 | `Algieba` | **Nabil** | نبيل | Voix lisse et fluide | 🆕 homme |
+| 23 | `Rasalgethi` | **Hakim** | حكيم | Voix informative et érudite | 🆕 homme |
+| 24 | `Alnilam` | **Adel** | عادل | Voix ferme et stable | 🆕 homme |
+| 25 | `Achird` | **Hicham** | هشام | Voix amicale et proche | 🆕 homme |
+| 26 | `Zubenelgenubi` | **Reda** | رضا | Voix décontractée et naturelle | 🆕 homme |
+| 27 | `Pulcherrima` | **Yacine** | ياسين | Voix directe et assurée | 🆕 homme |
+| 28 | `Schedar` | **Amir** | أمير | Voix égale et posée | 🆕 homme |
+| 29 | `Sadachbia` | **Sofiane** | سفيان | Voix vivante et animée | 🆕 homme |
+| 30 | `Sadaltager` | **Mourad** | مراد | Voix savante et pédagogue | 🆕 homme |
 
-### ⚠️ Pourquoi 21 prénoms sont marqués « à vérifier »
+**Les femmes d'abord** (9 F), **les hommes ensuite** (12 H) : c'est l'ordre affiché
+dans le studio quand aucun filtre n'est actif.
 
-**Google ne publie PAS le genre de ses voix studio.** La doc donne seulement un caractère (« Bright », « Gravelly », « Warm »…).
+### ✅ Le genre est désormais CONNU
 
-Les 9 premiers sont sûrs (vérifiés en production chez toi). Les 21 autres sont des **propositions cohérentes avec le caractère**, mais **à confirmer à l'oreille** quand tu généreras les aperçus audio.
+Google ne publie pas le genre de ses voix studio. Une **liste de référence vérifiée**
+(**13 femmes, 17 hommes**) a permis de tout remettre d'aplomb, et elle a révélé
+**15 anomalies sur 21 voix** : prénoms d'homme sur des voix de femme, descripteurs accordés
+au mauvais genre, et fichiers qui ne disaient pas la même chose entre eux.
 
-**Si un prénom ne colle pas** (voix masculine avec un prénom féminin), il se change **à UN SEUL endroit** : `tts/voiceNames.ts`. C'est réglé partout (interface, API, historique).
+**Corrigé :** les prénoms suivent tous le genre réel, les descripteurs sont accordés
+(« Voix **mûre** » → « Voix **mûr** » selon la voix), et l'ordre est femmes puis hommes.
+
+**Un garde-fou empêche le retour du problème :**
+
+```bash
+npm run verif:voix
+```
+
+Il compare les quatre fichiers qui décrivent les voix et refuse toute incohérence.
+
+---
 
 ### 90 écritures acceptées
 
@@ -119,8 +135,8 @@ Les 9 premiers sont sûrs (vérifiés en production chez toi). Les 21 autres son
 | Espaces en trop | `"  Amine  "` | ✅ |
 | Nom technique | `Puck` | ✅ |
 | **Ancien identifiant Sawtify** | `voice_amin` | ✅ |
-| Nouvelle voix en français | `Karim` | ✅ |
-| Nouvelle voix en arabe | `كريم` | ✅ |
+| Nouvelle voix en français | `Karima` | ✅ |
+| Nouvelle voix en arabe | `كريمة` | ✅ |
 | Voix sur mesure (à venir) | `voice_xyz` | ✅ |
 | Voix inexistante | `inconnu` | 🛡️ repli sûr → `Amine` |
 
