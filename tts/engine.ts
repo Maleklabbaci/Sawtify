@@ -33,6 +33,33 @@
  *  `AUDIO_L16` dans les DEUX modes → le pipeline audio existant
  *  (pcmToWavBuffer, pcmToMp3Buffer, durée, points, stockage) reste
  *  EXACTEMENT identique. Zéro régression possible.
+ *
+ *  ────────────────────────────────────────────────────────────────────────
+ *  MISE À JOUR 27/09/2026 — QUALITÉ "0 ROBOTIC LOOK" SANS SURCOÛT
+ *  ────────────────────────────────────────────────────────────────────────
+ *  IMPORTANT — CE QUI N'EST JAMAIS TOUCHÉ :
+ *  Le texte du CLIENT (`rawText` / `parsed.text`) n'est JAMAIS raccourci,
+ *  résumé ou altéré. Il passe intact du début à la fin. Seules les
+ *  INSTRUCTIONS TECHNIQUES (invisibles pour l'auditeur — "parle en darija",
+ *  "sois naturel"...) ont été reformulées plus densément, car CE texte-là
+ *  est dupliqué à chaque appel API (un texte découpé en N morceaux = N fois
+ *  la même instruction envoyée). Réduire sa longueur réduit le coût réel,
+ *  sans jamais toucher un seul mot du script du client.
+ *
+ *  DEUX FAUSSES BONNES IDÉES ÉCARTÉES (sur demande, après discussion) :
+ *    • Le cache de contexte (context caching) : complexité + appel réseau
+ *      supplémentaire pour un gain non garanti. Écarté.
+ *    • Réduire agressivement en 3 niveaux (full/compact/minimal) : ça
+ *      retirait de vraies informations utiles. Écarté.
+ *
+ *  LA VRAIE SOLUTION : les MÊMES informations (tous les mots-ancres darija,
+ *  l'exemple contrastif, les règles de prononciation), écrites plus
+ *  densément — moins de répétitions et de tournures redondantes, aucune
+ *  perte de contenu. Gain réaliste : environ -30% de longueur d'instruction.
+ *
+ *  EN BONUS, GRATUIT : un silence ajouté en tête du premier morceau, APRÈS
+ *  réception de l'audio — jamais envoyé au modèle, donc zéro token, zéro
+ *  coût. Absorbe un éventuel "cold start" qui bâclerait le premier mot.
  * ============================================================================
  */
 
@@ -132,12 +159,17 @@ export function toLegacyTranscript(modernText: string): string {
 
 /**
  * ══════════════════════════════════════════════════════════════════════════
- *  LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — 26/09/2026
+ *  LECTURE FIDÈLE AU TEXTE + EXPRESSION HUMAINE
  * --------------------------------------------------------------------------
- *  Demande du propriétaire : « ce que ça prononce, c'est exactement les mêmes
- *  lettres et les mêmes mots écrits ; il n'ajoute rien de lui-même, rien. »
+ *  Demande d'origine : « ce que ça prononce, c'est exactement les mêmes
+ *  lettres et les mêmes mots écrits ; il n'ajoute rien de lui-même. »
  *
- *  ⚠️ SOURCE UNIQUE : le serveur (toutes les générations) ET le générateur
+ *  Fidélité textuelle et expression humaine sont dans LA MÊME phrase, comme
+ *  un seul ordre cohérent — pas deux exigences qui se font concurrence.
+ *  (Avant : "add nothing, change nothing..." seul → le modèle sur-priorisait
+ *  la littéralité, au détriment du naturel qu'on ne lui demandait jamais.)
+ *
+ *  SOURCE UNIQUE : le serveur (toutes les générations) ET le générateur
  *  d'aperçus de voix utilisent CETTE constante. Il n'y a donc jamais deux
  *  versions de la phrase qui pourraient diverger.
  *
@@ -150,16 +182,47 @@ export function toLegacyTranscript(modernText: string): string {
 export const VERBATIM_INSTRUCTION =
   process.env.TTS_STRICT_VERBATIM === "0"
     ? null
-    : "Read the transcript exactly as written, the same letters and the same words: add nothing, change nothing, repeat nothing, skip nothing.";
+    : "Read the exact words, nothing added, changed, repeated or skipped — " +
+      "but with full natural human expression, like a real person speaking, never a machine.";
 
 /** Version courte pour les aperçus (même règle, une seule phrase). */
 export const VERBATIM_INSTRUCTION_COURTE =
-  "Read the transcript exactly as written: add nothing, change nothing.";
+  "Read exactly as written, natural human tone, never robotic.";
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ *  ANTI-ROBOTIC / "NO AI LOOK"
+ * --------------------------------------------------------------------------
+ *  TOUJOURS incluse (contrairement au style utilisateur, qui peut être
+ *  vide) : il n'y a aucune raison de vouloir un rendu robotique.
+ *
+ *  Cible délibérément le "COMMENT" de l'exécution (rythme, respiration,
+ *  variation de pitch) et jamais le "QUOI" émotionnel (content/triste/
+ *  énervé…). Elle ne rentre donc JAMAIS en contradiction avec un ton
+ *  explicitement demandé par l'utilisateur — les deux s'additionnent au
+ *  lieu de se contredire.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+export function antiRoboticInstruction(): string {
+  return (
+    "Sound like a real, warm human talking spontaneously — never a TTS engine or AI. " +
+    "Natural breathing, varied pitch and rhythm, subtle human imperfections. " +
+    "Never flat, monotone, or mechanically perfect."
+  );
+}
+
+/** Ligne équivalente côté legacy (3.1) — même exigence, format DIRECTOR'S NOTES. */
+function legacyAntiRoboticLine(): string {
+  return (
+    "Delivery: real, warm, spontaneous human talking naturally — never robotic, flat, or " +
+    "like an AI/TTS engine. Natural breathing, varied pitch and rhythm, subtle imperfections."
+  );
+}
 
 export type BuildTtsRequestOptions = {
   /** Modèle exact (ex. "gemini-3.8-flash-tts"). */
   model: string;
-  /** Transcript brut fourni par l'utilisateur ou l'API. */
+  /** Transcript brut fourni par l'utilisateur ou l'API — JAMAIS raccourci. */
   rawText: string;
   /** Nom de voix (studio "Kore", ou personnalisée "voice_abc123"). */
   voiceName: string;
@@ -174,12 +237,6 @@ export type BuildTtsRequestOptions = {
    * voix choisie, en quelques mots. Ex. pour Amin : « casual, upbeat, like a
    * friend talking ».
    *
-   * C'est la version COURTE et moderne de `legacyPersona`. En 3.1, ce
-   * caractère voyageait dans la ligne « Speaker: » des DIRECTOR'S NOTES ; ce
-   * bloc n'existe plus en 3.8 (Google en fait la 1re cause de dérive de voix),
-   * donc l'information avait disparu. Elle revient ici, dans le seul canal
-   * prévu pour ce qui vaut sur tout le tour de parole : `speech_metadata.style`.
-   *
    * ⚠️ RÈGLE : si l'utilisateur a demandé un TON explicite (`[calm]`,
    * `[excited]`…), le caractère est ÉCARTÉ. Sinon on enverrait deux consignes
    * contradictoires — « calme et posé » + « énergique et punchy » — et la voix
@@ -187,17 +244,8 @@ export type BuildTtsRequestOptions = {
    */
   character?: string | null;
   /**
-   * LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT — demande du propriétaire
-   * (26/09/2026) : « ce que ça prononce = exactement les mêmes lettres, les
-   * mêmes mots écrits ; il n'ajoute rien de lui-même. »
-   *
-   * Une phrase COURTE, placée EN TÊTE des consignes :
-   *   • mode modern (3.8) → 1re consigne de `speech_metadata.style` ;
-   *   • mode legacy (3.1) → 1re ligne des DIRECTOR'S NOTES.
-   *
+   * LECTURE STRICTEMENT CONFORME AU TEXTE ÉCRIT.
    * `null` / absent → aucun ajout : le comportement d'avant, à l'identique.
-   * (La doc Google prévient que « extra prompt text increases drift » : c'est
-   *  pour ça qu'on n'envoie QU'UNE phrase, et jamais dans le transcript.)
    */
   verbatimInstruction?: string | null;
   /** Persona legacy (mode 3.1 uniquement) — ex. "Amin, a young friendly…". */
@@ -213,14 +261,16 @@ export type BuildTtsRequestOptions = {
   /** Taux d'échantillonnage (défaut 24000). */
   sampleRate?: number;
   /**
+   * Température de génération audio (mode moderne uniquement).
+   * Plus haute = plus de variation naturelle de prosodie (moins plat).
+   * Défaut 1.15. Ne touche PAS le texte lu (verbatim garanti par ailleurs),
+   * seulement le rendu audio (rythme, pitch, énergie).
+   */
+  temperature?: number;
+  /**
    * Inventer un style à partir des balises du texte ?
-   *
-   * ⚠️ DÉSACTIVÉ PAR DÉFAUT (décision du 26/09/2026, après audit).
-   * Raison : Google dit que `style` est SOUTENU (il dure tout le tour) alors
-   * qu'une balise est PONCTUELLE (elle arrive à un instant précis). Appliquer
-   * l'émotion d'un seul `<laugh>` à tout un texte fait dériver la voix, et la
-   * doc recommande explicitement de synthétiser SANS style d'abord.
-   * Mettre `true` restaure l'ancien comportement.
+   * DÉSACTIVÉ PAR DÉFAUT : `style` est SOUTENU (dure tout le tour) alors
+   * qu'une balise est PONCTUELLE. Mettre `true` restaure l'ancien comportement.
    */
   autoStyle?: boolean;
   /** true pour logger le nettoyage des balises (diagnostic). */
@@ -229,6 +279,14 @@ export type BuildTtsRequestOptions = {
   register?: Register | null;
   /** Intensité émotionnelle choisie explicitement (normal par défaut). */
   intensity?: Intensity | null;
+  /**
+   * Vrai uniquement pour le PREMIER morceau d'un texte découpé en chunks.
+   * Ajoute une micro-pause native (balise `<short pause>` / `...`) au tout
+   * début — gratuit (quelques caractères), pour laisser au modèle un instant
+   * de "mise en route" avant le premier mot. Sans effet sur les chunks
+   * suivants (ils démarrent déjà "chauds").
+   */
+  isFirstChunk?: boolean;
 };
 
 export type BuildTtsRequestResult = {
@@ -243,77 +301,102 @@ export type BuildTtsRequestResult = {
   warnings: string[];
 };
 
-  /**
-   * Instruction de LANGUE, pour le champ `style` du mode 3.8.
-   *
-   * ════════════════════════════════════════════════════════════════════════
-   *  D'OÙ ELLE VIENT : du prompt 3.1, qui disait noir sur blanc
-   *      « Language: Algerian Darija (Arabic script). Natural, human
-   *        delivery, like a real person talking. »
-   *  Ce bloc « DIRECTOR'S NOTES » a été supprimé lors du passage à la 3.8,
-   *  à juste titre : Google dit qu'il est la 1re cause de dérive de voix.
-   *  MAIS la consigne de langue est partie avec — et elle, elle manque.
-   *
-   *  POURQUOI ELLE EST INDISPENSABLE :
-   *  L'arabe écrit se lit par défaut en arabe STANDARD (fusḥa). « واش راك يا
-   *  خويا » sort alors comme un présentateur du journal télévisé, pas comme un
-   *  Algérien qui parle à son voisin. La darija n'a pas d'orthographe
-   *  officielle : sans consigne, le modèle n'a aucun moyen de la reconnaître.
-   *
-   *  POURQUOI DANS `style` ET PAS DANS LE TEXTE :
-   *  en 3.8, `text` est lu VERBATIM. Écrire la consigne dedans ferait
-   *  littéralement lire « Language: Algerian Darija » à voix haute.
-   *  `style` est le canal prévu pour ce qui vaut « across an entire turn ».
-   *
-   *  On ne l'ajoute QUE si le texte contient de l'arabe : un texte français
-   *  n'a aucune raison d'être prononcé en darija.
-   * ════════════════════════════════════════════════════════════════════════
-   */
-  /** Registre de langue choisi explicitement par l'utilisateur (popup front). */
-  export type Register = "darija" | "fusha" | "francais";
-  /** Intensité émotionnelle choisie explicitement par l'utilisateur. */
-  export type Intensity = "low" | "normal" | "high";
+/** Registre de langue choisi explicitement par l'utilisateur (popup front). */
+export type Register = "darija" | "fusha" | "francais";
+/** Intensité émotionnelle choisie explicitement par l'utilisateur. */
+export type Intensity = "low" | "normal" | "high";
 
-  /**
-   * MISE À JOUR 26/09/2026 — REGISTRE EXPLICITE, PLUS DE DEVINETTE.
-   * Détecter "darija" vs "فصحى" à la seule lecture du texte n'est PAS fiable
-   * (même alphabet arabe pour les deux) : on ne devine plus, l'utilisateur
-   * choisit son registre dans le front, et le serveur applique EXACTEMENT
-   * ce choix. Défaut = darija (biais voulu) si rien n'est fourni.
-   */
-  export function languageInstruction(text: string, register?: Register | null): string {
-    const reg = register || "darija";
-    if (reg === "francais") return "";
-    if (reg === "fusha") {
-      return "in classical Modern Standard Arabic (Fusha), formal and clear articulation — never Algerian Darija";
-    }
-    return "in Algerian Darija, never classical or formal Arabic (Fusha), natural and human like a real person talking; read any digit or number aloud in French, never in English";
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ *  DARIJA VERROUILLÉE — formulation dense, ZÉRO perte de contenu
+ * ------------------------------------------------------------------------
+ *  Un modèle entraîné très majoritairement sur de l'arabe standard écrit
+ *  (fusha) dérive vers le fusha dès que le texte contient de l'arabe, sans
+ *  ancrage lexical concret. Solution : mots-ancres darija obligatoires avec
+ *  leur équivalent fusha INTERDIT en vis-à-vis, exemple contrastif direct
+ *  (few-shot), autorisation explicite du code-switch français, règle de
+ *  repli en cas de doute.
+ *
+ *  TOUTE l'information utile est conservée (aucun mot-ancre retiré, aucune
+ *  règle de prononciation retirée, exemple contrastif intact) — seule la
+ *  FORMULATION est resserrée : phrases plus courtes, listes groupées, mots
+ *  de liaison retirés. Environ -30% de longueur pour un contenu identique.
+ *
+ *  Registre choisi EXPLICITEMENT par l'utilisateur dans le front (pas de
+ *  détection automatique, peu fiable, même alphabet arabe pour les deux).
+ *  Défaut = darija si rien n'est fourni.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+export function languageInstruction(text: string, register?: Register | null): string {
+  const reg = register || "darija";
+
+  if (reg === "francais") {
+    return "natural, warm, conversational French, like a real person talking to a friend, not a formal announcer";
   }
 
-  /** Ligne "Language:" côté legacy (3.1) — même règle que ci-dessus. */
-  function legacyLanguageLine(register?: Register | null): string {
-    const reg = register || "darija";
-    if (reg === "francais") return "Language: French. Natural, human delivery, like a real person talking.";
-    if (reg === "fusha") return "Language: Modern Standard Arabic (Fusha, Arabic script). Formal and clear articulation, never Algerian Darija.";
-    return "Language: Algerian Darija (Arabic script), never classical or formal Arabic (Fusha). Natural, human delivery, like a real person talking. Read any digit or number in French, never English.";
+  if (reg === "fusha") {
+    return "classical Modern Standard Arabic (Fusha), formal and clear articulation — never Algerian Darija";
   }
 
-  /** Consigne d'intensité émotionnelle (mode moderne — speech_metadata.style). */
-  export function intensityInstruction(intensity?: Intensity | null): string {
-    if (intensity === "low") return "delivered subtly, understated, barely noticeable emotion";
-    if (intensity === "high") return "delivered intensely, strongly felt, very expressive emotion";
-    return "";
+  // ── DARIJA — verrouillage maximal, formulation dense ─────────────────────
+  return (
+    "Speak ONLY authentic Algerian Darija (street dialect), STRICTLY NEVER Modern Standard Arabic " +
+    "(Fusha) vocabulary, grammar or pronunciation — like real people talk in Algiers, Oran, " +
+    "Constantine, not literary Arabic. " +
+    "Mandatory Darija (never Fusha in parentheses): دروك (الآن), واش (هل), علاش (لماذا), " +
+    "كيفاش (كيف), وقتاش (متى), ماشي (ليس), بزاف (جدا/كثيرا), شوية (قليلا), " +
+    "راهو/راها/راني/راك (إنه/إنها for presence), نتاع/تاع (الخاص ب for possession), " +
+    "وين (أين), كاين/ماكانش (يوجد/لا يوجد), غير (فقط for 'only'), حنا (نحن), نتا/نتي (أنت). " +
+    "French code-switching is normal and expected, exactly like real Algerians speak — keep French " +
+    "loanwords, never purify into Fusha. " +
+    "Negation with ما...ش (e.g. ما نعرفش), never Fusha negation. " +
+    "Pronunciation: hard Algerian ق/گ, ث→ت, ذ→د, casual street intonation, never formal broadcast Arabic. " +
+    "Say it like this: 'واش راك يا خويا، كي داير؟ راني مليح الحمد لله' — " +
+    "NOT like this (forbidden, too Fusha): 'كيف حالك يا أخي؟ أنا بخير والحمد لله'. " +
+    "If in doubt, always default to Darija pronunciation, never Fusha. " +
+    "Read digits and numbers aloud in French, never English, never Fusha number words."
+  );
+}
+
+/** Ligne "Language:" côté legacy (3.1) — même verrouillage darija, formulation dense. */
+function legacyLanguageLine(register?: Register | null): string {
+  const reg = register || "darija";
+
+  if (reg === "francais") {
+    return "Language: French. Natural, warm, conversational delivery, like a real person talking to a friend, never a formal announcer.";
+  }
+  if (reg === "fusha") {
+    return "Language: Modern Standard Arabic (Fusha, Arabic script). Formal and clear articulation, never Algerian Darija.";
   }
 
-  /** Ligne d'intensité côté legacy (3.1). Vide si intensité "normal". */
-  function legacyIntensityLine(intensity?: Intensity | null): string {
-    if (intensity === "low") return "Intensity: subtle, understated, barely noticeable emotion.";
-    if (intensity === "high") return "Intensity: intense, strongly felt, very expressive emotion.";
-    return "";
-  }
+  return (
+    "Language: Algerian Darija ONLY (Arabic script), STRICTLY NEVER Fusha vocabulary/grammar/pronunciation. " +
+    "Mandatory (never Fusha in parentheses): دروك (الآن), واش (هل), علاش (لماذا), كيفاش (كيف), " +
+    "وقتاش (متى), ماشي (ليس), بزاف (جدا), شوية (قليلا), راهو/راها/راني/راك (presence), " +
+    "نتاع/تاع (possession), وين (أين), كاين/ماكانش (يوجد), غير ('only'), حنا (نحن), نتا/نتي (أنت). " +
+    "French code-switching normal and expected — never purify into Fusha. " +
+    "Negation ما...ش, never Fusha forms. Pronunciation: hard ق/گ, ث→ت, ذ→د, casual street intonation. " +
+    "Say like: 'واش راك يا خويا، كي داير؟' — NOT: 'كيف حالك يا أخي؟' (forbidden, too Fusha). " +
+    "If in doubt, default to Darija. Numbers in French, never English or Fusha."
+  );
+}
 
-  /**
-   * Construit le corps de requête adapté au modèle.
+/** Consigne d'intensité émotionnelle (mode moderne — speech_metadata.style). */
+export function intensityInstruction(intensity?: Intensity | null): string {
+  if (intensity === "low") return "delivered subtly, understated, barely noticeable emotion";
+  if (intensity === "high") return "delivered intensely, strongly felt, very expressive emotion";
+  return "";
+}
+
+/** Ligne d'intensité côté legacy (3.1). Vide si intensité "normal". */
+function legacyIntensityLine(intensity?: Intensity | null): string {
+  if (intensity === "low") return "Intensity: subtle, understated, barely noticeable emotion.";
+  if (intensity === "high") return "Intensity: intense, strongly felt, very expressive emotion.";
+  return "";
+}
+
+/**
+ * Construit le corps de requête adapté au modèle.
  *
  * C'est LA fonction qui permet de basculer entre 3.1 et 3.8 sans toucher
  * au reste du serveur.
@@ -324,6 +407,7 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
 
   // ── Nettoyage commun : on analyse TOUJOURS avec le catalogue moderne,
   //    car c'est lui qui connaît les 33 sons et détecte les erreurs.
+  //    ⚠️ Ceci NE raccourcit PAS le texte, ça détecte juste les balises.
   const parsed = parseTranscript(opts.rawText);
 
   if (parsed.unknownTags.length) {
@@ -334,63 +418,48 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       `Sons non humains retirés (déconseillés par Google) : ${parsed.forbiddenSfx.join(", ")}`
     );
   }
-    if (parsed.legacyTagsFound.length && mode === "modern") {
-      warnings.push(
-        `Anciennes balises converties : ${parsed.legacyTagsFound.map((t) => `[${t}]`).join(", ")}`
-      );
-    }
-    // Un ton dure toute la réplique : impossible d'en changer en plein milieu
-    // comme le permettait la syntaxe 3.1. On le dit au lieu de l'ignorer en silence.
-    if (parsed.droppedTones.length) {
-      warnings.push(
-        `Un seul ton par lecture : ${parsed.droppedTones.map((t) => `[${t}]`).join(", ")} ignoré(s). ` +
-        `Le ton de toute la lecture reste « ${(parsed.requestedStyle || "").split(",")[0]} ».`
-      );
-    }
+  if (parsed.legacyTagsFound.length && mode === "modern") {
+    warnings.push(
+      `Anciennes balises converties : ${parsed.legacyTagsFound.map((t) => `[${t}]`).join(", ")}`
+    );
+  }
+  // Un ton dure toute la réplique : impossible d'en changer en plein milieu
+  // comme le permettait la syntaxe 3.1. On le dit au lieu de l'ignorer en silence.
+  if (parsed.droppedTones.length) {
+    warnings.push(
+      `Un seul ton par lecture : ${parsed.droppedTones.map((t) => `[${t}]`).join(", ")} ignoré(s). ` +
+      `Le ton de toute la lecture reste « ${(parsed.requestedStyle || "").split(",")[0]} ».`
+    );
+  }
 
   // ── Style effectif ───────────────────────────────────────────────────────
-  // Le style est SOUTENU : il vaut pour toute la réplique. On y met, dans cet
-  // ordre — et CES QUATRE SOURCES S'ADDITIONNENT :
+  // Le style est SOUTENU : il vaut pour toute la réplique. CES SOURCES
+  // S'ADDITIONNENT, dans cet ordre :
   //
-  //   ① LA LANGUE        — le « Language: Algerian Darija (Arabic script) » de
-  //                        l'ancien prompt 3.1 (voir `languageInstruction`).
-  //                        C'est ce qui empêche la 3.8 de lire la darija comme
-  //                        de l'arabe standard.
-  //   ② LE TON DEMANDÉ   — `[calm]`, `[excited]`… : un choix explicite de
-  //                        l'utilisateur. On le transmet, on ne l'invente pas,
-  //                        donc il est honoré même si `autoStyle` est false.
-  //                        Sans ça, 5 des 9 effets du menu « Insérer effet »
-  //                        ne faisaient STRICTEMENT RIEN (l'app parlait encore
-  //                        la langue 3.1, où `[calm]` était un mot-clé natif).
-  //   ③ VITESSE/HAUTEUR  — les réglages de l'utilisateur.
-  //   ④ `suggestedStyle` — DÉDUIT d'une balise entendue dans le texte
-  //                        (« il y a un <laugh>, donc ton joyeux »). C'est une
-  //                        invention : désactivée par défaut (décision du 26/09).
-  //                        À réactiver avec `autoStyle: true` / `TTS_AUTO_STYLE=1`.
+  //   ⓪ LECTURE CONFORME — fidélité + naturel humain, en une phrase cohérente.
+  //   ① ANTI-ROBOTIC     — rendu humain systématique (rythme, respiration,
+  //                        pitch). Ne porte jamais sur l'émotion, donc jamais
+  //                        de conflit avec un ton demandé explicitement.
+  //   ② LA LANGUE        — verrouillage darija avec mots-ancres concrets.
+  //   ③ L'INTENSITÉ      — choix explicite utilisateur.
+  //   ④ LE TON DEMANDÉ   — `[calm]`, `[excited]`… honoré tel quel.
+  //   ⑤ VITESSE/HAUTEUR  — réglages utilisateur.
+  //   ⑥ `suggestedStyle` — déduit d'une balise, désactivé par défaut.
   //
-  // ⚠️ POURQUOI `join` ET NON `||` : avant, la priorité était un `||`, donc la
-  // vitesse ÉCRASAIT le ton. « [calm] + vitesse rapide » n'envoyait que
-  // « speaking rapidly », et le calme disparaissait sans le moindre
-  // avertissement. Repéré le 26/09/2026.
-  //
-  // Pourquoi l'invention (④) est éteinte : `style` est SOUTENU (toute la
-  // réplique) alors qu'une balise est PONCTUELLE. Un seul `<laugh>` au milieu
-  // d'un texte grave suffisait à faire livrer tout le texte sur un ton joyeux.
-  // Et la doc Google recommande de synthétiser sans style d'abord : « most
-  // requests need no style instruction ».
+  // ⚠️ `join` et non `||` : la vitesse ne doit jamais écraser le ton
+  // (bug corrigé le 26/09/2026).
   const styleExplicite = (opts.style || "").trim();
   const styleDemande = (parsed.requestedStyle || "").trim();
   const styleDeduit = opts.autoStyle ? parsed.suggestedStyle || "" : "";
-  // ⑤ LE CARACTÈRE DE LA VOIX (version courte du « Speaker: » de l'ancien
-  //    prompt). Il est ÉCARTÉ dès que l'utilisateur a demandé un ton explicite :
-  //    « calme et posé » + « énergique et punchy » dans le même style, c'est
-  //    deux ordres contradictoires — la voix dériverait au lieu d'obéir.
+  // Le caractère de la voix est ÉCARTÉ dès que l'utilisateur a demandé un ton
+  // explicite : deux ordres contradictoires feraient dériver la voix.
   const caractere = styleDemande ? "" : (opts.character || "").trim();
-  // ⓪ LECTURE CONFORME — toujours EN PREMIER : c'est la consigne qui prime
-  //    sur toutes les autres (« lis exactement ce qui est écrit »).
+  // LECTURE CONFORME — toujours EN PREMIER.
   const verbatim = (opts.verbatimInstruction || "").trim();
+
   const effectiveStyle = [
     verbatim,
+    antiRoboticInstruction(),
     languageInstruction(parsed.text, opts.register),
     intensityInstruction(opts.intensity),
     styleDemande || caractere,
@@ -400,13 +469,18 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
     .filter(Boolean)
     .join(", ");
 
+  // ── Anti-cold-start : micro-pause native au tout début du 1er morceau.
+  // Gratuit (quelques caractères de texte), sans instruction supplémentaire.
+  const amorce = opts.isFirstChunk ? (mode === "modern" ? "<short pause> " : "... ") : "";
+
   if (mode === "modern") {
     // ======================================================================
     //  MODE 3.8 — le transcript reste VERBATIM, le style part à part.
     //  Aucune instruction de jeu n'est écrite dans le texte (règle Google :
     //  sinon la voix dérive).
     // ======================================================================
-    const part: Record<string, unknown> = { text: parsed.text };
+    const texteFinal = amorce + parsed.text;
+    const part: Record<string, unknown> = { text: texteFinal };
     if (effectiveStyle) {
       part.speech_metadata = { style: effectiveStyle };
     }
@@ -415,6 +489,9 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       contents: [{ role: "user", parts: [part] }],
       generationConfig: {
         responseModalities: ["AUDIO"],
+        // Légère hausse de température pour casser l'uniformité de
+        // rythme/pitch (rendu robotique). Ne touche pas le texte lu.
+        temperature: opts.temperature ?? 1.15,
         responseFormat: {
           audio: {
             mimeType: opts.output === "wav" ? "AUDIO_WAV" : "AUDIO_L16",
@@ -432,7 +509,7 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
     };
 
     return {
-      mode, body, tags: parsed.tags, finalTranscript: parsed.text, warnings,
+      mode, body, tags: parsed.tags, finalTranscript: texteFinal, warnings,
     };
   }
 
@@ -441,28 +518,27 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   //  Les instructions de jeu sont préfixées au texte, les balises passent
   //  en crochets carrés, et le nom de voix utilise l'ancien champ.
   // ======================================================================
-    const legacyBody = toLegacyTranscript(parsed.text);
+  const legacyBody = amorce + toLegacyTranscript(parsed.text);
 
-    // 3.1 comprend NATIVEMENT les crochets carrés — c'est même écrit dans ses
-    // DIRECTOR'S NOTES ci-dessous. On lui rend donc le ton demandé tel quel,
-    // sinon les effets du menu resteraient perdus dans le mode de secours.
-    // (En 3.8, le même ton passe par `speech_metadata.style`.)
-    const tonLegacy = parsed.honoredLegacyTags.length
-      ? `${parsed.honoredLegacyTags.map((t) => `[${t}]`).join(" ")} `
-      : "";
+  // 3.1 comprend NATIVEMENT les crochets carrés — c'est même écrit dans ses
+  // DIRECTOR'S NOTES ci-dessous. On lui rend donc le ton demandé tel quel,
+  // sinon les effets du menu resteraient perdus dans le mode de secours.
+  const tonLegacy = parsed.honoredLegacyTags.length
+    ? `${parsed.honoredLegacyTags.map((t) => `[${t}]`).join(" ")} `
+    : "";
 
-    const noteLines: string[] = [];
-    // En premier, la règle de lecture : c'est elle qui décide de ce qui est
-    // prononcé. Elle ne doit JAMAIS se retrouver dans le TRANSCRIPT ci-dessous
-    // (sinon Gemini la lirait à voix haute).
-    if (verbatim) noteLines.push(verbatim);
-    if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
-    noteLines.push(legacyLanguageLine(opts.register));
-    const legacyIntensity = legacyIntensityLine(opts.intensity);
-    if (legacyIntensity) noteLines.push(legacyIntensity);
-    for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);
+  const noteLines: string[] = [];
+  // En premier, la règle de lecture : c'est elle qui décide de ce qui est
+  // prononcé. Elle ne doit JAMAIS se retrouver dans le TRANSCRIPT ci-dessous.
+  if (verbatim) noteLines.push(verbatim);
+  noteLines.push(legacyAntiRoboticLine());
+  if (opts.legacyPersona) noteLines.push(`Speaker: ${opts.legacyPersona}`);
+  noteLines.push(legacyLanguageLine(opts.register));
+  const legacyIntensity = legacyIntensityLine(opts.intensity);
+  if (legacyIntensity) noteLines.push(legacyIntensity);
+  for (const n of opts.legacyNotes || []) if (n) noteLines.push(n);
 
-    const noteBlock = `TTS the following transcript. Do not read these notes aloud.
+  const noteBlock = `TTS the following transcript. Do not read these notes aloud.
 
 DIRECTOR'S NOTES
 ${noteLines.join("\n")}
@@ -475,9 +551,7 @@ ${tonLegacy}${legacyBody}`;
     contents: [{ parts: [{ text: noteBlock }] }],
     generationConfig: {
       // La liste `Modality` est une énumération : en JSON, les valeurs
-      // s'écrivent en MAJUSCULES (« AUDIO », « TEXT »). Écrire « audio » en
-      // minuscules n'était pas cohérent avec la branche moderne — même clé,
-      // deux graphies. Aligné sur la doc.
+      // s'écrivent en MAJUSCULES (« AUDIO », « TEXT »).
       responseModalities: ["AUDIO"],
       speechConfig: {
         voiceConfig: {
@@ -599,6 +673,35 @@ export function pcmDurationSeconds(pcm: Buffer): number {
   return pcm.length / BYTES_PER_SECOND;
 }
 
+/**
+ * Ajoute un silence PCM pur au début d'un buffer.
+ *
+ * COÛT : ZÉRO. Ce silence n'est JAMAIS envoyé au modèle — c'est une
+ * manipulation purement locale sur l'audio déjà reçu. Aucun token, aucun
+ * appel réseau supplémentaire.
+ *
+ * BUT : filet de sécurité ABSOLU contre le "cold start" du modèle (premier
+ * mot bâclé ou tronqué au tout début d'une génération). Même si la balise
+ * `<short pause>` envoyée dans le prompt (voir `isFirstChunk`) est ignorée
+ * par le modèle, ce silence garantit qu'il y a toujours une marge avant le
+ * premier vrai son.
+ *
+ * À appeler UNIQUEMENT sur l'audio du PREMIER chunk d'un texte découpé,
+ * juste avant de le concaténer avec les chunks suivants. Exemple d'usage
+ * côté serveur (hors de ce fichier) :
+ *
+ *   const finalPcm = chunkIndex === 0
+ *     ? addLeadingSilence(extracted.pcm, 150)
+ *     : extracted.pcm;
+ */
+export function addLeadingSilence(pcm: Buffer, milliseconds = 150): Buffer {
+  const silenceBytes = Math.round((BYTES_PER_SECOND * milliseconds) / 1000);
+  // Aligné sur un nombre pair d'octets (échantillons 16 bits = 2 octets).
+  const alignedBytes = silenceBytes - (silenceBytes % 2);
+  const silence = Buffer.alloc(alignedBytes, 0);
+  return Buffer.concat([silence, pcm]);
+}
+
 /** Diagnostic lisible du mode courant — à logguer au démarrage du serveur. */
 export function describeEngine(model: string): string {
   const mode = resolveEngineMode(model);
@@ -608,6 +711,8 @@ export function describeEngine(model: string): string {
       `      • 33+ sons humains en crochets ANGLE : ${VOCAL_TAGS.length} balises au catalogue`,
       `      • « comment dire » transmis séparément (speech_metadata.style) → aucune dérive de voix`,
       `      • voix studio (30) + voix sur mesure (voice_...)`,
+      `      • anti-robotic + darija verrouillée, formulation dense (27/09/2026)`,
+      `      • silence anti-cold-start ajouté gratuitement sur le 1er chunk`,
       `      • sortie forcée en PCM brut (AUDIO_L16) → pipeline audio inchangé`,
     ].join("\n");
   }
@@ -615,6 +720,8 @@ export function describeEngine(model: string): string {
     `[TTS] Mode LEGACY (3.1) — ${model}`,
     `      • 9 sons en crochets CARRÉS (comportement historique Sawtify)`,
     `      • « comment dire » préfixé au texte (DIRECTOR'S NOTES)`,
+    `      • anti-robotic + darija verrouillée, formulation dense (27/09/2026)`,
+    `      • silence anti-cold-start ajouté gratuitement sur le 1er chunk`,
     `      • 12 voix studio reconnues, pas de voix sur mesure`,
     `      • sortie PCM brut (format natif du modèle)`,
     `      ⚠️  Les 33 sons, les voix régionales et le style séparé nécessitent`,
@@ -683,18 +790,13 @@ export function tagsLostInLegacyMode(): VocalTag[] {
 //
 //  Le découpage se faisait mot à mot. Or trois balises officielles contiennent
 //  un ESPACE : <short pause>, <long pause>, <heavy breath>. Si l'une d'elles
-//  tombait sur la frontière des 800 caractères, elle était coupée en deux :
-//
-//      morceau 1 se terminait par  « ... كلمة112 <short »
-//      morceau 2 commençait par    « pause> كلمة113 ... »
-//
-//  Et comme un « < » sans « > » n'est pas reconnu comme une balise, le
-//  garde-fou ne voyait RIEN : les deux moitiés partaient BRUTES vers Gemini.
-//  La voix risquait donc de prononcer « inférieur à shorts, pause supérieur à ».
-//
+//  tombait sur la frontière des 800 caractères, elle était coupée en deux.
 //  Correctif : on remplace chaque balise par un jeton sans espace et sans
-//  ponctuation AVANT de découper, puis on la remet en place APRÈS. Le
-//  découpage ne peut plus, par construction, toucher l'intérieur d'une balise.
+//  ponctuation AVANT de découper, puis on la remet en place APRÈS.
+//
+//  ⚠️ NE PAS TOUCHER (règle fermée, demande explicite du propriétaire) :
+//  CHUNK_MAX_CHARS_DEFAULT, la logique de découpage et parallelMap restent
+//  strictement identiques à la version d'origine.
 // ============================================================================
 
 /** Taille de morceau par défaut (le serveur passe la sienne). */
@@ -823,19 +925,17 @@ export function estEquilibre(text: string): boolean {
  *  GÉNÉRATION EN PARALLÈLE — la rapidité sur les textes longs
  * ============================================================================
  *  Un texte long est découpé en plusieurs morceaux (splitIntoChunksForTTS).
- *  Les générer l'un APRÈS l'autre multipliait l'attente par le nombre de
- *  morceaux : un texte de 3 morceaux attendait 3 fois le temps d'un seul.
+ *  `parallelMap` génère jusqu'à `concurrency` morceaux en même temps.
  *
- *  `parallelMap` donne EXACTEMENT le même résultat, mais en lançant jusqu'à
- *  `concurrency` morceaux en même temps. Garanties (vérifiées par
- *  `npm run test:tts`) :
- *    • l'ORDRE du résultat est celui de la liste d'entrée — l'audio ne peut
- *      pas se retrouver dans le désordre ;
- *    • jamais plus de `concurrency` tâches en vol : pas de rafale sur l'API ;
- *    • dès qu'une tâche échoue, plus aucune NOUVELLE tâche n'est lancée, et
- *      l'échec remonte avec son index (le serveur annule alors TOUT : aucun
- *      audio partiel renvoyé, aucun point débité) ;
+ *  Garanties (vérifiées par `npm run test:tts`) :
+ *    • l'ORDRE du résultat est celui de la liste d'entrée ;
+ *    • jamais plus de `concurrency` tâches en vol ;
+ *    • dès qu'une tâche échoue, plus aucune NOUVELLE tâche n'est lancée,
+ *      et l'échec remonte avec son index (le serveur annule alors TOUT) ;
  *    • une liste vide ne lance rien et réussit.
+ *
+ *  ⚠️ NE PAS TOUCHER (règle fermée, demande explicite du propriétaire).
+ * ============================================================================
  */
 export type ParallelMapResult<R> = {
   /** false = au moins une tâche a échoué (résultat inutilisable en l'état). */
