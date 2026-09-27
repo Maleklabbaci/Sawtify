@@ -76,6 +76,32 @@ const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female'; className?
   }
 };
 
+// ==========================================================================
+// NOTATION 5 ÉTOILES — condition pour débloquer le téléchargement
+// ==========================================================================
+const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?: 'sm' | 'md' }> = ({ rating, onRate, size = 'md' }) => {
+  const [hover, setHover] = useState(0);
+  const starClass = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5';
+  return (
+    <div className="flex items-center gap-0.5" onMouseLeave={() => setHover(0)}>
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = (hover || rating) >= n;
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onRate(n)}
+            onMouseEnter={() => setHover(n)}
+            className="p-0.5 cursor-pointer"
+          >
+            <Star className={starClass} style={{ color: filled ? '#facc15' : '#64748b' }} fill={filled ? '#facc15' : 'none'} />
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 type CategoryFilter = 'all' | 'commercial' | 'narrative' | 'social' | 'formal';
 type GenderFilter = 'all' | 'male' | 'female';
 type RegionId = 'general' | 'centre' | 'ouest' | 'est';
@@ -109,6 +135,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null);
+  const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
+  const [generationRating, setGenerationRating] = useState<number>(0);
+  const [ratingSubmitting, setRatingSubmitting] = useState<boolean>(false);
   const [, setCurrentBlob] = useState<Blob | null>(null);
   const [, setMp3Blob] = useState<Blob | null>(null);
   const [mp3Url, setMp3Url] = useState<string | null>(null);
@@ -425,6 +454,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
       
       setCurrentAudioUrl(response.audio_url); 
+      setCurrentGenerationId(response.generation_id || null);
+      setGenerationRating(0);
       setCurrentBlob(audioBlob); 
       setWavSize(audioBlob.size || 120000); 
       setCurrentTime(0);
@@ -638,7 +669,31 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setCurrentTime(0);
     setAudioDuration(0);
     audioDurationRef.current = 0;
+    setCurrentGenerationId(null);
+    setGenerationRating(0);
   }, []);
+
+  // Enregistre la note (1 à 5 étoiles) de la génération en cours. Tant que
+  // cette note n'est pas donnée, le téléchargement (WAV/MP3) reste bloqué —
+  // voir le lecteur audio flottant plus bas.
+  const submitGenerationRating = useCallback(async (stars: number) => {
+    if (!currentGenerationId || ratingSubmitting) return;
+    setGenerationRating(stars);
+    setRatingSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('rate_generation', {
+        p_generation_id: currentGenerationId,
+        p_rating: stars,
+      });
+      if (error || !data?.success) {
+        console.warn('[Sawtify] Erreur enregistrement note:', error?.message || data?.error);
+      }
+    } catch (e) {
+      console.warn('[Sawtify] Erreur note:', e);
+    } finally {
+      setRatingSubmitting(false);
+    }
+  }, [currentGenerationId, ratingSubmitting]);
 
   const handleCopyText = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
@@ -1142,14 +1197,23 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
             {/* Actions Desktop */}
             <div className="flex items-center gap-2 shrink-0">
-              {mp3Url ? (
-                <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md">
-                  <Download className="w-4 h-4" /><span>MP3</span>
-                </a>
+              {generationRating > 0 ? (
+                mp3Url ? (
+                  <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md">
+                    <Download className="w-4 h-4" /><span>MP3</span>
+                  </a>
+                ) : (
+                  <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700">
+                    <Download className="w-4 h-4" /><span>WAV</span>
+                  </a>
+                )
               ) : (
-                <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700">
-                  <Download className="w-4 h-4" /><span>WAV</span>
-                </a>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/70 border border-purple-500/40 rounded-xl">
+                  <span className="text-[11px] font-semibold text-purple-200 whitespace-nowrap">
+                    {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت 👇' : 'Tu as écouté ? Dis-nous c\'était comment 👇'}
+                  </span>
+                  <StarRating rating={generationRating} onRate={submitGenerationRating} size="sm" />
+                </div>
               )}
               <button onClick={handleClosePlayer} className="p-2 text-slate-400 hover:text-white rounded-xl transition cursor-pointer">
                 <X className="w-4 h-4" />
@@ -1193,15 +1257,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
             </div>
 
-            {/* Bouton Téléchargement rapide */}
-            {mp3Url ? (
-              <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="shrink-0 p-2 bg-purple-600 rounded-xl text-white">
-                <Download className="w-4 h-4" />
-              </a>
+            {/* Bouton Téléchargement rapide — verrouillé tant que non noté */}
+            {generationRating > 0 ? (
+              mp3Url ? (
+                <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="shrink-0 p-2 bg-purple-600 rounded-xl text-white">
+                  <Download className="w-4 h-4" />
+                </a>
+              ) : (
+                <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="shrink-0 p-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200">
+                  <Download className="w-4 h-4" />
+                </a>
+              )
             ) : (
-              <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="shrink-0 p-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200">
-                <Download className="w-4 h-4" />
-              </a>
+              <StarRating rating={generationRating} onRate={submitGenerationRating} size="sm" />
             )}
 
             {/* Bouton Fermer */}
@@ -1209,6 +1277,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          {generationRating === 0 && (
+            <div className="lg:hidden px-3 pb-2.5 -mt-1.5">
+              <p className="text-[11px] font-semibold text-purple-200">
+                {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت باش تقدر تحمّل 👆' : 'Tu as écouté ? Note pour débloquer le téléchargement 👆'}
+              </p>
+            </div>
+          )}
 
           <audio 
             ref={audioRef} 

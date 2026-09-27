@@ -1,18 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Phone, CalendarDays, Clock3, Coins, AudioLines, Loader2, MessageCircle, Send, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Phone, CalendarDays, Clock3, Coins, AudioLines, Loader2, MessageCircle, Send, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { getMyAccessToken } from '../services/supabaseClient';
 
 type AdminData = {
   summary: { total_users: number; free_trial_users: number; paid_users: number; active_users_30d: number; generations_total: number; free_generations: number; paid_generations: number; api_generations: number; revenue_dzd: number; points_consumed: number; paid_points_issued: number; point_value_dzd: number; gemini_calls: number; gemini_input_tokens: number; gemini_output_tokens: number; gemini_cost_usd: number; gemini_cost_dzd: number; free_gemini_cost_dzd: number; paid_gemini_cost_dzd: number; text_input_usd_per_1m: number; text_output_usd_per_1m: number; average_cost_per_generation_dzd: number; gross_margin_dzd: number; gross_margin_percent: number; usd_to_dzd: number };
-  recent_users: Array<{ id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; gemini_calls: number; gemini_characters: number; gemini_cost_usd: number; gemini_cost_dzd: number }>;
+  recent_users: Array<{ id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; gemini_calls: number; gemini_characters: number; gemini_cost_usd: number; gemini_cost_dzd: number; avg_rating: number | null; ratings_count: number }>;
   recent_payments: Array<{ amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
   cost_model: Record<string, number>;
 };
 type FunnelData = { counts: Record<string, number>; campaigns: Array<{ name: string; visitors: number; signup_open: number; accounts: number; onboarding: number }> };
 type UserDetail = {
   profile: { id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; updated_at: string; onboarding_completed_at: string | null; acquisition_source: string | null; last_sign_in_at: string | null };
-  generations: Array<{ id: string; voice_id: string; voice_name: string; text_prompt: string; char_count: number; points_deducted: number; audio_storage_path: string | null; audio_duration_seconds: number | null; latency_ms: number | null; status: string; generation_source: string | null; created_at: string; audio_url: string | null }>;
+  generations: Array<{ id: string; voice_id: string; voice_name: string; text_prompt: string; char_count: number; points_deducted: number; audio_storage_path: string | null; audio_duration_seconds: number | null; latency_ms: number | null; status: string; generation_source: string | null; rating: number | null; created_at: string; audio_url: string | null }>;
   transactions: Array<{ id: string; amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
   usage_logs: Array<{ operation: string; model?: string | null; characters: number; success: boolean; metadata?: { cost_usd?: number; input_tokens?: number; output_tokens?: number; total_tokens?: number }; created_at: string }>;
   usage_summary?: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number; cost_dzd: number; model: string };
@@ -22,6 +22,18 @@ const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFraction
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 const usd = (n: number) => `$${Number(n || 0).toFixed(6)}`;
 const integer = (n: number) => Number(n || 0).toLocaleString('fr-FR');
+
+const StarsDisplay: React.FC<{ rating: number | null; size?: string }> = ({ rating, size = 'h-3.5 w-3.5' }) => {
+  if (!rating) return <span className="text-xs text-slate-400">—</span>;
+  const rounded = Math.round(rating);
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star key={n} className={size} style={{ color: n <= rounded ? '#f59e0b' : '#e2e8f0' }} fill={n <= rounded ? '#f59e0b' : 'none'} />
+      ))}
+    </span>
+  );
+};
 
 const waZero1 = (name: string) => 'مرحبا بك ' + name + ' في Sawtify. لاحظنا أنك لم تجرب بعد ميزة توليد الصوت، لا تتردد في تجربتها الآن وأخبرنا برأيك في النتيجة.';
 const waZero2 = (name: string) => 'أهلا وسهلا ' + name + '، معك فريق Sawtify. مرحبا بك من جديد في المنصة، ندعوك لتجربة أول توليد صوتي، وسنكون سعداء بمعرفة انطباعك بعد ذلك.';
@@ -121,7 +133,9 @@ export const AdminPage: React.FC = () => {
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 60000);
+    // Rechargement automatique toutes les 2h — le bouton "Actualiser" reste
+    // toujours immédiat, indépendamment de cet intervalle.
+    const timer = window.setInterval(() => void load(), 2 * 60 * 60 * 1000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -255,6 +269,7 @@ export const AdminPage: React.FC = () => {
                 <th className="p-2">Inscription</th>
                 <th className="p-2">Solde</th>
                 <th className="p-2">Voix générées</th>
+                <th className="p-2">Note moyenne</th>
                 <th className="p-2">Coût Gemini</th>
                 <th className="p-2"></th>
                 <th className="p-2"></th>
@@ -278,6 +293,10 @@ export const AdminPage: React.FC = () => {
                   <td className="p-2 text-slate-500">{new Date(u.created_at).toLocaleDateString('fr-FR')}</td>
                   <td className="p-2 font-bold">{u.credits_balance}</td>
                   <td className="p-2">{u.total_generated_audios}</td>
+                  <td className="p-2">
+                    <StarsDisplay rating={u.avg_rating} />
+                    {u.ratings_count > 0 && <div className="mt-0.5 text-[10px] text-slate-400">{u.avg_rating?.toFixed(1)} · {u.ratings_count} avis</div>}
+                  </td>
                   <td className="p-2"><b>{money(u.gemini_cost_dzd)}</b><br /><span className="text-xs text-slate-500">{u.gemini_calls} appels · {integer(u.gemini_characters)} car.</span></td>
                   <td className="p-2">
                     {u.phone && (
@@ -398,6 +417,7 @@ export const AdminPage: React.FC = () => {
                       <div className="shrink-0 text-right text-xs text-slate-500">
                         <p>{Number(generation.audio_duration_seconds || 0).toFixed(2)} s</p>
                         <p>{generation.points_deducted || 0} points</p>
+                        <div className="mt-1 flex justify-end"><StarsDisplay rating={generation.rating} /></div>
                       </div>
                     </div>
                     <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-slate-600">{generation.text_prompt}</p>
