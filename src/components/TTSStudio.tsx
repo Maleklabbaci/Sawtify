@@ -158,6 +158,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   // Popup de notation : ouverte au clic sur « Télécharger » (jamais bloquante).
   // Mémorise le format demandé pour lancer le téléchargement juste après.
   const [pendingDownload, setPendingDownload] = useState<{ format: 'mp3' | 'wav' } | null>(null);
+  // Voix qui a VRAIMENT généré l'audio affiché (figée à la génération) : le
+  // lecteur montre toujours ce nom, même si l'utilisateur change ensuite de
+  // voix sélectionnée pour la prochaine génération.
+  const [generatedVoice, setGeneratedVoice] = useState<{ id: string; name: string } | null>(null);
   const [, setCurrentBlob] = useState<Blob | null>(null);
   const [, setMp3Blob] = useState<Blob | null>(null);
   const [mp3Url, setMp3Url] = useState<string | null>(null);
@@ -229,6 +233,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Minuteur de fermeture auto du lecteur après « note + téléchargement ».
+  const autoCloseTimerRef = useRef<number | null>(null);
+  // Scrub tactile (mobile) : glisser le doigt sur la barre pour avancer/reculer.
+  const mobileSeekRef = useRef<HTMLDivElement | null>(null);
+  const mobileSeekingRef = useRef(false);
   const previousAudioUrlRef = useRef<string | null>(null);
   const previousMp3UrlRef = useRef<string | null>(null);
   const previewRequestRef = useRef<string | null>(null);
@@ -249,6 +258,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const maxChars = balance >= TTS_UNLOCK_BALANCE_THRESHOLD ? TTS_MAX_CHARS_UNLOCKED : TTS_MAX_CHARS_DEFAULT;
   
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
+  // Nom affiché dans le lecteur : la voix qui a GÉNÉRÉ l'audio, pas la voix
+  // sélectionnée (si Amine a généré, ça reste « Amine » même après avoir
+  // sélectionné Yasmine pour la suite).
+  const playerVoiceName = generatedVoice?.name || currentVoice.name;
   const filteredVoices = voices
     .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
     .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
@@ -295,6 +308,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           
           if (found && !cancelled) {
             setCurrentAudioUrl(found.audioUrl || null);
+            setCurrentGenerationId(found.id || null);
+            setGeneratedVoice({ id: found.voiceId, name: voices.find(v => v.id === found.voiceId)?.name || found.voiceName });
+            setGenerationRating(loadRatedMap()[found.id] || 0);
             setAudioDuration(found.durationSec || 0);
             audioDurationRef.current = found.durationSec || 0;
             setLastGeneratedCost(found.pointsDeducted);
@@ -325,6 +341,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           if (found && !cancelled) {
             setCurrentAudioUrl(found.audioUrl || null);
             setCurrentGenerationId(found.id || null);
+            setGeneratedVoice({ id: found.voiceId, name: voices.find(v => v.id === found.voiceId)?.name || found.voiceName });
             setGenerationRating(loadRatedMap()[found.id] || 0);
             setAudioDuration(found.durationSec || 0);
             audioDurationRef.current = found.durationSec || 0;
@@ -444,12 +461,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
     
     setInsufficientAlert(false); 
-    setIsGenerating(true); 
-    setCurrentAudioUrl(null); 
+    // La voix qui génère est figée ici : le lecteur affichera TOUJOURS ce nom,
+    // même si l'utilisateur change de voix sélectionnée juste après.
+    const generatingVoice = { id: currentVoice.id, name: currentVoice.name };
+    if (autoCloseTimerRef.current) { window.clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null; }
+    setIsGenerating(true);
+    setCurrentAudioUrl(null);
+    setGeneratedVoice(null);
     setMp3Url(null);
-    
-    try { 
-      localStorage.setItem(PENDING_GEN_KEY, JSON.stringify({ startedAt: Date.now(), voiceId: currentVoice.id })); 
+    setPendingDownload(null);
+
+    try {
+      localStorage.setItem(PENDING_GEN_KEY, JSON.stringify({ startedAt: Date.now(), voiceId: currentVoice.id }));
     } catch (e) {}
     
     let errMsg = '';
@@ -475,8 +498,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
       
-      setCurrentAudioUrl(response.audio_url); 
+      setCurrentAudioUrl(response.audio_url);
       setCurrentGenerationId(response.generation_id || null);
+      setGeneratedVoice(generatingVoice);
       setGenerationRating(0);
       setCurrentBlob(audioBlob); 
       setWavSize(audioBlob.size || 120000); 
@@ -676,9 +700,19 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
   }, [isPlaying, currentAudioUrl]);
 
-  const handleTimeUpdate = useCallback(() => { 
-    if (audioRef.current) setCurrentTime(audioRef.current.currentTime); 
+  const handleTimeUpdate = useCallback(() => {
+    if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
   }, []);
+
+  // Scrub mobile : convertit une position de doigt/souris en temps audio.
+  const seekFromClientX = useCallback((clientX: number) => {
+    const el = mobileSeekRef.current;
+    if (!el || !audioRef.current || audioDuration <= 0) return;
+    const rect = el.getBoundingClientRect();
+    const percent = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    audioRef.current.currentTime = percent * audioDuration;
+    setCurrentTime(percent * audioDuration);
+  }, [audioDuration]);
 
   const handleClosePlayer = useCallback(() => {
     setIsPlaying(false);
@@ -692,8 +726,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setAudioDuration(0);
     audioDurationRef.current = 0;
     setCurrentGenerationId(null);
+    setGeneratedVoice(null);
     setGenerationRating(0);
     setPendingDownload(null);
+    if (autoCloseTimerRef.current) { window.clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null; }
   }, []);
 
   // Seules les vraies générations serveur (UUID = ligne en base) peuvent être
@@ -765,7 +801,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     void saveGenerationRating(stars).then((ok) => {
       if (ok) showNotif(language === 'ar' ? '⭐ شكراً على تقييمك!' : '⭐ Merci pour ta note !');
     });
-  }, [pendingDownload, currentGenerationId, startDownload, saveGenerationRating, showNotif, language]);
+    // Note donnée + téléchargement lancé = terminé : le lecteur se referme
+    // tout seul une seconde après (annulé si une génération redémarre avant).
+    if (autoCloseTimerRef.current) window.clearTimeout(autoCloseTimerRef.current);
+    autoCloseTimerRef.current = window.setTimeout(() => handleClosePlayer(), 1000);
+  }, [pendingDownload, currentGenerationId, startDownload, saveGenerationRating, showNotif, language, handleClosePlayer]);
 
   // « Télécharger sans noter » : téléchargement direct, rien à enregistrer.
   const handleModalSkip = useCallback(() => {
@@ -1256,7 +1296,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             {/* Infos voix */}
             <div className="flex flex-col min-w-0 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white truncate max-w-[130px]">{currentVoice.name}</span>
+                <span className="text-xs font-bold text-white truncate max-w-[130px]">{playerVoiceName}</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">{language === 'ar' ? 'جاهز ✓' : 'Prêt ✓'}</span>
               </div>
               <span className="text-[10px] text-purple-300 font-mono mt-0.5">
@@ -1264,13 +1304,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </span>
             </div>
 
-            {/* Waveform Desktop */}
-            <div className="flex-1 min-w-0 flex items-center bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700/50 relative group">
-              <WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} />
-              <input 
+            {/* Waveform Desktop — zone de scrub AGRANDIE : cliquer ou glisser
+                n'importe où pour écouter depuis le début, le milieu, etc. */}
+            <div className="flex-1 min-w-0 flex items-center bg-slate-800/60 px-3 py-2.5 rounded-xl border border-slate-700/50 relative group min-h-[3.25rem]">
+              <WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} height={30} />
+              <input
                 type="range" min={0} max={audioDuration || 0} step={0.1} value={currentTime}
                 onChange={(e) => { if(audioRef.current) { audioRef.current.currentTime = parseFloat(e.target.value); setCurrentTime(parseFloat(e.target.value)); }}}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                title={language === 'ar' ? 'اسحب للتنقل في الصوت' : 'Glisser pour avancer / reculer'}
+                aria-label={language === 'ar' ? 'التنقل في الصوت' : 'Avancer dans l’audio'}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
               />
             </div>
 
@@ -1314,26 +1357,35 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             {/* Nom + Progress bar tactile */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-white truncate">{currentVoice.name}</span>
+                <span className="text-xs font-bold text-white truncate">{playerVoiceName}</span>
                 <span className="text-[10px] text-purple-300 font-mono">
                   {formatTime(currentTime)} / {formatTime(audioDuration)}
                 </span>
               </div>
-              <div 
-                className="h-1.5 bg-slate-700 rounded-full overflow-hidden cursor-pointer relative"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const percent = (e.clientX - rect.left) / rect.width;
-                  if (audioRef.current && audioDuration > 0) {
-                    audioRef.current.currentTime = percent * audioDuration;
-                    setCurrentTime(percent * audioDuration);
-                  }
+              {/* Barre de lecture AGRANDIE : toucher ou GLISSER le doigt pour
+                  écouter depuis le début, le milieu, etc. */}
+              <div
+                ref={mobileSeekRef}
+                className="py-2.5 -my-1.5 cursor-pointer relative touch-none select-none"
+                onPointerDown={(e) => {
+                  try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+                  mobileSeekingRef.current = true;
+                  seekFromClientX(e.clientX);
                 }}
+                onPointerMove={(e) => { if (mobileSeekingRef.current) seekFromClientX(e.clientX); }}
+                onPointerUp={() => { mobileSeekingRef.current = false; }}
+                onPointerCancel={() => { mobileSeekingRef.current = false; }}
               >
-                <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
-                  style={{ width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }}
-                />
+                <div className="h-2.5 bg-slate-700 rounded-full relative">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                    style={{ width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }}
+                  />
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white border-[3px] border-purple-500 shadow-md pointer-events-none"
+                    style={{ left: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }}
+                  />
+                </div>
               </div>
             </div>
 
