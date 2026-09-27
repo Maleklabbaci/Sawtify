@@ -729,6 +729,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     setGeneratedVoice(null);
     setGenerationRating(0);
     setPendingDownload(null);
+    // Une fois parti, c'est parti : on efface les clés de restauration pour
+    // que le lecteur ne revienne PAS après un rechargement de page. (Sans ça,
+    // l'effet de restauration au montage rechargeait l'audio + les blobs,
+    // donc espace + RAM occupés pour un lecteur que l'utilisateur a fermé.)
+    try { localStorage.removeItem(PENDING_GEN_KEY); localStorage.removeItem(LAST_RESULT_KEY); } catch {}
     if (autoCloseTimerRef.current) { window.clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null; }
   }, []);
 
