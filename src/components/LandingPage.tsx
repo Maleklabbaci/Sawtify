@@ -1554,3 +1554,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       >
                         {s}x
                       </button>
+))}  
+                                      </div>
+                </div>
+
+                                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      );
+    }
+    
+    export default LandingPage;
