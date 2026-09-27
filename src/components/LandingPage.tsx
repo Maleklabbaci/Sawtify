@@ -165,31 +165,36 @@ function useScrolled(threshold = 40) {
   return scrolled;
 }
 
-/* Assombrissement du fond fixe piloté par un simple listener de scroll
-   (fiable quel que soit le contexte de scroll de l'app — ne dépend pas
-   d'un hook de scroll basé sur IntersectionObserver). */
-function useHeroDarken(heroRef: React.RefObject<HTMLElement>) {
+/* Hook amélioré pour gérer l'assombrissement progressif sur toute la page */
+function usePageDarken() {
   const [darken, setDarken] = useState(0);
+  
   useEffect(() => {
     let raf = 0;
     const compute = () => {
-      const h = heroRef.current?.offsetHeight || window.innerHeight;
-      const p = Math.min(1, Math.max(0, window.scrollY / h));
-      setDarken(p);
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrolled = window.scrollY;
+      // Calculer le pourcentage de scroll (0 = en haut, 1 = en bas)
+      const scrollPercent = Math.min(1, Math.max(0, scrolled / docHeight));
+      setDarken(scrollPercent);
     };
+    
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(compute);
     };
+    
     compute();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
+    
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       cancelAnimationFrame(raf);
     };
-  }, [heroRef]);
+  }, []);
+  
   return darken;
 }
 
@@ -314,7 +319,6 @@ const AudioWidget = () => (
   </motion.div>
 );
 
-/* Carte voix — orbe circulaire */
 const VoiceOrbCard = ({
   name,
   role,
@@ -404,7 +408,6 @@ const FAQItem = ({ q, a }: { q: string; a: string }) => {
   );
 };
 
-/* Palier de tarification réel (points prépayés) */
 const PricingCard = ({
   tier,
   chooseLabel,
@@ -462,7 +465,6 @@ const PricingCard = ({
   );
 };
 
-/* Grand témoignage */
 const Testimonial = ({
   quote,
   name,
@@ -511,8 +513,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
   const scrolled = useScrolled();
   const player = useVoicePlayer();
 
-  const heroRef = useRef<HTMLElement>(null);
-  const heroDarken = useHeroDarken(heroRef);
+  // Hook pour l'assombrissement progressif sur toute la page
+  const pageDarken = usePageDarken();
 
   const bootRef = useRef(false);
   useLayoutEffect(() => {
@@ -579,7 +581,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     { label: t.faq, href: "#faq" },
   ];
 
-  /* Usages de la plateforme — remplace les logos de marques */
   const useCases = isRTL
     ? [
         { icon: Mic, label: "تعليق صوتي" },
@@ -648,10 +649,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.6) contrast(1.15) saturate(0.9)" }}
         />
-        <div className="absolute inset-0" style={{ background: BG_BLACK, opacity: heroDarken }} />
+        {/* Overlay noir qui s'assombrit progressivement avec le scroll */}
+        <div 
+          className="absolute inset-0 transition-opacity duration-100" 
+          style={{ 
+            background: BG_BLACK, 
+            opacity: pageDarken * 0.95 // Max 95% pour garder un peu de photo visible
+          }} 
+        />
       </div>
 
-      {/* ═══════════ NAVBAR — compacte & centrée ═══════════ */}
+      {/* ═══════════ NAVBAR ═══════════ */}
       <header className="fixed top-4 inset-x-0 z-50 flex justify-center px-4">
         <motion.div
           initial={{ y: -30, opacity: 0 }}
@@ -731,14 +739,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         )}
       </AnimatePresence>
 
-      {/* ═══════════ CONTENU — défile normalement au-dessus du fond fixe ═══════════ */}
+      {/* ═══════════ CONTENU — tous les backgrounds supprimés ═══════════ */}
       <div className="relative z-10">
-        {/* ═══════════ HERO — transparent, laisse voir la photo fixe ═══════════ */}
-        <section ref={heroRef} className="relative h-screen flex items-center justify-center overflow-hidden">
-          <div
-            className="absolute inset-0"
-            style={{ background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.35) 55%, transparent 100%)` }}
-          />
+        {/* ═══════════ HERO ═══════════ */}
+        <section className="relative h-screen flex items-center justify-center overflow-hidden">
           <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.22 }} />
           <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.14, animationDelay: "4s" }} />
 
@@ -796,9 +800,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </motion.div>
         </section>
 
-        {/* ═══════════ USAGES — remplace les logos de marques ═══════════ */}
+        {/* ═══════════ USAGES — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <div className="py-12 relative" style={{ background: BG_ZINC_950 }}>
+          <div className="py-12 relative">
             <p className="text-center mb-2 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
             <p className="text-center mb-8 text-2xl md:text-3xl font-bold tracking-tight" style={{ color: TEXT_WHITE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
               {t.usesTitle}
@@ -823,9 +827,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </div>
         </AnimatedSection>
 
-        {/* ═══════════ VOICE TESTS ═══════════ */}
+        {/* ═══════════ VOICE TESTS — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <section className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
+          <section className="py-24 px-6 relative overflow-hidden">
             <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
             <div className="max-w-6xl mx-auto relative z-10">
               <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
@@ -843,9 +847,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ BENTO GRID ═══════════ */}
+        {/* ═══════════ BENTO GRID — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <section id="features" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
+          <section id="features" className="py-24 px-6 relative overflow-hidden">
             <div className="absolute inset-0 grid-texture" />
             <div className="max-w-7xl mx-auto relative z-10">
               <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
@@ -905,9 +909,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ PRICING — recharge par paliers ═══════════ */}
+        {/* ═══════════ PRICING — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <section id="pricing" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
+          <section id="pricing" className="py-24 px-6 relative overflow-hidden">
             <SectionGlow style={{ top: "10%", right: "5%", width: 420, height: 420 }} />
             <div className="max-w-7xl mx-auto relative z-10">
               <div className="text-center mb-14">
@@ -927,18 +931,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ TÉMOIGNAGE ═══════════ */}
+        {/* ═══════════ TÉMOIGNAGE — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <section className="py-24 px-6 relative" style={{ background: BG_BLACK }}>
+          <section className="py-24 px-6 relative">
             <div className="max-w-5xl mx-auto">
               <Testimonial quote={t.testimonialQuote} name={t.testimonialName} role={t.testimonialRole} />
             </div>
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ FAQ ═══════════ */}
+        {/* ═══════════ FAQ — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <section id="faq" className="py-24 px-6" style={{ background: BG_ZINC_950 }}>
+          <section id="faq" className="py-24 px-6">
             <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
               <div>
                 <h2 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight" style={{ color: PURPLE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
@@ -954,9 +958,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ CTA ═══════════ */}
+        {/* ═══════════ CTA — SANS BACKGROUND ═══════════ */}
         <AnimatedSection>
-          <section className="py-32 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
+          <section className="py-32 px-6 relative overflow-hidden">
             <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.12 }} />
             <div className="max-w-4xl mx-auto text-center relative z-10">
               <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
@@ -976,8 +980,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ FOOTER ═══════════ */}
-        <footer className="py-16 px-6 border-t" style={{ background: BG_ZINC_950, borderColor: BORDER_ZINC_800 }}>
+        {/* ═══════════ FOOTER — SANS BACKGROUND ═══════════ */}
+        <footer className="py-16 px-6 border-t" style={{ borderColor: BORDER_ZINC_800 }}>
           <div className="max-w-7xl mx-auto text-center">
             <div className="flex justify-center"><Logo size={36} /></div>
             <div className="flex items-center justify-center gap-6 mt-6 text-sm" style={{ color: TEXT_ZINC_600 }}>
