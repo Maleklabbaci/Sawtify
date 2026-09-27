@@ -39,10 +39,10 @@ import {
   legacyFidelityReport,
   splitIntoChunksForTTS,
   parallelMap,
-  // « Lis exactement ce qui est écrit » — source UNIQUE, partagée avec le
-  // générateur d'aperçus de voix (voir tts/engine.ts).
+  addLeadingSilence,
   VERBATIM_INSTRUCTION,
 } from "./tts/engine";
+
 import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
 import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
 import { resolveVoiceName, voiceNameStats, voiceNameEntry, VOICE_NAMES } from "./tts/voiceNames";
@@ -1270,6 +1270,8 @@ async function synthesizeWithRetry(
       output: "pcm",
       register,
       intensity,
+            isFirstChunk: ci === 0,           // 🆕 AJOUTE CETTE LIGNE
+
     });
 
     if (built.warnings.length) {
@@ -1292,7 +1294,8 @@ async function synthesizeWithRetry(
           throw new Error(`Audio vide ou trop court (${pcmBuffer?.length || 0} octets, minimum plausible ${minPlausibleBytes})`);
         }
         console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${pcmBuffer.length} bytes PCM`);
-        return pcmBuffer;
+        const finalPcm = ci === 0 ? addLeadingSilence(pcmBuffer, 150) : pcmBuffer;
+        return finalPcm;
       } catch (err: any) {
         lastChunkError = err;
         console.error(`[TTS ✗] Morceau ${ci + 1}/${chunks.length} — tentative ${attempt}/${maxRetries} échouée : ${err?.message || err}`);
