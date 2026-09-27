@@ -81,7 +81,7 @@ const GlobalStyles = () => (
 
     @keyframes marquee {
       0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+      100% { transform: translateX(-25%); }
     }
     @keyframes pulse-glow {
       0%, 100% { box-shadow: 0 0 20px ${PURPLE_GLOW}; }
@@ -647,13 +647,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       testimonialRole: isRTL ? "مسؤولة محتوى، وكالة رقمية" : "Responsable contenu, agence digitale",
 
       testimonial2Quote: isRTL
-        ? "من يوم بديت نستعمل Sawtify، الفيديوهات ديالي زادت المشاهدة بزاف. الناس يقولولي واش هاد الصوت طبيعي، ماشي مصدقين بليك AI!"
+        ? "من نهار بديت نستعمل Sawtify، الفيديوهات ديالي زادت المشاهدة بزاف. الناس يقولولي واش هاد الصوت طبيعي، ماشي مصدقين هذا AI!"
         : "Depuis que j'utilise Sawtify, mes vidéos ont explosé en vues. Les gens n'arrivent pas à croire que c'est une IA.",
       testimonial2Name: isRTL ? "ياسين ك." : "Yacine K.",
       testimonial2Role: isRTL ? "صانع محتوى، تيك توك" : "Créateur de contenu TikTok",
 
       testimonial3Quote: isRTL
-        ? "خدمة تفهم الدارجة الحقيقية، ماشي كي هذوك لخرين اللي يهدرو بالفصحى ويبان روبو. ربحنا وقت بزاف فالمشاريع تاع الزبائن."
+        ? "دارجة الحقيقية، ماشي كي التطبيقات لخرين اللي يهدرو بالفصحى. ربحنا وقت ودراهم بزاف فالمشاريع تاعنا وتاع زبائننا."
         : "Enfin une IA qui comprend la vraie darija, pas l'arabe classique des autres apps. On gagne un temps fou sur chaque projet client.",
       testimonial3Name: isRTL ? "نور الدين س." : "Noureddine S.",
       testimonial3Role: isRTL ? "مدير وكالة تسويق" : "Directeur, agence marketing",
@@ -675,7 +675,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       bentoVoices: isRTL ? "30 صوت، نبرة لكل مشروع" : "30 voix, un ton pour chaque projet",
       bentoVoicesDesc: isRTL ? "رجال، نساء، تجاري، وثائقي، سوشيال ميديا." : "Hommes, femmes, commercial, documentaire, réseaux sociaux.",
       bentoRights: isRTL ? "حقوق تجارية كاملة" : "Droits commerciaux inclus",
-      bentoRightsDesc: isRTL ? "استعمل الأوديو تاعك في يوتيوب، تيكتوك، إشهار أو بودكاست — بلا قيود، بلا مصاري مخفية." : "Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.",
+      bentoRightsDesc: isRTL ? "استعمل الأوديو تاعك في يوتيوب، تيكتوك، إشهار أو بودكاست — بلا قيود، بلا دراهم مخفية." : "Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.",
 
       freePoints: isRTL ? "🎁 اربح 50 نقطة مجانية هنا" : "🎁 Gagne 50 points gratuits ici",
       freePointsSub: isRTL ? "اضغط باش تبدا" : "Clique pour commencer",
@@ -935,7 +935,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
             </p>
             <div className="marquee-container">
               <div className="marquee-content">
-                {[...useCases, ...useCases].map((u, i) => {
+                {[...useCases, ...useCases, ...useCases, ...useCases].map((u, i) => {
                   const Icon = u.icon;
                   return (
                     <div
