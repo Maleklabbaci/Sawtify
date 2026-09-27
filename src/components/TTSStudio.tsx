@@ -77,11 +77,16 @@ const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female'; className?
 };
 
 // ==========================================================================
-// NOTATION 5 ÉTOILES — condition pour débloquer le téléchargement
+// NOTATION 5 ÉTOILES — demandée dans une popup au clic sur « Télécharger »
+// --------------------------------------------------------------------------
+// Le téléchargement (WAV/MP3) est TOUJOURS direct : au clic, si la génération
+// n'a pas encore été notée, la popup s'ouvre — un clic sur une étoile
+// enregistre la note PUIS lance le téléchargement. « Sans noter » télécharge
+// directement. La note ne bloque donc jamais le téléchargement.
 // ==========================================================================
-const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?: 'sm' | 'md' }> = ({ rating, onRate, size = 'md' }) => {
+const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?: 'sm' | 'md' | 'lg' }> = ({ rating, onRate, size = 'md' }) => {
   const [hover, setHover] = useState(0);
-  const starClass = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5';
+  const starClass = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-9 h-9' : 'w-6 h-6';
   return (
     <div className="flex items-center gap-0.5" onMouseLeave={() => setHover(0)}>
       {[1, 2, 3, 4, 5].map((n) => {
@@ -92,15 +97,27 @@ const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?:
             type="button"
             onClick={() => onRate(n)}
             onMouseEnter={() => setHover(n)}
-            className="p-0.5 cursor-pointer"
+            aria-label={`${n} / 5`}
+            className="p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
           >
-            <Star className={starClass} style={{ color: filled ? '#facc15' : '#64748b' }} fill={filled ? '#facc15' : 'none'} />
+            <Star className={starClass} style={{ color: filled ? '#facc15' : '#cbd5e1' }} fill={filled ? '#facc15' : 'none'} />
           </button>
         );
       })}
     </div>
   );
 };
+
+// Générations déjà notées (id -> étoiles) : mémorisées en local pour ne pas
+// redemander une note après un rechargement de page (l'audio est restauré
+// depuis l'historique, voir l'effet de restauration plus bas).
+const RATED_KEY = 'sawtify_rated_generations';
+function loadRatedMap(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(RATED_KEY) || '{}'); } catch { return {}; }
+}
+function saveRatedMap(map: Record<string, number>) {
+  try { localStorage.setItem(RATED_KEY, JSON.stringify(map)); } catch {}
+}
 
 type CategoryFilter = 'all' | 'commercial' | 'narrative' | 'social' | 'formal';
 type GenderFilter = 'all' | 'male' | 'female';
@@ -138,6 +155,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
   const [generationRating, setGenerationRating] = useState<number>(0);
   const [ratingSubmitting, setRatingSubmitting] = useState<boolean>(false);
+  // Popup de notation : ouverte au clic sur « Télécharger » (jamais bloquante).
+  // Mémorise le format demandé pour lancer le téléchargement juste après.
+  const [pendingDownload, setPendingDownload] = useState<{ format: 'mp3' | 'wav' } | null>(null);
   const [, setCurrentBlob] = useState<Blob | null>(null);
   const [, setMp3Blob] = useState<Blob | null>(null);
   const [mp3Url, setMp3Url] = useState<string | null>(null);
@@ -304,6 +324,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           const found = (rows as any[]).find(r => r.id === last.id);
           if (found && !cancelled) {
             setCurrentAudioUrl(found.audioUrl || null);
+            setCurrentGenerationId(found.id || null);
+            setGenerationRating(loadRatedMap()[found.id] || 0);
             setAudioDuration(found.durationSec || 0);
             audioDurationRef.current = found.durationSec || 0;
             setLastGeneratedCost(found.pointsDeducted);
@@ -671,29 +693,86 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     audioDurationRef.current = 0;
     setCurrentGenerationId(null);
     setGenerationRating(0);
+    setPendingDownload(null);
   }, []);
 
-  // Enregistre la note (1 à 5 étoiles) de la génération en cours. Tant que
-  // cette note n'est pas donnée, le téléchargement (WAV/MP3) reste bloqué —
-  // voir le lecteur audio flottant plus bas.
-  const submitGenerationRating = useCallback(async (stars: number) => {
-    if (!currentGenerationId || ratingSubmitting) return;
-    setGenerationRating(stars);
+  // Seules les vraies générations serveur (UUID = ligne en base) peuvent être
+  // notées. Les aperçus locaux « gen_... » n'existent pas en base : inutile
+  // d'appeler la RPC (elle échouerait) — téléchargement direct pour eux.
+  const canRateCurrent = Boolean(
+    currentGenerationId && /^[0-9a-f-]{36}$/i.test(currentGenerationId)
+  );
+
+  // Sauvegarde la note en base. Ne jette jamais : le téléchargement ne doit
+  // JAMAIS dépendre de la réussite de la note.
+  const saveGenerationRating = useCallback(async (stars: number): Promise<boolean> => {
+    if (!currentGenerationId || ratingSubmitting) return false;
+    if (!/^[0-9a-f-]{36}$/i.test(currentGenerationId)) return false;
     setRatingSubmitting(true);
     try {
       const { data, error } = await supabase.rpc('rate_generation', {
         p_generation_id: currentGenerationId,
         p_rating: stars,
       });
-      if (error || !data?.success) {
-        console.warn('[Sawtify] Erreur enregistrement note:', error?.message || data?.error);
+      if (error || !(data as any)?.success) {
+        console.warn('[Sawtify] Note non enregistrée:', error?.message || (data as any)?.error);
+        return false;
       }
+      return true;
     } catch (e) {
-      console.warn('[Sawtify] Erreur note:', e);
+      console.warn('[Sawtify] Note non enregistrée:', e);
+      return false;
     } finally {
       setRatingSubmitting(false);
     }
   }, [currentGenerationId, ratingSubmitting]);
+
+  // Lance réellement le téléchargement du format demandé.
+  const startDownload = useCallback((format: 'mp3' | 'wav') => {
+    const useMp3 = format === 'mp3' && mp3Url;
+    const url = useMp3 ? mp3Url : currentAudioUrl;
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sawtify-${Date.now()}.${useMp3 ? 'mp3' : 'wav'}`;
+    document.body.appendChild(a); // requis pour Firefox & Safari
+    a.click();
+    document.body.removeChild(a);
+  }, [mp3Url, currentAudioUrl]);
+
+  // Clic sur « Télécharger » : si la génération n'est pas encore notée (et
+  // qu'elle est notable), on ouvre la popup de notation — sinon direct.
+  const handleDownloadClick = useCallback((format: 'mp3' | 'wav') => {
+    if (generationRating === 0 && canRateCurrent) {
+      setPendingDownload({ format });
+      return;
+    }
+    startDownload(format);
+  }, [generationRating, canRateCurrent, startDownload]);
+
+  // Clic sur une étoile dans la popup : on mémorise la note, on ferme, on
+  // télécharge TOUT DE SUITE — la sauvegarde en base part en arrière-plan.
+  const handleModalRate = useCallback((stars: number) => {
+    const format = pendingDownload?.format || 'wav';
+    setGenerationRating(stars);
+    setPendingDownload(null);
+    if (currentGenerationId) {
+      const rated = loadRatedMap();
+      rated[currentGenerationId] = stars;
+      saveRatedMap(rated);
+    }
+    startDownload(format);
+    void saveGenerationRating(stars).then((ok) => {
+      if (ok) showNotif(language === 'ar' ? '⭐ شكراً على تقييمك!' : '⭐ Merci pour ta note !');
+    });
+  }, [pendingDownload, currentGenerationId, startDownload, saveGenerationRating, showNotif, language]);
+
+  // « Télécharger sans noter » : téléchargement direct, rien à enregistrer.
+  const handleModalSkip = useCallback(() => {
+    const format = pendingDownload?.format || 'wav';
+    setPendingDownload(null);
+    startDownload(format);
+  }, [pendingDownload, startDownload]);
 
   const handleCopyText = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
@@ -1195,25 +1274,26 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               />
             </div>
 
-            {/* Actions Desktop */}
+            {/* Actions Desktop : téléchargement direct. La note est demandée
+                dans une popup au moment du clic (voir plus bas). */}
             <div className="flex items-center gap-2 shrink-0">
-              {generationRating > 0 ? (
-                mp3Url ? (
-                  <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md">
-                    <Download className="w-4 h-4" /><span>MP3</span>
-                  </a>
-                ) : (
-                  <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700">
-                    <Download className="w-4 h-4" /><span>WAV</span>
-                  </a>
-                )
+              <button
+                onClick={() => handleDownloadClick('wav')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer"
+              >
+                <Download className="w-4 h-4" /><span>WAV</span>
+              </button>
+              {mp3Url ? (
+                <button
+                  onClick={() => handleDownloadClick('mp3')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /><span>MP3</span>
+                </button>
               ) : (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/70 border border-purple-500/40 rounded-xl">
-                  <span className="text-[11px] font-semibold text-purple-200 whitespace-nowrap">
-                    {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت 👇' : 'Tu as écouté ? Dis-nous c\'était comment 👇'}
-                  </span>
-                  <StarRating rating={generationRating} onRate={submitGenerationRating} size="sm" />
-                </div>
+                <span className="flex items-center gap-1.5 px-2 py-2 text-slate-500 text-xs">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>MP3…</span>
+                </span>
               )}
               <button onClick={handleClosePlayer} className="p-2 text-slate-400 hover:text-white rounded-xl transition cursor-pointer">
                 <X className="w-4 h-4" />
@@ -1257,34 +1337,21 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
             </div>
 
-            {/* Bouton Téléchargement rapide — verrouillé tant que non noté */}
-            {generationRating > 0 ? (
-              mp3Url ? (
-                <a href={mp3Url} download={`sawtify-${Date.now()}.mp3`} className="shrink-0 p-2 bg-purple-600 rounded-xl text-white">
-                  <Download className="w-4 h-4" />
-                </a>
-              ) : (
-                <a href={currentAudioUrl} download={`sawtify-${Date.now()}.wav`} className="shrink-0 p-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200">
-                  <Download className="w-4 h-4" />
-                </a>
-              )
-            ) : (
-              <StarRating rating={generationRating} onRate={submitGenerationRating} size="sm" />
-            )}
+            {/* Téléchargement : ouvre la popup de notation si pas encore noté,
+                sinon télécharge directement (MP3 dès qu'il est prêt). */}
+            <button
+              onClick={() => handleDownloadClick(mp3Url ? 'mp3' : 'wav')}
+              className="shrink-0 p-2 bg-purple-600 rounded-xl text-white active:scale-95 transition cursor-pointer"
+              aria-label={language === 'ar' ? 'تحميل' : 'Télécharger'}
+            >
+              <Download className="w-4 h-4" />
+            </button>
 
             {/* Bouton Fermer */}
             <button onClick={handleClosePlayer} className="shrink-0 p-1.5 text-slate-400 hover:text-white rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
-
-          {generationRating === 0 && (
-            <div className="lg:hidden px-3 pb-2.5 -mt-1.5">
-              <p className="text-[11px] font-semibold text-purple-200">
-                {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت باش تقدر تحمّل 👆' : 'Tu as écouté ? Note pour débloquer le téléchargement 👆'}
-              </p>
-            </div>
-          )}
 
           <audio 
             ref={audioRef} 
@@ -1296,6 +1363,47 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             preload="auto"
             className="hidden" 
           />
+        </div>
+      )}
+
+      {/* Popup de notation : s'ouvre au clic sur « Télécharger » (desktop +
+          mobile). Un clic sur une étoile enregistre la note PUIS lance le
+          téléchargement ; « sans noter » télécharge directement. */}
+      {pendingDownload && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'ar' ? 'قيّم الصوت' : 'Noter l’audio'}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setPendingDownload(null); }}
+        >
+          <div className="w-full max-w-xs rounded-3xl border border-purple-200 bg-white p-6 text-center shadow-2xl">
+            <button
+              onClick={() => setPendingDownload(null)}
+              className="float-end -me-2 -mt-2 rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <p className="text-sm font-extrabold text-slate-900">
+              {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت 👇' : 'Tu as écouté ? Dis-nous c’était comment 👇'}
+            </p>
+            <div className="mt-3 flex justify-center">
+              <StarRating rating={0} onRate={handleModalRate} size="lg" />
+            </div>
+            <button
+              onClick={handleModalSkip}
+              className="mt-5 w-full rounded-2xl bg-purple-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-purple-500 cursor-pointer"
+            >
+              {language === 'ar' ? 'تحميل بدون تقييم' : 'Télécharger sans noter'}
+            </button>
+            <button
+              onClick={() => setPendingDownload(null)}
+              className="mt-1 w-full rounded-2xl px-3 py-2 text-[11px] font-semibold text-slate-400 transition hover:text-slate-600 cursor-pointer"
+            >
+              {language === 'ar' ? 'إلغاء' : 'Annuler'}
+            </button>
+          </div>
         </div>
       )}
 
