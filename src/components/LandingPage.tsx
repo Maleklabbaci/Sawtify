@@ -59,12 +59,12 @@ const KHALID_AUDIO = "https://res.cloudinary.com/gz65ybug/video/upload/v17891398
 
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 
-/* Polices peu utilisées par défaut par les IA */
+/* Nouvelles polices — plus distinctives */
 const AR_STACK = "'IBM Plex Sans Arabic', sans-serif";
-const FR_STACK = "'Instrument Sans', sans-serif";
-const FR_HEADING_STACK = "'Sora', sans-serif";
+const FR_STACK = "'Hanken Grotesk', sans-serif";
+const FR_HEADING_STACK = "'Bricolage Grotesque', sans-serif";
 const FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap";
 
 /* ═══════════ GLOBAL STYLES ═══════════ */
 const GlobalStyles = () => (
@@ -482,6 +482,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
   const scrolled = useScrolled();
   const player = useVoicePlayer();
 
+  /* La photo reste fixe en fond de TOUTE la page ; seule cette zone
+     (la hauteur du hero) pilote son assombrissement progressif jusqu'au noir. */
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroDarken = useTransform(scrollYProgress, [0, 1], [0, 1]);
@@ -535,7 +537,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       testVoicesSub: isRTL ? "3 أصوات من بين 30، مسجلة مباشرة من المنصة" : "3 voix parmi 30, générées directement sur la plateforme",
       audiosLabel: isRTL ? "أوديو" : "audios",
       choose: isRTL ? "اختار" : "Choisir",
-      testimonialTitle: isRTL ? "قالوا فينا" : "Ils nous font confiance",
       testimonialQuote: isRTL
         ? "بدلت الفويس أوفر تاعي بـ Sawtify ووفرت وقت ومصاري بزاف. جودة استوديو حقيقية، بالدارجة تاعنا."
         : "On a remplacé notre voix-off traditionnelle par Sawtify. Résultat : la même qualité studio, en darija authentique, pour une fraction du budget et du temps.",
@@ -594,6 +595,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         <title>Sawtify — {t.heroTitle}</title>
         <meta name="description" content={t.heroSub} />
       </Helmet>
+
+      {/* ═══════════ FOND FIXE — la photo reste plaquée derrière toute la page ═══════════ */}
+      <div className="fixed inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.6) contrast(1.15) saturate(0.9)" }}
+        />
+        {/* voile qui s'assombrit progressivement jusqu'au noir pendant le scroll du hero */}
+        <motion.div className="absolute inset-0" style={{ background: BG_BLACK, opacity: heroDarken }} />
+      </div>
 
       {/* ═══════════ NAVBAR — compacte & centrée ═══════════ */}
       <header className="fixed top-4 inset-x-0 z-50 flex justify-center px-4">
@@ -675,258 +686,253 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         )}
       </AnimatePresence>
 
-      {/* ═══════════ HERO — fond fixe qui s'assombrit au scroll ═══════════ */}
-      <section ref={heroRef} className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.55) contrast(1.15) saturate(0.9)" }}
-        />
-        {/* voile qui s'assombrit progressivement jusqu'au noir en scrollant */}
-        <motion.div className="absolute inset-0" style={{ background: BG_BLACK, opacity: heroDarken }} />
-        <div
-          className="absolute inset-0"
-          style={{ background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.75) 45%, transparent 100%)` }}
-        />
-        {/* Blobs décoratifs */}
-        <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.22 }} />
-        <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.14, animationDelay: "4s" }} />
+      {/* ═══════════ CONTENU — défile normalement au-dessus du fond fixe ═══════════ */}
+      <div className="relative z-10">
+        {/* ═══════════ HERO — transparent, laisse voir la photo fixe ═══════════ */}
+        <section ref={heroRef} className="relative h-screen flex items-center justify-center overflow-hidden">
+          <div
+            className="absolute inset-0"
+            style={{ background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.35) 55%, transparent 100%)` }}
+          />
+          <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.22 }} />
+          <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.14, animationDelay: "4s" }} />
 
-        {/* Le texte reste fixe, ne glisse pas avec le fond */}
-        <div className="relative z-10 text-center px-6 max-w-4xl">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold"
-            style={{ background: PURPLE_GLOW, color: PURPLE_SOFT, border: `1px solid ${PURPLE_GLOW_STRONG}` }}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            {t.kicker}
-          </motion.div>
+          <div className="relative z-10 text-center px-6 max-w-4xl">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold"
+              style={{ background: PURPLE_GLOW, color: PURPLE_SOFT, border: `1px solid ${PURPLE_GLOW_STRONG}` }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {t.kicker}
+            </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="gradient-text text-5xl md:text-7xl font-extrabold leading-tight mb-6 tracking-tight"
-            style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}
-          >
-            {t.heroTitle}
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="text-lg md:text-2xl mb-8"
-            style={{ color: TEXT_ZINC_400 }}
-          >
-            {t.heroSub}
-          </motion.p>
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            whileHover={{ scale: 1.06, boxShadow: `0 0 45px ${PURPLE_GLOW_STRONG}` }}
-            whileTap={{ scale: 0.97 }}
-            onClick={onSigninClick}
-            className="px-10 py-4 rounded-full text-lg font-bold inline-flex items-center gap-2"
-            style={{ background: PURPLE, color: BG_BLACK }}
-          >
-            {t.ctaMain} <ArrowRight className="w-5 h-5" />
-          </motion.button>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.7 }}
-          className="absolute bottom-10 right-10 hidden lg:block"
-        >
-          <AudioWidget />
-        </motion.div>
-      </section>
-
-      {/* ═══════════ SOCIAL PROOF ═══════════ */}
-      <AnimatedSection>
-        <div className="py-12 relative" style={{ background: BG_ZINC_950 }}>
-          <p className="text-center mb-6 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
-          <div className="marquee-container">
-            <div className="marquee-content">
-              {[...logos, ...logos].map((logo, i) => (
-                <div key={i} className="flex items-center justify-center px-12" style={{ color: TEXT_ZINC_600, fontSize: "1.5rem", fontWeight: 700, filter: "grayscale(100%)", opacity: 0.5 }}>
-                  {logo}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </AnimatedSection>
-
-      {/* ═══════════ VOICE TESTS — cartes circulaires ═══════════ */}
-      <AnimatedSection>
-        <section className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
-          <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
-              {t.testVoices}
-            </h2>
-            <p className="text-center mb-14 text-xl" style={{ color: TEXT_ZINC_400 }}>{t.testVoicesSub}</p>
-            <div className="grid sm:grid-cols-3 gap-10 justify-items-center">
-              {voices.map((voice, i) => (
-                <AnimatedSection key={i} delay={i * 0.15}>
-                  <VoiceOrbCard {...voice} player={player} />
-                </AnimatedSection>
-              ))}
-            </div>
-          </div>
-        </section>
-      </AnimatedSection>
-
-      {/* ═══════════ BENTO GRID ═══════════ */}
-      <AnimatedSection>
-        <section id="features" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
-          <div className="absolute inset-0 grid-texture" />
-          <div className="max-w-7xl mx-auto relative z-10">
-            <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
-              {isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction"}
-            </h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              <motion.div
-                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
-                transition={{ type: "spring", stiffness: 250, damping: 20 }}
-                className="md:col-span-2 p-10 rounded-[32px] border"
-                style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
-              >
-                <h3 className="text-3xl font-bold mb-4 text-white">Copiez. Choisissez une voix. Téléchargez.</h3>
-                <p className="text-lg mb-6" style={{ color: TEXT_ZINC_400 }}>Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.</p>
-                <div className="h-48 rounded-2xl" style={{ background: BG_ZINC_900 }} />
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
-                transition={{ type: "spring", stiffness: 250, damping: 20 }}
-                className="p-10 rounded-[32px] border flex flex-col items-center justify-center text-center"
-                style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
-              >
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 neon-glow" style={{ background: PURPLE }}>
-                  <Zap className="w-8 h-8" style={{ color: BG_BLACK }} />
-                </div>
-                <h3 className="text-2xl font-bold text-white">30 secondes chrono</h3>
-                <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>Le temps de préparer votre publication.</p>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
-                transition={{ type: "spring", stiffness: 250, damping: 20 }}
-                className="p-10 rounded-[32px] border"
-                style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
-              >
-                <h3 className="text-2xl font-bold mb-4 text-white">30 voix, un ton pour chaque projet</h3>
-                <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Hommes, femmes, commercial, documentaire, réseaux sociaux.</p>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
-                transition={{ type: "spring", stiffness: 250, damping: 20 }}
-                className="md:col-span-2 p-10 rounded-[32px] border"
-                style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
-              >
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
-                    <Check className="w-6 h-6" style={{ color: BG_BLACK }} />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white">Droits commerciaux inclus</h3>
-                </div>
-                <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.</p>
-              </motion.div>
-            </div>
-          </div>
-        </section>
-      </AnimatedSection>
-
-      {/* ═══════════ PRICING — recharge par paliers ═══════════ */}
-      <AnimatedSection>
-        <section id="pricing" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
-          <SectionGlow style={{ top: "10%", right: "5%", width: 420, height: 420 }} />
-          <div className="max-w-7xl mx-auto relative z-10">
-            <div className="text-center mb-14">
-              <h2 className="text-4xl md:text-6xl font-extrabold mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
-                {t.transparent}
-              </h2>
-              <p className="text-lg max-w-2xl mx-auto" style={{ color: TEXT_ZINC_400 }}>{t.transparentSub}</p>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {pricingTiers.map((tier, i) => (
-                <AnimatedSection key={i} delay={i * 0.1}>
-                  <PricingCard tier={tier} chooseLabel={t.choose} audiosLabel={t.audiosLabel} featuresLabels={featuresLabels} />
-                </AnimatedSection>
-              ))}
-            </div>
-          </div>
-        </section>
-      </AnimatedSection>
-
-      {/* ═══════════ TÉMOIGNAGE ═══════════ */}
-      <AnimatedSection>
-        <section className="py-24 px-6 relative" style={{ background: BG_BLACK }}>
-          <div className="max-w-5xl mx-auto">
-            <Testimonial quote={t.testimonialQuote} name={t.testimonialName} role={t.testimonialRole} />
-          </div>
-        </section>
-      </AnimatedSection>
-
-      {/* ═══════════ FAQ ═══════════ */}
-      <AnimatedSection>
-        <section id="faq" className="py-24 px-6" style={{ background: BG_ZINC_950 }}>
-          <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
-            <div>
-              <h2 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight" style={{ color: PURPLE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
-                {t.faqTitle}
-              </h2>
-            </div>
-            <div className="space-y-4">
-              {faqs.map((faq, i) => (
-                <FAQItem key={i} q={faq.q} a={faq.a} />
-              ))}
-            </div>
-          </div>
-        </section>
-      </AnimatedSection>
-
-      {/* ═══════════ CTA ═══════════ */}
-      <AnimatedSection>
-        <section className="py-32 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
-          <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.12 }} />
-          <div className="max-w-4xl mx-auto text-center relative z-10">
-            <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
-              {t.experts}
-            </h2>
+            <motion.h1
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+              className="gradient-text text-5xl md:text-7xl font-extrabold leading-tight mb-6 tracking-tight"
+              style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}
+            >
+              {t.heroTitle}
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="text-lg md:text-2xl mb-8"
+              style={{ color: TEXT_ZINC_400 }}
+            >
+              {t.heroSub}
+            </motion.p>
             <motion.button
-              whileHover={{ scale: 1.06, background: PURPLE, color: BG_BLACK }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              whileHover={{ scale: 1.06, boxShadow: `0 0 45px ${PURPLE_GLOW_STRONG}` }}
               whileTap={{ scale: 0.97 }}
               onClick={onSigninClick}
-              className="px-10 py-5 rounded-full text-lg font-bold inline-flex items-center gap-3"
-              style={{ background: "transparent", border: `2px solid ${PURPLE}`, color: PURPLE }}
+              className="px-10 py-4 rounded-full text-lg font-bold inline-flex items-center gap-2"
+              style={{ background: PURPLE, color: BG_BLACK }}
             >
-              {t.ctaMain}
-              <ArrowRight className="w-5 h-5" />
+              {t.ctaMain} <ArrowRight className="w-5 h-5" />
             </motion.button>
           </div>
-        </section>
-      </AnimatedSection>
 
-      {/* ═══════════ FOOTER ═══════════ */}
-      <footer className="py-16 px-6 border-t" style={{ background: BG_ZINC_950, borderColor: BORDER_ZINC_800 }}>
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="flex justify-center"><Logo size={36} /></div>
-          <div className="flex items-center justify-center gap-6 mt-6 text-sm" style={{ color: TEXT_ZINC_600 }}>
-            <a href="#" className="hover:text-white transition">Conditions</a>
-            <a href="#" className="hover:text-white transition">Confidentialité</a>
-            <a href="#" className="hover:text-white transition">Contact</a>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.7 }}
+            className="absolute bottom-10 right-10 hidden lg:block"
+          >
+            <AudioWidget />
+          </motion.div>
+        </section>
+
+        {/* ═══════════ SOCIAL PROOF ═══════════ */}
+        <AnimatedSection>
+          <div className="py-12 relative" style={{ background: BG_ZINC_950 }}>
+            <p className="text-center mb-6 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
+            <div className="marquee-container">
+              <div className="marquee-content">
+                {[...logos, ...logos].map((logo, i) => (
+                  <div key={i} className="flex items-center justify-center px-12" style={{ color: TEXT_ZINC_600, fontSize: "1.5rem", fontWeight: 700, filter: "grayscale(100%)", opacity: 0.5 }}>
+                    {logo}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <p className="mt-4 text-sm" style={{ color: TEXT_ZINC_600 }}>© 2026 Sawtify. Made in Algeria 🇩🇿</p>
-        </div>
-      </footer>
+        </AnimatedSection>
+
+        {/* ═══════════ VOICE TESTS — cartes circulaires ═══════════ */}
+        <AnimatedSection>
+          <section className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
+            <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
+            <div className="max-w-6xl mx-auto relative z-10">
+              <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                {t.testVoices}
+              </h2>
+              <p className="text-center mb-14 text-xl" style={{ color: TEXT_ZINC_400 }}>{t.testVoicesSub}</p>
+              <div className="grid sm:grid-cols-3 gap-10 justify-items-center">
+                {voices.map((voice, i) => (
+                  <AnimatedSection key={i} delay={i * 0.15}>
+                    <VoiceOrbCard {...voice} player={player} />
+                  </AnimatedSection>
+                ))}
+              </div>
+            </div>
+          </section>
+        </AnimatedSection>
+
+        {/* ═══════════ BENTO GRID ═══════════ */}
+        <AnimatedSection>
+          <section id="features" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
+            <div className="absolute inset-0 grid-texture" />
+            <div className="max-w-7xl mx-auto relative z-10">
+              <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                {isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction"}
+              </h2>
+              <div className="grid md:grid-cols-3 gap-6">
+                <motion.div
+                  whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                  transition={{ type: "spring", stiffness: 250, damping: 20 }}
+                  className="md:col-span-2 p-10 rounded-[32px] border"
+                  style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+                >
+                  <h3 className="text-3xl font-bold mb-4 text-white">Copiez. Choisissez une voix. Téléchargez.</h3>
+                  <p className="text-lg mb-6" style={{ color: TEXT_ZINC_400 }}>Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.</p>
+                  <div className="h-48 rounded-2xl" style={{ background: BG_ZINC_900 }} />
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                  transition={{ type: "spring", stiffness: 250, damping: 20 }}
+                  className="p-10 rounded-[32px] border flex flex-col items-center justify-center text-center"
+                  style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+                >
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 neon-glow" style={{ background: PURPLE }}>
+                    <Zap className="w-8 h-8" style={{ color: BG_BLACK }} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">30 secondes chrono</h3>
+                  <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>Le temps de préparer votre publication.</p>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                  transition={{ type: "spring", stiffness: 250, damping: 20 }}
+                  className="p-10 rounded-[32px] border"
+                  style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+                >
+                  <h3 className="text-2xl font-bold mb-4 text-white">30 voix, un ton pour chaque projet</h3>
+                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Hommes, femmes, commercial, documentaire, réseaux sociaux.</p>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                  transition={{ type: "spring", stiffness: 250, damping: 20 }}
+                  className="md:col-span-2 p-10 rounded-[32px] border"
+                  style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
+                      <Check className="w-6 h-6" style={{ color: BG_BLACK }} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">Droits commerciaux inclus</h3>
+                  </div>
+                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.</p>
+                </motion.div>
+              </div>
+            </div>
+          </section>
+        </AnimatedSection>
+
+        {/* ═══════════ PRICING — recharge par paliers ═══════════ */}
+        <AnimatedSection>
+          <section id="pricing" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
+            <SectionGlow style={{ top: "10%", right: "5%", width: 420, height: 420 }} />
+            <div className="max-w-7xl mx-auto relative z-10">
+              <div className="text-center mb-14">
+                <h2 className="text-4xl md:text-6xl font-extrabold mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                  {t.transparent}
+                </h2>
+                <p className="text-lg max-w-2xl mx-auto" style={{ color: TEXT_ZINC_400 }}>{t.transparentSub}</p>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {pricingTiers.map((tier, i) => (
+                  <AnimatedSection key={i} delay={i * 0.1}>
+                    <PricingCard tier={tier} chooseLabel={t.choose} audiosLabel={t.audiosLabel} featuresLabels={featuresLabels} />
+                  </AnimatedSection>
+                ))}
+              </div>
+            </div>
+          </section>
+        </AnimatedSection>
+
+        {/* ═══════════ TÉMOIGNAGE ═══════════ */}
+        <AnimatedSection>
+          <section className="py-24 px-6 relative" style={{ background: BG_BLACK }}>
+            <div className="max-w-5xl mx-auto">
+              <Testimonial quote={t.testimonialQuote} name={t.testimonialName} role={t.testimonialRole} />
+            </div>
+          </section>
+        </AnimatedSection>
+
+        {/* ═══════════ FAQ ═══════════ */}
+        <AnimatedSection>
+          <section id="faq" className="py-24 px-6" style={{ background: BG_ZINC_950 }}>
+            <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
+              <div>
+                <h2 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight" style={{ color: PURPLE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                  {t.faqTitle}
+                </h2>
+              </div>
+              <div className="space-y-4">
+                {faqs.map((faq, i) => (
+                  <FAQItem key={i} q={faq.q} a={faq.a} />
+                ))}
+              </div>
+            </div>
+          </section>
+        </AnimatedSection>
+
+        {/* ═══════════ CTA ═══════════ */}
+        <AnimatedSection>
+          <section className="py-32 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
+            <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.12 }} />
+            <div className="max-w-4xl mx-auto text-center relative z-10">
+              <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                {t.experts}
+              </h2>
+              <motion.button
+                whileHover={{ scale: 1.06, background: PURPLE, color: BG_BLACK }}
+                whileTap={{ scale: 0.97 }}
+                onClick={onSigninClick}
+                className="px-10 py-5 rounded-full text-lg font-bold inline-flex items-center gap-3"
+                style={{ background: "transparent", border: `2px solid ${PURPLE}`, color: PURPLE }}
+              >
+                {t.ctaMain}
+                <ArrowRight className="w-5 h-5" />
+              </motion.button>
+            </div>
+          </section>
+        </AnimatedSection>
+
+        {/* ═══════════ FOOTER ═══════════ */}
+        <footer className="py-16 px-6 border-t" style={{ background: BG_ZINC_950, borderColor: BORDER_ZINC_800 }}>
+          <div className="max-w-7xl mx-auto text-center">
+            <div className="flex justify-center"><Logo size={36} /></div>
+            <div className="flex items-center justify-center gap-6 mt-6 text-sm" style={{ color: TEXT_ZINC_600 }}>
+              <a href="#" className="hover:text-white transition">Conditions</a>
+              <a href="#" className="hover:text-white transition">Confidentialité</a>
+              <a href="#" className="hover:text-white transition">Contact</a>
+            </div>
+            <p className="mt-4 text-sm" style={{ color: TEXT_ZINC_600 }}>© 2026 Sawtify. Made in Algeria 🇩🇿</p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 };
