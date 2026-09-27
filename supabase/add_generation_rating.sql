@@ -1,8 +1,9 @@
 -- ==============================================================================
 -- SAWTIFY - NOTE (1 À 5 ÉTOILES) SUR CHAQUE GÉNÉRATION VOCALE
--- Le téléchargement (WAV/MP3) côté client n'est débloqué qu'une fois la
--- génération notée. Cette note est enregistrée ici via une RPC dédiée pour
--- ne jamais laisser le client écrire directement une colonne arbitraire.
+-- Côté client, le téléchargement (WAV/MP3) ouvre une popup de notation :
+-- un clic sur une étoile enregistre la note via la RPC ci-dessous PUIS
+-- lance le téléchargement (« sans noter » télécharge directement).
+-- Le téléchargement n'est donc JAMAIS bloqué par la note.
 -- ==============================================================================
 
 -- 1. Colonne note (1 à 5, NULL tant que l'utilisateur n'a pas noté)
