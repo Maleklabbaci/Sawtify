@@ -14,22 +14,18 @@ import {
   Menu,
   X,
   Check,
-  Star,
-  Mic,
   Sparkles,
-  Users,
   Zap,
-  Volume2,
-  Download,
-  Clock,
-  Award,
   Plus,
   Minus,
-  SkipBack,
-  SkipForward,
-  ChevronRight,
 } from "lucide-react";
-import { motion, AnimatePresence, useInView } from "motion/react";
+import {
+  motion,
+  AnimatePresence,
+  useInView,
+  useScroll,
+  useTransform,
+} from "motion/react";
 
 export interface LandingPageProps {
   onLoginClick: () => void;
@@ -38,13 +34,15 @@ export interface LandingPageProps {
   setLanguage: (lang: "fr" | "ar") => void;
 }
 
-/* ═══════════ DARK MODE PALETTE ═══════════ */
+/* ═══════════ PALETTE — VIOLET ═══════════ */
 const BG_BLACK = "#000000";
 const BG_ZINC_950 = "#09090B";
 const BG_ZINC_900 = "#18181B";
 const BG_CARD = "rgba(24, 24, 27, 0.5)";
-const NEON_GREEN = "#00FF66";
-const NEON_GREEN_GLOW = "rgba(0, 255, 102, 0.15)";
+const PURPLE = "#A855F7";
+const PURPLE_SOFT = "#D8B4FE";
+const PURPLE_GLOW = "rgba(168, 85, 247, 0.18)";
+const PURPLE_GLOW_STRONG = "rgba(168, 85, 247, 0.35)";
 const TEXT_WHITE = "#FFFFFF";
 const TEXT_ZINC_400 = "#A1A1AA";
 const TEXT_ZINC_600 = "#52525B";
@@ -52,16 +50,18 @@ const BORDER_ZINC_700 = "#3F3F46";
 const BORDER_ZINC_800 = "#27272A";
 
 const HERO_IMAGE = "https://res.cloudinary.com/gz65ybug/image/upload/v1790474727/Gemini_Generated_Image_emb779emb779emb7.jpg";
-const INTRO_AUDIO_URL = "https://res.cloudinary.com/gz65ybug/video/upload/v1789055318/Generated_Audio_September_10_2026_-_4_29PM.wav";
 const AMINE_AUDIO = "https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3";
 const YASMINE_AUDIO = "https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3";
 const KHALID_AUDIO = "https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav";
 
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 
-const AR_STACK = "'Cairo', sans-serif";
-const FR_STACK = "'Plus Jakarta Sans', 'Inter', sans-serif";
-const FONTS_URL = "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap";
+/* Polices peu utilisées par défaut par les IA */
+const AR_STACK = "'IBM Plex Sans Arabic', sans-serif";
+const FR_STACK = "'Instrument Sans', sans-serif";
+const FR_HEADING_STACK = "'Sora', sans-serif";
+const FONTS_URL =
+  "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap";
 
 /* ═══════════ GLOBAL STYLES ═══════════ */
 const GlobalStyles = () => (
@@ -69,51 +69,75 @@ const GlobalStyles = () => (
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
     body { background: ${BG_ZINC_950}; color: ${TEXT_WHITE}; margin: 0; font-family: ${FR_STACK}; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    ::selection { background: ${NEON_GREEN}; color: ${BG_BLACK}; }
-    
+    ::selection { background: ${PURPLE}; color: ${BG_BLACK}; }
+
     @keyframes marquee {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
     }
-    
     @keyframes wave {
       0%, 100% { transform: scaleY(0.3); }
       50% { transform: scaleY(1); }
     }
-    
     @keyframes pulse-glow {
-      0%, 100% { box-shadow: 0 0 20px ${NEON_GREEN_GLOW}; }
-      50% { box-shadow: 0 0 40px rgba(0, 255, 102, 0.3); }
+      0%, 100% { box-shadow: 0 0 20px ${PURPLE_GLOW}; }
+      50% { box-shadow: 0 0 40px ${PURPLE_GLOW_STRONG}; }
     }
-    
-    .wave-bar {
-      animation: wave 1.2s ease-in-out infinite;
-      transform-origin: bottom;
+    @keyframes float-blob {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -40px) scale(1.1); }
+      66% { transform: translate(-20px, 20px) scale(0.95); }
     }
-    
+    @keyframes gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .wave-bar { animation: wave 1.2s ease-in-out infinite; transform-origin: bottom; }
+
     .glass-dark {
       background: rgba(24, 24, 27, 0.8);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border: 1px solid ${BORDER_ZINC_700};
     }
-    
-    .neon-glow {
-      animation: pulse-glow 3s ease-in-out infinite;
-    }
-    
+    .neon-glow { animation: pulse-glow 3s ease-in-out infinite; }
+    .blob { animation: float-blob 12s ease-in-out infinite; filter: blur(80px); }
+
     .marquee-container {
       display: flex;
       overflow: hidden;
       user-select: none;
+      -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+      mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
     }
-    
     .marquee-content {
       display: flex;
-      animation: marquee 40s linear infinite;
+      animation: marquee 32s linear infinite;
       will-change: transform;
     }
-    
+
+    .gradient-text {
+      background: linear-gradient(90deg, ${TEXT_WHITE}, ${PURPLE_SOFT}, ${TEXT_WHITE});
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: gradient-shift 6s ease infinite;
+    }
+
+    .nav-link { position: relative; }
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0; bottom: -4px;
+      width: 0%; height: 1px;
+      background: ${PURPLE};
+      transition: width 0.3s ease;
+    }
+    .nav-link:hover::after { width: 100%; }
+
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after { animation-duration: 0.01ms !important; }
@@ -122,7 +146,7 @@ const GlobalStyles = () => (
 );
 
 /* ═══════════ HOOKS ═══════════ */
-function useScrolled(threshold = 50) {
+function useScrolled(threshold = 40) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > threshold);
@@ -137,8 +161,6 @@ function useVoicePlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [duration, setDuration] = useState(0);
 
   const play = useCallback((id: string, url: string) => {
     if (!audioRef.current) {
@@ -146,14 +168,11 @@ function useVoicePlayer() {
       audioRef.current.addEventListener("timeupdate", () => {
         if (audioRef.current && audioRef.current.duration > 0) {
           setProgress(audioRef.current.currentTime / audioRef.current.duration);
-          setElapsed(audioRef.current.currentTime);
-          setDuration(audioRef.current.duration);
         }
       });
       audioRef.current.addEventListener("ended", () => {
         setPlayingId(null);
         setProgress(0);
-        setElapsed(0);
       });
     }
     audioRef.current.pause();
@@ -165,46 +184,56 @@ function useVoicePlayer() {
     audioRef.current?.pause();
     setPlayingId(null);
     setProgress(0);
-    setElapsed(0);
   }, []);
 
-  const toggle = useCallback((id: string, url: string) => {
-    if (playingId === id) stop();
-    else play(id, url);
-  }, [playingId, play, stop]);
+  const toggle = useCallback(
+    (id: string, url: string) => {
+      if (playingId === id) stop();
+      else play(id, url);
+    },
+    [playingId, play, stop]
+  );
 
-  return { playingId, progress, elapsed, duration, toggle, stop };
+  return { playingId, progress, toggle, stop };
 }
 
 /* ═══════════ COMPONENTS ═══════════ */
-const Logo = ({ size = 36 }: { size?: number }) => {
+const Logo = ({ size = 30 }: { size?: number }) => {
   const [err, setErr] = useState(false);
   return (
-    <div className="flex items-center gap-2.5 select-none">
+    <div className="flex items-center gap-2 select-none">
       <div
-        className="rounded-2xl overflow-hidden shrink-0"
-        style={{ width: size, height: size, boxShadow: `0 0 15px ${NEON_GREEN_GLOW}` }}
+        className="rounded-xl overflow-hidden shrink-0"
+        style={{ width: size, height: size, boxShadow: `0 0 12px ${PURPLE_GLOW}` }}
       >
         {!err ? (
           <img src={LOGO} alt="Sawtify" width={size} height={size} onError={() => setErr(true)} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center font-bold" style={{ background: NEON_GREEN, color: BG_BLACK, fontSize: size * 0.5 }}>S</div>
+          <div className="w-full h-full flex items-center justify-center font-bold" style={{ background: PURPLE, color: BG_BLACK, fontSize: size * 0.5 }}>S</div>
         )}
       </div>
-      <span className="font-extrabold text-[18px] tracking-tight text-white">Sawtify</span>
+      <span className="font-bold text-[15px] tracking-tight text-white" style={{ fontFamily: FR_HEADING_STACK }}>Sawtify</span>
     </div>
   );
 };
 
-const AnimatedSection = ({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) => {
+const AnimatedSection = ({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 40 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
-      transition={{ duration: 0.8, type: "spring", bounce: 0.4, delay }}
+      initial={{ opacity: 0, y: 50 }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
+      transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay }}
       className={className}
     >
       {children}
@@ -213,21 +242,23 @@ const AnimatedSection = ({ children, className = "", delay = 0 }: { children: Re
 };
 
 const WaveBar = ({ height, delay }: { height: number; delay: number }) => (
-  <div
-    className="wave-bar w-1 rounded-full"
-    style={{ height: `${height}%`, background: NEON_GREEN, animationDelay: `${delay}s` }}
-  />
+  <div className="wave-bar w-1 rounded-full" style={{ height: `${height}%`, background: PURPLE, animationDelay: `${delay}s` }} />
 );
 
-const AudioWidget = ({ playing }: { playing: boolean }) => (
-  <div className="glass-dark p-6 rounded-[32px] shadow-2xl neon-glow" style={{ maxWidth: 320 }}>
+const AudioWidget = () => (
+  <motion.div
+    className="glass-dark p-6 rounded-[28px] shadow-2xl neon-glow"
+    style={{ maxWidth: 300 }}
+    animate={{ y: [0, -10, 0] }}
+    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+  >
     <div className="flex items-center gap-3 mb-4">
-      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: NEON_GREEN }}>
-        <Mic className="w-5 h-5" style={{ color: BG_BLACK }} />
+      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
+        <Sparkles className="w-5 h-5" style={{ color: BG_BLACK }} />
       </div>
       <div>
-        <p className="text-sm font-bold text-white">Génération en cours...</p>
-        <p className="text-xs" style={{ color: TEXT_ZINC_400 }}>Daridja Algérienne</p>
+        <p className="text-sm font-semibold text-white">Génération en cours…</p>
+        <p className="text-xs" style={{ color: TEXT_ZINC_400 }}>Darija algérienne</p>
       </div>
     </div>
     <div className="flex items-end justify-center gap-1 h-16">
@@ -235,16 +266,21 @@ const AudioWidget = ({ playing }: { playing: boolean }) => (
         <WaveBar key={i} height={20 + Math.random() * 80} delay={i * 0.05} />
       ))}
     </div>
-  </div>
+  </motion.div>
 );
 
 const PricingSlider = () => {
   const [words, setWords] = useState(5000);
   const price = Math.round((words / 1000) * 2.5);
   return (
-    <div className="p-10 rounded-[32px] shadow-2xl" style={{ background: NEON_GREEN }}>
+    <motion.div
+      whileHover={{ scale: 1.015 }}
+      transition={{ type: "spring", stiffness: 200, damping: 18 }}
+      className="p-10 rounded-[32px] shadow-2xl"
+      style={{ background: PURPLE }}
+    >
       <h3 className="text-2xl font-bold mb-6" style={{ color: BG_BLACK }}>
-        <span className="text-6xl font-extrabold">{price} DZD</span> / mois
+        <span className="text-6xl font-extrabold" style={{ fontFamily: FR_HEADING_STACK }}>{price} DZD</span> / mois
       </h3>
       <div className="mb-6">
         <label className="block text-sm font-semibold mb-3" style={{ color: BG_BLACK }}>
@@ -271,10 +307,15 @@ const PricingSlider = () => {
           </li>
         ))}
       </ul>
-      <button className="w-full py-4 rounded-full font-bold text-white transition hover:opacity-90" style={{ background: BG_BLACK }}>
+      <motion.button
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        className="w-full py-4 rounded-full font-bold text-white"
+        style={{ background: BG_BLACK }}
+      >
         Commencer maintenant
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   );
 };
 
@@ -283,8 +324,10 @@ const FAQItem = ({ q, a }: { q: string; a: string }) => {
   return (
     <div className="border-b pb-6" style={{ borderColor: BORDER_ZINC_800 }}>
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-4 text-left">
-        <span className="text-lg font-bold" style={{ color: NEON_GREEN }}>{q}</span>
-        {open ? <Minus className="w-6 h-6" style={{ color: NEON_GREEN }} /> : <Plus className="w-6 h-6" style={{ color: NEON_GREEN }} />}
+        <span className="text-lg font-bold" style={{ color: PURPLE, fontFamily: FR_HEADING_STACK }}>{q}</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.3 }}>
+          {open ? <Minus className="w-6 h-6" style={{ color: PURPLE }} /> : <Plus className="w-6 h-6" style={{ color: PURPLE }} />}
+        </motion.span>
       </button>
       <AnimatePresence>
         {open && (
@@ -292,7 +335,7 @@ const FAQItem = ({ q, a }: { q: string; a: string }) => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className="overflow-hidden"
           >
             <p className="text-base leading-relaxed" style={{ color: TEXT_ZINC_400 }}>{a}</p>
@@ -307,7 +350,8 @@ const VoiceTestCard = ({ name, role, audioUrl, player }: { name: string; role: s
   const playing = player.playingId === audioUrl;
   return (
     <motion.div
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -6, borderColor: PURPLE, boxShadow: `0 0 25px ${PURPLE_GLOW}` }}
+      transition={{ type: "spring", stiffness: 250, damping: 20 }}
       className="p-6 rounded-[32px] border"
       style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
     >
@@ -316,18 +360,20 @@ const VoiceTestCard = ({ name, role, audioUrl, player }: { name: string; role: s
           <h4 className="font-bold text-white">{name}</h4>
           <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
         </div>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.12 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => player.toggle(audioUrl, audioUrl)}
-          className="w-12 h-12 rounded-full flex items-center justify-center transition hover:scale-110"
-          style={{ background: NEON_GREEN }}
+          className="w-12 h-12 rounded-full flex items-center justify-center"
+          style={{ background: PURPLE }}
         >
           {playing ? <Pause className="w-5 h-5" style={{ color: BG_BLACK }} /> : <Play className="w-5 h-5" style={{ color: BG_BLACK }} />}
-        </button>
+        </motion.button>
       </div>
       <div className="h-1 rounded-full overflow-hidden" style={{ background: BORDER_ZINC_800 }}>
         <motion.div
           className="h-full rounded-full"
-          style={{ background: NEON_GREEN, width: `${playing ? player.progress * 100 : 0}%` }}
+          style={{ background: PURPLE, width: `${playing ? player.progress * 100 : 0}%` }}
           transition={{ duration: 0.2 }}
         />
       </div>
@@ -336,17 +382,16 @@ const VoiceTestCard = ({ name, role, audioUrl, player }: { name: string; role: s
 };
 
 /* ═══════════ MAIN COMPONENT ═══════════ */
-export const LandingPage: React.FC<LandingPageProps> = ({
-  onLoginClick,
-  onSigninClick,
-  language,
-  setLanguage,
-}) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSigninClick, language, setLanguage }) => {
   const isRTL = language === "ar";
   const [menuOpen, setMenuOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
   const scrolled = useScrolled();
   const player = useVoicePlayer();
+
+  const heroRef = useRef(null);
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.3]);
 
   const bootRef = useRef(false);
   useLayoutEffect(() => {
@@ -375,20 +420,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const t = useMemo(
     () => ({
-      heroTitle: isRTL ? "صوّت محتواك بالدارجة الجزائرية" : "Générez la voix de vos contenus",
+      kicker: isRTL ? "الجيل الجديد من الصوت الاصطناعي" : "L'IA vocale nouvelle génération",
+      heroTitle: isRTL ? "خلي المحتوى تاعك يهدر بالدارجة الحقيقية" : "Faites parler votre contenu, en vraie darija",
       heroSub: isRTL
-        ? "أول منصة ذكاء اصطناعي للدارجة الجزائرية. جودة استوديو في 30 ثانية."
-        : "Première plateforme IA en darija algérienne. Qualité studio en 30 secondes.",
-      signup: isRTL ? "إنشاء حساب" : "Sign up",
-      signin: isRTL ? "تسجيل الدخول" : "Se connecter",
+        ? "أول محرك ذكاء اصطناعي يهدر بالدارجة الجزائرية الأصيلة. صوت استوديو، بلا ميكروفون، بلا مونتاج، في 30 ثانية."
+        : "Le premier moteur IA qui parle une darija algérienne 100% naturelle. Qualité studio, zéro micro, zéro montage, en 30 secondes.",
+      ctaMain: isRTL ? "جرب مجانا الآن" : "Générer ma voix — gratuit",
+      signup: isRTL ? "إنشاء حساب" : "Créer un compte",
+      signin: isRTL ? "تسجيل الدخول" : "Connexion",
       features: isRTL ? "المميزات" : "Fonctionnalités",
       pricing: isRTL ? "الأسعار" : "Tarifs",
-      faq: isRTL ? "أسئلة شائعة" : "FAQ",
-      joined: isRTL ? "انضم إلينا +500 مبدع" : "Rejoint par +500 créateurs",
-      transparent: isRTL ? "سعر شفاف. بدون رسوم خفية." : "Un tarif transparent. Pas de frais cachés.",
-      faqTitle: isRTL ? "الأسئلة الشائعة" : "Questions Fréquentes",
-      experts: isRTL ? "تحدث مع خبرائنا" : "Speak to our experts",
-      testVoices: isRTL ? "اختبر أصواتنا" : "Testez nos voix",
+      faq: isRTL ? "الأسئلة" : "FAQ",
+      joined: isRTL ? "أكثر من 500 صانع محتوى وثقوا فينا" : "+500 créateurs nous font déjà confiance",
+      transparent: isRTL ? "سعر واضح، بلا مفاجآت." : "Un prix clair. Zéro surprise sur la facture.",
+      faqTitle: isRTL ? "الأسئلة الشائعة" : "Vos questions, nos réponses",
+      experts: isRTL ? "جاهز تبدا؟" : "Prêt à faire parler votre marque ?",
+      testVoices: isRTL ? "استمع بروحك" : "Écoutez par vous-même",
+      testVoicesSub: isRTL ? "3 أصوات من بين 30، مسجلة مباشرة من المنصة" : "3 voix parmi 30, générées directement sur la plateforme",
     }),
     [isRTL]
   );
@@ -403,16 +451,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   const faqs = isRTL
     ? [
-        { q: "ما هو Sawtify؟", a: "منصة لتحويل النص إلى صوت بالدارجة الجزائرية باستخدام الذكاء الاصطناعي." },
-        { q: "كم من الوقت يستغرق؟", a: "أقل من دقيقة لتوليد صوت احترافي بجودة استوديو." },
-        { q: "هل يمكنني استخدامه تجاريًا؟", a: "نعم، جميع الأصوات مرخصة للاستخدام التجاري الكامل." },
-        { q: "كيف يتم الدفع؟", a: "نقبل Edahabia و CIB عبر SATIM. بالدينار الجزائري." },
+        { q: "ما هو Sawtify؟", a: "منصة تحول النص إلى صوت بدارجة جزائرية طبيعية باستخدام الذكاء الاصطناعي، بجودة استوديو حقيقي." },
+        { q: "كم من الوقت يستغرق التوليد؟", a: "أقل من دقيقة لصوت احترافي جاهز للنشر مباشرة." },
+        { q: "نقدر نستعملها تجاريا؟", a: "أكيد، كل الأصوات مرخصة للاستخدام التجاري الكامل بلا قيود." },
+        { q: "كيفاش ندفع؟", a: "نقبلوا Edahabia و CIB عبر SATIM، بالدينار الجزائري." },
       ]
     : [
-        { q: "Qu'est-ce que Sawtify ?", a: "Plateforme de conversion texte-voix en darija algérienne avec IA." },
-        { q: "Combien de temps ça prend ?", a: "Moins d'une minute pour générer une voix professionnelle." },
-        { q: "Usage commercial autorisé ?", a: "Oui, toutes les voix sont sous licence commerciale complète." },
-        { q: "Modes de paiement ?", a: "Edahabia & CIB via SATIM. En dinars algériens." },
+        { q: "Qu'est-ce que Sawtify exactement ?", a: "Une plateforme IA qui transforme votre texte en voix darija algérienne naturelle, avec un rendu qualité studio." },
+        { q: "Combien de temps pour générer une voix ?", a: "Moins d'une minute pour un audio prêt à publier, sans montage supplémentaire." },
+        { q: "Puis-je l'utiliser pour mes clients ?", a: "Oui, toutes les voix sont couvertes par une licence commerciale complète, sans restriction." },
+        { q: "Quels moyens de paiement ?", a: "Edahabia et CIB via SATIM, directement en dinars algériens." },
       ];
 
   const voices = [
@@ -432,41 +480,56 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <meta name="description" content={t.heroSub} />
       </Helmet>
 
-      {/* ═══════════ NAVBAR ═══════════ */}
-      <header
-        className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "backdrop-blur-md" : ""}`}
-        style={{ background: scrolled ? "rgba(9, 9, 11, 0.7)" : "transparent", padding: "1rem 2rem" }}
-      >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Logo size={36} />
+      {/* ═══════════ NAVBAR — compacte & centrée ═══════════ */}
+      <header className="fixed top-4 inset-x-0 z-50 flex justify-center px-4">
+        <motion.div
+          initial={{ y: -30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-3xl flex items-center justify-between gap-4 rounded-full px-3 py-2 transition-all duration-300"
+          style={{
+            background: scrolled ? "rgba(9, 9, 11, 0.75)" : "rgba(9, 9, 11, 0.35)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: `1px solid ${scrolled ? BORDER_ZINC_700 : "rgba(63,63,70,0.3)"}`,
+            boxShadow: scrolled ? `0 8px 30px rgba(0,0,0,0.35)` : "none",
+          }}
+        >
+          <Logo size={28} />
 
-          <nav className="hidden lg:flex items-center gap-8">
+          <nav className="hidden lg:flex items-center gap-6 mx-2">
             {nav.map((item) => (
-              <a key={item.href} href={item.href} className="text-sm font-semibold hover:text-white transition" style={{ color: TEXT_ZINC_400 }}>
+              <a key={item.href} href={item.href} className="nav-link text-xs font-medium hover:text-white transition-colors" style={{ color: TEXT_ZINC_400 }}>
                 {item.label}
               </a>
             ))}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <button
               onClick={switchLang}
-              className="text-sm font-semibold px-4 py-2 rounded-full hover:bg-zinc-800 transition"
+              className="text-xs font-medium px-3 py-1.5 rounded-full hover:bg-zinc-800 transition"
               style={{ color: TEXT_ZINC_400, border: `1px solid ${BORDER_ZINC_800}` }}
             >
               {isRTL ? "FR" : "ع"}
             </button>
-            <button onClick={onLoginClick} className="hidden md:block text-sm font-semibold hover:text-white transition" style={{ color: TEXT_ZINC_400 }}>
+            <button onClick={onLoginClick} className="hidden md:block text-xs font-medium hover:text-white transition" style={{ color: TEXT_ZINC_400 }}>
               {t.signin}
             </button>
-            <button onClick={onSigninClick} className="px-6 py-2.5 rounded-full text-sm font-bold transition hover:scale-105" style={{ background: TEXT_WHITE, color: BG_BLACK }}>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onSigninClick}
+              className="px-4 py-1.5 rounded-full text-xs font-bold"
+              style={{ background: TEXT_WHITE, color: BG_BLACK }}
+            >
               {t.signup}
-            </button>
+            </motion.button>
             <button onClick={() => setMenuOpen(true)} className="lg:hidden text-white">
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
             </button>
           </div>
-        </div>
+        </motion.div>
       </header>
 
       {/* ═══════════ MOBILE MENU ═══════════ */}
@@ -478,6 +541,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ x: isRTL ? "-100%" : "100%" }}
               animate={{ x: 0 }}
               exit={{ x: isRTL ? "-100%" : "100%" }}
+              transition={{ type: "spring", stiffness: 260, damping: 28 }}
               className="fixed inset-y-0 end-0 z-[70] w-80 p-6"
               style={{ background: BG_ZINC_900 }}
             >
@@ -486,7 +550,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </button>
               <nav className="flex flex-col gap-6">
                 {nav.map((item) => (
-                  <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="text-lg font-bold text-white hover:text-emerald-400">
+                  <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="text-lg font-bold text-white transition-colors" style={{ fontFamily: FR_HEADING_STACK }}>
                     {item.label}
                   </a>
                 ))}
@@ -497,35 +561,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </AnimatePresence>
 
       {/* ═══════════ HERO ═══════════ */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div
+      <section ref={heroRef} className="relative h-screen flex items-center justify-center overflow-hidden">
+        <motion.div
           className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${HERO_IMAGE})`,
-            filter: "brightness(0.4) contrast(1.2)",
-          }}
+          style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.35) contrast(1.2) saturate(0.9)", y: heroY }}
         />
+        {/* Blobs décoratifs */}
+        <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.25 }} />
+        <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.15, animationDelay: "4s" }} />
         <div
           className="absolute inset-0"
-          style={{
-            background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.8) 50%, transparent 100%)`,
-          }}
+          style={{ background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.8) 50%, transparent 100%)` }}
         />
-        <div className="relative z-10 text-center px-6 max-w-4xl">
+        <motion.div style={{ opacity: heroOpacity }} className="relative z-10 text-center px-6 max-w-4xl">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold"
+            style={{ background: PURPLE_GLOW, color: PURPLE_SOFT, border: `1px solid ${PURPLE_GLOW_STRONG}` }}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {t.kicker}
+          </motion.div>
+
           <motion.h1
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, type: "spring", bounce: 0.4 }}
-            className="text-5xl md:text-7xl font-extrabold leading-tight mb-6 tracking-tight"
-            style={{ color: TEXT_WHITE, textShadow: `0 0 30px ${NEON_GREEN_GLOW}` }}
+            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+            className="gradient-text text-5xl md:text-7xl font-extrabold leading-tight mb-6 tracking-tight"
+            style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}
           >
             {t.heroTitle}
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-xl md:text-2xl mb-8"
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="text-lg md:text-2xl mb-8"
             style={{ color: TEXT_ZINC_400 }}
           >
             {t.heroSub}
@@ -533,22 +606,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <motion.button
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            whileHover={{ scale: 1.06, boxShadow: `0 0 45px ${PURPLE_GLOW_STRONG}` }}
+            whileTap={{ scale: 0.97 }}
             onClick={onSigninClick}
-            className="px-10 py-4 rounded-full text-lg font-bold transition hover:scale-105"
-            style={{ background: NEON_GREEN, color: BG_BLACK }}
+            className="px-10 py-4 rounded-full text-lg font-bold inline-flex items-center gap-2"
+            style={{ background: PURPLE, color: BG_BLACK }}
           >
-            {t.signup} →
+            {t.ctaMain} <ArrowRight className="w-5 h-5" />
           </motion.button>
-        </div>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
+          transition={{ duration: 0.8, delay: 0.7 }}
           className="absolute bottom-10 right-10 hidden lg:block"
         >
-          <AudioWidget playing={playing} />
+          <AudioWidget />
         </motion.div>
       </section>
 
@@ -572,11 +647,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatedSection>
         <section className="py-24 px-6" style={{ background: BG_BLACK }}>
           <div className="max-w-6xl mx-auto">
-            <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-4 tracking-tight text-white">{t.testVoices}</h2>
-            <p className="text-center mb-12 text-xl" style={{ color: TEXT_ZINC_400 }}>Écoutez nos 3 voix les plus populaires</p>
+            <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+              {t.testVoices}
+            </h2>
+            <p className="text-center mb-12 text-xl" style={{ color: TEXT_ZINC_400 }}>{t.testVoicesSub}</p>
             <div className="grid md:grid-cols-3 gap-6">
               {voices.map((voice, i) => (
-                <AnimatedSection key={i} delay={i * 0.2}>
+                <AnimatedSection key={i} delay={i * 0.15}>
                   <VoiceTestCard {...voice} player={player} />
                 </AnimatedSection>
               ))}
@@ -589,51 +666,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AnimatedSection>
         <section id="features" className="py-24 px-6" style={{ background: BG_BLACK }}>
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white">Génération instantanée</h2>
+            <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+              {isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction"}
+            </h2>
             <div className="grid md:grid-cols-3 gap-6">
               <motion.div
-                whileHover={{ y: -4, boxShadow: `0 0 15px ${NEON_GREEN_GLOW}` }}
+                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                transition={{ type: "spring", stiffness: 250, damping: 20 }}
                 className="md:col-span-2 p-10 rounded-[32px] border"
                 style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
               >
-                <h3 className="text-3xl font-bold mb-4 text-white">Interface Simple</h3>
-                <p className="text-lg mb-6" style={{ color: TEXT_ZINC_400 }}>Collez votre texte, choisissez une voix, téléchargez en MP3.</p>
+                <h3 className="text-3xl font-bold mb-4 text-white">Copiez. Choisissez une voix. Téléchargez.</h3>
+                <p className="text-lg mb-6" style={{ color: TEXT_ZINC_400 }}>Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.</p>
                 <div className="h-48 rounded-2xl" style={{ background: BG_ZINC_900 }} />
               </motion.div>
 
               <motion.div
-                whileHover={{ y: -4, boxShadow: `0 0 15px ${NEON_GREEN_GLOW}` }}
+                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                transition={{ type: "spring", stiffness: 250, damping: 20 }}
                 className="p-10 rounded-[32px] border flex flex-col items-center justify-center text-center"
                 style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
               >
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 neon-glow" style={{ background: NEON_GREEN }}>
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 neon-glow" style={{ background: PURPLE }}>
                   <Zap className="w-8 h-8" style={{ color: BG_BLACK }} />
                 </div>
-                <h3 className="text-2xl font-bold text-white">30 secondes</h3>
-                <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>Génération ultra-rapide</p>
+                <h3 className="text-2xl font-bold text-white">30 secondes chrono</h3>
+                <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>Le temps de préparer votre publication.</p>
               </motion.div>
 
               <motion.div
-                whileHover={{ y: -4, boxShadow: `0 0 15px ${NEON_GREEN_GLOW}` }}
+                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                transition={{ type: "spring", stiffness: 250, damping: 20 }}
                 className="p-10 rounded-[32px] border"
                 style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
               >
-                <h3 className="text-2xl font-bold mb-4 text-white">30 Voix</h3>
-                <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Hommes, femmes. Commercial, documentaire, social media.</p>
+                <h3 className="text-2xl font-bold mb-4 text-white">30 voix, un ton pour chaque projet</h3>
+                <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Hommes, femmes, commercial, documentaire, réseaux sociaux.</p>
               </motion.div>
 
               <motion.div
-                whileHover={{ y: -4, boxShadow: `0 0 15px ${NEON_GREEN_GLOW}` }}
+                whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+                transition={{ type: "spring", stiffness: 250, damping: 20 }}
                 className="md:col-span-2 p-10 rounded-[32px] border"
                 style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
               >
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: NEON_GREEN }}>
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
                     <Check className="w-6 h-6" style={{ color: BG_BLACK }} />
                   </div>
-                  <h3 className="text-2xl font-bold text-white">Usage Commercial Complet</h3>
+                  <h3 className="text-2xl font-bold text-white">Droits commerciaux inclus</h3>
                 </div>
-                <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Utilisez vos audios pour YouTube, TikTok, publicités, podcasts. Sans restriction.</p>
+                <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.</p>
               </motion.div>
             </div>
           </div>
@@ -645,8 +728,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <section id="pricing" className="py-24 px-6" style={{ background: BG_ZINC_950 }}>
           <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-white">{t.transparent}</h2>
-              <p className="text-xl" style={{ color: TEXT_ZINC_400 }}>Payez uniquement pour ce que vous utilisez. Pas d'abonnement caché. Points valables à vie.</p>
+              <h2 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                {t.transparent}
+              </h2>
+              <p className="text-xl" style={{ color: TEXT_ZINC_400 }}>Vous payez uniquement ce que vous consommez. Aucun abonnement imposé. Vos crédits n'expirent jamais.</p>
             </div>
             <PricingSlider />
           </div>
@@ -658,7 +743,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <section id="faq" className="py-24 px-6" style={{ background: BG_BLACK }}>
           <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
             <div>
-              <h2 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight" style={{ color: NEON_GREEN }}>{t.faqTitle}</h2>
+              <h2 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight" style={{ color: PURPLE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                {t.faqTitle}
+              </h2>
             </div>
             <div className="space-y-4">
               {faqs.map((faq, i) => (
@@ -671,25 +758,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* ═══════════ CTA ═══════════ */}
       <AnimatedSection>
-        <section className="py-32 px-6" style={{ background: BG_ZINC_950 }}>
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white">{t.experts}</h2>
-            <button
+        <section className="py-32 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
+          <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.12 }} />
+          <div className="max-w-4xl mx-auto text-center relative z-10">
+            <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+              {t.experts}
+            </h2>
+            <motion.button
+              whileHover={{ scale: 1.06, background: PURPLE, color: BG_BLACK }}
+              whileTap={{ scale: 0.97 }}
               onClick={onSigninClick}
-              className="px-10 py-5 rounded-full text-lg font-bold transition hover:scale-105 flex items-center gap-3 mx-auto"
-              style={{ background: "transparent", border: `2px solid ${NEON_GREEN}`, color: NEON_GREEN }}
+              className="px-10 py-5 rounded-full text-lg font-bold inline-flex items-center gap-3"
+              style={{ background: "transparent", border: `2px solid ${PURPLE}`, color: PURPLE }}
             >
-              Commencer gratuitement
+              {t.ctaMain}
               <ArrowRight className="w-5 h-5" />
-            </button>
+            </motion.button>
           </div>
         </section>
       </AnimatedSection>
 
       {/* ═══════════ FOOTER ═══════════ */}
-      <footer style={{ background: BG_ZINC_950 }} className="py-16 px-6 border-t" style={{ borderColor: BORDER_ZINC_800 }}>
+      <footer className="py-16 px-6 border-t" style={{ background: BG_ZINC_950, borderColor: BORDER_ZINC_800 }}>
         <div className="max-w-7xl mx-auto text-center">
-          <Logo size={40} />
+          <div className="flex justify-center"><Logo size={36} /></div>
           <div className="flex items-center justify-center gap-6 mt-6 text-sm" style={{ color: TEXT_ZINC_600 }}>
             <a href="#" className="hover:text-white transition">Conditions</a>
             <a href="#" className="hover:text-white transition">Confidentialité</a>
