@@ -27,6 +27,9 @@ import {
   Video,
   Share2,
   Headphones,
+  Copy,
+  MousePointerClick,
+  Download,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView } from "motion/react";
 
@@ -41,7 +44,7 @@ export interface LandingPageProps {
 const BG_BLACK = "#000000";
 const BG_ZINC_950 = "#09090B";
 const BG_ZINC_900 = "#18181B";
-const BG_CARD = "rgba(24, 24, 27, 0.85)"; // Plus opaque pour mieux voir
+const BG_CARD = "rgba(24, 24, 27, 0.85)";
 const PURPLE = "#A855F7";
 const PURPLE_SOFT = "#D8B4FE";
 const PURPLE_DEEP = "#6D28D9";
@@ -165,7 +168,6 @@ function useScrolled(threshold = 40) {
   return scrolled;
 }
 
-/* Hook pour calculer le pourcentage de scroll */
 function useScrollProgress() {
   const [progress, setProgress] = useState(0);
   
@@ -288,7 +290,7 @@ const SectionGlow = ({ style = {} }: { style?: React.CSSProperties }) => (
   />
 );
 
-const AudioWidget = () => (
+const AudioWidget = ({ label, sublabel }: { label: string; sublabel: string }) => (
   <motion.div
     className="glass-dark p-6 rounded-[28px] shadow-2xl neon-glow"
     style={{ maxWidth: 300 }}
@@ -300,8 +302,8 @@ const AudioWidget = () => (
         <Sparkles className="w-5 h-5" style={{ color: BG_BLACK }} />
       </div>
       <div>
-        <p className="text-sm font-semibold text-white">Génération en cours…</p>
-        <p className="text-xs" style={{ color: TEXT_ZINC_400 }}>Darija algérienne</p>
+        <p className="text-sm font-semibold text-white">{label}</p>
+        <p className="text-xs" style={{ color: TEXT_ZINC_400 }}>{sublabel}</p>
       </div>
     </div>
     <div className="flex items-end justify-center gap-1 h-16">
@@ -412,11 +414,13 @@ const PricingCard = ({
   chooseLabel,
   audiosLabel,
   featuresLabels,
+  popularLabel,
 }: {
   tier: { points: number; price: string; audios: string; badge?: string; popular?: boolean };
   chooseLabel: string;
   audiosLabel: string;
   featuresLabels: string[];
+  popularLabel: string;
 }) => {
   const popular = !!tier.popular;
   return (
@@ -434,7 +438,7 @@ const PricingCard = ({
           className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
           style={{ background: TEXT_WHITE, color: PURPLE_DEEP }}
         >
-          <Sparkles className="w-3.5 h-3.5" /> Populaire
+          <Sparkles className="w-3.5 h-3.5" /> {popularLabel}
         </span>
       )}
       <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: popular ? "rgba(255,255,255,0.8)" : TEXT_ZINC_400 }}>
@@ -521,7 +525,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     try {
       saved = window.localStorage.getItem("sawtify_lang");
     } catch {}
-    const target = saved === "fr" || saved === "ar" ? saved : "fr";
+    // ARABE PAR DÉFAUT
+    const target = saved === "fr" || saved === "ar" ? saved : "ar";
     if (target !== language) setLanguage(target);
   }, [language, setLanguage]);
 
@@ -563,11 +568,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       testVoicesSub: isRTL ? "3 أصوات من بين 30، مسجلة مباشرة من المنصة" : "3 voix parmi 30, générées directement sur la plateforme",
       audiosLabel: isRTL ? "أوديو" : "audios",
       choose: isRTL ? "اختار" : "Choisir",
+      popularLabel: isRTL ? "الأكثر شعبية" : "Populaire",
       testimonialQuote: isRTL
         ? "بدلت الفويس أوفر تاعي بـ Sawtify ووفرت وقت ومصاري بزاف. جودة استوديو حقيقية، بالدارجة تاعنا."
         : "On a remplacé notre voix-off traditionnelle par Sawtify. Résultat : la même qualité studio, en darija authentique, pour une fraction du budget et du temps.",
       testimonialName: isRTL ? "سارة ب." : "Sarah B.",
       testimonialRole: isRTL ? "مسؤولة محتوى، وكالة رقمية" : "Responsable contenu, agence digitale",
+      
+      /* Bento Grid */
+      bentoTitle: isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction",
+      bentoStep1: isRTL ? "انسخ. اختار صوت. نزل." : "Copiez. Choisissez une voix. Téléchargez.",
+      bentoStep1Desc: isRTL ? "بلا برامج، بلا تعقيدات تقنية — الأوديو تاعك جاهز بضغطة زر." : "Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.",
+      bentoStep1Copy: isRTL ? "انسخ النص" : "Copier le texte",
+      bentoStep1Voice: isRTL ? "اختار الصوت" : "Choisir la voix",
+      bentoStep1Download: isRTL ? "نزل الملف" : "Télécharger",
+      bentoSpeed: isRTL ? "30 ثانية بالضبط" : "30 secondes chrono",
+      bentoSpeedDesc: isRTL ? "الوقت اللي تحتاجه باش تحضر المحتوى تاعك." : "Le temps de préparer votre publication.",
+      bentoVoices: isRTL ? "30 صوت، نبرة لكل مشروع" : "30 voix, un ton pour chaque projet",
+      bentoVoicesDesc: isRTL ? "رجال، نساء، تجاري، وثائقي، سوشيال ميديا." : "Hommes, femmes, commercial, documentaire, réseaux sociaux.",
+      bentoRights: isRTL ? "حقوق تجارية كاملة" : "Droits commerciaux inclus",
+      bentoRightsDesc: isRTL ? "استعمل الأوديو تاعك في يوتيوب، تيكتوك، إشهار أو بودكاست — بلا قيود، بلا مصاري مخفية." : "Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.",
+      
+      /* Audio widget */
+      generating: isRTL ? "جاري التوليد…" : "Génération en cours…",
+      darija: isRTL ? "الدارجة الجزائرية" : "Darija algérienne",
+      
+      /* Footer */
+      footerTerms: isRTL ? "الشروط" : "Conditions",
+      footerPrivacy: isRTL ? "الخصوصية" : "Confidentialité",
+      footerContact: isRTL ? "اتصل بنا" : "Contact",
+      footerMade: isRTL ? "© 2026 Sawtify. صُنع في الجزائر 🇩🇿" : "© 2026 Sawtify. Made in Algeria 🇩🇿",
     }),
     [isRTL]
   );
@@ -612,11 +642,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         { q: "Quels moyens de paiement ?", a: "Edahabia et CIB via SATIM, directement en dinars algériens." },
       ];
 
-  const voices = [
-    { name: "Amine", role: "Voix commerciale", audioUrl: AMINE_AUDIO },
-    { name: "Yasmine", role: "Voix publicitaire", audioUrl: YASMINE_AUDIO },
-    { name: "Khalid", role: "Voix documentaire", audioUrl: KHALID_AUDIO },
-  ];
+  const voices = isRTL
+    ? [
+        { name: "أمين", role: "صوت تجاري", audioUrl: AMINE_AUDIO },
+        { name: "ياسمين", role: "صوت إشهاري", audioUrl: YASMINE_AUDIO },
+        { name: "خالد", role: "صوت وثائقي", audioUrl: KHALID_AUDIO },
+      ]
+    : [
+        { name: "Amine", role: "Voix commerciale", audioUrl: AMINE_AUDIO },
+        { name: "Yasmine", role: "Voix publicitaire", audioUrl: YASMINE_AUDIO },
+        { name: "Khalid", role: "Voix documentaire", audioUrl: KHALID_AUDIO },
+      ];
 
   const pricingTiers = [
     { points: 100, price: "500", audios: "~5" },
@@ -629,7 +665,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     ? ["كل الأصوات HQ", "استخدام تجاري"]
     : ["Toutes les voix HQ", "Usage commercial"];
 
-  // Calculer la hauteur du gradient qui monte
   const gradientHeight = `${scrollProgress * 100}%`;
 
   return (
@@ -645,7 +680,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
 
       {/* ═══════════ FOND FIXE avec gradient qui monte ═══════════ */}
       <div className="fixed inset-0 z-0">
-        {/* Image de fond */}
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ 
@@ -654,7 +688,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           }}
         />
         
-        {/* Gradient noir de base (toujours présent) */}
         <div 
           className="absolute inset-0" 
           style={{ 
@@ -662,7 +695,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           }} 
         />
         
-        {/* Gradient noir qui monte avec le scroll */}
         <div 
           className="absolute inset-x-0 bottom-0 transition-all duration-75"
           style={{ 
@@ -810,7 +842,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
             transition={{ duration: 0.8, delay: 0.7 }}
             className="absolute bottom-10 right-10 hidden lg:block"
           >
-            <AudioWidget />
+            <AudioWidget label={t.generating} sublabel={t.darija} />
           </motion.div>
         </section>
 
@@ -867,20 +899,64 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
             <div className="absolute inset-0 grid-texture" />
             <div className="max-w-7xl mx-auto relative z-10">
               <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
-                {isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction"}
+                {t.bentoTitle}
               </h2>
               <div className="grid md:grid-cols-3 gap-6">
+                
+                {/* Carte workflow avec mockup */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
                   className="md:col-span-2 p-10 rounded-[32px] border"
                   style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
                 >
-                  <h3 className="text-3xl font-bold mb-4 text-white">Copiez. Choisissez une voix. Téléchargez.</h3>
-                  <p className="text-lg mb-6" style={{ color: TEXT_ZINC_400 }}>Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.</p>
-                  <div className="h-48 rounded-2xl" style={{ background: BG_ZINC_900 }} />
+                  <h3 className="text-3xl font-bold mb-4 text-white">{t.bentoStep1}</h3>
+                  <p className="text-lg mb-8" style={{ color: TEXT_ZINC_400 }}>{t.bentoStep1Desc}</p>
+                  
+                  {/* Mockup éditeur */}
+                  <div className="rounded-2xl border p-6" style={{ background: BG_ZINC_900, borderColor: BORDER_ZINC_800 }}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-3 h-3 rounded-full" style={{ background: "#EF4444" }} />
+                      <div className="w-3 h-3 rounded-full" style={{ background: "#F59E0B" }} />
+                      <div className="w-3 h-3 rounded-full" style={{ background: "#10B981" }} />
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {/* Ligne texte */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: PURPLE_GLOW }}>
+                          <Copy className="w-4 h-4" style={{ color: PURPLE }} />
+                        </div>
+                        <div className="flex-1 h-10 rounded-lg flex items-center px-4" style={{ background: BG_ZINC_950, border: `1px solid ${BORDER_ZINC_800}` }}>
+                          <span className="text-sm" style={{ color: TEXT_ZINC_600 }}>{t.bentoStep1Copy}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Ligne voix */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: PURPLE_GLOW }}>
+                          <MousePointerClick className="w-4 h-4" style={{ color: PURPLE }} />
+                        </div>
+                        <div className="flex-1 h-10 rounded-lg flex items-center px-4 gap-2" style={{ background: BG_ZINC_950, border: `1px solid ${BORDER_ZINC_800}` }}>
+                          <div className="w-5 h-5 rounded-full" style={{ background: PURPLE }} />
+                          <span className="text-sm" style={{ color: TEXT_ZINC_400 }}>{t.bentoStep1Voice}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Ligne download */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: PURPLE_GLOW }}>
+                          <Download className="w-4 h-4" style={{ color: PURPLE }} />
+                        </div>
+                        <div className="flex-1 h-10 rounded-lg flex items-center justify-center gap-2" style={{ background: PURPLE }}>
+                          <span className="text-sm font-bold" style={{ color: BG_BLACK }}>{t.bentoStep1Download}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </motion.div>
 
+                {/* Carte vitesse */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
@@ -890,20 +966,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
                   <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 neon-glow" style={{ background: PURPLE }}>
                     <Zap className="w-8 h-8" style={{ color: BG_BLACK }} />
                   </div>
-                  <h3 className="text-2xl font-bold text-white">30 secondes chrono</h3>
-                  <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>Le temps de préparer votre publication.</p>
+                  <h3 className="text-2xl font-bold text-white">{t.bentoSpeed}</h3>
+                  <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>{t.bentoSpeedDesc}</p>
                 </motion.div>
 
+                {/* Carte voix */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
                   className="p-10 rounded-[32px] border"
                   style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
                 >
-                  <h3 className="text-2xl font-bold mb-4 text-white">30 voix, un ton pour chaque projet</h3>
-                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Hommes, femmes, commercial, documentaire, réseaux sociaux.</p>
+                  <h3 className="text-2xl font-bold mb-4 text-white">{t.bentoVoices}</h3>
+                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>{t.bentoVoicesDesc}</p>
                 </motion.div>
 
+                {/* Carte droits */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
@@ -914,9 +992,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
                     <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
                       <Check className="w-6 h-6" style={{ color: BG_BLACK }} />
                     </div>
-                    <h3 className="text-2xl font-bold text-white">Droits commerciaux inclus</h3>
+                    <h3 className="text-2xl font-bold text-white">{t.bentoRights}</h3>
                   </div>
-                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.</p>
+                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>{t.bentoRightsDesc}</p>
                 </motion.div>
               </div>
             </div>
@@ -937,7 +1015,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {pricingTiers.map((tier, i) => (
                   <AnimatedSection key={i} delay={i * 0.1}>
-                    <PricingCard tier={tier} chooseLabel={t.choose} audiosLabel={t.audiosLabel} featuresLabels={featuresLabels} />
+                    <PricingCard 
+                      tier={tier} 
+                      chooseLabel={t.choose} 
+                      audiosLabel={t.audiosLabel} 
+                      featuresLabels={featuresLabels} 
+                      popularLabel={t.popularLabel}
+                    />
                   </AnimatedSection>
                 ))}
               </div>
@@ -999,11 +1083,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           <div className="max-w-7xl mx-auto text-center">
             <div className="flex justify-center"><Logo size={36} /></div>
             <div className="flex items-center justify-center gap-6 mt-6 text-sm" style={{ color: TEXT_ZINC_600 }}>
-              <a href="#" className="hover:text-white transition">Conditions</a>
-              <a href="#" className="hover:text-white transition">Confidentialité</a>
-              <a href="#" className="hover:text-white transition">Contact</a>
+              <a href="#" className="hover:text-white transition">{t.footerTerms}</a>
+              <a href="#" className="hover:text-white transition">{t.footerPrivacy}</a>
+              <a href="#" className="hover:text-white transition">{t.footerContact}</a>
             </div>
-            <p className="mt-4 text-sm" style={{ color: TEXT_ZINC_600 }}>© 2026 Sawtify. Made in Algeria 🇩🇿</p>
+            <p className="mt-4 text-sm" style={{ color: TEXT_ZINC_600 }}>{t.footerMade}</p>
           </div>
         </footer>
       </div>
