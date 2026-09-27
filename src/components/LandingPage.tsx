@@ -30,6 +30,8 @@ import {
   Copy,
   MousePointerClick,
   Download,
+  Gift,
+  ShieldCheck,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView } from "motion/react";
 
@@ -170,7 +172,7 @@ function useScrolled(threshold = 40) {
 
 function useScrollProgress() {
   const [progress, setProgress] = useState(0);
-  
+
   useEffect(() => {
     let raf = 0;
     const compute = () => {
@@ -179,23 +181,23 @@ function useScrollProgress() {
       const scrollPercent = Math.min(1, Math.max(0, scrolled / docHeight));
       setProgress(scrollPercent);
     };
-    
+
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(compute);
     };
-    
+
     compute();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    
+
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       cancelAnimationFrame(raf);
     };
   }, []);
-  
+
   return progress;
 }
 
@@ -236,7 +238,7 @@ function useVoicePlayer() {
     [playingId, play, stop]
   );
 
-  return { playingId, progress, toggle, stop };
+  return { playingId, progress, toggle, stop, play };
 }
 
 /* ═══════════ COMPONENTS ═══════════ */
@@ -290,34 +292,30 @@ const SectionGlow = ({ style = {} }: { style?: React.CSSProperties }) => (
   />
 );
 
-const AudioWidget = ({ label, sublabel }: { label: string; sublabel: string }) => (
-  <motion.div
-    className="glass-dark p-6 rounded-[28px] shadow-2xl neon-glow"
-    style={{ maxWidth: 300 }}
+/* Widget "micro" flottant du hero — clique = direction sign in, notif points gratuits */
+const MicWidget = ({ label, sublabel, onClick }: { label: string; sublabel: string; onClick: () => void }) => (
+  <motion.button
+    onClick={onClick}
+    whileHover={{ scale: 1.04 }}
+    whileTap={{ scale: 0.96 }}
     animate={{ y: [0, -10, 0] }}
-    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+    transition={{ y: { duration: 4, repeat: Infinity, ease: "easeInOut" } }}
+    className="glass-dark p-5 rounded-[28px] shadow-2xl neon-glow flex items-center gap-4 text-left"
+    style={{ maxWidth: 300 }}
   >
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
-        <Sparkles className="w-5 h-5" style={{ color: BG_BLACK }} />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-white">{label}</p>
-        <p className="text-xs" style={{ color: TEXT_ZINC_400 }}>{sublabel}</p>
-      </div>
+    <motion.div
+      className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
+      style={{ background: PURPLE }}
+      animate={{ scale: [1, 1.15, 1] }}
+      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+    >
+      <Mic className="w-6 h-6" style={{ color: BG_BLACK }} />
+    </motion.div>
+    <div>
+      <p className="text-sm font-bold text-white leading-snug">{label}</p>
+      <p className="text-xs mt-0.5" style={{ color: TEXT_ZINC_400 }}>{sublabel}</p>
     </div>
-    <div className="flex items-end justify-center gap-1 h-16">
-      {Array.from({ length: 20 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="w-1 rounded-full"
-          style={{ background: PURPLE }}
-          animate={{ height: [`${10 + Math.random() * 30}%`, `${40 + Math.random() * 60}%`, `${10 + Math.random() * 30}%`] }}
-          transition={{ duration: 0.8 + Math.random() * 0.6, repeat: Infinity, ease: "easeInOut", delay: i * 0.04 }}
-        />
-      ))}
-    </div>
-  </motion.div>
+  </motion.button>
 );
 
 const VoiceOrbCard = ({
@@ -332,13 +330,23 @@ const VoiceOrbCard = ({
   player: any;
 }) => {
   const playing = player.playingId === audioUrl;
+
+  const start = useCallback(() => {
+    if (player.playingId !== audioUrl) player.play(audioUrl, audioUrl);
+  }, [player, audioUrl]);
+
   return (
     <motion.div
       whileHover={{ y: -8 }}
       transition={{ type: "spring", stiffness: 250, damping: 20 }}
       className="flex flex-col items-center text-center gap-4"
     >
-      <div className="relative" style={{ width: 132, height: 132 }}>
+      <div
+        className="relative cursor-pointer"
+        style={{ width: 132, height: 132 }}
+        onClick={() => player.toggle(audioUrl, audioUrl)}
+        onMouseEnter={start}
+      >
         <motion.div
           className="absolute inset-0 rounded-full p-[3px]"
           style={{ background: `conic-gradient(from 0deg, ${PURPLE}, ${PURPLE_SOFT}, ${PURPLE_DEEP}, ${PURPLE})` }}
@@ -353,15 +361,14 @@ const VoiceOrbCard = ({
         >
           {name.charAt(0)}
         </div>
-        <motion.button
+        <motion.div
           whileHover={{ scale: 1.15 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => player.toggle(audioUrl, audioUrl)}
-          className="absolute bottom-0 right-0 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+          className="absolute bottom-0 right-0 w-11 h-11 rounded-full flex items-center justify-center shadow-lg pointer-events-none"
           style={{ background: PURPLE, boxShadow: `0 0 20px ${PURPLE_GLOW_STRONG}` }}
         >
           {playing ? <Pause className="w-4 h-4" style={{ color: BG_BLACK }} /> : <Play className="w-4 h-4 ml-0.5" style={{ color: BG_BLACK }} />}
-        </motion.button>
+        </motion.div>
       </div>
       <div>
         <h4 className="font-bold text-white text-lg">{name}</h4>
@@ -415,14 +422,21 @@ const PricingCard = ({
   audiosLabel,
   featuresLabels,
   popularLabel,
+  isRTL,
 }: {
   tier: { points: number; price: string; audios: string; badge?: string; popular?: boolean };
   chooseLabel: string;
   audiosLabel: string;
   featuresLabels: string[];
   popularLabel: string;
+  isRTL: boolean;
 }) => {
   const popular = !!tier.popular;
+
+  // Prix et points en chiffres normaux (jamais inversés, même en RTL)
+  const formattedPrice = tier.price;
+  const formattedPoints = tier.points.toLocaleString();
+
   return (
     <motion.div
       whileHover={{ y: -8, boxShadow: popular ? `0 0 40px ${PURPLE_GLOW_STRONG}` : `0 0 25px ${PURPLE_GLOW}` }}
@@ -442,10 +456,10 @@ const PricingCard = ({
         </span>
       )}
       <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: popular ? "rgba(255,255,255,0.8)" : TEXT_ZINC_400 }}>
-        {tier.points.toLocaleString()} points {tier.badge && <span className="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" style={{ background: popular ? "rgba(0,0,0,0.25)" : PURPLE_GLOW, color: popular ? TEXT_WHITE : PURPLE_SOFT }}>{tier.badge}</span>}
+        {formattedPoints} points {tier.badge && <span className="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" style={{ background: popular ? "rgba(0,0,0,0.25)" : PURPLE_GLOW, color: popular ? TEXT_WHITE : PURPLE_SOFT }}>{tier.badge}</span>}
       </p>
-      <p className="text-4xl font-extrabold mb-1" style={{ color: TEXT_WHITE, fontFamily: FR_HEADING_STACK }}>
-        {tier.price} <span className="text-base font-semibold" style={{ color: popular ? "rgba(255,255,255,0.75)" : TEXT_ZINC_400 }}>DZD</span>
+      <p className="text-4xl font-extrabold mb-1" dir="ltr" style={{ color: TEXT_WHITE, fontFamily: FR_HEADING_STACK }}>
+        {formattedPrice} <span className="text-base font-semibold" style={{ color: popular ? "rgba(255,255,255,0.75)" : TEXT_ZINC_400 }}>DZD</span>
       </p>
       <p className="text-sm mb-6" style={{ color: popular ? "rgba(255,255,255,0.75)" : TEXT_ZINC_400 }}>{tier.audios} {audiosLabel}</p>
       <ul className="space-y-2 mb-8 flex-1">
@@ -509,6 +523,59 @@ const Testimonial = ({
   </div>
 );
 
+/* Petite carte témoignage, pour la grille de témoignages additionnels */
+const TestimonialMini = ({ quote, name, role }: { quote: string; name: string; role: string }) => (
+  <div className="rounded-[28px] p-8 border h-full flex flex-col" style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}>
+    <div className="flex items-center gap-1 mb-4">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star key={i} className="w-4 h-4" style={{ color: PURPLE, fill: PURPLE }} />
+      ))}
+    </div>
+    <p className="text-base leading-relaxed mb-6 flex-1" style={{ color: TEXT_ZINC_400 }}>« {quote} »</p>
+    <div className="flex items-center gap-3">
+      <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold shrink-0" style={{ background: PURPLE, color: BG_BLACK }}>
+        {name.charAt(0)}
+      </div>
+      <div>
+        <p className="font-bold text-white text-sm">{name}</p>
+        <p className="text-xs" style={{ color: TEXT_ZINC_600 }}>{role}</p>
+      </div>
+    </div>
+  </div>
+);
+
+/* Carte d'étape (design des 3 étapes) */
+const StepCard = ({
+  number,
+  icon: Icon,
+  title,
+  desc,
+}: {
+  number: string;
+  icon: any;
+  title: string;
+  desc: string;
+}) => (
+  <motion.div
+    whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
+    transition={{ type: "spring", stiffness: 250, damping: 20 }}
+    className="relative p-8 rounded-[28px] border flex flex-col items-start"
+    style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+  >
+    <span
+      className="absolute top-6 right-6 text-5xl font-extrabold opacity-10 select-none"
+      style={{ fontFamily: FR_HEADING_STACK }}
+    >
+      {number}
+    </span>
+    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6" style={{ background: PURPLE_GLOW }}>
+      <Icon className="w-7 h-7" style={{ color: PURPLE }} />
+    </div>
+    <h4 className="text-xl font-bold text-white mb-2">{title}</h4>
+    <p className="text-sm leading-relaxed" style={{ color: TEXT_ZINC_400 }}>{desc}</p>
+  </motion.div>
+);
+
 /* ═══════════ MAIN COMPONENT ═══════════ */
 export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSigninClick, language, setLanguage }) => {
   const isRTL = language === "ar";
@@ -525,7 +592,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     try {
       saved = window.localStorage.getItem("sawtify_lang");
     } catch {}
-    // ARABE PAR DÉFAUT
     const target = saved === "fr" || saved === "ar" ? saved : "ar";
     if (target !== language) setLanguage(target);
   }, [language, setLanguage]);
@@ -545,7 +611,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
 
   const t = useMemo(
     () => ({
-      kicker: isRTL ? "الجيل الجديد من الصوت الاصطناعي" : "L'IA vocale nouvelle génération",
       heroTitle: isRTL ? "خلي المحتوى تاعك يهدر بالدارجة الحقيقية" : "Faites parler votre contenu, en vraie darija",
       heroSub: isRTL
         ? "أول محرك ذكاء اصطناعي يهدر بالدارجة الجزائرية الأصيلة. صوت استوديو، بلا ميكروفون، بلا مونتاج، في 30 ثانية."
@@ -564,6 +629,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         : "Choisissez votre pack et payez en toute sécurité via Edahabia ou CIB. Vos points n'expirent jamais.",
       faqTitle: isRTL ? "الأسئلة الشائعة" : "Vos questions, nos réponses",
       experts: isRTL ? "جاهز تبدا؟" : "Prêt à faire parler votre marque ?",
+      expertsSub: isRTL
+        ? "انضم لأكثر من 500 صانع محتوى ومسوق يستعملو Sawtify كل يوم. بلا بطاقة بنكية، بلا التزام."
+        : "Rejoignez plus de 500 créateurs et marketeurs qui utilisent Sawtify chaque jour. Sans carte bancaire, sans engagement.",
+      trust1: isRTL ? "بلا بطاقة بنكية" : "Sans carte bancaire",
+      trust2: isRTL ? "النتيجة في 30 ثانية" : "Résultat en 30 secondes",
+      trust3: isRTL ? "50 نقطة مجانية عند التسجيل" : "50 points offerts à l'inscription",
       testVoices: isRTL ? "استمع بروحك" : "Écoutez par vous-même",
       testVoicesSub: isRTL ? "3 أصوات من بين 30، مسجلة مباشرة من المنصة" : "3 voix parmi 30, générées directement sur la plateforme",
       audiosLabel: isRTL ? "أوديو" : "audios",
@@ -574,26 +645,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         : "On a remplacé notre voix-off traditionnelle par Sawtify. Résultat : la même qualité studio, en darija authentique, pour une fraction du budget et du temps.",
       testimonialName: isRTL ? "سارة ب." : "Sarah B.",
       testimonialRole: isRTL ? "مسؤولة محتوى، وكالة رقمية" : "Responsable contenu, agence digitale",
-      
-      /* Bento Grid */
+
+      testimonial2Quote: isRTL
+        ? "من يوم بديت نستعمل Sawtify، الفيديوهات ديالي زادت المشاهدة بزاف. الناس يقولولي واش هاد الصوت طبيعي، ماشي مصدقين راه AI!"
+        : "Depuis que j'utilise Sawtify, mes vidéos ont explosé en vues. Les gens n'arrivent pas à croire que c'est une IA.",
+      testimonial2Name: isRTL ? "ياسين ك." : "Yacine K.",
+      testimonial2Role: isRTL ? "صانع محتوى، تيك توك" : "Créateur de contenu TikTok",
+
+      testimonial3Quote: isRTL
+        ? "خدمة تفهم الدارجة الحقيقية، ماشي كي التطبيقات لخرين اللي يهدرو بالفصحى. ربحنا وقت وفلوس بزاف فالمشاريع ديال الكلاينات."
+        : "Enfin une IA qui comprend la vraie darija, pas l'arabe classique des autres apps. On gagne un temps fou sur chaque projet client.",
+      testimonial3Name: isRTL ? "نور الدين س." : "Noureddine S.",
+      testimonial3Role: isRTL ? "مدير وكالة تسويق" : "Directeur, agence marketing",
+
+      stepsTitle: isRTL ? "انسخ. اختار صوت. نزل." : "Copiez. Choisissez une voix. Téléchargez.",
+      stepsSub: isRTL
+        ? "بلا برامج، بلا تعقيدات تقنية — الأوديو تاعك جاهز بضغطة زر."
+        : "Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.",
+      step1Title: isRTL ? "انسخ النص" : "Copiez le texte",
+      step1Desc: isRTL ? "دير بايست للنص تاعك، بأي لغة أو دارجة." : "Collez votre texte, dans n'importe quelle langue ou darija.",
+      step2Title: isRTL ? "اختار الصوت" : "Choisissez la voix",
+      step2Desc: isRTL ? "اختار من بين 30 صوت، رجال ونساء، بنبرة تناسب المشروع." : "Sélectionnez parmi 30 voix, hommes et femmes, pour le ton parfait.",
+      step3Title: isRTL ? "نزل الملف" : "Téléchargez",
+      step3Desc: isRTL ? "الأوديو جاهز فـ 30 ثانية، جودة استوديو، جاهز للنشر." : "Votre audio est prêt en 30 secondes, qualité studio, prêt à publier.",
+
       bentoTitle: isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction",
-      bentoStep1: isRTL ? "انسخ. اختار صوت. نزل." : "Copiez. Choisissez une voix. Téléchargez.",
-      bentoStep1Desc: isRTL ? "بلا برامج، بلا تعقيدات تقنية — الأوديو تاعك جاهز بضغطة زر." : "Pas de logiciel à installer, pas de compétence technique requise — votre audio est prêt en un clic.",
-      bentoStep1Copy: isRTL ? "انسخ النص" : "Copier le texte",
-      bentoStep1Voice: isRTL ? "اختار الصوت" : "Choisir la voix",
-      bentoStep1Download: isRTL ? "نزل الملف" : "Télécharger",
       bentoSpeed: isRTL ? "30 ثانية بالضبط" : "30 secondes chrono",
       bentoSpeedDesc: isRTL ? "الوقت اللي تحتاجه باش تحضر المحتوى تاعك." : "Le temps de préparer votre publication.",
       bentoVoices: isRTL ? "30 صوت، نبرة لكل مشروع" : "30 voix, un ton pour chaque projet",
       bentoVoicesDesc: isRTL ? "رجال، نساء، تجاري، وثائقي، سوشيال ميديا." : "Hommes, femmes, commercial, documentaire, réseaux sociaux.",
       bentoRights: isRTL ? "حقوق تجارية كاملة" : "Droits commerciaux inclus",
       bentoRightsDesc: isRTL ? "استعمل الأوديو تاعك في يوتيوب، تيكتوك، إشهار أو بودكاست — بلا قيود، بلا مصاري مخفية." : "Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.",
-      
-      /* Audio widget */
-      generating: isRTL ? "جاري التوليد…" : "Génération en cours…",
-      darija: isRTL ? "الدارجة الجزائرية" : "Darija algérienne",
-      
-      /* Footer */
+
+      freePoints: isRTL ? "🎁 اربح 50 نقطة مجانية هنا" : "🎁 Gagne 50 points gratuits ici",
+      freePointsSub: isRTL ? "اضغط باش تبدا" : "Clique pour commencer",
+
       footerTerms: isRTL ? "الشروط" : "Conditions",
       footerPrivacy: isRTL ? "الخصوصية" : "Confidentialité",
       footerContact: isRTL ? "اتصل بنا" : "Contact",
@@ -656,14 +742,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
 
   const pricingTiers = [
     { points: 100, price: "500", audios: "~5" },
-    { points: 220, price: "1 000", audios: "~11", badge: "+10%", popular: true },
-    { points: 600, price: "2 500", audios: "~30", badge: "+20%" },
-    { points: 1350, price: "5 000", audios: "~67", badge: "+35%" },
+    { points: 220, price: "1000", audios: "~11", badge: "+10%", popular: true },
+    { points: 600, price: "2500", audios: "~30", badge: "+20%" },
+    { points: 1350, price: "5000", audios: "~67", badge: "+35%" },
   ];
 
   const featuresLabels = isRTL
     ? ["كل الأصوات HQ", "استخدام تجاري"]
     : ["Toutes les voix HQ", "Usage commercial"];
+
+  const extraTestimonials = [
+    { quote: t.testimonial2Quote, name: t.testimonial2Name, role: t.testimonial2Role },
+    { quote: t.testimonial3Quote, name: t.testimonial3Name, role: t.testimonial3Role },
+  ];
+
+  const steps = [
+    { number: "01", icon: Copy, title: t.step1Title, desc: t.step1Desc },
+    { number: "02", icon: MousePointerClick, title: t.step2Title, desc: t.step2Desc },
+    { number: "03", icon: Download, title: t.step3Title, desc: t.step3Desc },
+  ];
 
   const gradientHeight = `${scrollProgress * 100}%`;
 
@@ -678,34 +775,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         <meta name="description" content={t.heroSub} />
       </Helmet>
 
-      {/* ═══════════ FOND FIXE avec gradient qui monte ═══════════ */}
       <div className="fixed inset-0 z-0">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ 
-            backgroundImage: `url(${HERO_IMAGE})`, 
-            filter: "brightness(0.4) contrast(1.2) saturate(0.85)" 
+          style={{
+            backgroundImage: `url(${HERO_IMAGE})`,
+            filter: "brightness(0.4) contrast(1.2) saturate(0.85)"
           }}
         />
-        
-        <div 
-          className="absolute inset-0" 
-          style={{ 
-            background: `linear-gradient(to top, ${BG_BLACK} 0%, rgba(0,0,0,0.75) 40%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.2) 100%)` 
-          }} 
+
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(to top, ${BG_BLACK} 0%, rgba(0,0,0,0.75) 40%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.2) 100%)`
+          }}
         />
-        
-        <div 
+
+        <div
           className="absolute inset-x-0 bottom-0 transition-all duration-75"
-          style={{ 
+          style={{
             height: gradientHeight,
             background: `linear-gradient(to top, ${BG_BLACK} 0%, ${BG_BLACK} 60%, rgba(0,0,0,0.9) 80%, transparent 100%)`,
             pointerEvents: 'none'
-          }} 
+          }}
         />
       </div>
 
-      {/* ═══════════ NAVBAR ═══════════ */}
       <header className="fixed top-4 inset-x-0 z-50 flex justify-center px-4">
         <motion.div
           initial={{ y: -30, opacity: 0 }}
@@ -757,7 +852,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         </motion.div>
       </header>
 
-      {/* ═══════════ MOBILE MENU ═══════════ */}
       <AnimatePresence>
         {menuOpen && (
           <>
@@ -785,25 +879,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         )}
       </AnimatePresence>
 
-      {/* ═══════════ CONTENU ═══════════ */}
       <div className="relative z-10">
-        {/* ═══════════ HERO ═══════════ */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.15 }} />
           <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.1, animationDelay: "4s" }} />
 
           <div className="relative z-10 text-center px-6 max-w-4xl">
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold"
-              style={{ background: PURPLE_GLOW, color: PURPLE_SOFT, border: `1px solid ${PURPLE_GLOW_STRONG}` }}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              {t.kicker}
-            </motion.div>
-
             <motion.h1
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
@@ -842,11 +923,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
             transition={{ duration: 0.8, delay: 0.7 }}
             className="absolute bottom-10 right-10 hidden lg:block"
           >
-            <AudioWidget label={t.generating} sublabel={t.darija} />
+            <MicWidget label={t.freePoints} sublabel={t.freePointsSub} onClick={onSigninClick} />
           </motion.div>
         </section>
 
-        {/* ═══════════ USAGES ═══════════ */}
         <AnimatedSection>
           <div className="py-12 relative">
             <p className="text-center mb-2 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
@@ -873,7 +953,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </div>
         </AnimatedSection>
 
-        {/* ═══════════ VOICE TESTS ═══════════ */}
         <AnimatedSection>
           <section className="py-24 px-6 relative overflow-hidden">
             <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
@@ -893,70 +972,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ BENTO GRID ═══════════ */}
         <AnimatedSection>
           <section id="features" className="py-24 px-6 relative overflow-hidden">
             <div className="absolute inset-0 grid-texture" />
             <div className="max-w-7xl mx-auto relative z-10">
-              <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+              <div className="text-center mb-14">
+                <h2 className="text-4xl md:text-6xl font-extrabold mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+                  {t.stepsTitle}
+                </h2>
+                <p className="text-lg max-w-2xl mx-auto" style={{ color: TEXT_ZINC_400 }}>{t.stepsSub}</p>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-6 mb-6">
+                {steps.map((s, i) => (
+                  <AnimatedSection key={i} delay={i * 0.1}>
+                    <StepCard number={s.number} icon={s.icon} title={s.title} desc={s.desc} />
+                  </AnimatedSection>
+                ))}
+              </div>
+
+              <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 mt-24 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
                 {t.bentoTitle}
               </h2>
               <div className="grid md:grid-cols-3 gap-6">
-                
-                {/* Carte workflow avec mockup */}
-                <motion.div
-                  whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
-                  transition={{ type: "spring", stiffness: 250, damping: 20 }}
-                  className="md:col-span-2 p-10 rounded-[32px] border"
-                  style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
-                >
-                  <h3 className="text-3xl font-bold mb-4 text-white">{t.bentoStep1}</h3>
-                  <p className="text-lg mb-8" style={{ color: TEXT_ZINC_400 }}>{t.bentoStep1Desc}</p>
-                  
-                  {/* Mockup éditeur */}
-                  <div className="rounded-2xl border p-6" style={{ background: BG_ZINC_900, borderColor: BORDER_ZINC_800 }}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-3 h-3 rounded-full" style={{ background: "#EF4444" }} />
-                      <div className="w-3 h-3 rounded-full" style={{ background: "#F59E0B" }} />
-                      <div className="w-3 h-3 rounded-full" style={{ background: "#10B981" }} />
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {/* Ligne texte */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: PURPLE_GLOW }}>
-                          <Copy className="w-4 h-4" style={{ color: PURPLE }} />
-                        </div>
-                        <div className="flex-1 h-10 rounded-lg flex items-center px-4" style={{ background: BG_ZINC_950, border: `1px solid ${BORDER_ZINC_800}` }}>
-                          <span className="text-sm" style={{ color: TEXT_ZINC_600 }}>{t.bentoStep1Copy}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Ligne voix */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: PURPLE_GLOW }}>
-                          <MousePointerClick className="w-4 h-4" style={{ color: PURPLE }} />
-                        </div>
-                        <div className="flex-1 h-10 rounded-lg flex items-center px-4 gap-2" style={{ background: BG_ZINC_950, border: `1px solid ${BORDER_ZINC_800}` }}>
-                          <div className="w-5 h-5 rounded-full" style={{ background: PURPLE }} />
-                          <span className="text-sm" style={{ color: TEXT_ZINC_400 }}>{t.bentoStep1Voice}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Ligne download */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: PURPLE_GLOW }}>
-                          <Download className="w-4 h-4" style={{ color: PURPLE }} />
-                        </div>
-                        <div className="flex-1 h-10 rounded-lg flex items-center justify-center gap-2" style={{ background: PURPLE }}>
-                          <span className="text-sm font-bold" style={{ color: BG_BLACK }}>{t.bentoStep1Download}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Carte vitesse */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
@@ -970,7 +1008,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
                   <p className="text-sm mt-2" style={{ color: TEXT_ZINC_400 }}>{t.bentoSpeedDesc}</p>
                 </motion.div>
 
-                {/* Carte voix */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
@@ -981,27 +1018,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
                   <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>{t.bentoVoicesDesc}</p>
                 </motion.div>
 
-                {/* Carte droits */}
                 <motion.div
                   whileHover={{ y: -6, boxShadow: `0 0 25px ${PURPLE_GLOW}`, borderColor: PURPLE }}
                   transition={{ type: "spring", stiffness: 250, damping: 20 }}
-                  className="md:col-span-2 p-10 rounded-[32px] border"
+                  className="p-10 rounded-[32px] border"
                   style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
                 >
-                  <div className="flex items-center gap-4 mb-6">
+                  <div className="flex items-center gap-4 mb-4">
                     <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: PURPLE }}>
                       <Check className="w-6 h-6" style={{ color: BG_BLACK }} />
                     </div>
-                    <h3 className="text-2xl font-bold text-white">{t.bentoRights}</h3>
+                    <h3 className="text-xl font-bold text-white">{t.bentoRights}</h3>
                   </div>
-                  <p className="text-lg" style={{ color: TEXT_ZINC_400 }}>{t.bentoRightsDesc}</p>
+                  <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{t.bentoRightsDesc}</p>
                 </motion.div>
               </div>
             </div>
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ PRICING ═══════════ */}
         <AnimatedSection>
           <section id="pricing" className="py-24 px-6 relative overflow-hidden">
             <SectionGlow style={{ top: "10%", right: "5%", width: 420, height: 420 }} />
@@ -1015,12 +1050,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {pricingTiers.map((tier, i) => (
                   <AnimatedSection key={i} delay={i * 0.1}>
-                    <PricingCard 
-                      tier={tier} 
-                      chooseLabel={t.choose} 
-                      audiosLabel={t.audiosLabel} 
-                      featuresLabels={featuresLabels} 
+                    <PricingCard
+                      tier={tier}
+                      chooseLabel={t.choose}
+                      audiosLabel={t.audiosLabel}
+                      featuresLabels={featuresLabels}
                       popularLabel={t.popularLabel}
+                      isRTL={isRTL}
                     />
                   </AnimatedSection>
                 ))}
@@ -1029,16 +1065,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ TÉMOIGNAGE ═══════════ */}
         <AnimatedSection>
           <section className="py-24 px-6 relative">
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-5xl mx-auto mb-10">
               <Testimonial quote={t.testimonialQuote} name={t.testimonialName} role={t.testimonialRole} />
+            </div>
+            <div className="max-w-5xl mx-auto grid sm:grid-cols-2 gap-6">
+              {extraTestimonials.map((tm, i) => (
+                <AnimatedSection key={i} delay={i * 0.1}>
+                  <TestimonialMini quote={tm.quote} name={tm.name} role={tm.role} />
+                </AnimatedSection>
+              ))}
             </div>
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ FAQ ═══════════ */}
         <AnimatedSection>
           <section id="faq" className="py-24 px-6">
             <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
@@ -1056,29 +1097,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ CTA ═══════════ */}
         <AnimatedSection>
           <section className="py-32 px-6 relative overflow-hidden">
             <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.1 }} />
             <div className="max-w-4xl mx-auto text-center relative z-10">
-              <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+              <h2 className="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
                 {t.experts}
               </h2>
+              <p className="text-lg mb-10 max-w-xl mx-auto" style={{ color: TEXT_ZINC_400 }}>
+                {t.expertsSub}
+              </p>
               <motion.button
-                whileHover={{ scale: 1.06, background: PURPLE, color: BG_BLACK }}
+                whileHover={{ scale: 1.06, boxShadow: `0 0 45px ${PURPLE_GLOW_STRONG}` }}
                 whileTap={{ scale: 0.97 }}
                 onClick={onSigninClick}
-                className="px-10 py-5 rounded-full text-lg font-bold inline-flex items-center gap-3"
-                style={{ background: "transparent", border: `2px solid ${PURPLE}`, color: PURPLE }}
+                className="px-12 py-5 rounded-full text-lg font-bold inline-flex items-center gap-3"
+                style={{ background: PURPLE, color: BG_BLACK }}
               >
                 {t.ctaMain}
                 <ArrowRight className="w-5 h-5" />
               </motion.button>
+
+              <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 mt-10">
+                <span className="flex items-center gap-2 text-sm font-medium" style={{ color: TEXT_ZINC_400 }}>
+                  <ShieldCheck className="w-4 h-4" style={{ color: PURPLE }} /> {t.trust1}
+                </span>
+                <span className="flex items-center gap-2 text-sm font-medium" style={{ color: TEXT_ZINC_400 }}>
+                  <Zap className="w-4 h-4" style={{ color: PURPLE }} /> {t.trust2}
+                </span>
+                <span className="flex items-center gap-2 text-sm font-medium" style={{ color: TEXT_ZINC_400 }}>
+                  <Gift className="w-4 h-4" style={{ color: PURPLE }} /> {t.trust3}
+                </span>
+              </div>
             </div>
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ FOOTER ═══════════ */}
         <footer className="py-16 px-6 border-t" style={{ borderColor: BORDER_ZINC_800 }}>
           <div className="max-w-7xl mx-auto text-center">
             <div className="flex justify-center"><Logo size={36} /></div>
