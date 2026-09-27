@@ -18,6 +18,8 @@ import {
   Zap,
   Plus,
   Minus,
+  Star,
+  Quote,
 } from "lucide-react";
 import {
   motion,
@@ -41,6 +43,7 @@ const BG_ZINC_900 = "#18181B";
 const BG_CARD = "rgba(24, 24, 27, 0.5)";
 const PURPLE = "#A855F7";
 const PURPLE_SOFT = "#D8B4FE";
+const PURPLE_DEEP = "#6D28D9";
 const PURPLE_GLOW = "rgba(168, 85, 247, 0.18)";
 const PURPLE_GLOW_STRONG = "rgba(168, 85, 247, 0.35)";
 const TEXT_WHITE = "#FFFFFF";
@@ -75,10 +78,6 @@ const GlobalStyles = () => (
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
     }
-    @keyframes wave {
-      0%, 100% { transform: scaleY(0.3); }
-      50% { transform: scaleY(1); }
-    }
     @keyframes pulse-glow {
       0%, 100% { box-shadow: 0 0 20px ${PURPLE_GLOW}; }
       50% { box-shadow: 0 0 40px ${PURPLE_GLOW_STRONG}; }
@@ -94,8 +93,6 @@ const GlobalStyles = () => (
       100% { background-position: 0% 50%; }
     }
 
-    .wave-bar { animation: wave 1.2s ease-in-out infinite; transform-origin: bottom; }
-
     .glass-dark {
       background: rgba(24, 24, 27, 0.8);
       backdrop-filter: blur(20px);
@@ -103,7 +100,7 @@ const GlobalStyles = () => (
       border: 1px solid ${BORDER_ZINC_700};
     }
     .neon-glow { animation: pulse-glow 3s ease-in-out infinite; }
-    .blob { animation: float-blob 12s ease-in-out infinite; filter: blur(80px); }
+    .blob { animation: float-blob 12s ease-in-out infinite; filter: blur(80px); pointer-events: none; }
 
     .marquee-container {
       display: flex;
@@ -137,6 +134,16 @@ const GlobalStyles = () => (
       transition: width 0.3s ease;
     }
     .nav-link:hover::after { width: 100%; }
+
+    .grid-texture {
+      background-image:
+        linear-gradient(${BORDER_ZINC_800} 1px, transparent 1px),
+        linear-gradient(90deg, ${BORDER_ZINC_800} 1px, transparent 1px);
+      background-size: 44px 44px;
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+      opacity: 0.5;
+    }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -241,8 +248,11 @@ const AnimatedSection = ({
   );
 };
 
-const WaveBar = ({ height, delay }: { height: number; delay: number }) => (
-  <div className="wave-bar w-1 rounded-full" style={{ height: `${height}%`, background: PURPLE, animationDelay: `${delay}s` }} />
+const SectionGlow = ({ style = {} }: { style?: React.CSSProperties }) => (
+  <div
+    className="absolute pointer-events-none blob rounded-full"
+    style={{ background: PURPLE, opacity: 0.1, ...style }}
+  />
 );
 
 const AudioWidget = () => (
@@ -263,58 +273,77 @@ const AudioWidget = () => (
     </div>
     <div className="flex items-end justify-center gap-1 h-16">
       {Array.from({ length: 20 }).map((_, i) => (
-        <WaveBar key={i} height={20 + Math.random() * 80} delay={i * 0.05} />
+        <motion.div
+          key={i}
+          className="w-1 rounded-full"
+          style={{ background: PURPLE }}
+          animate={{ height: [`${10 + Math.random() * 30}%`, `${40 + Math.random() * 60}%`, `${10 + Math.random() * 30}%`] }}
+          transition={{ duration: 0.8 + Math.random() * 0.6, repeat: Infinity, ease: "easeInOut", delay: i * 0.04 }}
+        />
       ))}
     </div>
   </motion.div>
 );
 
-const PricingSlider = () => {
-  const [words, setWords] = useState(5000);
-  const price = Math.round((words / 1000) * 2.5);
+/* Carte voix — orbe circulaire, "out of the box" */
+const VoiceOrbCard = ({
+  name,
+  role,
+  audioUrl,
+  player,
+}: {
+  name: string;
+  role: string;
+  audioUrl: string;
+  player: any;
+}) => {
+  const playing = player.playingId === audioUrl;
   return (
     <motion.div
-      whileHover={{ scale: 1.015 }}
-      transition={{ type: "spring", stiffness: 200, damping: 18 }}
-      className="p-10 rounded-[32px] shadow-2xl"
-      style={{ background: PURPLE }}
+      whileHover={{ y: -8 }}
+      transition={{ type: "spring", stiffness: 250, damping: 20 }}
+      className="flex flex-col items-center text-center gap-4"
     >
-      <h3 className="text-2xl font-bold mb-6" style={{ color: BG_BLACK }}>
-        <span className="text-6xl font-extrabold" style={{ fontFamily: FR_HEADING_STACK }}>{price} DZD</span> / mois
-      </h3>
-      <div className="mb-6">
-        <label className="block text-sm font-semibold mb-3" style={{ color: BG_BLACK }}>
-          Nombre de mots : {words.toLocaleString()}
-        </label>
-        <input
-          type="range"
-          min="1000"
-          max="50000"
-          step="1000"
-          value={words}
-          onChange={(e) => setWords(Number(e.target.value))}
-          className="w-full h-3 rounded-full appearance-none cursor-pointer"
-          style={{
-            background: `linear-gradient(to right, ${BG_BLACK} 0%, ${BG_BLACK} ${(words / 50000) * 100}%, rgba(0,0,0,0.2) ${(words / 50000) * 100}%, rgba(0,0,0,0.2) 100%)`,
-          }}
-        />
+      <div className="relative" style={{ width: 132, height: 132 }}>
+        <motion.div
+          className="absolute inset-0 rounded-full p-[3px]"
+          style={{ background: `conic-gradient(from 0deg, ${PURPLE}, ${PURPLE_SOFT}, ${PURPLE_DEEP}, ${PURPLE})` }}
+          animate={playing ? { rotate: 360 } : { rotate: 0 }}
+          transition={{ duration: 5, repeat: playing ? Infinity : 0, ease: "linear" }}
+        >
+          <div className="w-full h-full rounded-full" style={{ background: BG_ZINC_950 }} />
+        </motion.div>
+        <div
+          className="absolute inset-[6px] rounded-full flex items-center justify-center text-4xl font-extrabold"
+          style={{ background: BG_CARD, color: PURPLE_SOFT, fontFamily: FR_HEADING_STACK }}
+        >
+          {name.charAt(0)}
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => player.toggle(audioUrl, audioUrl)}
+          className="absolute bottom-0 right-0 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+          style={{ background: PURPLE, boxShadow: `0 0 20px ${PURPLE_GLOW_STRONG}` }}
+        >
+          {playing ? <Pause className="w-4 h-4" style={{ color: BG_BLACK }} /> : <Play className="w-4 h-4 ml-0.5" style={{ color: BG_BLACK }} />}
+        </motion.button>
       </div>
-      <ul className="space-y-3 mb-8">
-        {["30 voix algériennes", "Génération instantanée", "Support prioritaire"].map((item, i) => (
-          <li key={i} className="flex items-center gap-2 text-sm font-semibold" style={{ color: BG_BLACK }}>
-            <Check className="w-5 h-5" />
-            {item}
-          </li>
+      <div>
+        <h4 className="font-bold text-white text-lg">{name}</h4>
+        <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
+      </div>
+      <div className="flex items-end gap-1 h-6">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <motion.span
+            key={i}
+            className="w-1 rounded-full"
+            style={{ background: PURPLE }}
+            animate={playing ? { height: [6, 22, 6] } : { height: 6 }}
+            transition={{ duration: 0.6 + i * 0.04, repeat: playing ? Infinity : 0, ease: "easeInOut", delay: i * 0.05 }}
+          />
         ))}
-      </ul>
-      <motion.button
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        className="w-full py-4 rounded-full font-bold text-white"
-        style={{ background: BG_BLACK }}
-      >
-        Commencer maintenant
-      </motion.button>
+      </div>
     </motion.div>
   );
 };
@@ -346,40 +375,105 @@ const FAQItem = ({ q, a }: { q: string; a: string }) => {
   );
 };
 
-const VoiceTestCard = ({ name, role, audioUrl, player }: { name: string; role: string; audioUrl: string; player: any }) => {
-  const playing = player.playingId === audioUrl;
+/* Palier de tarification réel (points prépayés) */
+const PricingCard = ({
+  tier,
+  chooseLabel,
+  audiosLabel,
+  featuresLabels,
+}: {
+  tier: { points: number; price: string; audios: string; badge?: string; popular?: boolean };
+  chooseLabel: string;
+  audiosLabel: string;
+  featuresLabels: string[];
+}) => {
+  const popular = !!tier.popular;
   return (
     <motion.div
-      whileHover={{ y: -6, borderColor: PURPLE, boxShadow: `0 0 25px ${PURPLE_GLOW}` }}
-      transition={{ type: "spring", stiffness: 250, damping: 20 }}
-      className="p-6 rounded-[32px] border"
-      style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+      whileHover={{ y: -8, boxShadow: popular ? `0 0 40px ${PURPLE_GLOW_STRONG}` : `0 0 25px ${PURPLE_GLOW}` }}
+      transition={{ type: "spring", stiffness: 240, damping: 20 }}
+      className="relative flex flex-col p-8 rounded-[28px] border"
+      style={{
+        background: popular ? `linear-gradient(160deg, ${PURPLE_DEEP}, ${PURPLE})` : BG_CARD,
+        borderColor: popular ? PURPLE : BORDER_ZINC_800,
+      }}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h4 className="font-bold text-white">{name}</h4>
-          <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.12 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => player.toggle(audioUrl, audioUrl)}
-          className="w-12 h-12 rounded-full flex items-center justify-center"
-          style={{ background: PURPLE }}
+      {popular && (
+        <span
+          className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
+          style={{ background: TEXT_WHITE, color: PURPLE_DEEP }}
         >
-          {playing ? <Pause className="w-5 h-5" style={{ color: BG_BLACK }} /> : <Play className="w-5 h-5" style={{ color: BG_BLACK }} />}
-        </motion.button>
-      </div>
-      <div className="h-1 rounded-full overflow-hidden" style={{ background: BORDER_ZINC_800 }}>
-        <motion.div
-          className="h-full rounded-full"
-          style={{ background: PURPLE, width: `${playing ? player.progress * 100 : 0}%` }}
-          transition={{ duration: 0.2 }}
-        />
-      </div>
+          <Sparkles className="w-3.5 h-3.5" /> Populaire
+        </span>
+      )}
+      <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: popular ? "rgba(255,255,255,0.8)" : TEXT_ZINC_400 }}>
+        {tier.points.toLocaleString()} points {tier.badge && <span className="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" style={{ background: popular ? "rgba(0,0,0,0.25)" : PURPLE_GLOW, color: popular ? TEXT_WHITE : PURPLE_SOFT }}>{tier.badge}</span>}
+      </p>
+      <p className="text-4xl font-extrabold mb-1" style={{ color: TEXT_WHITE, fontFamily: FR_HEADING_STACK }}>
+        {tier.price} <span className="text-base font-semibold" style={{ color: popular ? "rgba(255,255,255,0.75)" : TEXT_ZINC_400 }}>DZD</span>
+      </p>
+      <p className="text-sm mb-6" style={{ color: popular ? "rgba(255,255,255,0.75)" : TEXT_ZINC_400 }}>{tier.audios} {audiosLabel}</p>
+      <ul className="space-y-2 mb-8 flex-1">
+        {featuresLabels.map((f, i) => (
+          <li key={i} className="flex items-center gap-2 text-sm font-medium" style={{ color: popular ? TEXT_WHITE : TEXT_ZINC_400 }}>
+            <Check className="w-4 h-4 shrink-0" style={{ color: popular ? TEXT_WHITE : PURPLE }} />
+            {f}
+          </li>
+        ))}
+      </ul>
+      <motion.button
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        className="w-full py-3.5 rounded-full font-bold flex items-center justify-center gap-2"
+        style={{ background: popular ? TEXT_WHITE : BG_ZINC_900, color: popular ? PURPLE_DEEP : TEXT_WHITE, border: popular ? "none" : `1px solid ${BORDER_ZINC_700}` }}
+      >
+        {chooseLabel} <ArrowRight className="w-4 h-4" />
+      </motion.button>
     </motion.div>
   );
 };
+
+/* Grand témoignage */
+const Testimonial = ({
+  quote,
+  name,
+  role,
+}: {
+  quote: string;
+  name: string;
+  role: string;
+}) => (
+  <div
+    className="relative overflow-hidden rounded-[40px] p-10 md:p-16 text-center border"
+    style={{ background: BG_CARD, borderColor: BORDER_ZINC_800 }}
+  >
+    <SectionGlow style={{ top: -80, left: "50%", transform: "translateX(-50%)", width: 500, height: 300 }} />
+    <Quote className="w-12 h-12 mx-auto mb-6" style={{ color: PURPLE }} />
+    <p
+      className="relative z-10 text-2xl md:text-4xl font-semibold leading-snug max-w-3xl mx-auto mb-8"
+      style={{ color: TEXT_WHITE, fontFamily: FR_HEADING_STACK }}
+    >
+      « {quote} »
+    </p>
+    <div className="relative z-10 flex items-center justify-center gap-1 mb-4">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star key={i} className="w-5 h-5" style={{ color: PURPLE, fill: PURPLE }} />
+      ))}
+    </div>
+    <div className="relative z-10 flex items-center justify-center gap-3">
+      <div
+        className="w-11 h-11 rounded-full flex items-center justify-center font-bold"
+        style={{ background: PURPLE, color: BG_BLACK }}
+      >
+        {name.charAt(0)}
+      </div>
+      <div className="text-left">
+        <p className="font-bold text-white">{name}</p>
+        <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
+      </div>
+    </div>
+  </div>
+);
 
 /* ═══════════ MAIN COMPONENT ═══════════ */
 export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSigninClick, language, setLanguage }) => {
@@ -390,8 +484,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
 
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.3]);
+  const heroDarken = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   const bootRef = useRef(false);
   useLayoutEffect(() => {
@@ -432,11 +525,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       pricing: isRTL ? "الأسعار" : "Tarifs",
       faq: isRTL ? "الأسئلة" : "FAQ",
       joined: isRTL ? "أكثر من 500 صانع محتوى وثقوا فينا" : "+500 créateurs nous font déjà confiance",
-      transparent: isRTL ? "سعر واضح، بلا مفاجآت." : "Un prix clair. Zéro surprise sur la facture.",
+      transparent: isRTL ? "سعر واضح، بلا مفاجآت." : "Rechargez des points. Payez ce que vous utilisez.",
+      transparentSub: isRTL
+        ? "اختار الباك المناسب لك وادفع بالإدهابية أو CIB عبر SATIM، بالدينار."
+        : "Choisissez votre pack et payez en toute sécurité via Edahabia ou CIB. Vos points n'expirent jamais.",
       faqTitle: isRTL ? "الأسئلة الشائعة" : "Vos questions, nos réponses",
       experts: isRTL ? "جاهز تبدا؟" : "Prêt à faire parler votre marque ?",
       testVoices: isRTL ? "استمع بروحك" : "Écoutez par vous-même",
       testVoicesSub: isRTL ? "3 أصوات من بين 30، مسجلة مباشرة من المنصة" : "3 voix parmi 30, générées directement sur la plateforme",
+      audiosLabel: isRTL ? "أوديو" : "audios",
+      choose: isRTL ? "اختار" : "Choisir",
+      testimonialTitle: isRTL ? "قالوا فينا" : "Ils nous font confiance",
+      testimonialQuote: isRTL
+        ? "بدلت الفويس أوفر تاعي بـ Sawtify ووفرت وقت ومصاري بزاف. جودة استوديو حقيقية، بالدارجة تاعنا."
+        : "On a remplacé notre voix-off traditionnelle par Sawtify. Résultat : la même qualité studio, en darija authentique, pour une fraction du budget et du temps.",
+      testimonialName: isRTL ? "سارة ب." : "Sarah B.",
+      testimonialRole: isRTL ? "مسؤولة محتوى، وكالة رقمية" : "Responsable contenu, agence digitale",
     }),
     [isRTL]
   );
@@ -468,6 +572,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     { name: "Yasmine", role: "Voix publicitaire", audioUrl: YASMINE_AUDIO },
     { name: "Khalid", role: "Voix documentaire", audioUrl: KHALID_AUDIO },
   ];
+
+  const pricingTiers = [
+    { points: 100, price: "500", audios: "~5" },
+    { points: 220, price: "1 000", audios: "~11", badge: "+10%", popular: true },
+    { points: 600, price: "2 500", audios: "~30", badge: "+20%" },
+    { points: 1350, price: "5 000", audios: "~67", badge: "+35%" },
+  ];
+
+  const featuresLabels = isRTL
+    ? ["كل الأصوات HQ", "استخدام تجاري"]
+    : ["Toutes les voix HQ", "Usage commercial"];
 
   return (
     <div dir={isRTL ? "rtl" : "ltr"} style={{ fontFamily: isRTL ? AR_STACK : FR_STACK }}>
@@ -560,20 +675,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         )}
       </AnimatePresence>
 
-      {/* ═══════════ HERO ═══════════ */}
+      {/* ═══════════ HERO — fond fixe qui s'assombrit au scroll ═══════════ */}
       <section ref={heroRef} className="relative h-screen flex items-center justify-center overflow-hidden">
-        <motion.div
+        <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.35) contrast(1.2) saturate(0.9)", y: heroY }}
+          style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.55) contrast(1.15) saturate(0.9)" }}
         />
-        {/* Blobs décoratifs */}
-        <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.25 }} />
-        <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.15, animationDelay: "4s" }} />
+        {/* voile qui s'assombrit progressivement jusqu'au noir en scrollant */}
+        <motion.div className="absolute inset-0" style={{ background: BG_BLACK, opacity: heroDarken }} />
         <div
           className="absolute inset-0"
-          style={{ background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.8) 50%, transparent 100%)` }}
+          style={{ background: `linear-gradient(to top, ${BG_ZINC_950} 0%, rgba(9, 9, 11, 0.75) 45%, transparent 100%)` }}
         />
-        <motion.div style={{ opacity: heroOpacity }} className="relative z-10 text-center px-6 max-w-4xl">
+        {/* Blobs décoratifs */}
+        <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.22 }} />
+        <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.14, animationDelay: "4s" }} />
+
+        {/* Le texte reste fixe, ne glisse pas avec le fond */}
+        <div className="relative z-10 text-center px-6 max-w-4xl">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -615,7 +734,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           >
             {t.ctaMain} <ArrowRight className="w-5 h-5" />
           </motion.button>
-        </motion.div>
+        </div>
 
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -629,7 +748,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
 
       {/* ═══════════ SOCIAL PROOF ═══════════ */}
       <AnimatedSection>
-        <div className="py-12" style={{ background: BG_ZINC_950 }}>
+        <div className="py-12 relative" style={{ background: BG_ZINC_950 }}>
           <p className="text-center mb-6 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
           <div className="marquee-container">
             <div className="marquee-content">
@@ -643,18 +762,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         </div>
       </AnimatedSection>
 
-      {/* ═══════════ VOICE TESTS ═══════════ */}
+      {/* ═══════════ VOICE TESTS — cartes circulaires ═══════════ */}
       <AnimatedSection>
-        <section className="py-24 px-6" style={{ background: BG_BLACK }}>
-          <div className="max-w-6xl mx-auto">
+        <section className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
+          <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
+          <div className="max-w-6xl mx-auto relative z-10">
             <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
               {t.testVoices}
             </h2>
-            <p className="text-center mb-12 text-xl" style={{ color: TEXT_ZINC_400 }}>{t.testVoicesSub}</p>
-            <div className="grid md:grid-cols-3 gap-6">
+            <p className="text-center mb-14 text-xl" style={{ color: TEXT_ZINC_400 }}>{t.testVoicesSub}</p>
+            <div className="grid sm:grid-cols-3 gap-10 justify-items-center">
               {voices.map((voice, i) => (
                 <AnimatedSection key={i} delay={i * 0.15}>
-                  <VoiceTestCard {...voice} player={player} />
+                  <VoiceOrbCard {...voice} player={player} />
                 </AnimatedSection>
               ))}
             </div>
@@ -664,8 +784,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
 
       {/* ═══════════ BENTO GRID ═══════════ */}
       <AnimatedSection>
-        <section id="features" className="py-24 px-6" style={{ background: BG_BLACK }}>
-          <div className="max-w-7xl mx-auto">
+        <section id="features" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
+          <div className="absolute inset-0 grid-texture" />
+          <div className="max-w-7xl mx-auto relative z-10">
             <h2 className="text-4xl md:text-6xl font-extrabold text-center mb-16 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
               {isRTL ? "توليد فوري، بلا تعقيد" : "Une génération instantanée, sans friction"}
             </h2>
@@ -723,24 +844,40 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         </section>
       </AnimatedSection>
 
-      {/* ═══════════ PRICING ═══════════ */}
+      {/* ═══════════ PRICING — recharge par paliers ═══════════ */}
       <AnimatedSection>
-        <section id="pricing" className="py-24 px-6" style={{ background: BG_ZINC_950 }}>
-          <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+        <section id="pricing" className="py-24 px-6 relative overflow-hidden" style={{ background: BG_ZINC_950 }}>
+          <SectionGlow style={{ top: "10%", right: "5%", width: 420, height: 420 }} />
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="text-center mb-14">
+              <h2 className="text-4xl md:text-6xl font-extrabold mb-4 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
                 {t.transparent}
               </h2>
-              <p className="text-xl" style={{ color: TEXT_ZINC_400 }}>Vous payez uniquement ce que vous consommez. Aucun abonnement imposé. Vos crédits n'expirent jamais.</p>
+              <p className="text-lg max-w-2xl mx-auto" style={{ color: TEXT_ZINC_400 }}>{t.transparentSub}</p>
             </div>
-            <PricingSlider />
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {pricingTiers.map((tier, i) => (
+                <AnimatedSection key={i} delay={i * 0.1}>
+                  <PricingCard tier={tier} chooseLabel={t.choose} audiosLabel={t.audiosLabel} featuresLabels={featuresLabels} />
+                </AnimatedSection>
+              ))}
+            </div>
+          </div>
+        </section>
+      </AnimatedSection>
+
+      {/* ═══════════ TÉMOIGNAGE ═══════════ */}
+      <AnimatedSection>
+        <section className="py-24 px-6 relative" style={{ background: BG_BLACK }}>
+          <div className="max-w-5xl mx-auto">
+            <Testimonial quote={t.testimonialQuote} name={t.testimonialName} role={t.testimonialRole} />
           </div>
         </section>
       </AnimatedSection>
 
       {/* ═══════════ FAQ ═══════════ */}
       <AnimatedSection>
-        <section id="faq" className="py-24 px-6" style={{ background: BG_BLACK }}>
+        <section id="faq" className="py-24 px-6" style={{ background: BG_ZINC_950 }}>
           <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
             <div>
               <h2 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight" style={{ color: PURPLE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
