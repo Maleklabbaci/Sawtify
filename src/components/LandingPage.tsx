@@ -20,14 +20,15 @@ import {
   Minus,
   Star,
   Quote,
+  Mic,
+  PhoneCall,
+  Megaphone,
+  GraduationCap,
+  Video,
+  Share2,
+  Headphones,
 } from "lucide-react";
-import {
-  motion,
-  AnimatePresence,
-  useInView,
-  useScroll,
-  useTransform,
-} from "motion/react";
+import { motion, AnimatePresence, useInView } from "motion/react";
 
 export interface LandingPageProps {
   onLoginClick: () => void;
@@ -59,7 +60,6 @@ const KHALID_AUDIO = "https://res.cloudinary.com/gz65ybug/video/upload/v17891398
 
 const LOGO = "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg";
 
-/* Nouvelles polices — plus distinctives */
 const AR_STACK = "'IBM Plex Sans Arabic', sans-serif";
 const FR_STACK = "'Hanken Grotesk', sans-serif";
 const FR_HEADING_STACK = "'Bricolage Grotesque', sans-serif";
@@ -111,7 +111,8 @@ const GlobalStyles = () => (
     }
     .marquee-content {
       display: flex;
-      animation: marquee 32s linear infinite;
+      align-items: center;
+      animation: marquee 34s linear infinite;
       will-change: transform;
     }
 
@@ -162,6 +163,34 @@ function useScrolled(threshold = 40) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [threshold]);
   return scrolled;
+}
+
+/* Assombrissement du fond fixe piloté par un simple listener de scroll
+   (fiable quel que soit le contexte de scroll de l'app — ne dépend pas
+   d'un hook de scroll basé sur IntersectionObserver). */
+function useHeroDarken(heroRef: React.RefObject<HTMLElement>) {
+  const [darken, setDarken] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const compute = () => {
+      const h = heroRef.current?.offsetHeight || window.innerHeight;
+      const p = Math.min(1, Math.max(0, window.scrollY / h));
+      setDarken(p);
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(compute);
+    };
+    compute();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [heroRef]);
+  return darken;
 }
 
 function useVoicePlayer() {
@@ -285,7 +314,7 @@ const AudioWidget = () => (
   </motion.div>
 );
 
-/* Carte voix — orbe circulaire, "out of the box" */
+/* Carte voix — orbe circulaire */
 const VoiceOrbCard = ({
   name,
   role,
@@ -482,11 +511,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
   const scrolled = useScrolled();
   const player = useVoicePlayer();
 
-  /* La photo reste fixe en fond de TOUTE la page ; seule cette zone
-     (la hauteur du hero) pilote son assombrissement progressif jusqu'au noir. */
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroDarken = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const heroRef = useRef<HTMLElement>(null);
+  const heroDarken = useHeroDarken(heroRef);
 
   const bootRef = useRef(false);
   useLayoutEffect(() => {
@@ -527,6 +553,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       pricing: isRTL ? "الأسعار" : "Tarifs",
       faq: isRTL ? "الأسئلة" : "FAQ",
       joined: isRTL ? "أكثر من 500 صانع محتوى وثقوا فينا" : "+500 créateurs nous font déjà confiance",
+      usesTitle: isRTL ? "منصة وحدة، بزاف الاستعمالات" : "Une seule IA, une multitude d'usages",
       transparent: isRTL ? "سعر واضح، بلا مفاجآت." : "Rechargez des points. Payez ce que vous utilisez.",
       transparentSub: isRTL
         ? "اختار الباك المناسب لك وادفع بالإدهابية أو CIB عبر SATIM، بالدينار."
@@ -552,7 +579,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     { label: t.faq, href: "#faq" },
   ];
 
-  const logos = ["Google Gemini", "TikTok", "YouTube", "Instagram", "Meta"];
+  /* Usages de la plateforme — remplace les logos de marques */
+  const useCases = isRTL
+    ? [
+        { icon: Mic, label: "تعليق صوتي" },
+        { icon: PhoneCall, label: "مركز الاتصال" },
+        { icon: Megaphone, label: "إشهار" },
+        { icon: GraduationCap, label: "تعليم إلكتروني" },
+        { icon: Video, label: "دبلجة فيديو" },
+        { icon: Share2, label: "سوشيال ميديا" },
+        { icon: Headphones, label: "بودكاست" },
+      ]
+    : [
+        { icon: Mic, label: "Voix off" },
+        { icon: PhoneCall, label: "Centre d'appel" },
+        { icon: Megaphone, label: "Publicité" },
+        { icon: GraduationCap, label: "E-learning" },
+        { icon: Video, label: "Doublage vidéo" },
+        { icon: Share2, label: "Réseaux sociaux" },
+        { icon: Headphones, label: "Podcasts" },
+      ];
 
   const faqs = isRTL
     ? [
@@ -602,8 +648,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.6) contrast(1.15) saturate(0.9)" }}
         />
-        {/* voile qui s'assombrit progressivement jusqu'au noir pendant le scroll du hero */}
-        <motion.div className="absolute inset-0" style={{ background: BG_BLACK, opacity: heroDarken }} />
+        <div className="absolute inset-0" style={{ background: BG_BLACK, opacity: heroDarken }} />
       </div>
 
       {/* ═══════════ NAVBAR — compacte & centrée ═══════════ */}
@@ -751,23 +796,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </motion.div>
         </section>
 
-        {/* ═══════════ SOCIAL PROOF ═══════════ */}
+        {/* ═══════════ USAGES — remplace les logos de marques ═══════════ */}
         <AnimatedSection>
           <div className="py-12 relative" style={{ background: BG_ZINC_950 }}>
-            <p className="text-center mb-6 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
+            <p className="text-center mb-2 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
+            <p className="text-center mb-8 text-2xl md:text-3xl font-bold tracking-tight" style={{ color: TEXT_WHITE, fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
+              {t.usesTitle}
+            </p>
             <div className="marquee-container">
               <div className="marquee-content">
-                {[...logos, ...logos].map((logo, i) => (
-                  <div key={i} className="flex items-center justify-center px-12" style={{ color: TEXT_ZINC_600, fontSize: "1.5rem", fontWeight: 700, filter: "grayscale(100%)", opacity: 0.5 }}>
-                    {logo}
-                  </div>
-                ))}
+                {[...useCases, ...useCases].map((u, i) => {
+                  const Icon = u.icon;
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 px-6 py-2.5 mx-2 rounded-full border shrink-0"
+                      style={{ borderColor: BORDER_ZINC_800, background: BG_CARD }}
+                    >
+                      <Icon className="w-4 h-4" style={{ color: PURPLE }} />
+                      <span className="text-sm font-semibold whitespace-nowrap" style={{ color: TEXT_ZINC_400 }}>{u.label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </AnimatedSection>
 
-        {/* ═══════════ VOICE TESTS — cartes circulaires ═══════════ */}
+        {/* ═══════════ VOICE TESTS ═══════════ */}
         <AnimatedSection>
           <section className="py-24 px-6 relative overflow-hidden" style={{ background: BG_BLACK }}>
             <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
