@@ -641,19 +641,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       choose: isRTL ? "اختار" : "Choisir",
       popularLabel: isRTL ? "الأكثر شعبية" : "Populaire",
       testimonialQuote: isRTL
-        ? "بدلت الفويس أوفر تاعي بـ Sawtify ووفرت وقت ومصاري بزاف. جودة استوديو حقيقية، بالدارجة تاعنا."
+        ? "بدلت الفويس أوفر تاعي بـ Sawtify ووفرت وقتي ودراهمي بزاف. جودة استوديو حقيقية، بالدارجة تاعنا."
         : "On a remplacé notre voix-off traditionnelle par Sawtify. Résultat : la même qualité studio, en darija authentique, pour une fraction du budget et du temps.",
       testimonialName: isRTL ? "سارة ب." : "Sarah B.",
       testimonialRole: isRTL ? "مسؤولة محتوى، وكالة رقمية" : "Responsable contenu, agence digitale",
 
       testimonial2Quote: isRTL
-        ? "من يوم بديت نستعمل Sawtify، الفيديوهات ديالي زادت المشاهدة بزاف. الناس يقولولي واش هاد الصوت طبيعي، ماشي مصدقين راه AI!"
+        ? "من يوم بديت نستعمل Sawtify، الفيديوهات ديالي زادت المشاهدة بزاف. الناس يقولولي واش هاد الصوت طبيعي، ماشي مصدقين بليك AI!"
         : "Depuis que j'utilise Sawtify, mes vidéos ont explosé en vues. Les gens n'arrivent pas à croire que c'est une IA.",
       testimonial2Name: isRTL ? "ياسين ك." : "Yacine K.",
       testimonial2Role: isRTL ? "صانع محتوى، تيك توك" : "Créateur de contenu TikTok",
 
       testimonial3Quote: isRTL
-        ? "خدمة تفهم الدارجة الحقيقية، ماشي كي التطبيقات لخرين اللي يهدرو بالفصحى. ربحنا وقت وفلوس بزاف فالمشاريع ديال الكلاينات."
+        ? "خدمة تفهم الدارجة الحقيقية، ماشي كي هذوك لخرين اللي يهدرو بالفصحى ويبان روبو. ربحنا وقت بزاف فالمشاريع تاع الزبائن."
         : "Enfin une IA qui comprend la vraie darija, pas l'arabe classique des autres apps. On gagne un temps fou sur chaque projet client.",
       testimonial3Name: isRTL ? "نور الدين س." : "Noureddine S.",
       testimonial3Role: isRTL ? "مدير وكالة تسويق" : "Directeur, agence marketing",
