@@ -41,7 +41,7 @@ export interface LandingPageProps {
 const BG_BLACK = "#000000";
 const BG_ZINC_950 = "#09090B";
 const BG_ZINC_900 = "#18181B";
-const BG_CARD = "rgba(24, 24, 27, 0.5)";
+const BG_CARD = "rgba(24, 24, 27, 0.85)"; // Plus opaque pour mieux voir
 const PURPLE = "#A855F7";
 const PURPLE_SOFT = "#D8B4FE";
 const PURPLE_DEEP = "#6D28D9";
@@ -70,7 +70,7 @@ const FONTS_URL =
 const GlobalStyles = () => (
   <style>{`
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    body { background: ${BG_ZINC_950}; color: ${TEXT_WHITE}; margin: 0; font-family: ${FR_STACK}; }
+    body { background: ${BG_BLACK}; color: ${TEXT_WHITE}; margin: 0; font-family: ${FR_STACK}; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     ::selection { background: ${PURPLE}; color: ${BG_BLACK}; }
 
@@ -94,7 +94,7 @@ const GlobalStyles = () => (
     }
 
     .glass-dark {
-      background: rgba(24, 24, 27, 0.8);
+      background: rgba(24, 24, 27, 0.85);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border: 1px solid ${BORDER_ZINC_700};
@@ -165,18 +165,17 @@ function useScrolled(threshold = 40) {
   return scrolled;
 }
 
-/* Hook amélioré pour gérer l'assombrissement progressif sur toute la page */
-function usePageDarken() {
-  const [darken, setDarken] = useState(0);
+/* Hook pour calculer le pourcentage de scroll */
+function useScrollProgress() {
+  const [progress, setProgress] = useState(0);
   
   useEffect(() => {
     let raf = 0;
     const compute = () => {
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const scrolled = window.scrollY;
-      // Calculer le pourcentage de scroll (0 = en haut, 1 = en bas)
       const scrollPercent = Math.min(1, Math.max(0, scrolled / docHeight));
-      setDarken(scrollPercent);
+      setProgress(scrollPercent);
     };
     
     const onScroll = () => {
@@ -195,7 +194,7 @@ function usePageDarken() {
     };
   }, []);
   
-  return darken;
+  return progress;
 }
 
 function useVoicePlayer() {
@@ -512,9 +511,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = useScrolled();
   const player = useVoicePlayer();
-
-  // Hook pour l'assombrissement progressif sur toute la page
-  const pageDarken = usePageDarken();
+  const scrollProgress = useScrollProgress();
 
   const bootRef = useRef(false);
   useLayoutEffect(() => {
@@ -632,6 +629,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
     ? ["كل الأصوات HQ", "استخدام تجاري"]
     : ["Toutes les voix HQ", "Usage commercial"];
 
+  // Calculer la hauteur du gradient qui monte
+  const gradientHeight = `${scrollProgress * 100}%`;
+
   return (
     <div dir={isRTL ? "rtl" : "ltr"} style={{ fontFamily: isRTL ? AR_STACK : FR_STACK }}>
       <GlobalStyles />
@@ -643,18 +643,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         <meta name="description" content={t.heroSub} />
       </Helmet>
 
-      {/* ═══════════ FOND FIXE — la photo reste plaquée derrière toute la page ═══════════ */}
+      {/* ═══════════ FOND FIXE avec gradient qui monte ═══════════ */}
       <div className="fixed inset-0 z-0">
+        {/* Image de fond */}
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${HERO_IMAGE})`, filter: "brightness(0.6) contrast(1.15) saturate(0.9)" }}
-        />
-        {/* Overlay noir qui s'assombrit progressivement avec le scroll */}
-        <div 
-          className="absolute inset-0 transition-opacity duration-100" 
           style={{ 
-            background: BG_BLACK, 
-            opacity: pageDarken * 0.95 // Max 95% pour garder un peu de photo visible
+            backgroundImage: `url(${HERO_IMAGE})`, 
+            filter: "brightness(0.4) contrast(1.2) saturate(0.85)" 
+          }}
+        />
+        
+        {/* Gradient noir de base (toujours présent) */}
+        <div 
+          className="absolute inset-0" 
+          style={{ 
+            background: `linear-gradient(to top, ${BG_BLACK} 0%, rgba(0,0,0,0.75) 40%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.2) 100%)` 
+          }} 
+        />
+        
+        {/* Gradient noir qui monte avec le scroll */}
+        <div 
+          className="absolute inset-x-0 bottom-0 transition-all duration-75"
+          style={{ 
+            height: gradientHeight,
+            background: `linear-gradient(to top, ${BG_BLACK} 0%, ${BG_BLACK} 60%, rgba(0,0,0,0.9) 80%, transparent 100%)`,
+            pointerEvents: 'none'
           }} 
         />
       </div>
@@ -667,11 +681,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-3xl flex items-center justify-between gap-4 rounded-full px-3 py-2 transition-all duration-300"
           style={{
-            background: scrolled ? "rgba(9, 9, 11, 0.75)" : "rgba(9, 9, 11, 0.35)",
+            background: scrolled ? "rgba(9, 9, 11, 0.85)" : "rgba(9, 9, 11, 0.5)",
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
-            border: `1px solid ${scrolled ? BORDER_ZINC_700 : "rgba(63,63,70,0.3)"}`,
-            boxShadow: scrolled ? `0 8px 30px rgba(0,0,0,0.35)` : "none",
+            border: `1px solid ${scrolled ? BORDER_ZINC_700 : "rgba(63,63,70,0.4)"}`,
+            boxShadow: scrolled ? `0 8px 30px rgba(0,0,0,0.4)` : "none",
           }}
         >
           <Logo size={28} />
@@ -739,12 +753,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         )}
       </AnimatePresence>
 
-      {/* ═══════════ CONTENU — tous les backgrounds supprimés ═══════════ */}
+      {/* ═══════════ CONTENU ═══════════ */}
       <div className="relative z-10">
         {/* ═══════════ HERO ═══════════ */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
-          <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.22 }} />
-          <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.14, animationDelay: "4s" }} />
+          <div className="blob absolute -top-20 -left-20 w-96 h-96 rounded-full" style={{ background: PURPLE, opacity: 0.15 }} />
+          <div className="blob absolute bottom-0 right-0 w-[28rem] h-[28rem] rounded-full" style={{ background: PURPLE_SOFT, opacity: 0.1, animationDelay: "4s" }} />
 
           <div className="relative z-10 text-center px-6 max-w-4xl">
             <motion.div
@@ -800,7 +814,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </motion.div>
         </section>
 
-        {/* ═══════════ USAGES — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ USAGES ═══════════ */}
         <AnimatedSection>
           <div className="py-12 relative">
             <p className="text-center mb-2 text-sm font-semibold" style={{ color: TEXT_ZINC_600 }}>{t.joined}</p>
@@ -827,7 +841,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </div>
         </AnimatedSection>
 
-        {/* ═══════════ VOICE TESTS — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ VOICE TESTS ═══════════ */}
         <AnimatedSection>
           <section className="py-24 px-6 relative overflow-hidden">
             <SectionGlow style={{ top: "20%", left: "-10%", width: 400, height: 400 }} />
@@ -847,7 +861,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ BENTO GRID — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ BENTO GRID ═══════════ */}
         <AnimatedSection>
           <section id="features" className="py-24 px-6 relative overflow-hidden">
             <div className="absolute inset-0 grid-texture" />
@@ -909,7 +923,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ PRICING — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ PRICING ═══════════ */}
         <AnimatedSection>
           <section id="pricing" className="py-24 px-6 relative overflow-hidden">
             <SectionGlow style={{ top: "10%", right: "5%", width: 420, height: 420 }} />
@@ -931,7 +945,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ TÉMOIGNAGE — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ TÉMOIGNAGE ═══════════ */}
         <AnimatedSection>
           <section className="py-24 px-6 relative">
             <div className="max-w-5xl mx-auto">
@@ -940,7 +954,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ FAQ — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ FAQ ═══════════ */}
         <AnimatedSection>
           <section id="faq" className="py-24 px-6">
             <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
@@ -958,10 +972,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ CTA — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ CTA ═══════════ */}
         <AnimatedSection>
           <section className="py-32 px-6 relative overflow-hidden">
-            <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.12 }} />
+            <div className="blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full" style={{ background: PURPLE, opacity: 0.1 }} />
             <div className="max-w-4xl mx-auto text-center relative z-10">
               <h2 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight text-white" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
                 {t.experts}
@@ -980,7 +994,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
           </section>
         </AnimatedSection>
 
-        {/* ═══════════ FOOTER — SANS BACKGROUND ═══════════ */}
+        {/* ═══════════ FOOTER ═══════════ */}
         <footer className="py-16 px-6 border-t" style={{ borderColor: BORDER_ZINC_800 }}>
           <div className="max-w-7xl mx-auto text-center">
             <div className="flex justify-center"><Logo size={36} /></div>
