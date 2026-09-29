@@ -321,7 +321,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const bar = barRef.current;
       if (!bar || window.innerWidth < 1024) { setPopStyle({}); return; }
       const r = bar.getBoundingClientRect();
-      const w = openPop === 'tags' ? 352 : openPop === 'voices' ? 320 : 320;
+      const w = openPop === 'tags' ? 352 : openPop === 'voices' ? 280 : 320;
       const atStart = openPop === 'tags'; // le "+" est au début, voix/région à la fin
       const alignLeft = atStart !== isRTL;
       const rawLeft = alignLeft ? r.left : r.right - w;
@@ -1168,41 +1168,30 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               style={popStyle}
               className={VOICES_POP_BASE}
             >
-              {/* Filtres compacts */}
-              <div className="flex items-center gap-1 px-1 pt-1 pb-1.5 shrink-0">
-                <div className="flex flex-1 rounded-full bg-slate-100 p-0.5">
-                  {([ { id: 'all' as GenderFilter, label: t.allGenders }, { id: 'male' as GenderFilter, label: t.maleGenders }, { id: 'female' as GenderFilter, label: t.femaleGenders } ]).map((g) => (
-                    <button key={g.id} onClick={() => setGenderFilter(g.id)} className={`flex-1 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${genderFilter === g.id ? 'bg-white text-[#6d28d9] shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>{g.label}</button>
-                  ))}
-                </div>
-                <div className="relative shrink-0">
-                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)} className="appearance-none cursor-pointer rounded-full bg-slate-100 ps-3 pe-6 py-1.5 text-[11px] font-semibold text-slate-600 outline-none">
-                    {categoryOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.label}</option>))}
-                  </select>
-                  <ChevronDown className="w-3 h-3 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2 pointer-events-none" />
-                </div>
+              {/* Filtre genre : 3 pastilles texte, bien espacées */}
+              <div className="flex items-center gap-1 px-1.5 pt-1 pb-1.5 shrink-0">
+                {([ { id: 'all' as GenderFilter, label: t.allGenders }, { id: 'male' as GenderFilter, label: t.maleGenders }, { id: 'female' as GenderFilter, label: t.femaleGenders } ]).map((g) => (
+                  <button key={g.id} onClick={() => setGenderFilter(g.id)} className={`flex-1 truncate px-2 py-1 rounded-lg text-[12px] font-semibold cursor-pointer transition-colors ${genderFilter === g.id ? 'bg-[#f3eeff] text-[#6d28d9]' : 'text-slate-500 hover:bg-slate-100'}`}>{g.label}</button>
+                ))}
               </div>
 
               <div className="mx-1 h-px bg-slate-100 shrink-0" />
 
-              {/* Liste : hauteur minimale garantie, jamais écrasée */}
-              <div className="flex-1 min-h-[190px] overflow-y-auto custom-scrollbar py-1">
+              {/* Liste : lignes simples, scroll interne */}
+              <div className="flex-1 min-h-0 max-h-[264px] overflow-y-auto custom-scrollbar py-1">
                 {filteredVoices.map((voice) => {
                   const isSelected = voice.id === selectedVoiceId;
                   const isPreviewing = previewingVoiceId === voice.id;
                   const isFav = favoriteVoiceIds.includes(voice.id);
                   return (
-                    <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setOpenPop(null); }} className={`group flex items-center gap-2.5 px-2 py-1.5 rounded-xl cursor-pointer transition-colors ${isSelected ? 'bg-[#f3eeff]' : 'hover:bg-slate-100'}`}>
-                      <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#6d28d9] text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-4 h-4" />
+                    <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setOpenPop(null); }} className="group flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-100">
+                      <span className="w-5 flex items-center justify-center shrink-0 text-slate-500">
+                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-[18px] h-[18px]" />
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold leading-tight text-slate-800">{voice.name}</span>
-                        <span className="block truncate text-[10px] leading-tight text-slate-400">{voice.dialect}</span>
-                      </span>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isFav ? 'text-amber-500' : 'text-slate-300 opacity-0 group-hover:opacity-100 hover:text-amber-500'}`} title="Favori" aria-pressed={isFav}><Star className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} /></button>
-                      <button type="button" onClick={(e) => handlePreviewVoice(e, voice)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9]' : 'text-slate-400 hover:text-slate-700 hover:bg-white'}`}>{isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}</button>
-                      {isSelected && <Check className="w-4 h-4 shrink-0 text-[#6d28d9]" />}
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{voice.name}</span>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isFav ? 'text-amber-500' : 'text-slate-300 opacity-0 group-hover:opacity-100 hover:text-amber-500'}`} title="Favori" aria-pressed={isFav}><Star className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} /></button>
+                      <button type="button" onClick={(e) => handlePreviewVoice(e, voice)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9]' : 'text-slate-400 hover:text-slate-700'}`}>{isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}</button>
+                      <span className="w-4 flex items-center justify-center shrink-0">{isSelected && <Check className="w-4 h-4 text-[#6d28d9]" />}</span>
                     </div>
                   );
                 })}
@@ -1211,15 +1200,21 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
               <div className="mx-1 h-px bg-slate-100 shrink-0" />
 
-              {/* Réglages repliables (fermés par défaut) */}
-              <button type="button" onClick={() => setShowVoiceSettings((s) => !s)} className="shrink-0 flex items-center gap-2 px-2.5 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
-                <SlidersHorizontal className="w-3.5 h-3.5" />
+              {/* Réglages repliables (style, vitesse, tonalité) */}
+              <button type="button" onClick={() => setShowVoiceSettings((s) => !s)} className="shrink-0 flex items-center gap-2.5 px-2 py-2 rounded-lg text-[13px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer">
+                <span className="w-5 flex items-center justify-center text-slate-500"><SlidersHorizontal className="w-[18px] h-[18px]" /></span>
                 <span className="flex-1 text-start">{language === 'ar' ? 'الإعدادات' : 'Réglages'}</span>
                 <span className="text-[10px] text-slate-400 font-num">{speed.toFixed(1)}x · {pitch.toFixed(1)}</span>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showVoiceSettings ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showVoiceSettings ? '' : '-rotate-90'}`} />
               </button>
               {showVoiceSettings && (
-                <div className="shrink-0 space-y-2 px-2.5 pb-2">
+                <div className="shrink-0 space-y-2.5 px-3 pb-2.5 pt-1 overflow-y-auto">
+                  <div className="relative">
+                    <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)} className="w-full appearance-none cursor-pointer rounded-lg bg-slate-100 ps-3 pe-7 py-1.5 text-[12px] font-medium text-slate-700 outline-none">
+                      {categoryOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.label}</option>))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2.5 pointer-events-none" />
+                  </div>
                   <div className="space-y-1"><div className="flex justify-between text-[10px]"><span className="text-slate-500 font-medium">{t.speedLabel}</span><span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span></div><input type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" /></div>
                   <div className="space-y-1"><div className="flex justify-between text-[10px]"><span className="text-slate-500 font-medium">{t.pitchLabel}</span><span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span></div><input type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" /></div>
                 </div>
