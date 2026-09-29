@@ -19,6 +19,7 @@ import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils
 import { estimatePointsFromChars } from '../utils/pointsCost';
 import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
 import { WaveformPlayer } from './WaveformPlayer';
+import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
 
 // ==========================================================================
@@ -278,6 +279,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [copied, setCopied] = useState<boolean>(false);
   const [insufficientAlert, setInsufficientAlert] = useState<boolean>(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const [bubblePalette, setBubblePalette] = useState<BubblePalette | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
   const [lastGeneratedCost, setLastGeneratedCost] = useState<number>(20);
   
@@ -656,7 +658,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     e.stopPropagation();
     if (previewingVoiceId === voice.id || previewRequestRef.current === voice.id) { stopNaturalAudio(); setPreviewingVoiceId(null); previewRequestRef.current = null; return; }
     if (previewRequestRef.current) return;
-    previewRequestRef.current = voice.id; setPreviewingVoiceId(voice.id);
+    previewRequestRef.current = voice.id; setPreviewingVoiceId(voice.id); setBubblePalette((prev) => pickPalette(prev));
     if (voice.sampleAudioUrl) { playNaturalAudio(voice.sampleAudioUrl, () => setPreviewingVoiceId(null), 1, 1); previewRequestRef.current = null; return; }
     try {
       const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
@@ -908,6 +910,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         <div className="saw-blob" style={{ width: 560, height: 560, top: -120, right: -140, background: 'radial-gradient(circle, rgba(232,121,249,0.22), transparent 65%)' }} />
         <div className="saw-blob" style={{ width: 720, height: 720, bottom: -320, left: '50%', transform: 'translateX(-50%)', background: 'radial-gradient(circle, rgba(129,140,248,0.24), transparent 65%)' }} />
       </div>
+
+      {previewingVoiceId && bubblePalette && (
+        <VoiceBubble
+          palette={bubblePalette}
+          label={(() => { const v = voices.find((x) => x.id === previewingVoiceId); return language === 'ar' ? `استماع · ${v?.name ?? ''}` : `Écoute · ${v?.name ?? ''}`; })()}
+          onStop={() => { stopNaturalAudio(); setPreviewingVoiceId(null); previewRequestRef.current = null; }}
+        />
+      )}
 
       {notification && (
         <div className="fixed left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-full bg-[#6d28d9] text-white font-semibold text-sm shadow-lg flex items-center gap-2" style={{ top: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }} role="status">
