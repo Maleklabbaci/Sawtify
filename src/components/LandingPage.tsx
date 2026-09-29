@@ -323,9 +323,9 @@ const MicWidget = ({ label, sublabel, onClick }: { label: string; sublabel: stri
 );
 
 const LANDING_VOICE_PALETTES = [
-  { c1: "#ff4e50", c2: "#f9d423", c3: "#ff8e53", accent: "#ff0044" },
-  { c1: "#3b82f6", c2: "#4338ca", c3: "#22d3ee", accent: "#38bdf8" },
-  { c1: "#ec4899", c2: "#be185d", c3: "#f9a8d4", accent: "#fb7185" },
+  { base: "#fff0e8", fluid1: "#ff7267", fluid2: "#ffd36e", fluid3: "#ff9a80", accent: "#ff5e3a" },
+  { base: "#e9f1ff", fluid1: "#587ff5", fluid2: "#48d4ec", fluid3: "#a97afa", accent: "#4263eb" },
+  { base: "#fff0f7", fluid1: "#f26ba8", fluid2: "#ffc1d9", fluid3: "#a777f3", accent: "#d94687" },
 ];
 
 const VoiceOrbCard = ({
@@ -346,9 +346,10 @@ const VoiceOrbCard = ({
   const playing = player.playingId === audioUrl;
   const palette = LANDING_VOICE_PALETTES[paletteIndex % LANDING_VOICE_PALETTES.length];
   const paletteStyle = {
-    "--aura-core": `linear-gradient(135deg, ${palette.c1} 0%, ${palette.c2} 50%, ${palette.c3} 100%)`,
-    "--aura-wave-1": `linear-gradient(135deg, ${palette.accent}, ${palette.c1}, ${palette.c3})`,
-    "--aura-wave-2": `linear-gradient(135deg, ${palette.c1}, ${palette.c2}, ${palette.accent})`,
+    "--aura-base": palette.base,
+    "--aura-fluid-1": palette.fluid1,
+    "--aura-fluid-2": palette.fluid2,
+    "--aura-fluid-3": palette.fluid3,
     "--aura-glow": palette.accent,
   } as React.CSSProperties;
 
@@ -366,9 +367,12 @@ const VoiceOrbCard = ({
         aria-label={`${playing ? (isRTL ? "إيقاف الاستماع" : "Mettre en pause") : (isRTL ? "استمع إلى" : "Écouter")} ${name}`}
         aria-pressed={playing}
       >
-        <span className="aura-layer layer-core" />
-        <span className="aura-layer layer-wave-1" />
-        <span className="aura-layer layer-wave-2" />
+        <span className="aura-layer layer-core">
+          <span className="aura-fluid aura-fluid-1" />
+          <span className="aura-fluid aura-fluid-2" />
+          <span className="aura-fluid aura-fluid-3" />
+          <span className="aura-gloss" />
+        </span>
       </button>
       <p className={`aura-status ${playing ? "active" : ""}`} style={paletteStyle} aria-live="polite">
         {playing
