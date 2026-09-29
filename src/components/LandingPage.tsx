@@ -319,7 +319,7 @@ const MicWidget = ({ label, sublabel, onClick }: { label: string; sublabel: stri
 );
 
 const LANDING_VOICE_PALETTES = [
-  { c1: "#ff8a35", c2: "#ff3d6e", c3: "#ffd166", accent: "#ff5e3a" },
+  { c1: "#ff4e50", c2: "#f9d423", c3: "#ff8e53", accent: "#ff0044" },
   { c1: "#3b82f6", c2: "#4338ca", c3: "#22d3ee", accent: "#38bdf8" },
   { c1: "#ec4899", c2: "#be185d", c3: "#f9a8d4", accent: "#fb7185" },
 ];
@@ -330,17 +330,21 @@ const VoiceOrbCard = ({
   audioUrl,
   player,
   paletteIndex,
+  isRTL,
 }: {
   name: string;
   role: string;
   audioUrl: string;
   player: any;
   paletteIndex: number;
+  isRTL: boolean;
 }) => {
   const playing = player.playingId === audioUrl;
   const palette = LANDING_VOICE_PALETTES[paletteIndex % LANDING_VOICE_PALETTES.length];
   const paletteStyle = {
-    "--vb-1": palette.c1, "--vb-2": palette.c2, "--vb-3": palette.c3, "--vb-accent": palette.accent,
+    "--aura-core": `linear-gradient(135deg, ${palette.c1} 0%, ${palette.c2} 50%, ${palette.c3} 100%)`,
+    "--aura-wave-1": `linear-gradient(135deg, ${palette.accent}, ${palette.c1}, ${palette.c3})`,
+    "--aura-wave-2": `linear-gradient(135deg, ${palette.c1}, ${palette.c2}, ${palette.accent})`,
   } as React.CSSProperties;
 
   return (
@@ -351,39 +355,26 @@ const VoiceOrbCard = ({
     >
       <button
         type="button"
-        className={`saw-landing-bubble ${playing ? "is-listening" : ""}`}
+        className={`aura-wrapper ${playing ? "listening" : ""}`}
         style={paletteStyle}
         onClick={() => player.toggle(audioUrl, audioUrl)}
-        aria-label={`${playing ? "Pause" : "Écouter"} ${name}`}
+        aria-label={`${playing ? (isRTL ? "إيقاف الاستماع" : "Mettre en pause") : (isRTL ? "استمع إلى" : "Écouter")} ${name}`}
         aria-pressed={playing}
       >
-        <span className="saw-landing-bubble-wave" />
-        <span className="saw-landing-bubble-wave saw-landing-bubble-wave-2" />
-        <span className="saw-landing-bubble-core">
-          <span className="saw-landing-bubble-initial">{name.charAt(0)}</span>
-        </span>
-        <span className="saw-landing-bubble-control">
-          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-        </span>
-        <svg width="0" height="0" className="absolute" aria-hidden="true">
-          <defs><filter id="saw-landing-goo"><feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" /><feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9" result="goo" /><feComposite in="SourceGraphic" in2="goo" operator="atop" /></filter></defs>
-        </svg>
+        <span className="aura-layer layer-core" />
+        <span className="aura-layer layer-wave-1" />
+        <span className="aura-layer layer-wave-2" />
       </button>
+      <p className={`aura-status ${playing ? "active" : ""}`} aria-live="polite">
+        {playing
+          ? (isRTL ? "جاري الاستماع..." : "Écoute active...")
+          : (isRTL ? "اضغط للاستماع" : "Cliquez pour écouter")}
+      </p>
       <div>
         <h4 className="font-bold text-white text-lg">{name}</h4>
         <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
       </div>
-      <div className="flex items-end gap-1 h-6" aria-hidden="true">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <motion.span
-            key={i}
-            className="w-1 rounded-full"
-            style={{ background: palette.accent }}
-            animate={playing ? { height: [6, 22, 6] } : { height: 6 }}
-            transition={{ duration: 0.6 + i * 0.04, repeat: playing ? Infinity : 0, ease: "easeInOut", delay: i * 0.05 }}
-          />
-        ))}
-      </div>
+
     </motion.div>
   );
 };
@@ -963,7 +954,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
               <div className="grid sm:grid-cols-3 gap-10 justify-items-center">
                 {voices.map((voice, i) => (
                   <AnimatedSection key={i} delay={i * 0.15}>
-                    <VoiceOrbCard {...voice} player={player} paletteIndex={i} />
+                    <VoiceOrbCard {...voice} player={player} paletteIndex={i} isRTL={isRTL} />
                   </AnimatedSection>
                 ))}
               </div>
