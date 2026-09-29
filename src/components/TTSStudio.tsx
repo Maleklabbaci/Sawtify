@@ -53,8 +53,6 @@ const formatTime = (seconds: number): string => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const LOGO_URL = 'https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg';
-
 interface TTSStudioProps {
   balance: number;
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
@@ -960,29 +958,30 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
         <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-8 lg:pt-12">
 
-          {/* Salutation + logo + solde */}
-          <div className="w-full flex items-center justify-between gap-3 mb-7">
-            <h1 className="flex items-center gap-3 min-w-0">
-              <img src={LOGO_URL} alt="Sawtify" className="w-11 h-11 rounded-2xl object-cover shadow-sm border border-white/80" />
-              <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#2e1065] truncate">
-                {language === 'ar' ? 'أهلا، Labbaci' : 'Hé, Labbaci'}
-              </span>
-            </h1>
+          {/* Salutation centrée + solde au-dessus */}
+          <div className="w-full flex flex-col items-center gap-3 mb-7">
             <button
               onClick={onOpenRecharge}
-              className="saw-flat shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5"
+              className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5"
               title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}
             >
               <span className="font-num">
                 {language === 'ar' ? `الرصيد ${balance} نقطة` : `Solde ${balance} pts`}
               </span>
+              <span className="text-slate-400">·</span>
               <span className="text-[#6d28d9] font-bold">{language === 'ar' ? 'شحن' : 'Recharger'}</span>
             </button>
+            <h1 className="flex items-center gap-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              <Sparkles className="w-5 h-5 text-[#6d28d9]" fill="currentColor" />
+              <span className="text-4xl sm:text-5xl font-medium tracking-tight text-[#2e1065]">
+                {language === 'ar' ? 'أهلا، Labbaci' : 'Hé, Labbaci'}
+              </span>
+            </h1>
           </div>
 
           {/* ════════ LA BARRE ════════ */}
           <div ref={popAnchorRef} className="w-full relative">
-            <div className="saw-glass rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
+            <div className="saw-glass relative rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
 
               {/* Zone de texte : grandit avec le contenu */}
               <textarea
@@ -1094,9 +1093,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </button>
               </div>
 
-              {/* ════════ Popover balises ════════ */}
+              {/* ════════ Popover balises (s'ouvre vers le bas) ════════ */}
               {openPop === 'tags' && (
-                <div className="saw-pop absolute bottom-full mb-2 start-0 w-[min(352px,calc(100vw-3rem))] max-h-[420px] overflow-y-auto custom-scrollbar p-3 z-40">
+                <div className="saw-pop absolute top-full mt-2 start-0 w-[min(352px,calc(100vw-3rem))] max-h-[420px] overflow-y-auto custom-scrollbar p-3 z-40">
                   <div className="flex items-center justify-between px-1 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
                     <span className="text-[10px] text-slate-400">{language === 'ar' ? 'الصوت يتبع النبرة' : 'la voix suit la tonalité'}</span>
@@ -1149,9 +1148,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </div>
               )}
 
-              {/* ════════ Popover voix ════════ */}
+              {/* ════════ Popover voix (s'ouvre vers le bas) ════════ */}
               {openPop === 'voices' && (
-                <div className="saw-pop absolute bottom-full mb-2 end-0 w-[min(320px,calc(100vw-3rem))] max-h-[480px] flex flex-col p-3 z-40">
+                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(320px,calc(100vw-3rem))] max-h-[480px] flex flex-col p-3 z-40">
                   <div className="flex items-center justify-between px-1 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t.catalogHeader}</span>
                     <span className="text-[10px] text-slate-400 font-num">{voices.length}</span>
@@ -1251,9 +1250,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </div>
               )}
 
-              {/* ════════ Popover réglages script ════════ */}
+              {/* ════════ Popover réglages script (s'ouvre vers le bas) ════════ */}
               {openPop === 'region' && (
-                <div className="saw-pop absolute bottom-full mb-2 end-0 w-[min(300px,calc(100vw-3rem))] p-3 z-40">
+                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(300px,calc(100vw-3rem))] p-3 z-40">
                   <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
                     {language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}
                   </div>
