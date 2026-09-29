@@ -9,8 +9,6 @@ import React, {
 import { Helmet } from "react-helmet-async";
 import {
   ArrowRight,
-  Play,
-  Pause,
   Menu,
   X,
   Check,
