@@ -370,7 +370,7 @@ const VoiceOrbCard = ({
         <span className="aura-layer layer-wave-1" />
         <span className="aura-layer layer-wave-2" />
       </button>
-      <p className={`aura-status ${playing ? "active" : ""}`} aria-live="polite">
+      <p className={`aura-status ${playing ? "active" : ""}`} style={paletteStyle} aria-live="polite">
         {playing
           ? (isRTL ? `الصوت قيد التشغيل · ${name}` : `En cours : ${name}`)
           : (isRTL ? "اضغط للاستماع" : "Cliquez pour écouter")}
