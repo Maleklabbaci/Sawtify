@@ -57,6 +57,15 @@ import {
   voicesNeedingGenderValidation,
   type VoicePreviewManifest,
 } from "./tts/voicePreviews";
+import {
+  CASHBACK,
+  FIRST_RECHARGE_OFFERS,
+  OUT_OF_BALANCE_THRESHOLD,
+  REFERRAL,
+  resolvePackOffer,
+  type OfferContext,
+  type PackOffer,
+} from "./src/config/growth";
 
 dotenv.config();
 
@@ -199,6 +208,8 @@ const INVOICE_REGISTRY = new Map<string | number, {
   invoiceId: string | number; packId: string; packName: string; points: number; amountDZD: number;
   paymentMethod: string; status: 'pending' | 'completed' | 'paid' | 'failed'; paymentUrl?: string;
   createdAt: string; userId?: string; credited?: boolean;
+  // Croissance : `points` = points promis au client (base + bonus), `basePoints` = points du pack seul.
+  basePoints?: number; promo?: PackOffer | null; bonusPoints?: number; promoApplied?: string | null;
 }>();
 
 function verifySupabaseToken(token: string): string | null {
@@ -424,17 +435,55 @@ function mapGateway(method: string | undefined): string {
   return VALID_GATEWAYS.has((method || '').toLowerCase()) ? method!.toLowerCase() : 'slickpay'; 
 }
 
-async function creditIfPaid(invoiceId: string | number): Promise<{ credited: boolean; newBalance?: number; error?: string }> {
+type CreditResult = { credited: boolean; newBalance?: number; pointsCredited?: number; bonusPoints?: number; promoApplied?: string | null; error?: string };
+
+function isMissingFunctionError(error: any): boolean {
+  const message = String(error?.message || "");
+  return error?.code === "PGRST202" || error?.code === "42883" || /could not find the function|does not exist/i.test(message);
+}
+
+async function creditIfPaid(invoiceId: string | number): Promise<CreditResult> {
   const entry = await loadInvoice(String(invoiceId));
   if (!entry) return { credited: false, error: 'invoice_unknown' };
-  if (entry.credited) return { credited: true };
+  if (entry.credited) return { credited: true, pointsCredited: entry.points, bonusPoints: entry.bonusPoints ?? 0, promoApplied: entry.promoApplied ?? null };
   if (!entry.userId) return { credited: false, error: 'no_user_linked' };
   if (!supabaseClient) return { credited: false, error: 'supabase_unavailable' };
-  const { data, error } = await supabaseClient.rpc('credit_user_balance', { p_user_id: entry.userId, p_pack_id: entry.packId, p_gateway: mapGateway(entry.paymentMethod), p_gateway_reference: String(invoiceId), p_amount_dzd: entry.amountDZD, p_points: entry.points, p_payload: { source: 'sawtify_server', invoiceId } });
+
+  const promo: PackOffer | null = entry.promo || null;
+  const basePoints = Number(entry.basePoints ?? entry.points);
+  const payload = { source: 'sawtify_server', invoiceId };
+  let data: any = null, error: any = null, usedPromoRpc = false;
+
+  // Chemin normal : la fonction SQL valide le bonus au moment du crédit (1ère recharge
+  // encore vierge / cashback encore disponible) et repose le cashback suivant.
+  if (promo || await isGrowthReady()) {
+    usedPromoRpc = true;
+    ({ data, error } = await supabaseClient.rpc('credit_user_balance_with_promo', {
+      p_user_id: entry.userId, p_pack_id: entry.packId, p_gateway: mapGateway(entry.paymentMethod), p_gateway_reference: String(invoiceId),
+      p_amount_dzd: entry.amountDZD, p_base_points: basePoints, p_bonus_points: promo?.bonusPoints || 0, p_promo_type: promo?.type || '',
+      p_payload: payload, p_cashback_percent: CASHBACK.percent, p_cashback_days: CASHBACK.validityDays,
+    }));
+    if (error && isMissingFunctionError(error)) {
+      console.warn('[Growth] credit_user_balance_with_promo introuvable (migration supabase/growth_engine.sql ?) — repli sur le crédit classique, SANS bonus.');
+      usedPromoRpc = false; data = null; error = null;
+    }
+  }
+  // Repli : crédit classique (points du pack seuls).
+  if (!usedPromoRpc) {
+    ({ data, error } = await supabaseClient.rpc('credit_user_balance', { p_user_id: entry.userId, p_pack_id: entry.packId, p_gateway: mapGateway(entry.paymentMethod), p_gateway_reference: String(invoiceId), p_amount_dzd: entry.amountDZD, p_points: basePoints, p_payload: payload }));
+  }
   if (error) return { credited: false, error: error.message };
+  if (data && data.success === false) return { credited: false, error: data.error || 'credit_refused' };
+
   entry.credited = true; entry.status = 'completed';
+  if (!data?.already_processed) {
+    entry.points = Number(data?.points_credited ?? basePoints);
+    entry.bonusPoints = Number(data?.bonus_points ?? 0);
+    entry.promoApplied = data?.promo_applied ?? null;
+    if (promo && !entry.promoApplied) console.warn(`[Growth] Bonus ${promo.type} refusé au crédit de ${invoiceId} (promo déjà consommée) — points du pack seuls crédités.`);
+  }
   await saveInvoice(entry);
-  return { credited: true, newBalance: data?.new_balance };
+  return { credited: true, newBalance: data?.new_balance, pointsCredited: entry.points, bonusPoints: entry.bonusPoints ?? 0, promoApplied: entry.promoApplied ?? null };
 }
 
 async function getUserBalance(userId: string): Promise<number | null> {
@@ -443,6 +492,122 @@ async function getUserBalance(userId: string): Promise<number | null> {
     const { data: profile } = await supabaseClient.from("profiles").select("credits_balance").eq("id", userId).single();
     return profile ? profile.credits_balance : null;
   } catch { return null; }
+}
+
+/* ===================================================================
+   MOTEUR DE CROISSANCE (offre 1ère recharge, cashback, parrainage)
+   Chiffres et règles : src/config/growth.ts. Tables/fonctions SQL :
+   supabase/growth_engine.sql. Tant que ce script SQL n'est pas exécuté,
+   isGrowthReady() renvoie false et TOUT reste comme avant (aucun bonus,
+   aucun prix modifié) — rien ne peut casser le paiement.
+   =================================================================== */
+let growthReadyCache: { ok: boolean; at: number } | null = null;
+async function isGrowthReady(): Promise<boolean> {
+  if (!supabaseClient) return false;
+  const now = Date.now();
+  if (growthReadyCache && now - growthReadyCache.at < (growthReadyCache.ok ? 5 * 60_000 : 60_000)) return growthReadyCache.ok;
+  let ok = false;
+  try {
+    const { error } = await supabaseClient.from("user_growth").select("user_id", { head: true, count: "exact" }).limit(1);
+    ok = !error;
+    if (error && !growthReadyCache) console.warn("[Growth] Désactivé — exécute supabase/growth_engine.sql pour l'activer :", error.message);
+  } catch (e: any) { console.warn("[Growth] Vérification impossible :", e?.message || e); }
+  growthReadyCache = { ok, at: now };
+  return ok;
+}
+
+const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans 0/O/1/I : lisible et dictable
+function generateReferralCode(): string {
+  let code = "";
+  for (let i = 0; i < 7; i++) code += REFERRAL_CODE_ALPHABET[crypto.randomInt(REFERRAL_CODE_ALPHABET.length)];
+  return code;
+}
+
+async function ensureReferralCode(userId: string): Promise<string | null> {
+  if (!supabaseClient) return null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existing, error: readErr } = await supabaseClient.from("user_growth").select("referral_code").eq("user_id", userId).maybeSingle();
+    if (readErr) throw readErr;
+    if (existing?.referral_code) return existing.referral_code as string;
+    const code = generateReferralCode();
+    const write = existing
+      ? await supabaseClient.from("user_growth").update({ referral_code: code, updated_at: new Date().toISOString() }).eq("user_id", userId).is("referral_code", null).select("referral_code").maybeSingle()
+      : await supabaseClient.from("user_growth").insert({ user_id: userId, referral_code: code }).select("referral_code").maybeSingle();
+    if (!write.error && write.data?.referral_code) return write.data.referral_code as string;
+    if (write.error && write.error.code !== "23505") throw write.error; // 23505 = code déjà pris / course : on retente
+  }
+  return null;
+}
+
+/** Contexte d'offres d'un utilisateur (horloge = celle du serveur). Lève une erreur si la base ne répond pas. */
+async function buildOfferContext(userId: string): Promise<OfferContext> {
+  const [paid, growth] = await Promise.all([
+    supabaseClient.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed"),
+    supabaseClient.from("user_growth").select("first_offer_started_at, cashback_percent, cashback_expires_at").eq("user_id", userId).maybeSingle(),
+  ]);
+  if (paid.error) throw paid.error;
+  if (growth.error) throw growth.error;
+  return {
+    hasPaid: (paid.count || 0) > 0,
+    firstOfferStartedAt: growth.data?.first_offer_started_at ?? null,
+    cashbackPercent: Number(growth.data?.cashback_percent || 0),
+    cashbackExpiresAt: growth.data?.cashback_expires_at ?? null,
+    now: Date.now(),
+  };
+}
+
+async function buildGrowthStatus(userId: string) {
+  const [ctx, packsRes, balance, referralCode] = await Promise.all([
+    buildOfferContext(userId),
+    supabaseClient.from("credit_packs").select("id, points").eq("is_active", true),
+    getUserBalance(userId),
+    ensureReferralCode(userId),
+  ]);
+  if (packsRes.error) throw packsRes.error;
+
+  const packOffers: Record<string, PackOffer> = {};
+  for (const pack of packsRes.data || []) {
+    const offer = resolvePackOffer({ id: String(pack.id), points: Number(pack.points) }, ctx);
+    if (offer) packOffers[offer.packId] = offer;
+  }
+
+  const startedMs = ctx.firstOfferStartedAt ? Date.parse(ctx.firstOfferStartedAt) : NaN;
+  const endsFor = (type: string) => {
+    const cfg = FIRST_RECHARGE_OFFERS.find((o) => o.type === type);
+    return cfg && Number.isFinite(startedMs) ? new Date(startedMs + cfg.windowMs).toISOString() : null;
+  };
+  const cashbackActive = ctx.cashbackPercent > 0 && !!ctx.cashbackExpiresAt && Date.parse(ctx.cashbackExpiresAt) > ctx.now;
+
+  const [asReferrer, asFriend] = await Promise.all([
+    supabaseClient.from("referrals").select("status, referrer_reward_points").eq("referrer_id", userId),
+    supabaseClient.from("referrals").select("status, required_generations, reward_points, created_at").eq("referred_id", userId).maybeSingle(),
+  ]);
+  const referrerRows: any[] = asReferrer.data || [];
+  let friend: any = null;
+  if (asFriend.data) {
+    let done = asFriend.data.required_generations;
+    if (asFriend.data.status !== "rewarded") {
+      const { count } = await supabaseClient.from("voice_generations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed").gte("created_at", asFriend.data.created_at);
+      done = Math.min(count || 0, asFriend.data.required_generations);
+    }
+    friend = { status: asFriend.data.status, done, required: asFriend.data.required_generations, rewardPoints: asFriend.data.reward_points };
+  }
+
+  return {
+    success: true, enabled: true, serverNow: new Date(ctx.now).toISOString(),
+    balance, hasPaid: ctx.hasPaid,
+    firstRecharge: { eligible: !ctx.hasPaid, started: !!ctx.firstOfferStartedAt, flashEndsAt: endsFor("first_recharge_flash"), entryEndsAt: endsFor("first_recharge_entry") },
+    packOffers,
+    cashback: cashbackActive ? { percent: ctx.cashbackPercent, expiresAt: ctx.cashbackExpiresAt } : null,
+    referral: {
+      code: referralCode, rewardPoints: REFERRAL.rewardPoints, requiredGenerations: REFERRAL.requiredGenerations, friendStarterPoints: REFERRAL.friendStarterPoints,
+      invitedCount: referrerRows.length,
+      rewardedCount: referrerRows.filter((r) => r.status === "rewarded").length,
+      pendingCount: referrerRows.filter((r) => r.status === "pending").length,
+      earnedPoints: referrerRows.reduce((sum, r) => sum + Number(r.referrer_reward_points || 0), 0),
+      asFriend: friend,
+    },
+  };
 }
 
 async function isAdminRequest(req: express.Request): Promise<{ userId: string | null; role: string | null }> {
@@ -592,13 +757,28 @@ async function verifySlickPayInvoice(invoiceId: string): Promise<{ paid: boolean
   return { paid: false };
 }
 
+// La table `invoices` est en snake_case ; le reste du serveur lit des entrées camelCase
+// (entry.userId, entry.points…). Sans cette conversion, une facture rechargée depuis
+// la base (ex. serveur redémarré pendant le paiement) n'avait plus de userId : le
+// crédit échouait (« no_user_linked ») et le suivi du paiement renvoyait 403.
+function invoiceFromRow(row: any): any {
+  const promo: PackOffer | null = row?.payload?.sawtify_promo || null;
+  const points = Number(row.points_credited);
+  return {
+    id: String(row.id), invoiceId: row.id, packId: row.pack_id, packName: row.pack_name,
+    points, basePoints: promo ? Number(promo.basePoints) : points, promo,
+    amountDZD: Number(row.amount_dzd), paymentMethod: row.payment_method, status: row.status,
+    paymentUrl: row.payment_url, createdAt: row.created_at, userId: row.user_id, payload: row.payload || {},
+  };
+}
+
 async function loadInvoice(invoiceId: string): Promise<any | null> {
   let local = INVOICE_REGISTRY.get(invoiceId);
   if (local) return local;
   if (!supabaseClient) return null;
   try {
     const { data, error } = await supabaseClient.from("invoices").select("*").eq("id", invoiceId).single();
-    if (!error && data) { INVOICE_REGISTRY.set(invoiceId, data); return data; }
+    if (!error && data) { const entry = invoiceFromRow(data); INVOICE_REGISTRY.set(invoiceId, entry); return entry; }
   } catch (e: any) { console.warn(`[Invoices] Chargement échoué pour ${invoiceId}:`, e?.message || e); }
   return null;
 }
@@ -2435,11 +2615,25 @@ async function startServer() {
       const milestoneBonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: userId });
       if (milestoneBonus.data?.awarded) remainingBalance = milestoneBonus.data.new_balance;
 
+      // Parrainage : le filleul vient peut-être de terminer son 3e essai -> +50 pts pour le PARRAIN
+      // uniquement (celui qui a envoyé le lien) ; le générateur ne reçoit rien, son solde ne bouge pas.
+      // Best-effort : une erreur ici ne doit jamais faire échouer une génération déjà débitée.
+      let referralReward = 0;
+      try {
+        if (await isGrowthReady()) {
+          const referral = await supabaseClient.rpc("award_referral_if_ready", { p_referred_id: userId, p_max_rewarded_per_referrer: REFERRAL.maxRewardedPerReferrer });
+          if (referral.data?.awarded) {
+            // Informationnel : points versés au parrain (l'utilisateur courant, lui, n'en reçoit aucun).
+            referralReward = Number(referral.data.referrer_reward_points || 0);
+          }
+        }
+      } catch (referralErr: any) { console.warn("[Growth] Récompense de parrainage ignorée :", referralErr?.message || referralErr); }
+
       return res.json({
         status: "success", success: true, audio_base64: wavBase64, audio_url: `data:audio/wav;base64,${wavBase64}`,
         format: "wav", sample_rate: 24000, generation_id: generationId || `gen_${Date.now()}`,
         duration_seconds: durationSeconds, latency_ms: Date.now() - startTime,
-        points_deducted: finalPointsCost, points_cost: finalPointsCost, milestone_bonus: milestoneBonus.data?.awarded ? 30 : 0,
+        points_deducted: finalPointsCost, points_cost: finalPointsCost, milestone_bonus: milestoneBonus.data?.awarded ? 30 : 0, referral_reward: referralReward,
         notification: `-${finalPointsCost} Points`,
         remaining_balance: remainingBalance, voice_id: requestedVoice, gemini_voice: selectedVoiceName,
         parsed_tags: emotionTags,
@@ -2695,6 +2889,15 @@ Style vocal souhaité : ${style || "excited"}`;
         packName = packRow.name; numAmount = Math.round(Number(packRow.price_dzd) * (1 + PAYMENT_FEE_RATE)); numPoints = Number(packRow.points);
       } else return res.status(503).json({ success: false, error: "Paiement indisponible." });
 
+      // Croissance : offre 1ère recharge / cashback. Décidée ICI, par le serveur, jamais par le
+      // client. Toute erreur => prix et points normaux (le paiement ne doit jamais casser).
+      const basePoints = numPoints;
+      let promo: PackOffer | null = null;
+      try {
+        if (await isGrowthReady()) promo = resolvePackOffer({ id: String(packId), points: basePoints }, await buildOfferContext(userId));
+      } catch (growthErr: any) { console.warn("[Growth] Offre ignorée pour cette facture :", growthErr?.message || growthErr); promo = null; }
+      if (promo) numPoints = promo.totalPoints;
+
       const returnUrl = getPublicUrl(req, `/?payment_status=success&pack_id=${packId}&points=${numPoints}`);
       let defaultAccountUuid: string | undefined = undefined, contactUuid: string | undefined = undefined;
       const slickPayApiRoot = SLICKPAY_BASE_URL.replace(/\/+$/, "");
@@ -2752,9 +2955,9 @@ Style vocal souhaité : ${style || "excited"}`;
 
       const invoiceId = invoiceData.id || invoiceData.uuid || `INV_${Date.now()}`;
       const paymentUrl = invoiceData.url || invoiceData.payment_url || "";
-      const entry = { id: String(invoiceId), invoiceId, packId, packName, points: numPoints, amountDZD: numAmount, paymentMethod, status: "pending", paymentUrl, createdAt: new Date().toISOString(), userId, payload: spData };
+      const entry = { id: String(invoiceId), invoiceId, packId, packName, points: numPoints, basePoints, promo, amountDZD: numAmount, paymentMethod, status: "pending", paymentUrl, createdAt: new Date().toISOString(), userId, payload: promo ? { ...spData, sawtify_promo: promo } : spData };
       await saveInvoice(entry);
-      return res.json({ success: true, status: "created", invoiceId, paymentUrl, message: spData.message || "Facture créée", raw: spData });
+      return res.json({ success: true, status: "created", invoiceId, paymentUrl, message: spData.message || "Facture créée", pointsPromised: numPoints, bonusPoints: promo?.bonusPoints || 0, promoType: promo?.type || null, raw: spData });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
   });
 
@@ -2770,7 +2973,7 @@ Style vocal souhaité : ${style || "excited"}`;
       const creditResult = await creditIfPaid(invoiceId);
       if (!creditResult.credited) return res.status(500).json({ success: false, error: creditResult.error || "Crédit du compte impossible." });
       await updateInvoiceStatus(invoiceId, "completed");
-      return res.json({ success: true, invoiceId, status: "completed", isPaid: true, newBalance: creditResult.newBalance, data: verification.data });
+      return res.json({ success: true, invoiceId, status: "completed", isPaid: true, newBalance: creditResult.newBalance, pointsCredited: creditResult.pointsCredited, bonusPoints: creditResult.bonusPoints ?? 0, promoApplied: creditResult.promoApplied ?? null, data: verification.data });
     }
     const currentStatus = verification.data?.status?.toLowerCase() || localRecord?.status || "pending";
     return res.json({ success: true, invoiceId, status: currentStatus, isPaid: verification.paid, data: verification.data });
@@ -2789,7 +2992,7 @@ Style vocal souhaité : ${style || "excited"}`;
       const result = await creditIfPaid(invoiceId);
       if (!result.credited) return res.status(500).json({ success: false, error: result.error || "Erreur crédit." });
       await updateInvoiceStatus(invoiceId, "completed");
-      return res.json({ success: true, message: "Paiement validé", newBalance: result.newBalance, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
+      return res.json({ success: true, message: "Paiement validé", newBalance: result.newBalance, pointsCredited: result.pointsCredited, bonusPoints: result.bonusPoints ?? 0, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
   });
 
@@ -2843,6 +3046,77 @@ Style vocal souhaité : ${style || "excited"}`;
       await supabaseClient.from("profiles").update({ credits_balance: 0 }).eq("id", userId).eq("credits_balance", 50);
       return res.json({ success: true, welcomeGranted: false });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
+  });
+
+  /* ===================================================================
+     CROISSANCE : statut des offres, démarrage de l'offre 1ère recharge, parrainage
+     Aucune de ces routes ne peut donner de points : elles LISENT l'état ou
+     posent une horloge. Les points ne sont crédités que par les fonctions SQL
+     (paiement confirmé / 3e essai du filleul) appelées avec la clé service_role.
+     =================================================================== */
+  app.get("/api/growth/status", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      res.set("Cache-Control", "no-store");
+      if (!(await isGrowthReady())) return res.json({ success: true, enabled: false });
+      return res.json(await buildGrowthStatus(userId));
+    } catch (err: any) {
+      // Fonction bonus : une panne ne doit jamais casser l'application.
+      console.warn("[Growth] statut indisponible :", err?.message || err);
+      return res.json({ success: true, enabled: false });
+    }
+  });
+
+  app.post("/api/growth/first-offer/start", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      res.set("Cache-Control", "no-store");
+      if (!(await isGrowthReady())) return res.json({ success: true, enabled: false });
+      const balance = await getUserBalance(userId);
+      if (balance === null) return res.status(503).json({ success: false, error: "Solde indisponible." });
+      // L'horloge ne démarre qu'à la première vraie fin de solde, et une seule fois.
+      if (balance >= OUT_OF_BALANCE_THRESHOLD) return res.status(409).json({ success: false, error: "not_out_of_balance" });
+      const ctx = await buildOfferContext(userId);
+      if (ctx.hasPaid) return res.status(409).json({ success: false, error: "already_paid" });
+      if (!ctx.firstOfferStartedAt) {
+        const ensured = await supabaseClient.from("user_growth").upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true });
+        if (ensured.error) throw ensured.error;
+        const started = await supabaseClient.from("user_growth").update({ first_offer_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("user_id", userId).is("first_offer_started_at", null);
+        if (started.error) throw started.error;
+      }
+      return res.json(await buildGrowthStatus(userId));
+    } catch (err: any) {
+      console.warn("[Growth] démarrage de l'offre impossible :", err?.message || err);
+      return res.status(500).json({ success: false, error: "Offre indisponible pour le moment." });
+    }
+  });
+
+  app.post("/api/referral/claim", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      if (!(await isGrowthReady())) return res.json({ success: false, reason: "disabled" });
+      const code = String(req.body?.code || "").trim().toUpperCase();
+      if (!/^[A-Z0-9]{4,16}$/.test(code)) return res.status(400).json({ success: false, reason: "invalid_code" });
+      // Aucun point de départ au filleul (REFERRAL.friendStarterPoints = 0) : ses 50 pts de
+      // bienvenue ne paient que 2 voix, la 3e suppose donc une recharge payante — c'est voulu,
+      // le parrain est récompensé quand l'ami paie et lance sa 3e génération.
+      // (Si friendStarterPoints > 0, il n'est versé qu'aux comptes dont le bonus de bienvenue
+      // a été validé par la règle « 1 compte par IP » — trace ip_claims.)
+      const { data: ipClaim } = await supabaseClient.from("ip_claims").select("user_id").eq("user_id", userId).limit(1).maybeSingle();
+      const starterPoints = ipClaim ? REFERRAL.friendStarterPoints : 0;
+      const { data, error } = await supabaseClient.rpc("claim_referral", {
+        p_referred_id: userId, p_code: code, p_required_generations: REFERRAL.requiredGenerations,
+        p_reward_points: REFERRAL.rewardPoints, p_starter_points: starterPoints, p_max_account_age_days: REFERRAL.maxAccountAgeDays,
+      });
+      if (error) { console.warn("[Referral] claim_referral :", error.message); return res.status(500).json({ success: false, reason: "server_error" }); }
+      return res.json({ success: data?.success === true, reason: data?.reason || null, starterPoints: Number(data?.starter_points || 0), requiredGenerations: REFERRAL.requiredGenerations, rewardPoints: REFERRAL.rewardPoints });
+    } catch (err: any) {
+      console.warn("[Referral] claim impossible :", err?.message || err);
+      return res.status(500).json({ success: false, reason: "server_error" });
+    }
   });
 
   /* ===================================================================

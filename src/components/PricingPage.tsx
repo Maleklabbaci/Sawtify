@@ -2,25 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
-  ExternalLink, RefreshCw, Lock, Phone, User, MapPin, HelpCircle, X
+  ExternalLink, RefreshCw, Lock, Phone, User, MapPin, HelpCircle, X, Clock, Gift
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getCreditPacks } from '../data/voices';
 import { API_BASE_URL } from '../config/apiBase';
 import { CreditPack, PurchaseRecord } from '../types';
+import { POINTS_PER_VOICEOVER, pricePerVoiceover, type PackOffer } from '../config/growth';
+import { getGrowthCopy } from '../data/growthCopy';
+import { useTicker, type GrowthApi } from '../hooks/useGrowth';
+import { ReferralCard } from './growth/ReferralCard';
+import { formatRemaining, remainingMs } from './growth/time';
 
 interface PricingPageProps {
   balance: number;
   onRechargeSuccess: (pack: CreditPack, method: 'edahabia' | 'cib', record: PurchaseRecord) => void;
   onNavigateToStudio?: () => void;
   preselectedPackId?: string;
+  /** Offres 1ère recharge / cashback / parrainage (décidées par le serveur). */
+  growth?: GrowthApi;
+  /** Ouvre directement le paiement de ce pack (ex. clic sur le pop-up de fin de solde). */
+  openPackId?: string | null;
+  onOpenPackHandled?: () => void;
 }
 
 const CARD_3D_STYLES = `
 .u-container {
   position: relative;
   width: 100%;
-  height: 440px;
+  height: 500px;
   transition: 200ms ease;
   border-radius: 1.5rem;
   cursor: pointer;
@@ -130,7 +140,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   balance,
   onRechargeSuccess,
   onNavigateToStudio,
-  preselectedPackId = 'pack_pro'
+  preselectedPackId = 'pack_pro',
+  growth,
+  openPackId,
+  onOpenPackHandled
 }) => {
   const { language, isRTL } = useLanguage();
   const creditPacks = getCreditPacks(language);
@@ -147,10 +160,32 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
+  // Points annoncés par le SERVEUR à la création de la facture (bonus inclus) et points réellement crédités.
+  const [promisedPoints, setPromisedPoints] = useState<number | null>(null);
+  const [creditedPoints, setCreditedPoints] = useState<number | null>(null);
 
   const selectedPack = creditPacks.find(p => p.id === selectedPackId) || creditPacks[1];
   const paymentFee = Math.round(selectedPack.priceDZD * 0.03);
   const totalToPay = selectedPack.priceDZD + paymentFee;
+
+  // ── Croissance : offres (1ère recharge, cashback) — toujours décidées par le serveur ──
+  const copy = getGrowthCopy(language);
+  const growthStatus = growth?.status ?? null;
+  const nowMs = growth ? growth.nowMs() : Date.now();
+  const allOffers: PackOffer[] = growthStatus ? Object.values(growthStatus.packOffers) : [];
+  // Dès le premier paiement validé (hasPaid), les offres « première recharge » (flash inclus) disparaissent définitivement.
+  const liveOffers = allOffers.filter((o) => remainingMs(o.endsAt, nowMs) > 0 && !(growthStatus?.hasPaid && o.type !== 'cashback'));
+  const flashOffer = liveOffers.find((o) => o.type === 'first_recharge_flash') ?? null;
+  const entryOffer = liveOffers.find((o) => o.type === 'first_recharge_entry') ?? null;
+  const cashbackOffer = liveOffers.find((o) => o.type === 'cashback') ?? null;
+  useTicker(liveOffers.length > 0, flashOffer ? 1000 : 30000);
+  const offerFor = (packId: string): PackOffer | null => liveOffers.find((o) => o.packId === packId) ?? null;
+  const selectedOffer = offerFor(selectedPack.id);
+  const selectedPoints = promisedPoints ?? selectedOffer?.totalPoints ?? selectedPack.points;
+  const selectedBonus = Math.max(0, selectedPoints - selectedPack.points);
+  // Le nom du pack affiche les points RÉELLEMENT crédités (ex. « 150 Points » pendant l'offre, pas « 100 »).
+  const pointsWord = language === 'ar' ? 'نقطة' : 'Points';
+  const selectedLabel = selectedPoints !== selectedPack.points ? `${selectedPoints.toLocaleString()} ${pointsWord}` : selectedPack.name;
 
   // Polling payment status
   useEffect(() => {
@@ -167,7 +202,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
             const data = await res.json();
             if (data.isPaid || data.status === 'completed' || data.status === 'paid') {
               clearInterval(interval);
-              handlePaymentSuccess();
+              handlePaymentSuccess(data.pointsCredited);
             }
           }
         } catch (e) {
@@ -178,20 +213,22 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     return () => clearInterval(interval);
   }, [invoiceId, isSuccess]);
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = (serverPoints?: number) => {
+    const pointsCredited = typeof serverPoints === 'number' && serverPoints > 0 ? serverPoints : selectedPoints;
+    setCreditedPoints(pointsCredited);
     setIsSuccess(true);
     const newRecord: PurchaseRecord = {
       id: `pur_${Date.now()}`,
       packId: selectedPack.id,
       packName: selectedPack.name,
-      pointsCredited: selectedPack.points,
+      pointsCredited,
       amountDZD: totalToPay,
       paymentMethod,
       createdAt: new Date().toISOString(),
       transactionId: invoiceId ? `SATIM-${invoiceId}` : `SATIM-${Date.now().toString().slice(-6)}`,
       status: 'paid',
     };
-    onRechargeSuccess(selectedPack, paymentMethod, newRecord);
+    onRechargeSuccess({ ...selectedPack, points: pointsCredited }, paymentMethod, newRecord);
   };
 
   const openPaymentUrl = (url: string) => {
@@ -237,6 +274,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       if (data.success && data.paymentUrl) {
         setInvoiceId(data.invoiceId);
         setPaymentUrl(data.paymentUrl);
+        setPromisedPoints(typeof data.pointsPromised === 'number' ? data.pointsPromised : null);
         setShowConfirmModal(true);
       } else {
         const message = data.error || data.message ||
@@ -262,7 +300,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       });
       const statusData = await res.json();
       if (statusData.isPaid || statusData.status === 'completed' || statusData.status === 'paid') {
-        handlePaymentSuccess();
+        handlePaymentSuccess(statusData.pointsCredited);
       } else {
         setStatusMessage(language === 'ar' ? 'لم يتم الدفع بعد' : 'Paiement non confirmé');
         setTimeout(() => setStatusMessage(''), 4000);
@@ -273,6 +311,24 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       setIsProcessing(false);
     }
   };
+
+  const openCheckout = (packId: string) => {
+    setSelectedPackId(packId);
+    setPaymentUrl(null);
+    setInvoiceId(null);
+    setIsSuccess(false);
+    setPromisedPoints(null);
+    setCreditedPoints(null);
+    setIsCheckoutOpen(true);
+  };
+
+  // Clic sur le pop-up de fin de solde : on ouvre directement le paiement du pack choisi.
+  useEffect(() => {
+    if (!openPackId) return;
+    if (creditPacks.some((p) => p.id === openPackId)) openCheckout(openPackId);
+    onOpenPackHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPackId]);
 
   return (
     <>
@@ -290,7 +346,58 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               ? 'اختر باقتك المفضلة وادفع بأمان عبر Edahabia أو CIB'
               : 'Choisissez votre pack et payez en toute sécurité via Edahabia ou CIB'}
           </p>
+          {/* Price framing : on ne vend pas « 1 000 DZD », on vend « une voix-off à ~90 DZD ». */}
+          <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-4 py-1.5 text-sm font-bold text-emerald-700">
+            <Zap className="w-4 h-4 shrink-0" />
+            {copy.framingBanner}
+          </p>
         </div>
+
+        {/* Offre de première recharge (compte à rebours réel, horloge serveur) */}
+        {(flashOffer || entryOffer) && (
+          <div className="max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-purple-700 via-fuchsia-600 to-orange-400 p-[1.5px] shadow-lg shadow-purple-500/20">
+            <div className="rounded-[14px] bg-white px-4 py-3 sm:px-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-10 h-10 shrink-0 rounded-xl bg-purple-600 text-white flex items-center justify-center">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 space-y-0.5">
+                  {flashOffer && (
+                    <p className="text-sm font-extrabold text-slate-900">
+                      {copy.pricingFlashBanner(flashOffer.bonusPercent, creditPacks.find((p) => p.id === flashOffer.packId)?.priceDZD ?? 0)}
+                    </p>
+                  )}
+                  {entryOffer && (
+                    <p className={`${flashOffer ? 'text-xs text-slate-600' : 'text-sm font-extrabold text-slate-900'}`}>
+                      {copy.pricingOfferBanner(entryOffer.totalPoints, entryOffer.basePoints, creditPacks.find((p) => p.id === entryOffer.packId)?.priceDZD ?? 0)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="shrink-0 text-center sm:text-end">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{copy.expiresIn}</p>
+                <p dir="ltr" className="text-2xl font-black tabular-nums text-purple-700 font-num">
+                  {formatRemaining(remainingMs((flashOffer ?? entryOffer)!.endsAt, nowMs), language)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cashback actif : « argent récupéré » à dépenser sur la prochaine recharge */}
+        {cashbackOffer && (
+          <div className="max-w-2xl mx-auto flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-emerald-500 text-white flex items-center justify-center">
+                <Gift className="w-5 h-5" />
+              </div>
+              <p className="text-sm font-extrabold text-emerald-900">{copy.cashbackBanner(cashbackOffer.bonusPercent)}</p>
+            </div>
+            <p className="text-xs font-bold text-emerald-700 sm:text-end">
+              {copy.cashbackExpiresIn} <span dir="ltr" className="font-num tabular-nums">{formatRemaining(remainingMs(cashbackOffer.endsAt, nowMs), language)}</span>
+            </p>
+          </div>
+        )}
 
         {/* Free Bonus Card */}
         {balance <= 50 && (
@@ -323,19 +430,29 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
           {creditPacks.map((pack: CreditPack, index: number) => {
             const isPopular = pack.id === 'pack_pro' || index === 1;
-            const audioCount = Math.floor(pack.points / 20);
+            const offer = offerFor(pack.id);
+            const effectivePoints = offer ? offer.totalPoints : pack.points;
+            const audioCount = Math.floor(effectivePoints / POINTS_PER_VOICEOVER);
+            // Price framing : le prix devient un « coût par voix-off ».
+            const perVoice = pricePerVoiceover(pack.priceDZD, effectivePoints);
+            const framingLine = isPopular
+              ? copy.perVoicePopular(perVoice)
+              : pack.id === 'pack_starter'
+                ? copy.perVoiceStarter(perVoice)
+                : pack.bonusPercent && pack.bonusPercent >= 20
+                  ? copy.perVoiceBonus(perVoice, pack.bonusPercent)
+                  : copy.perVoicePlain(perVoice);
+            const offerLabel = !offer ? '' : offer.type === 'first_recharge_flash'
+              ? copy.flashBadge
+              : offer.type === 'first_recharge_entry'
+                ? copy.firstOfferBadge
+                : copy.cashbackBadge(offer.bonusPercent);
 
             return (
               <div 
                 key={pack.id} 
                 className={`u-container ${isPopular ? 'theme-popular' : 'theme-standard'}`}
-                onClick={() => {
-                  setSelectedPackId(pack.id);
-                  setPaymentUrl(null);
-                  setInvoiceId(null);
-                  setIsSuccess(false);
-                  setIsCheckoutOpen(true);
-                }}
+                onClick={() => openCheckout(pack.id)}
               >
                 <div className="u-canvas">
                   {/* 25 Trackers for 3D effect */}
@@ -355,10 +472,20 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                       </div>
                     )}
 
+                    {/* Offre active (1ère recharge / flash / cashback) */}
+                    {offer && (
+                      <span className={`absolute top-3 end-3 z-30 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold shadow-sm ${
+                        offer.type === 'cashback' ? 'bg-emerald-500 text-white' : offer.type === 'first_recharge_flash' ? 'bg-orange-500 text-white' : isPopular ? 'bg-white text-purple-700' : 'bg-purple-600 text-white'
+                      }`}>
+                        {offer.type === 'cashback' ? <Gift className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        {offerLabel}
+                      </span>
+                    )}
+
                     {/* Pack Name */}
-                    <div className="mb-4 mt-2">
+                    <div className="mb-3 mt-2">
                       <h3 className={`text-sm font-bold uppercase tracking-wider ${isPopular ? 'text-white/80' : 'text-slate-500'}`}>
-                        {pack.name}
+                        {offer ? `${effectivePoints.toLocaleString()} ${pointsWord}` : pack.name}
                       </h3>
                     </div>
 
@@ -373,23 +500,33 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                     </div>
 
                     {/* Points subtitle */}
-                    <div className="mb-6 flex flex-wrap items-center gap-2">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <p className={`text-sm font-bold ${isPopular ? 'text-white' : 'text-slate-800'}`}>
-                        {pack.points.toLocaleString()} {language === 'ar' ? 'نقطة' : 'points'}
+                        {effectivePoints.toLocaleString()} {language === 'ar' ? 'نقطة' : 'points'}
                       </p>
-                      {pack.bonusPercent && (
+                      {offer && (
+                        <span className={`text-xs line-through decoration-2 ${isPopular ? 'text-white/60' : 'text-slate-400'}`}>
+                          {pack.points.toLocaleString()}
+                        </span>
+                      )}
+                      {(offer || pack.bonusPercent) && (
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                           isPopular ? 'bg-white/20 text-white' : 'bg-green-100 text-green-700'
                         }`}>
-                          +{pack.bonusPercent}%
+                          +{offer ? offer.bonusPercent : pack.bonusPercent}%
                         </span>
                       )}
                     </div>
 
-                    <div className={`h-px w-full mb-6 ${isPopular ? 'bg-white/20' : 'bg-slate-100'}`} />
+                    {/* Price framing */}
+                    <p className={`mb-4 text-[12px] leading-snug font-semibold ${isPopular ? 'text-white/90' : 'text-emerald-700'}`}>
+                      {framingLine}
+                    </p>
+
+                    <div className={`h-px w-full mb-4 ${isPopular ? 'bg-white/20' : 'bg-slate-100'}`} />
 
                     {/* Features List */}
-                    <ul className="space-y-3 mb-8 flex-1">
+                    <ul className="space-y-2.5 mb-5 flex-1">
                       <li className="flex items-center gap-2.5 text-sm">
                         <Check className={`w-4 h-4 shrink-0 ${isPopular ? 'text-white' : 'text-purple-600'}`} />
                         <span className={isPopular ? 'text-white/90' : 'text-slate-700'}>
@@ -468,7 +605,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                       {language === 'ar' ? 'إتمام الدفع' : 'Finaliser le paiement'}
                     </h2>
                     <p className="text-sm text-slate-500">
-                      {selectedPack.name} • {totalToPay.toLocaleString()} DZD
+                      {selectedLabel} • {totalToPay.toLocaleString()} DZD
                     </p>
                   </div>
                 </div>
@@ -483,7 +620,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                     {language === 'ar' ? 'تم الدفع بنجاح!' : 'Paiement réussi!'}
                   </h3>
                   <p className="text-sm text-slate-500 mb-6">
-                    +{selectedPack.points} points ajoutés à votre compte
+                    {copy.pointsAdded(creditedPoints ?? selectedPoints)}
                   </p>
                   <button
                     onClick={onNavigateToStudio}
@@ -503,17 +640,24 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-slate-600">{language === 'ar' ? 'الباقة' : 'Pack'}</span>
-                        <span className="font-semibold text-slate-900">{selectedPack.name}</span>
+                        <span className="font-semibold text-slate-900">{selectedLabel}</span>
                       </div>
 
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
-                        <span className="font-bold text-purple-600">+{selectedPack.points}</span>
+                        <span className="font-bold text-purple-600">+{selectedPoints}</span>
                       </div>
+
+                      {selectedBonus > 0 && (
+                        <div className="flex justify-between items-center text-sm text-emerald-600 font-semibold">
+                          <span>🎁 {copy.confirmBonusLine}</span>
+                          <span>+{selectedBonus}</span>
+                        </div>
+                      )}
 
                       <div className="flex justify-between items-center text-sm text-slate-500">
                         <span>{language === 'ar' ? 'التقدير' : 'Estimation'}</span>
-                        <span>~{Math.floor(selectedPack.points / 20)} audios</span>
+                        <span>~{Math.floor(selectedPoints / POINTS_PER_VOICEOVER)} {language === 'ar' ? 'مقطع صوتي' : 'audios'}</span>
                       </div>
 
                       <div className="border-t border-dashed border-slate-200 my-4"></div>
@@ -771,6 +915,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           document.body
         )}
 
+        {/* Parrainage viral */}
+        {growthStatus && (
+          <div className="max-w-2xl mx-auto">
+            <ReferralCard status={growthStatus} language={language} />
+          </div>
+        )}
+
         {/* FAQ Section */}
         <div className="max-w-3xl mx-auto divide-y divide-slate-100 border-t border-b border-slate-100">
           <div className="flex items-start gap-3 py-4">
@@ -846,11 +997,11 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               <div className="p-6 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">{language === 'ar' ? 'الباقة' : 'Pack'}</span>
-                  <span className="font-semibold text-slate-900">{selectedPack.name}</span>
+                  <span className="font-semibold text-slate-900">{selectedLabel}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
-                  <span className="font-bold text-purple-600">+{selectedPack.points}</span>
+                  <span className="font-bold text-purple-600">+{selectedPoints}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">{language === 'ar' ? 'الاسم' : 'Nom'}</span>
