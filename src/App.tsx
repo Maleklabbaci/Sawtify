@@ -6,7 +6,7 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 import { trackMarketingEvent } from './services/marketingTracking';
-import { Mic, History, CreditCard, Code2, Lock } from 'lucide-react';
+import { Mic, AudioLines, History, CreditCard, Code2, Lock } from 'lucide-react';
 import { useGrowth } from './hooks/useGrowth';
 import { claimReferral, captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from './services/growth';
 import { getGrowthCopy } from './data/growthCopy';
@@ -37,53 +37,53 @@ const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').th
 const importStudio = () => import('./components/TTSStudio');
 const TTSStudio = lazy(() => importStudio().then((m) => ({ default: m.TTSStudio })));
 
-/**
- * Loader minimal : ne bloque pas l'interface, juste un indicateur subtil.
- * Avant c'était un écran plein qui empêchait tout accès.
- */
-const MinimalLoader = () => (
-  <div className="fixed top-16 right-4 z-[100] bg-white/90 backdrop-blur-sm border border-slate-200 
-                  rounded-xl px-4 py-2 shadow-lg flex items-center gap-2 animate-in fade-in duration-300">
-    <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-    <span className="text-xs font-medium text-slate-600">Chargement...</span>
-  </div>
-);
-
-/**
- * Ancien ViewFallback conservé uniquement pour les vrais cas d'erreur critique 
- * (mais avec timeout forcé)
- */
-const ViewFallback = () => {
-  const [showRealLoader, setShowRealLoader] = React.useState(false);
-  
-  React.useEffect(() => {
-    // On attend max 3 secondes avant de vraiment afficher le gros loader
-    // Si c'est plus rapide que 3s, on montre rien (l'utilisateur ne voit pas de flash)
-    const timer = setTimeout(() => setShowRealLoader(true), 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!showRealLoader) return <MinimalLoader />;
+/** Branded, page-aware loading surface — no detached spinner or blank screen. */
+const MinimalLoader: React.FC<{ page?: 'studio' | 'pricing' | 'history' | 'developer' | 'admin' | 'account' }> = ({ page = 'studio' }) => {
+  const { language, isRTL } = useLanguage();
+  const arabic = language === 'ar';
+  const title = page === 'pricing'
+    ? (arabic ? 'نحضّرو لك باقات النقاط' : 'Préparation des packs de points')
+    : page === 'history'
+      ? (arabic ? 'نحمّلو سجلّك' : 'Chargement de ton historique')
+      : page === 'account'
+        ? (arabic ? 'نحضّرو حسابك' : 'Préparation de ton compte')
+        : (arabic ? 'نحضّرو الاستوديو' : 'Préparation de ton studio');
+  const subtitle = arabic ? 'ثواني برك، واجهتك راهي تتحضّر.' : 'Un instant, ton espace se prépare.';
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f7ff] px-6 gap-5">
-      <div className="sawtify-fallback-loader-wrapper">
-        <div className="sawtify-fallback-loader" />
-        {'Sawtify'.split('').map((char, i) => (
-          <span key={i} className="sawtify-fallback-loader-letter">{char}</span>
-        ))}
+    <section className={`mx-auto flex min-h-[58vh] w-full max-w-6xl flex-1 flex-col justify-center px-4 py-8 sm:px-6 ${isRTL ? 'text-right' : 'text-left'}`} role="status" aria-live="polite" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="mb-6 flex items-center gap-3 sm:mb-8">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-200/70"><AudioLines className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-violet-600">Sawtify · {arabic ? 'مساحة العمل' : 'Espace de travail'}</p>
+          <h1 className="mt-1 text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
+          <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+        </div>
+        <span className="hidden shrink-0 items-center gap-2 rounded-full border border-violet-100 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 shadow-sm sm:inline-flex">
+          <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-50" /><span className="relative inline-flex h-2 w-2 rounded-full bg-violet-600" /></span>
+          {arabic ? 'جاري التحضير' : 'En préparation'}
+        </span>
       </div>
-      <div className="text-center">
-        <h2 className="text-lg font-extrabold text-slate-900">Sawtify prépare ton espace</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Chargement un peu long... vérifie ta connexion</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition"
-        >
-          Réessayer
-        </button>
-      </div>
-    </div>
+
+      {page === 'pricing' ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+          {[0, 1, 2].map((item) => <div key={item} className={`rounded-[26px] border bg-white p-5 shadow-[0_14px_45px_rgba(49,24,90,.05)] sm:p-6 ${item === 1 ? 'border-violet-200 ring-1 ring-violet-100' : 'border-slate-100'}`}>
+            <div className="flex justify-between"><div className="h-4 w-24 animate-pulse rounded bg-slate-100" /><div className="h-6 w-14 animate-pulse rounded-full bg-violet-50" /></div>
+            <div className="mt-7 h-9 w-32 animate-pulse rounded-lg bg-violet-100/80" />
+            <div className="mt-3 h-3 w-40 animate-pulse rounded bg-slate-100" />
+            <div className="mt-7 space-y-3"><div className="h-3 w-full animate-pulse rounded bg-slate-50" /><div className="h-3 w-4/5 animate-pulse rounded bg-slate-50" /><div className="h-3 w-3/5 animate-pulse rounded bg-slate-50" /></div>
+            <div className="mt-8 h-11 w-full animate-pulse rounded-xl bg-violet-100" />
+          </div>)}
+        </div>
+      ) : (
+        <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_14px_45px_rgba(49,24,90,.05)] sm:p-6" aria-hidden="true">
+          <div className="h-4 w-32 animate-pulse rounded bg-violet-100" />
+          <div className="mt-4 h-28 animate-pulse rounded-2xl bg-slate-50 sm:h-36" />
+          <div className="mt-4 flex flex-wrap gap-2"><div className="h-9 w-24 animate-pulse rounded-full bg-violet-100" /><div className="h-9 w-20 animate-pulse rounded-full bg-slate-100" /><div className="h-9 w-28 animate-pulse rounded-full bg-slate-100" /></div>
+        </div>
+      )}
+      <div className="mt-6 h-1 overflow-hidden rounded-full bg-violet-100" aria-hidden="true"><span className="saw-loader-progress block h-full w-1/3 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-500" /></div>
+    </section>
   );
 };
 
@@ -111,7 +111,6 @@ function AppContent() {
   
   // KEY FIX : Timeout de sécurité pour ne jamais rester bloqué sur "checking session"
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [sessionCheckTimeout, setSessionCheckTimeout] = React.useState(false);
   
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
   const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
@@ -123,7 +122,6 @@ function AppContent() {
     const timer = setTimeout(() => {
       console.warn('[App] Session check timeout - forcing display');
       setIsCheckingSession(false);
-      setSessionCheckTimeout(true); // Pour savoir qu'on a forcé
     }, 5000); // 5 secondes max
     return () => clearTimeout(timer);
   }, [isCheckingSession]);
@@ -288,8 +286,8 @@ function AppContent() {
   }, [growth.status, growth.nowMs]);
 
   React.useEffect(() => {
-    if (!isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
-  }, [isLoggedIn, authModalMode]);
+    if (!isCheckingSession && !isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
+  }, [isCheckingSession, isLoggedIn, authModalMode]);
 
   // Détecte la session Supabase avec timeout intégré
   React.useEffect(() => {
@@ -493,7 +491,7 @@ function AppContent() {
     // Setup mot de passe prioritaire
     if (needsPasswordSetup) {
       return (
-        <Suspense fallback={<MinimalLoader />}>
+        <Suspense fallback={<MinimalLoader page="account" />}>
           <SetPasswordScreen
             userEmail={pendingUserEmail}
             language={language}
@@ -507,16 +505,11 @@ function AppContent() {
       );
     }
 
-    // Si pas connecté et pas en train de checker -> Landing ou Modals
+    // La landing reste visible pendant la vérification de session : aucun écran d'attente vide.
     if (!isLoggedIn) {
-      // Mais si on est encore en train de checker et qu'on a timeout, on assume non-connecté
-      if (isCheckingSession && !sessionCheckTimeout) {
-        return <MinimalLoader />; // Subtil, on attend encore un peu
-      }
-
       if (authModalMode === 'login') {
         return (
-          <Suspense fallback={<MinimalLoader />}>
+          <Suspense fallback={<MinimalLoader page="account" />}>
             <LoginModal
               onClose={() => setAuthModalMode('none')}
               onLoginSuccess={() => {
@@ -534,7 +527,7 @@ function AppContent() {
 
       if (authModalMode === 'signin') {
         return (
-          <Suspense fallback={<MinimalLoader />}>
+          <Suspense fallback={<MinimalLoader page="account" />}>
             <SigninModal
               onClose={() => setAuthModalMode('none')}
               onSigninSuccess={() => {
@@ -579,7 +572,7 @@ function AppContent() {
     // Même si isBootstrapping est true, on affiche le contenu (le solde arrivera après)
     // C'est le KEY FIX : avant, on bloquait ici jusqu'à la fin du bootstrap
     return (
-      <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
+      <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} saw-app-background text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
         
         {/* Header */}
         <Header
@@ -619,7 +612,7 @@ function AppContent() {
         >
           {/* Studio : PAS DE SUSPENSE (chargement direct pour éviter le blocage) */}
           {activeTab === 'studio' && (
-            <Suspense fallback={<MinimalLoader />}>
+            <Suspense fallback={<MinimalLoader page="studio" />}>
               <TTSStudio
                 balance={balance}
                 onDeductPoints={handleDeductPoints}
@@ -632,7 +625,7 @@ function AppContent() {
           )}
 
           {/* Autres pages : Suspense OK car ce sont des pages secondaires */}
-          <Suspense fallback={<MinimalLoader />}>
+          <Suspense fallback={<MinimalLoader page={activeTab} />} >
             {activeTab === 'history' && (
               <HistoryList
                 generations={generations}
@@ -731,11 +724,47 @@ function AppContent() {
   return displayContent;
 }
 
+interface AppErrorBoundaryState { hasError: boolean }
+
+class AppErrorBoundary extends React.Component<React.PropsWithChildren<{}>, AppErrorBoundaryState> {
+  private readonly appChildren: React.ReactNode;
+  state: AppErrorBoundaryState = { hasError: false };
+
+  constructor(props: React.PropsWithChildren<{}>) {
+    super(props);
+    this.appChildren = props.children;
+  }
+
+  static getDerivedStateFromError(): AppErrorBoundaryState { return { hasError: true }; }
+
+  componentDidCatch(error: Error) {
+    console.error('[Sawtify] App render failed:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-[#f8f7ff] px-5 py-10" role="alert">
+          <section className="w-full max-w-md rounded-3xl border border-violet-100 bg-white p-7 text-center shadow-xl shadow-violet-900/5">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 text-white"><Mic className="h-6 w-6" /></div>
+            <h1 className="mt-4 text-lg font-extrabold text-slate-900">Le studio n’a pas pu s’ouvrir</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Actualise la page. Si le problème continue, vérifie ta connexion puis réessaie.</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white hover:bg-violet-700">Actualiser la page</button>
+          </section>
+        </main>
+      );
+    }
+    return this.appChildren;
+  }
+}
+
 export function App() {
   return (
-    <LanguageProvider>
-      <AppContent />
-    </LanguageProvider>
+    <AppErrorBoundary>
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
+    </AppErrorBoundary>
   );
 }
 
