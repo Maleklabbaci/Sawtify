@@ -226,6 +226,8 @@ function AppContent() {
   const [showReferral, setShowReferral] = useState(false);
   const [pricingIntent, setPricingIntent] = useState<string | null>(null);
   const [firstOfferOpen, setFirstOfferOpen] = useState(false);
+  // « Réutiliser dans le studio » (depuis l'historique) : texte à pré-remplir dans l'éditeur.
+  const [studioPrefill, setStudioPrefill] = useState<string | null>(null);
   const [pendingReferral, setPendingReferral] = useState<string | null>(() => getPendingReferralCode());
 
   // Lien d'un ami (?ref=CODE) : on mémorise le code (il survit à la redirection Google).
@@ -623,6 +625,8 @@ function AppContent() {
                 onDeductPoints={handleDeductPoints}
                 onOpenRecharge={() => navigateTo('pricing')}
                 recentGenerations={generations}
+                prefillText={studioPrefill}
+                onPrefillConsumed={() => setStudioPrefill(null)}
               />
             </Suspense>
           )}
@@ -636,6 +640,7 @@ function AppContent() {
                 balance={balance}
                 onNavigateToStudio={() => navigateTo('studio')}
                 onNavigateToEditVideo={() => navigateTo('edit-video')}
+                onReuseText={(text) => { setStudioPrefill(text); navigateTo('studio'); }}
               />
             )}
             

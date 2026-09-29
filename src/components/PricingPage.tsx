@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
-  ExternalLink, RefreshCw, Lock, Phone, User, MapPin, HelpCircle, X, Clock, Gift
+  ExternalLink, RefreshCw, Lock, Phone, User, MapPin, HelpCircle, X, Clock, Gift,
+  Landmark, Smartphone
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getCreditPacks } from '../data/voices';
@@ -13,6 +14,28 @@ import { getGrowthCopy } from '../data/growthCopy';
 import { useTicker, type GrowthApi } from '../hooks/useGrowth';
 import { ReferralCard } from './growth/ReferralCard';
 import { formatRemaining, remainingMs } from './growth/time';
+
+/** Moyens de paiement locaux affichés à côté des boutons de paiement (confiance). */
+const LocalPayBadges: React.FC = () => {
+  const { language } = useLanguage();
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold text-amber-700">
+        <CreditCard className="h-3.5 w-3.5" /> Edahabia
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-extrabold text-blue-700">
+        <Landmark className="h-3.5 w-3.5" /> CIB
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-extrabold text-emerald-700">
+        <Smartphone className="h-3.5 w-3.5" /> BaridiMob
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-bold text-slate-500">
+        <ShieldCheck className="h-3.5 w-3.5 text-purple-600" />
+        {language === 'ar' ? 'مدفوعات آمنة عبر SATIM' : 'Paiement sécurisé via SATIM'}
+      </span>
+    </div>
+  );
+};
 
 interface PricingPageProps {
   balance: number;
@@ -445,7 +468,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
             const offerLabel = !offer ? '' : offer.type === 'first_recharge_flash'
               ? copy.flashBadge
               : offer.type === 'first_recharge_entry'
-                ? copy.firstOfferBadge
+                ? copy.welcomeBadge(offer.bonusPoints)
                 : copy.cashbackBadge(offer.bonusPercent);
 
             return (
@@ -472,10 +495,20 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                       </div>
                     )}
 
-                    {/* Offre active (1ère recharge / flash / cashback) */}
-                    {offer && (
+                    {/* Offre de bienvenue (1ʳᵉ recharge) : badge « +N points gratuits » qui casse la barrière du 1ᵉʳ achat */}
+                    {offer?.type === 'first_recharge_entry' && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-md whitespace-nowrap">
+                          <Gift className="w-3 h-3" />
+                          {offerLabel}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Offre active (flash / cashback) */}
+                    {offer && offer.type !== 'first_recharge_entry' && (
                       <span className={`absolute top-3 end-3 z-30 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold shadow-sm ${
-                        offer.type === 'cashback' ? 'bg-emerald-500 text-white' : offer.type === 'first_recharge_flash' ? 'bg-orange-500 text-white' : isPopular ? 'bg-white text-purple-700' : 'bg-purple-600 text-white'
+                        offer.type === 'cashback' ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'
                       }`}>
                         {offer.type === 'cashback' ? <Gift className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                         {offerLabel}
@@ -490,7 +523,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                     </div>
 
                     {/* Price */}
-                    <div className="mb-2 flex items-baseline gap-1.5">
+                    <div className="mb-1.5 flex items-baseline gap-1.5">
                       <span className="text-4xl font-extrabold tracking-tight">
                         {pack.priceDZD.toLocaleString()}
                       </span>
@@ -499,8 +532,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                       </span>
                     </div>
 
+                    {/* Price framing : « soit ≈ X DZD par voix-off » directement sous le prix total. */}
+                    <p className={`mb-2 text-[12px] leading-snug font-semibold ${isPopular ? 'text-white/90' : 'text-emerald-700'}`}>
+                      {framingLine}
+                    </p>
+
                     {/* Points subtitle */}
-                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
                       <p className={`text-sm font-bold ${isPopular ? 'text-white' : 'text-slate-800'}`}>
                         {effectivePoints.toLocaleString()} {language === 'ar' ? 'نقطة' : 'points'}
                       </p>
@@ -517,11 +555,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                         </span>
                       )}
                     </div>
-
-                    {/* Price framing */}
-                    <p className={`mb-4 text-[12px] leading-snug font-semibold ${isPopular ? 'text-white/90' : 'text-emerald-700'}`}>
-                      {framingLine}
-                    </p>
 
                     <div className={`h-px w-full mb-4 ${isPopular ? 'bg-white/20' : 'bg-slate-100'}`} />
 
@@ -565,6 +598,11 @@ export const PricingPage: React.FC<PricingPageProps> = ({
               </div>
             );
           })}
+        </div>
+
+        {/* Moyens de paiement locaux (rassure avant le clic) */}
+        <div className="flex justify-center pt-2">
+          <LocalPayBadges />
         </div>
 
         {/* Checkout Popup */}
@@ -734,9 +772,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                       </div>
                     </div>
 
-                    <div className="mt-6 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
-                      <ShieldCheck className="w-4 h-4 text-purple-600" />
-                      <span>{language === 'ar' ? 'مدفوعات آمنة عبر SATIM' : 'Paiement sécurisé via SATIM'}</span>
+                    {/* Moyens de paiement locaux visibles : Edahabia · CIB · BaridiMob (confiance avant le clic). */}
+                    <div className="mt-6 rounded-lg bg-slate-50 p-3">
+                      <LocalPayBadges />
                     </div>
                   </div>
 

@@ -14,6 +14,8 @@ export interface GrowthCopy {
   perVoicePopular: (perVoice: number) => string;
   perVoiceBonus: (perVoice: number, bonusPercent: number) => string;
   perVoicePlain: (perVoice: number) => string;
+  /** Badge « offre de bienvenue » sur le pack d'entrée (1re recharge) : +N points offerts. */
+  welcomeBadge: (bonusPoints: number) => string;
 
   // — Offre de première recharge (pop-up fin de solde) —
   flashTitle: string;
@@ -74,6 +76,7 @@ const fr: GrowthCopy = {
   perVoicePopular: (n) => `(≈ ${n} DZD par voix-off — le plus demandé)`,
   perVoiceBonus: (n, pct) => `(≈ ${n} DZD par voix-off — +${pct} % de points offerts)`,
   perVoicePlain: (n) => `(≈ ${n} DZD par voix-off)`,
+  welcomeBadge: (pts) => `Offre de bienvenue : +${pts} points gratuits`,
 
   flashTitle: '⏳ Offre de première recharge : 5 minutes seulement !',
   flashBody: (pct, price) => `Rechargez maintenant et obtenez +${pct} % de points bonus sur le pack ${price.toLocaleString('fr-FR')} DZD.`,
@@ -130,6 +133,7 @@ const ar: GrowthCopy = {
   perVoicePopular: (n) => `(حوالي ${n} دج برك لكل فويس أوف — الأكثر طلباً)`,
   perVoiceBonus: (n, pct) => `(حوالي ${n} دج برك لكل فويس أوف — +${pct}% نقاط إضافية)`,
   perVoicePlain: (n) => `(حوالي ${n} دج لكل فويس أوف)`,
+  welcomeBadge: (pts) => `عرض الترحيب: +${pts} نقطة مجانية`,
 
   flashTitle: '⏳ عرض الشحن الأول لخمس دقائق فقط!',
   flashBody: (pct, price) => `اشحن حسابك الآن واحصل على +${pct}% نقاط إضافية (بونيس) على باقة ${price.toLocaleString('en-US')} دج.`,
