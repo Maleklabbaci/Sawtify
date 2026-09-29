@@ -7,6 +7,14 @@ import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 import { trackMarketingEvent } from './services/marketingTracking';
 import { Mic, History, CreditCard, Code2, Lock } from 'lucide-react';
+import { useGrowth } from './hooks/useGrowth';
+import { claimReferral, captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from './services/growth';
+import { getGrowthCopy } from './data/growthCopy';
+import { OUT_OF_BALANCE_THRESHOLD } from './config/growth';
+import { FirstRechargeModal, liveFirstRechargeOffers } from './components/growth/FirstRechargeModal';
+import { ReferralModal } from './components/growth/ReferralModal';
+import { CashbackNotice } from './components/growth/CashbackNotice';
+import { ReferralInviteBanner } from './components/growth/ReferralInviteBanner';
 
 // Lazy seulement pour les pages secondaires (pas le Studio qui est la page principale)
 // Le Studio est importé directement en bas pour éviter un Suspense bloquant.
@@ -203,6 +211,75 @@ function AppContent() {
     navigateTo('studio', true);
   }, [refreshAccountData, navigateTo]);
 
+  // ── CROISSANCE : offre 1ère recharge, cashback, parrainage (décidés par le serveur) ──
+  const showToastRef = React.useRef<(msg: string) => void>(() => {});
+  const growth = useGrowth({
+    isLoggedIn,
+    balance,
+    balanceReady: isLoggedIn && !isBalanceLoading && !isBootstrapping,
+    onReferralRewarded: (kind, points) => {
+      const copy = getGrowthCopy(language);
+      showToastRef.current(kind === 'friend' ? copy.referralRewardedFriend(points) : copy.referralRewardedReferrer(points));
+      refreshAccountData();
+    },
+  });
+  const [showReferral, setShowReferral] = useState(false);
+  const [pricingIntent, setPricingIntent] = useState<string | null>(null);
+  const [firstOfferOpen, setFirstOfferOpen] = useState(false);
+  const [pendingReferral, setPendingReferral] = useState<string | null>(() => getPendingReferralCode());
+
+  // Lien d'un ami (?ref=CODE) : on mémorise le code (il survit à la redirection Google).
+  React.useEffect(() => {
+    const code = captureReferralFromUrl();
+    if (code) setPendingReferral(code);
+  }, []);
+
+  // Une fois connecté, on rattache le nouveau compte à son parrain (le serveur valide tout).
+  React.useEffect(() => {
+    if (!isLoggedIn || !pendingReferral || isBootstrapping) return;
+    let cancelled = false;
+    (async () => {
+      // Laisse le temps au bonus de bienvenue (règle « 1 compte par IP ») d'être validé d'abord.
+      if (!welcomeBonusPromiseRef.current) await new Promise((r) => setTimeout(r, 2500));
+      if (welcomeBonusPromiseRef.current) await welcomeBonusPromiseRef.current.catch(() => false);
+      if (cancelled) return;
+      const result = await claimReferral(pendingReferral);
+      if (!result.definitive) return; // réseau : on réessaiera à la prochaine ouverture
+      clearPendingReferralCode();
+      setPendingReferral(null);
+      if (result.success) {
+        showToastRef.current(getGrowthCopy(language).referralClaimed(result.requiredGenerations ?? 3, result.rewardPoints ?? 50));
+        refreshAccountData();
+        growth.refresh();
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, pendingReferral, isBootstrapping]);
+
+  // Pop-up de première fin de solde (2,5 s après, pour ne pas couper l'écoute de l'audio qui vient d'être généré).
+  React.useEffect(() => {
+    const status = growth.status;
+    if (!isLoggedIn || !status || isBalanceLoading || isBootstrapping || welcomeUser || needsPasswordSetup) return;
+    if (status.hasPaid || balance >= OUT_OF_BALANCE_THRESHOLD || activeTab === 'pricing') return;
+    const live = liveFirstRechargeOffers(status, growth.nowMs());
+    const phase = live.flash ? 'flash' : live.entry ? 'entry' : null;
+    if (!phase) return;
+    let dismissed = false;
+    try { dismissed = sessionStorage.getItem(`sawtify_first_offer_dismissed_${phase}`) === '1'; } catch { /* ignore */ }
+    if (dismissed) return;
+    const timer = window.setTimeout(() => setFirstOfferOpen(true), 2500);
+    return () => window.clearTimeout(timer);
+  }, [isLoggedIn, growth.status, growth.nowMs, balance, isBalanceLoading, isBootstrapping, welcomeUser, needsPasswordSetup, activeTab]);
+
+  const closeFirstOffer = React.useCallback(() => {
+    setFirstOfferOpen(false);
+    const status = growth.status;
+    if (!status) return;
+    const live = liveFirstRechargeOffers(status, growth.nowMs());
+    try { sessionStorage.setItem(`sawtify_first_offer_dismissed_${live.flash ? 'flash' : 'entry'}`, '1'); } catch { /* ignore */ }
+  }, [growth.status, growth.nowMs]);
+
   React.useEffect(() => {
     if (!isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
   }, [isLoggedIn, authModalMode]);
@@ -342,17 +419,20 @@ function AppContent() {
         setIsLoggedIn(true);
         navigateTo('pricing', true);
         refreshAccountData();
+        // Retour de la page de paiement (mobile) : le cashback arrive dès que le crédit est confirmé.
+        growth.expectCashback('any');
         showToast(language === 'ar' ? 'تم استلام الدفع بنجاح!' : 'Paiement validé avec succès !');
 
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch (e) {}
-  }, [language, refreshAccountData, navigateTo]);
+  }, [language, refreshAccountData, navigateTo, growth.expectCashback]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+  showToastRef.current = showToast;
 
   const handleDeductPoints = async (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null): Promise<boolean> => {
     try {
@@ -365,6 +445,8 @@ function AppContent() {
       setBalance(remaining);
       setGenerations((prev) => [record, ...prev]);
       showToast(t.toastDeducted.replace('{balance}', remaining.toString()));
+      // Filleul en cours de parrainage : met à jour « 2/3 voix testées » (et détecte la récompense).
+      if (growth.status?.referral.asFriend?.status === 'pending') growth.refresh();
       return true;
     } catch (e) {
       console.error('[Sawtify] Erreur handleDeductPoints:', e);
@@ -375,6 +457,8 @@ function AppContent() {
 
   const handleRechargeSuccess = (pack: CreditPack, method: 'edahabia' | 'cib', record: PurchaseRecord) => {
     refreshAccountData();
+    // Notification immédiate du cashback (+20 % sur la prochaine recharge) posé par le serveur au crédit.
+    growth.expectCashback('previous');
     setPurchases((prev) => [record, ...prev]);
     const methodLabel = method === 'edahabia' ? (language === 'ar' ? 'البطاقة الذهبية' : 'Edahabia') : 'CIB';
     showToast(t.toastRecharged.replace('{points}', pack.points.toString()).replace('{method}', methodLabel));
@@ -455,6 +539,13 @@ function AppContent() {
             language={language}
             setLanguage={setLanguage}
           />
+          {pendingReferral && (
+            <ReferralInviteBanner
+              language={language}
+              isRTL={isRTL}
+              onSignup={() => { trackMarketingEvent('signup_open', { intent: 'referral' }); setAuthModalMode('signin'); }}
+            />
+          )}
           {toastMessage && (
             <div className="fixed bottom-[5.5rem] right-4 z-[75] bg-slate-900 text-white text-xs font-mono px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 sm:bottom-6 sm:right-6">
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
@@ -477,6 +568,7 @@ function AppContent() {
           activeTab={activeTab}
           setActiveTab={navigateTo}
           historyCount={generations.length}
+          onOpenReferral={growth.status ? () => setShowReferral(true) : undefined}
           onLogout={() => {
             import('./services/supabaseClient').then(({ signOutFromSupabase }) => signOutFromSupabase());
             setIsLoggedIn(false);
@@ -539,6 +631,9 @@ function AppContent() {
                 purchases={purchases}
                 language={language}
                 onNavigateToStudio={() => navigateTo('studio')}
+                growth={growth}
+                openPackId={pricingIntent}
+                onOpenPackHandled={() => setPricingIntent(null)}
               />
             )}
             
@@ -568,6 +663,33 @@ function AppContent() {
         </nav>
 
         <ReportWidget />
+
+        {/* Croissance : pop-up de fin de solde, parrainage, notification de cashback */}
+        {firstOfferOpen && growth.status && (
+          <FirstRechargeModal
+            language={language}
+            isRTL={isRTL}
+            growth={growth}
+            onClose={closeFirstOffer}
+            onChoosePack={(packId) => {
+              closeFirstOffer();
+              setPricingIntent(packId);
+              navigateTo('pricing');
+            }}
+          />
+        )}
+        {showReferral && (
+          <ReferralModal status={growth.status} language={language} isRTL={isRTL} onClose={() => setShowReferral(false)} />
+        )}
+        {growth.cashbackNotice && (
+          <CashbackNotice
+            notice={growth.cashbackNotice}
+            language={language}
+            isRTL={isRTL}
+            onSeePacks={() => navigateTo('pricing')}
+            onClose={growth.dismissCashbackNotice}
+          />
+        )}
         
         {showInstagramNudge && (
           <div className={`fixed bottom-5 ${isRTL ? 'right-5' : 'left-5'} z-40 flex max-w-[calc(100vw-6rem)] items-center gap-3 rounded-2xl border border-pink-100 bg-white px-4 py-3 shadow-xl shadow-pink-900/10 animate-in slide-in-from-bottom-3`}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock, Clapperboard } from 'lucide-react';
+import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock, Clapperboard, Gift } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
@@ -8,6 +8,8 @@ interface HeaderProps {
   setActiveTab: (tab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin') => void;
   historyCount: number;
   onLogout: () => void;
+  /** Bouton « Invite un ami » (parrainage) — affiché seulement quand le moteur de croissance est actif. */
+  onOpenReferral?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   historyCount,
   onLogout,
+  onOpenReferral,
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const isLowBalance = balance < 20;
@@ -130,6 +133,18 @@ export const Header: React.FC<HeaderProps> = ({
               <Plus className="w-3 h-3 stroke-[2.5]" />
               <span>{language === 'ar' ? 'تعبئة' : 'Recharger'}</span>
             </button>
+
+            {/* Parrainage : ami invité = 50 points chacun */}
+            {onOpenReferral && (
+              <button
+                onClick={onOpenReferral}
+                title={language === 'ar' ? 'ادعُ صديق: 50 نقطة لكل واحد' : 'Invite un ami : 50 points chacun'}
+                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition cursor-pointer"
+              >
+                <Gift className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">{language === 'ar' ? 'ادعُ صديق +50' : 'Invite un ami +50'}</span>
+              </button>
+            )}
 
             {/* Language Toggle */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 text-[10px] font-medium">
