@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-  Play, Pause, Download, Volume2, AlertCircle, 
+import {
+  Play, Pause, Download, Volume2, Volume1, Volume, AlertCircle,
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
-  AudioLines, Megaphone, Layers, X, History, Wand2, Video, ThumbsUp, ThumbsDown,
-  Menu, Settings, ChevronDown, Star
+  AudioLines, Megaphone, X, Wand2, ThumbsUp, ThumbsDown,
+  ChevronDown, Star, Plus, ArrowUp, Cloud, Smile,
+  MessageCircle, BookOpen, Languages, ShoppingBag, UtensilsCrossed, House,
+  CalendarDays, SlidersHorizontal, History
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
@@ -21,9 +23,9 @@ import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41
 // ==========================================================================
 // BALISES VOCALES `<...>` — catalogue officiel (tts/vocalTags.ts)
 // --------------------------------------------------------------------------
-// Le menu « إدراج تأثير / Insérer effet » liste les 35 sons humains officiels
-// de Gemini 3.8, groupés par famille (`<laugh>`, `<sigh>`, `<short pause>`…).
-// AUCUNE liste recopiée ici : la source reste `tts/vocalTags.ts`.
+// Le menu « Insérer effet » liste les 35 sons humains officiels de Gemini 3.8,
+// groupés par famille (`<laugh>`, `<sigh>`, `<short pause>`…). AUCUNE liste
+// recopiée ici : la source reste `tts/vocalTags.ts`.
 // ==========================================================================
 const VOCAL_BURSTS = tagsByCategory();
 const VOCAL_BURST_COUNT = Object.values(VOCAL_BURSTS).reduce((n, l) => n + l.length, 0);
@@ -37,9 +39,8 @@ const BURST_SECTIONS: { category: TagCategory; ar: string; fr: string }[] = [
   { category: 'silence', ar: 'وقفات صمت', fr: 'Silences (pause)' },
 ];
 
-// La conversion MP3 embarque lamejs (518 ko) + ffmpeg.wasm : ces librairies
-// ne servent QU'au clic « MP3 ». Elles sont donc chargees a la demande
-// (import dynamique) — plus rien de tout ca dans le bundle de demarrage.
+// La conversion MP3 embarque lamejs + ffmpeg.wasm : chargés uniquement au
+// clic « MP3 » (import dynamique) — rien de tout ça dans le bundle de départ.
 const chargerConvertisseurMp3 = () => import('../utils/audioConverter');
 
 // ==========================================================================
@@ -52,6 +53,8 @@ const formatTime = (seconds: number): string => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const LOGO_URL = 'https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg';
+
 interface TTSStudioProps {
   balance: number;
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
@@ -63,9 +66,9 @@ interface TTSStudioProps {
 }
 
 // ==========================================================================
-// VOICE GLYPH
+// VOICE GLYPH — icônes lucide (jamais d'emoji)
 // ==========================================================================
-const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female'; className?: string }> = ({ icon, gender, className = "w-4 h-4" }) => {
+const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female' | 'unknown'; className?: string }> = ({ icon, gender, className = "w-4 h-4" }) => {
   switch (icon) {
     case 'mic': return <Mic className={className} />;
     case 'sparkles': return <Sparkles className={className} />;
@@ -81,12 +84,7 @@ const VoiceGlyph: React.FC<{ icon: string; gender: 'male' | 'female'; className?
 };
 
 // ==========================================================================
-// NOTATION 5 ÉTOILES — demandée dans une popup au clic sur « Télécharger »
-// --------------------------------------------------------------------------
-// Le téléchargement (WAV/MP3) est TOUJOURS direct : au clic, si la génération
-// n'a pas encore été notée, la popup s'ouvre — un clic sur une étoile
-// enregistre la note PUIS lance le téléchargement. « Sans noter » télécharge
-// directement. La note ne bloque donc jamais le téléchargement.
+// NOTATION 5 ÉTOILES — popup au clic sur « Télécharger » (jamais bloquante)
 // ==========================================================================
 const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?: 'sm' | 'md' | 'lg' }> = ({ rating, onRate, size = 'md' }) => {
   const [hover, setHover] = useState(0);
@@ -102,9 +100,9 @@ const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?:
             onClick={() => onRate(n)}
             onMouseEnter={() => setHover(n)}
             aria-label={`${n} / 5`}
-            className="p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
+            className="p-1 cursor-pointer transition-colors hover:opacity-80"
           >
-            <Star className={starClass} style={{ color: filled ? '#facc15' : '#cbd5e1' }} fill={filled ? '#facc15' : 'none'} />
+            <Star className={starClass} style={{ color: filled ? '#f59e0b' : '#cbd5e1' }} fill={filled ? '#f59e0b' : 'none'} />
           </button>
         );
       })}
@@ -113,8 +111,7 @@ const StarRating: React.FC<{ rating: number; onRate: (n: number) => void; size?:
 };
 
 // Générations déjà notées (id -> étoiles) : mémorisées en local pour ne pas
-// redemander une note après un rechargement de page (l'audio est restauré
-// depuis l'historique, voir l'effet de restauration plus bas).
+// redemander une note après un rechargement de page.
 const RATED_KEY = 'sawtify_rated_generations';
 function loadRatedMap(): Record<string, number> {
   try { return JSON.parse(localStorage.getItem(RATED_KEY) || '{}'); } catch { return {}; }
@@ -126,6 +123,7 @@ function saveRatedMap(map: Record<string, number>) {
 type CategoryFilter = 'all' | 'commercial' | 'narrative' | 'social' | 'formal';
 type GenderFilter = 'all' | 'male' | 'female';
 type RegionId = 'general' | 'centre' | 'ouest' | 'est';
+type PopoverId = 'tags' | 'voices' | 'region' | null;
 
 // ==========================================================================
 // COMPOSANT PRINCIPAL
@@ -160,11 +158,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [generationRating, setGenerationRating] = useState<number>(0);
   const [ratingSubmitting, setRatingSubmitting] = useState<boolean>(false);
   // Popup de notation : ouverte au clic sur « Télécharger » (jamais bloquante).
-  // Mémorise le format demandé pour lancer le téléchargement juste après.
   const [pendingDownload, setPendingDownload] = useState<{ format: 'mp3' | 'wav' } | null>(null);
-  // Voix qui a VRAIMENT généré l'audio affiché (figée à la génération) : le
-  // lecteur montre toujours ce nom, même si l'utilisateur change ensuite de
-  // voix sélectionnée pour la prochaine génération.
+  // Voix qui a VRAIMENT généré l'audio affiché (figée à la génération).
   const [generatedVoice, setGeneratedVoice] = useState<{ id: string; name: string } | null>(null);
   const [, setCurrentBlob] = useState<Blob | null>(null);
   const [, setMp3Blob] = useState<Blob | null>(null);
@@ -177,38 +172,33 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [insufficientAlert, setInsufficientAlert] = useState<boolean>(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
-  const [, setLastGeneratedCost] = useState<number>(20);
-  // Popup "ton de départ" : demandé avant chaque génération pour contrôler
-  // explicitement si la voix démarre calme, neutre ou excitée.
+  const [lastGeneratedCost, setLastGeneratedCost] = useState<number>(20);
+  // Popup "ton de départ" : demandé avant chaque génération (2 étapes :
+  // ton, puis registre de langue + intensité émotionnelle).
   const [showStartToneModal, setShowStartToneModal] = useState<boolean>(false);
   const startToneRef = useRef<'calm' | 'natural' | 'excited' | null>(null);
-  // Étape 2 de la popup : registre de langue (darija/fusha/français) +
-  // intensité émotionnelle (low/normal/high), demandés APRÈS le ton de départ.
   const [ttsStep, setTtsStep] = useState<'tone' | 'register'>('tone');
   const [pendingRegister, setPendingRegister] = useState<'darija' | 'fusha' | 'francais'>('darija');
   const [pendingIntensity, setPendingIntensity] = useState<'low' | 'normal' | 'high'>('normal');
   const registerRef = useRef<'darija' | 'fusha' | 'francais'>('darija');
   const intensityRef = useRef<'low' | 'normal' | 'high'>('normal');
 
-  // Pop-up « Quoi de neuf en 4.1 » : s'ouvre toute seule à la PREMIÈRE entrée
-  // dans le studio, puis reste accessible via le bouton « Nouveautés ».
+  // Pop-up « Quoi de neuf en 4.1 » : première entrée dans le studio, puis
+  // accessible via le bouton « Nouveautés ».
   const [showWhatsNew, setShowWhatsNew] = useState<boolean>(false);
   useEffect(() => {
     if (shouldShowWhatsNew()) {
-      // On marque comme vue dès l'OUVERTURE : fermer la page en pleine lecture
-      // ne la fera pas réapparaître en boucle à la prochaine visite.
       markWhatsNewSeen();
-      // Léger différé : laisse le studio s'afficher d'abord, la pop-up arrive
-      // ensuite — c'est plus élégant qu'un écran noir qui saute.
       const id = setTimeout(() => setShowWhatsNew(true), 550);
       return () => clearTimeout(id);
     }
   }, []);
 
-
-  // Menu emotions
-  const [isEmotionsMenuOpen, setIsEmotionsMenuOpen] = useState<boolean>(false);
-  const emotionsMenuRef = useRef<HTMLDivElement | null>(null);
+  // Mode de la barre : voix-off (texte → audio) ou Script IA (idée → script).
+  const [composerMode, setComposerMode] = useState<'voice' | 'script'>('voice');
+  // Popover ouverte dans la barre (balises / voix / réglages script).
+  const [openPop, setOpenPop] = useState<PopoverId>(null);
+  const popAnchorRef = useRef<HTMLDivElement | null>(null);
 
   // « Réutiliser dans le studio » (depuis l'historique) : pré-remplit l'éditeur.
   const onPrefillConsumedRef = useRef(onPrefillConsumed);
@@ -221,20 +211,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   // IA
   const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
-  const [productName, setProductName] = useState<string>('');
   const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('general');
+  // Script généré affiché dans la carte sous la barre (flux Script IA).
+  const [scriptResult, setScriptResult] = useState<string | null>(null);
 
-  // Drawers mobiles
-  const [isScriptMenuOpen, setIsScriptMenuOpen] = useState<boolean>(false);
-  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState<boolean>(false);
-
-  // Feedback
+  // Feedback IA
   const [lastGenType, setLastGenType] = useState<'script' | 'enhance' | null>(null);
   const [lastGenOutput, setLastGenOutput] = useState<string>('');
   const [lastGenInput, setLastGenInput] = useState<string>('');
   const [lastGenSector, setLastGenSector] = useState<string>('general');
   const [feedbackSent, setFeedbackSent] = useState<boolean>(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
 
   // Notifications
   const [notification, setNotification] = useState<string | null>(null);
@@ -246,9 +234,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Minuteur de fermeture auto du lecteur après « note + téléchargement ».
   const autoCloseTimerRef = useRef<number | null>(null);
-  // Scrub tactile (mobile) : glisser le doigt sur la barre pour avancer/reculer.
   const mobileSeekRef = useRef<HTMLDivElement | null>(null);
   const mobileSeekingRef = useRef(false);
   const previousAudioUrlRef = useRef<string | null>(null);
@@ -271,21 +257,27 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const maxChars = balance >= TTS_UNLOCK_BALANCE_THRESHOLD ? TTS_MAX_CHARS_UNLOCKED : TTS_MAX_CHARS_DEFAULT;
 
   // ── Estimation dynamique du coût (avant génération) : miroir du barème serveur ──
-  // (src/utils/pointsCost.ts). Affichée sous le texte + sur le bouton de génération.
   const estimate = estimatePointsFromChars(text.trim().length);
   const estimatedCost = estimate.points;
   const estimatedSeconds = estimate.seconds;
-  // Solde insuffisant pour LE TEXTE ÉCRIT : le bouton devient « Rechargez pour générer ».
   const needsTopUp = text.trim().length > 0 && balance < estimatedCost;
 
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
-  // Nom affiché dans le lecteur : la voix qui a GÉNÉRÉ l'audio, pas la voix
-  // sélectionnée (si Amine a généré, ça reste « Amine » même après avoir
-  // sélectionné Yasmine pour la suite).
   const playerVoiceName = generatedVoice?.name || currentVoice.name;
   const filteredVoices = voices
     .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
     .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
+
+  // ── Zone de texte : grandit avec le contenu (comme la barre Claude) ──
+  const growTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const max = 320;
+    el.style.height = `${Math.min(max, el.scrollHeight)}px`;
+    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+  }, []);
+  useEffect(() => { growTextarea(); }, [text, composerMode, growTextarea]);
 
   // ------------------------------------------------------------------
   // EFFECT : Restauration d'état
@@ -326,7 +318,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           const rows = raceResult;
           const found = rows.find((r: any) => new Date(r.createdAt).getTime() >= pending!.startedAt - 3000);
-          
+
           if (found && !cancelled) {
             setCurrentAudioUrl(found.audioUrl || null);
             setCurrentGenerationId(found.id || null);
@@ -335,7 +327,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             setAudioDuration(found.durationSec || 0);
             audioDurationRef.current = found.durationSec || 0;
             setLastGeneratedCost(found.pointsDeducted);
-            showNotif(language === 'ar' ? '✅ تم استرجاع التسجيل' : '✅ Résultat récupéré');
+            showNotif(language === 'ar' ? 'تم استرجاع التسجيل' : 'Résultat récupéré');
             try {
               localStorage.removeItem(PENDING_GEN_KEY);
               localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: found.id, createdAt: found.createdAt }));
@@ -373,18 +365,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     };
 
     restorePreviousState();
-    
-    return () => { 
-      cancelled = true; 
+
+    return () => {
+      cancelled = true;
       isRestoringRef.current = false;
     };
   }, []);
 
-  // Fermer dropdown emotions
+  // Fermer les popovers au clic extérieur
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (emotionsMenuRef.current && !emotionsMenuRef.current.contains(e.target as Node)) {
-        setIsEmotionsMenuOpen(false);
+      if (popAnchorRef.current && !popAnchorRef.current.contains(e.target as Node)) {
+        setOpenPop(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -413,8 +405,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     previousMp3UrlRef.current = mp3Url;
   }, [mp3Url]);
 
-  // Auto-save draft (debounce 500ms : sans ça, chaque frappe écrivait dans
-  // localStorage — perceptible sur un texte long, surtout sur téléphone d'entrée de gamme).
+  // Auto-save draft (debounce 500ms)
   useEffect(() => {
     const id = setTimeout(() => {
       try { localStorage.setItem('sawtify_draft_text', text); } catch {}
@@ -438,16 +429,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     const start = textareaRef.current.selectionStart;
     const end = textareaRef.current.selectionEnd;
     setText(prev => prev.substring(0, start) + ' ' + tag + ' ' + prev.substring(end));
-    setIsEmotionsMenuOpen(false);
+    setOpenPop(null);
   }, []);
 
   const handlePreviewVoice = useCallback(async (e: React.MouseEvent, voice: Voice) => {
     e.stopPropagation();
     if (previewingVoiceId === voice.id || previewRequestRef.current === voice.id) {
-      stopNaturalAudio(); 
-      setPreviewingVoiceId(null); 
+      stopNaturalAudio();
+      setPreviewingVoiceId(null);
       previewRequestRef.current = null;
-      return; 
+      return;
     }
     if (previewRequestRef.current) return;
     previewRequestRef.current = voice.id;
@@ -463,10 +454,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
       previewRequestRef.current = null;
       playNaturalAudio(audioUrl, () => setPreviewingVoiceId(null), speed, pitch);
-    } catch (err: any) { 
-      setPreviewingVoiceId(null); 
+    } catch (err: any) {
+      setPreviewingVoiceId(null);
       previewRequestRef.current = null;
-      showNotif(language === 'ar' ? 'فشل تشغيل المعاينة' : 'Erreur de preview'); 
+      showNotif(language === 'ar' ? 'فشل تشغيل المعاينة' : 'Erreur de preview');
     }
   }, [previewingVoiceId, speed, pitch, language, showNotif]);
 
@@ -475,15 +466,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       if (generationRequestLockRef.current) return;
       generationRequestLockRef.current = true;
     }
-    if (!text.trim() || balance < POINTS_COST) { 
-      setInsufficientAlert(true); 
+    if (!text.trim() || balance < POINTS_COST) {
+      setInsufficientAlert(true);
       generationRequestLockRef.current = false;
-      return; 
+      return;
     }
-    
-    setInsufficientAlert(false); 
-    // La voix qui génère est figée ici : le lecteur affichera TOUJOURS ce nom,
-    // même si l'utilisateur change de voix sélectionnée juste après.
+
+    setInsufficientAlert(false);
+    // La voix qui génère est figée ici : le lecteur affichera TOUJOURS ce nom.
     const generatingVoice = { id: currentVoice.id, name: currentVoice.name };
     if (autoCloseTimerRef.current) { window.clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null; }
     setIsGenerating(true);
@@ -495,38 +485,37 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     try {
       localStorage.setItem(PENDING_GEN_KEY, JSON.stringify({ startedAt: Date.now(), voiceId: currentVoice.id }));
     } catch (e) {}
-    
+
     let errMsg = '';
     try {
       const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(tag => tag.replace(/[\[\]]/g, ''));
       if (extractedTags.length === 0) {
-        showNotif(language === 'ar' ? '💡 أضف وسم عاطفة لصوت أكثر تعبيرًا' : '💡 Ajoutez une balise d\'émotion');
+        showNotif(language === 'ar' ? 'أضف وسم عاطفة لصوت أكثر تعبيرًا' : "Ajoutez une balise d'émotion pour plus d'expression");
       }
 
-      // Le ton de départ choisi dans la popup est injecté automatiquement en
-      // tête du texte envoyé (balise native [calm]/[natural]/[excited]) pour
-      // devenir le tag dominant côté serveur, sans modifier le texte affiché
-      // dans le champ de saisie.
+      // Le ton de départ choisi dans la popup est injecté en tête du texte
+      // envoyé (balise [calm]/[natural]/[excited]) sans modifier le texte
+      // affiché dans le champ de saisie.
       const startTone = startToneRef.current;
       const startToneTag = startTone === 'calm' ? '[calm]' : startTone === 'excited' ? '[excited]' : startTone === 'natural' ? '[natural]' : '';
       const textToSend = startToneTag ? `${startToneTag} ${text.trim()}` : text;
 
-      const response = await requestTTSGeneration({ 
+      const response = await requestTTSGeneration({
         text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags,
         register: registerRef.current, intensity: intensityRef.current
       }, balance);
 
 
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
-      
+
       setCurrentAudioUrl(response.audio_url);
       setCurrentGenerationId(response.generation_id || null);
       setGeneratedVoice(generatingVoice);
       setGenerationRating(0);
-      setCurrentBlob(audioBlob); 
-      setWavSize(audioBlob.size || 120000); 
+      setCurrentBlob(audioBlob);
+      setWavSize(audioBlob.size || 120000);
       setCurrentTime(0);
-      
+
       const dur = response.duration_seconds || 0;
       setAudioDuration(dur);
       audioDurationRef.current = dur;
@@ -537,7 +526,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       if (response.degraded) {
         try { localStorage.removeItem(PENDING_GEN_KEY); } catch {}
-        showNotif(language === 'ar' ? '⚠️ معاينة محلية (بدون خصم)' : '⚠️ Aperçu local (non facturé)');
+        showNotif(language === 'ar' ? 'معاينة محلية (بدون خصم)' : 'Aperçu local (non facturé)');
       } else {
         (async () => {
           try {
@@ -548,21 +537,21 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               storagePath = await uploadGenerationAudio(userData.user.id, generationId, audioBlob);
             }
 
-            const record: GenerationRecord = { 
-              id: generationId, 
-              text, voiceId: currentVoice.id, voiceName: currentVoice.name, 
-              audioUrl: response.audio_url, pointsDeducted: realCost, 
-              durationSec: dur, 
-              latencyMs: response.latency_ms, createdAt: new Date().toISOString() 
+            const record: GenerationRecord = {
+              id: generationId,
+              text, voiceId: currentVoice.id, voiceName: currentVoice.name,
+              audioUrl: response.audio_url, pointsDeducted: realCost,
+              durationSec: dur,
+              latencyMs: response.latency_ms, createdAt: new Date().toISOString()
             };
 
             await onDeductPoints(realCost, record, storagePath, response.remaining_balance ?? null);
-            
+
             try {
               localStorage.removeItem(PENDING_GEN_KEY);
               localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: generationId, createdAt: record.createdAt }));
             } catch (e2) {}
-            
+
             window.dispatchEvent(new CustomEvent('refresh-account-balance'));
           } catch (uploadErr) {
             console.warn('Erreur upload:', uploadErr);
@@ -572,28 +561,28 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         showNotif(response.milestone_bonus ? `-${realCost} Points · +${response.milestone_bonus} bonus` : (response.notification || `-${realCost} Points`));
         playGenerationChime();
       }
-      
-      try { 
+
+      try {
         const { convertWavToMp3 } = await chargerConvertisseurMp3();
-        const r = await convertWavToMp3(audioBlob, () => {}); 
-        setMp3Blob(r.mp3Blob); 
-        setMp3Url(r.mp3Url); 
+        const r = await convertWavToMp3(audioBlob, () => {});
+        setMp3Blob(r.mp3Blob);
+        setMp3Url(r.mp3Url);
       } catch (e) {
         console.warn('MP3 conversion failed:', e);
       }
-      
-    } catch (err: any) { 
+
+    } catch (err: any) {
       console.error('Erreur TTS:', err);
       errMsg = err?.message || '';
       if (errMsg.includes('[QUEUE_BUSY]')) {
         const parts = errMsg.split('[QUEUE_BUSY]')[1]?.split('|') || ['4'];
         const retryAfter = Math.max(2, parseInt(parts[0], 10) || 4);
         if (retryCount < 8) {
-          showNotif(language === 'ar' ? `🎙️ جاري التوليد... (${retryCount + 1}/8)` : `🎙️ Génération... (${retryCount + 1}/8)`);
+          showNotif(language === 'ar' ? `جاري التوليد... (${retryCount + 1}/8)` : `Génération en attente (${retryCount + 1}/8)`);
           setTimeout(() => handleGenerate(retryCount + 1), retryAfter * 1000);
           return;
         } else {
-          showNotif(language === 'ar' ? '⏱️ الخادم بطيء' : '⏱️ Serveur lent');
+          showNotif(language === 'ar' ? 'الخادم بطيء' : 'Serveur lent');
         }
       } else if (errMsg.includes('insuffisant') || errMsg.includes('402')) {
         setInsufficientAlert(true);
@@ -602,7 +591,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         showNotif(language === 'ar' ? 'خطأ في التوليد' : 'Erreur de génération');
       }
       setIsGenerating(false);
-    } finally { 
+    } finally {
       if (!errMsg?.includes('[QUEUE_BUSY]') || retryCount >= 2) {
         generationRequestLockRef.current = false;
         startToneRef.current = null;
@@ -617,7 +606,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   const confirmStartTone = (tone: 'calm' | 'natural' | 'excited') => {
     startToneRef.current = tone;
-    // Passe à l'étape 2 (registre + intensité) au lieu de générer tout de suite.
     setTtsStep('register');
   };
 
@@ -632,9 +620,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     if (!text.trim() || isEnhancing || enhanceRequestLockRef.current) return;
     if (balance < 2) { setInsufficientAlert(true); return; }
     enhanceRequestLockRef.current = true;
-    setInsufficientAlert(false); 
-    setIsEnhancing(true); 
+    setInsufficientAlert(false);
+    setIsEnhancing(true);
     setFeedbackSent(false);
+    setFeedbackGiven(null);
     try {
       const originalText = text;
       const result = await requestEnhanceText(text, selectedRegion);
@@ -647,48 +636,72 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       setTimeout(() => setIsMagicActive(false), 900);
       playEnhanceChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
-    } catch (e: any) { 
+    } catch (e: any) {
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
       else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي' : 'Limite quotidienne atteinte');
       else showNotif(language === 'ar' ? 'خطأ في التحسين' : 'Erreur amélioration');
-    } finally { 
-      setIsEnhancing(false); 
+    } finally {
+      setIsEnhancing(false);
       enhanceRequestLockRef.current = false;
     }
   };
 
+  // Script IA : la description écrite dans la barre est envoyée au
+  // générateur ; le script s'affiche dans la carte SOUS la barre (jamais
+  // écrasé dans le champ) — « Utiliser pour la voix » le place ensuite
+  // dans la barre.
   const handleGenerateScript = async () => {
-    if (!productName.trim() || isGeneratingScript || scriptRequestLockRef.current) return;
+    const description = text.trim();
+    if (!description || isGeneratingScript || scriptRequestLockRef.current) return;
     if (balance < 5) { setInsufficientAlert(true); return; }
     scriptRequestLockRef.current = true;
-    setInsufficientAlert(false); 
-    setIsGeneratingScript(true); 
+    setInsufficientAlert(false);
+    setIsGeneratingScript(true);
     setFeedbackSent(false);
+    setFeedbackGiven(null);
+    setOpenPop(null);
     try {
-      const result = await requestGenerateScript(productName, 'excited', selectedRegion);
-      setText(result.script);
+      const result = await requestGenerateScript(description, 'excited', selectedRegion);
+      setScriptResult(result.script);
       showNotif(result.notification || '-5 Points');
       setLastGenType('script');
-      setLastGenInput(productName);
+      setLastGenInput(description);
       setLastGenOutput(result.script);
       setLastGenSector(result.sector_used || 'general');
-      setProductName('');
-      setIsScriptMenuOpen(false);
       setIsMagicActive(true);
       setTimeout(() => setIsMagicActive(false), 900);
       playScriptChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
-    } catch (e: any) { 
+    } catch (e: any) {
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
       else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي' : 'Limite quotidienne');
       else showNotif(language === 'ar' ? 'خطأ في إنشاء السيناريو' : 'Erreur script');
-    } finally { 
-      setIsGeneratingScript(false); 
+    } finally {
+      setIsGeneratingScript(false);
       scriptRequestLockRef.current = false;
     }
   };
 
-  const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
+  // « Utiliser pour la voix » : le script revient dans la barre, en mode voix.
+  const handleUseScript = useCallback(() => {
+    if (!scriptResult) return;
+    setText(scriptResult);
+    setComposerMode('voice');
+    showNotif(language === 'ar' ? 'تم وضع النص في المربع — جاهز للتوليد' : 'Script placé dans la barre — prêt pour la voix');
+    requestAnimationFrame(() => {
+      growTextarea();
+      textareaRef.current?.focus();
+    });
+  }, [scriptResult, language, showNotif, growTextarea]);
+
+  const handleCopyScript = useCallback(() => {
+    if (!scriptResult) return;
+    navigator.clipboard.writeText(scriptResult).then(() => {
+      showNotif(language === 'ar' ? 'تم نسخ النص' : 'Script copié');
+    }).catch(() => {
+      showNotif(language === 'ar' ? 'فشل النسخ' : 'Erreur copie');
+    });
+  }, [scriptResult, language, showNotif]);
 
   const handleSendFeedback = async (rating: number) => {
     if (!lastGenType || !lastGenOutput || feedbackSent) return;
@@ -699,25 +712,25 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         type: lastGenType, region: selectedRegion, sector: lastGenSector
       });
       setFeedbackSent(true);
-      showNotif(rating >= 4 
-        ? (language === 'ar' ? '⭐ شكراً!' : '⭐ Merci!') 
-        : (language === 'ar' ? '👍 شكراً' : '👍 Merci'));
-    } catch (e) { 
+      showNotif(rating >= 4
+        ? (language === 'ar' ? 'شكراً!' : 'Merci !')
+        : (language === 'ar' ? 'شكراً' : 'Merci'));
+    } catch (e) {
       setFeedbackGiven(null);
     }
   };
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current || !currentAudioUrl) return;
-    if (isPlaying) { 
-      audioRef.current.pause(); 
-      setIsPlaying(false); 
-    } else { 
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
       audioRef.current.play().catch(err => {
         console.warn('Playback error:', err);
         setIsPlaying(false);
-      }); 
-      setIsPlaying(true); 
+      });
+      setIsPlaying(true);
     }
   }, [isPlaying, currentAudioUrl]);
 
@@ -725,7 +738,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
   }, []);
 
-  // Scrub mobile : convertit une position de doigt/souris en temps audio.
+  // Scrub tactile : convertit une position de doigt/souris en temps audio.
   const seekFromClientX = useCallback((clientX: number) => {
     const el = mobileSeekRef.current;
     if (!el || !audioRef.current || audioDuration <= 0) return;
@@ -754,8 +767,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   }, []);
 
   // Seules les vraies générations serveur (UUID = ligne en base) peuvent être
-  // notées. Les aperçus locaux « gen_... » n'existent pas en base : inutile
-  // d'appeler la RPC (elle échouerait) — téléchargement direct pour eux.
+  // notées. Les aperçus locaux « gen_... » n'existent pas en base.
   const canRateCurrent = Boolean(
     currentGenerationId && /^[0-9a-f-]{36}$/i.test(currentGenerationId)
   );
@@ -807,8 +819,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     startDownload(format);
   }, [generationRating, canRateCurrent, startDownload]);
 
-  // Clic sur une étoile dans la popup : on mémorise la note, on ferme, on
-  // télécharge TOUT DE SUITE — la sauvegarde en base part en arrière-plan.
+  // Clic sur une étoile : note mémorisée, téléchargement lancé tout de suite.
   const handleModalRate = useCallback((stars: number) => {
     const format = pendingDownload?.format || 'wav';
     setGenerationRating(stars);
@@ -820,15 +831,15 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
     startDownload(format);
     void saveGenerationRating(stars).then((ok) => {
-      if (ok) showNotif(language === 'ar' ? '⭐ شكراً على تقييمك!' : '⭐ Merci pour ta note !');
+      if (ok) showNotif(language === 'ar' ? 'شكراً على تقييمك!' : 'Merci pour ta note !');
     });
-    // Note donnée + téléchargement lancé = terminé : le lecteur se referme
-    // tout seul une seconde après (annulé si une génération redémarre avant).
+    // Note donnée + téléchargement lancé : le lecteur se referme tout seul
+    // une seconde après (annulé si une génération redémarre avant).
     if (autoCloseTimerRef.current) window.clearTimeout(autoCloseTimerRef.current);
     autoCloseTimerRef.current = window.setTimeout(() => handleClosePlayer(), 1000);
   }, [pendingDownload, currentGenerationId, startDownload, saveGenerationRating, showNotif, language, handleClosePlayer]);
 
-  // « Télécharger sans noter » : téléchargement direct, rien à enregistrer.
+  // « Télécharger sans noter » : téléchargement direct.
   const handleModalSkip = useCallback(() => {
     const format = pendingDownload?.format || 'wav';
     setPendingDownload(null);
@@ -850,6 +861,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     { id: 'ouest', ar: 'الغرب', fr: 'Ouest' },
     { id: 'est', ar: 'الشرق', fr: 'Est' },
   ];
+  const currentRegion = regionButtons.find(r => r.id === selectedRegion) || regionButtons[0];
 
   const categoryOptions: { id: CategoryFilter; label: string }[] = [
     { id: 'all', label: t.categoryAll || 'Tous' },
@@ -859,644 +871,721 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     { id: 'formal', label: t.categoryFormal || 'Formel' },
   ];
 
+  // Suggestions de démarrage (aucun emoji — icônes lucide dans le rendu).
+  const suggestions = composerMode === 'voice'
+    ? (language === 'ar'
+      ? [
+          { icon: <Megaphone className="w-3.5 h-3.5" />, label: 'إذاعة راديو 15 ثانية', starter: 'جديد! هذ السيمانة غير، استفد من -30% على كامل المتجر... [excited] زربوا!' },
+          { icon: <MessageCircle className="w-3.5 h-3.5" />, label: 'رسالة واتساب احترافية', starter: 'سلام، شكرا على رسالتك. [calm] فريقنا غادي يرد عليك في أقرب وقت.' },
+          { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'تعليق صوتي للمتجر', starter: 'اكتشف مجموعتنا الجديدة... [natural] توصيل مجاني لكامل الجزائر!' },
+          { icon: <Headphones className="w-3.5 h-3.5" />, label: 'مقدمة بودكاست بالدارجة', starter: 'أهلا بكم في البودكاست تاعنا... [natural] اليوم نحكيلكم على قصة تعلم منها.' },
+        ]
+      : [
+          { icon: <Megaphone className="w-3.5 h-3.5" />, label: 'Pub radio de 15 secondes', starter: 'Nouveauté ! Cette semaine seulement, profitez de -30% sur toute la boutique... [excited] Foncez !' },
+          { icon: <MessageCircle className="w-3.5 h-3.5" />, label: 'Message WhatsApp pro', starter: 'Bonjour, merci pour votre message. [calm] Notre équipe vous répondra dans les plus brefs délais.' },
+          { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'Voix off e-commerce', starter: 'Découvrez notre nouvelle collection... [natural] Livraison gratuite partout en Algérie !' },
+          { icon: <Headphones className="w-3.5 h-3.5" />, label: 'Intro podcast en darija', starter: 'أهلا بكم في البودكاست تاعنا... [natural] اليوم نحكيلكم على قصة تعلم منها.' },
+        ])
+    : (language === 'ar'
+      ? [
+          { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'متجر إلكتروني — تخفيضات -30%', starter: 'متجر ملابس إلكتروني، تخفيضات -30% هذ السيمانة، توصيل لكامل الجزائر' },
+          { icon: <UtensilsCrossed className="w-3.5 h-3.5" />, label: 'مطعم — افتتاح جديد', starter: 'مطعم جديد في الجزائر العاصمة، مطبخ تقليدي، أجواء عائلية' },
+          { icon: <House className="w-3.5 h-3.5" />, label: 'عقار — شقة للبيع', starter: 'شقة F3 للبيع في وهران، حي هادئ قريب من كل الخدمات' },
+          { icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'حدث — سهرة نهاية الأسبوع', starter: 'سهرة فنية هذا السبت في قسنطينة، موسيقى مباشرة وأنشطة' },
+        ]
+      : [
+          { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'Boutique en ligne — promo -30%', starter: 'Boutique de vêtements en ligne, promo -30% cette semaine, livraison partout en Algérie' },
+          { icon: <UtensilsCrossed className="w-3.5 h-3.5" />, label: 'Restaurant — nouvelle ouverture', starter: "Nouveau restaurant à Alger qui vient d'ouvrir, cuisine traditionnelle, ambiance familiale" },
+          { icon: <House className="w-3.5 h-3.5" />, label: 'Immobilier — appartement à vendre', starter: 'Appartement F3 à vendre à Oran, quartier calme, proche de tous les services' },
+          { icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'Événement — soirée du week-end', starter: 'Soirée événementielle ce samedi à Constantine, musique live et animations' },
+        ]);
+
+  // Soumission de la barre selon le mode.
+  const handleComposerSubmit = () => {
+    if (composerMode === 'script') {
+      handleGenerateScript();
+      return;
+    }
+    if (needsTopUp) { onOpenRecharge(); return; }
+    if (!text.trim() || balance < POINTS_COST) { setInsufficientAlert(true); return; }
+    if (isGenerating) return;
+    setTtsStep('tone');
+    setPendingRegister('darija');
+    setPendingIntensity('normal');
+    setShowStartToneModal(true);
+  };
+
   // ------------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------------
   return (
-    <div className={`h-[calc(100dvh_-_64px_-_env(safe-area-inset-top,0px))] w-full overflow-y-auto bg-slate-50/40 relative transition-all duration-300 lg:h-[calc(100vh_-_64px_-_env(safe-area-inset-top,0px))] lg:overflow-hidden ${currentAudioUrl ? 'pb-44 lg:pb-0' : 'pb-24 lg:pb-0'}`}>
-      
-      {/* Notification Toast */}
+    <div className="saw-bg h-[calc(100dvh_-_64px_-_env(safe-area-inset-top,0px))] w-full overflow-y-auto relative transition-all duration-300 lg:h-[calc(100vh_-_64px_-_env(safe-area-inset-top,0px))] pb-28 lg:pb-12">
+
+      {/* Fond « liquide » : halos violets flous derrière les panneaux verre */}
+      <div className="saw-aurora" aria-hidden="true">
+        <div className="saw-blob" style={{ width: 620, height: 620, top: -180, left: -120, background: 'radial-gradient(circle, rgba(139,92,246,0.30), transparent 65%)' }} />
+        <div className="saw-blob" style={{ width: 560, height: 560, top: -120, right: -140, background: 'radial-gradient(circle, rgba(232,121,249,0.22), transparent 65%)' }} />
+        <div className="saw-blob" style={{ width: 720, height: 720, bottom: -320, left: '50%', transform: 'translateX(-50%)', background: 'radial-gradient(circle, rgba(129,140,248,0.24), transparent 65%)' }} />
+      </div>
+
+      {/* Notification Toast (aucun emoji — icône lucide) */}
       {notification && (
         <div
-          className="fixed left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-sm shadow-2xl flex items-center gap-2 animate-[bounce_0.5s_ease-in-out]"
+          className="fixed left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-full bg-[#6d28d9] text-white font-semibold text-sm shadow-lg flex items-center gap-2"
           style={{ top: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}
+          role="status"
         >
-          <Zap className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-          <span className="tracking-wider">{notification}</span>
+          <Check className="w-4 h-4" />
+          <span>{notification}</span>
         </div>
       )}
 
       <fieldset disabled={isGenerating} className="contents">
 
-      {/* TOP BAR MOBILE */}
-      <div className="sticky top-0 lg:hidden shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-3 py-2.5 z-30 shadow-sm">
-        <button 
-          onClick={() => setIsScriptMenuOpen(true)} 
-          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
-          <Menu className="w-4 h-4" />
-          <span>{language === 'ar' ? 'السيناريو' : 'Script'}</span>
-        </button>
-        
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">
-            {currentVoice.name}
-          </span>
-        </div>
+        {/* Bannière solde insuffisant */}
+        {insufficientAlert && (
+          <div className="relative z-10 mx-auto mt-3 w-[min(800px,calc(100%-2rem))] rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-2.5 flex items-center justify-between text-xs text-rose-700">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-500" />
+              <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
+            </div>
+            <button
+              onClick={onOpenRecharge}
+              className="saw-flat px-3 py-1.5 rounded-full text-[11px] font-semibold text-rose-700 border-rose-200 hover:bg-rose-100 cursor-pointer"
+            >
+              {language === 'ar' ? 'شحن' : 'Recharger'}
+            </button>
+          </div>
+        )}
 
-        <button 
-          onClick={() => setIsVoiceMenuOpen(true)} 
-          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 text-xs font-semibold">
-          <Settings className="w-4 h-4" />
-          <span>{language === 'ar' ? 'الأصوات' : 'Voix'}</span>
-        </button>
-      </div>
+        <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-8 lg:pt-12">
 
-      <div className="flex-none lg:flex lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden relative">
-        
-        {/* ============ PANNEAU SCRIPT ============ */}
-        {isScriptMenuOpen && <div onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
-        <div className={`
-          fixed lg:static inset-y-0 start-0 z-50 lg:z-0
-          w-72 xl:w-80 shrink-0 border-e border-slate-200 bg-white flex flex-col lg:h-full lg:min-h-0
-          transition-all duration-300 transform
-          ${isScriptMenuOpen 
-            ? 'translate-x-0 opacity-100 pointer-events-auto' 
-            : (isRTL ? 'translate-x-full' : '-translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
-        `}>
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Video className="w-4 h-4 text-purple-600" /> 
-              {language === 'ar' ? 'منشئ النصوص الإعلانية' : 'Générateur de Script'}
-            </h3>
-            <button onClick={() => setIsScriptMenuOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
-              <X className="w-4 h-4" />
+          {/* Salutation + logo + solde */}
+          <div className="w-full flex items-center justify-between gap-3 mb-7">
+            <h1 className="flex items-center gap-3 min-w-0">
+              <img src={LOGO_URL} alt="Sawtify" className="w-11 h-11 rounded-2xl object-cover shadow-sm border border-white/80" />
+              <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#2e1065] truncate">
+                {language === 'ar' ? 'أهلا، Labbaci' : 'Hé, Labbaci'}
+              </span>
+            </h1>
+            <button
+              onClick={onOpenRecharge}
+              className="saw-flat shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5"
+              title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}
+            >
+              <span className="font-num">
+                {language === 'ar' ? `الرصيد ${balance} نقطة` : `Solde ${balance} pts`}
+              </span>
+              <span className="text-[#6d28d9] font-bold">{language === 'ar' ? 'شحن' : 'Recharger'}</span>
             </button>
           </div>
 
-          <div className="p-4 border-b border-slate-100">
-            <div className="mb-3">
-              <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">
-                {language === 'ar' ? 'اللهجة' : 'Lahdja'}
-              </label>
-              <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px]">
-                {regionButtons.map(r => (
-                  <button 
-                    key={r.id} 
-                    type="button" 
-                    onClick={() => setSelectedRegion(r.id)}
-                    className={`flex-1 text-center py-1.5 rounded-md font-medium transition cursor-pointer ${selectedRegion === r.id ? 'bg-white text-purple-700 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-800'}`}>
-                    {language === 'ar' ? r.ar : r.fr}
+          {/* ════════ LA BARRE ════════ */}
+          <div ref={popAnchorRef} className="w-full relative">
+            <div className="saw-glass rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
+
+              {/* Zone de texte : grandit avec le contenu */}
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={maxChars}
+                rows={1}
+                placeholder={composerMode === 'script'
+                  ? (language === 'ar' ? 'صف منتجك أو فكرتك… (مثال: متجر أحذية في وهران، تخفيضات -30%)' : 'Décris ton produit ou ton idée… (ex : boutique de sneakers à Oran, promo -30%)')
+                  : (t.textPlaceholder || 'Écrivez votre texte ici...')}
+                className={`w-full min-h-[52px] bg-transparent border-0 outline-none resize-none text-[15px] leading-relaxed text-slate-900 placeholder:text-slate-400/80 custom-scrollbar ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
+                style={{ unicodeBidi: 'plaintext' }}
+                dir="auto"
+              />
+
+              {/* Barre d'actions de la barre */}
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-2">
+
+                {/* + balises (mode voix uniquement) */}
+                {composerMode === 'voice' && (
+                  <button
+                    onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')}
+                    className={`saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`}
+                    title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}
+                    aria-label={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
+
+                {/* Modes */}
+                <button
+                  onClick={() => setComposerMode('voice')}
+                  className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}
+                >
+                  {language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}
+                </button>
+                <button
+                  onClick={() => setComposerMode('script')}
+                  className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}
+                >
+                  {language === 'ar' ? 'نص ذكي' : 'Script IA'}
+                </button>
+
+                <div className="flex-1" />
+
+                {/* Magique : améliore le texte (2 pts) — mode voix */}
+                {composerMode === 'voice' && (
+                  <button
+                    onClick={handleEnhanceText}
+                    disabled={isEnhancing || !text.trim() || balance < 2}
+                    className="saw-flat h-9 rounded-full px-3 flex items-center gap-1.5 cursor-pointer disabled:opacity-40 text-slate-600"
+                    title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer le texte (2 pts)'}
+                  >
+                    {isEnhancing
+                      ? <RefreshCw className="w-4 h-4 animate-spin text-[#6d28d9]" />
+                      : <Wand2 className="w-4 h-4 text-[#6d28d9]" />}
+                    <span className="text-[11px] font-bold text-[#6d28d9]">{language === 'ar' ? 'المحسن' : 'Magique'}</span>
+                  </button>
+                )}
+
+                {/* Copier le texte */}
+                <button
+                  onClick={handleCopyText}
+                  className="saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer text-slate-600"
+                  title={language === 'ar' ? 'نسخ' : 'Copier'}
+                  aria-label={language === 'ar' ? 'نسخ' : 'Copier'}
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                </button>
+
+                {/* Pilule voix (mode voix) */}
+                {composerMode === 'voice' ? (
+                  <button
+                    onClick={() => setOpenPop(openPop === 'voices' ? null : 'voices')}
+                    className={`flex items-center gap-2 rounded-full ps-1.5 pe-2.5 py-1.5 cursor-pointer transition-colors ${openPop === 'voices' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`}
+                    title={t.catalogHeader}
+                  >
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${openPop === 'voices' ? 'bg-white/20 text-white' : 'bg-[#ede9fe] text-[#6d28d9]'}`}>
+                      <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-xs font-bold max-w-[80px] truncate">{currentVoice.name}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${openPop === 'voices' ? 'rotate-180' : ''}`} />
+                  </button>
+                ) : (
+                  /* Pilule réglages script (mode script) : dialecte/région */
+                  <button
+                    onClick={() => setOpenPop(openPop === 'region' ? null : 'region')}
+                    className={`flex items-center gap-2 rounded-full px-3 py-2 cursor-pointer transition-colors ${openPop === 'region' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`}
+                    title={language === 'ar' ? 'إعدادات النص' : 'Réglages du script'}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold">{language === 'ar' ? currentRegion.ar : currentRegion.fr}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${openPop === 'region' ? 'rotate-180' : ''}`} />
+                  </button>
+                )}
+
+                {/* Bouton principal : flèche (voix) ou étoile (script) */}
+                <button
+                  onClick={handleComposerSubmit}
+                  disabled={isGenerating || (composerMode === 'script' ? isGeneratingScript : !text.trim())}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors disabled:opacity-40 ${needsTopUp && composerMode === 'voice' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'saw-flat-violet'}`}
+                  title={composerMode === 'script' ? (language === 'ar' ? 'إنشاء النص' : 'Générer le script') : (needsTopUp ? (language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer') : t.generateBtn)}
+                >
+                  {composerMode === 'script'
+                    ? (isGeneratingScript ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />)
+                    : (needsTopUp ? <Zap className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />)}
+                </button>
+              </div>
+
+              {/* ════════ Popover balises ════════ */}
+              {openPop === 'tags' && (
+                <div className="saw-pop absolute bottom-full mb-2 start-0 w-[min(352px,calc(100vw-3rem))] max-h-[420px] overflow-y-auto custom-scrollbar p-3 z-40">
+                  <div className="flex items-center justify-between px-1 pb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
+                    <span className="text-[10px] text-slate-400">{language === 'ar' ? 'الصوت يتبع النبرة' : 'la voix suit la tonalité'}</span>
+                  </div>
+
+                  {/* Ton (toute la lecture) */}
+                  <div className="flex items-center gap-1.5 px-1 pt-1 pb-1.5">
+                    <SlidersHorizontal className="w-3 h-3 text-[#6d28d9]" />
+                    <span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'نبرة الأداء (كامل النص)' : 'Ton (toute la lecture)'}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {styleTags.map((tagObj) => (
+                      <button
+                        key={tagObj.tag}
+                        onClick={() => handleInsertTag(tagObj.tag)}
+                        title={`${tagObj.tag} — ${tagObj.desc}`}
+                        className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer text-slate-700"
+                      >
+                        <span className="block text-[11px] font-semibold">{`[${tagObj.label}]`}</span>
+                        <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{tagObj.tag}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Sons humains <...> */}
+                  <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5">
+                    <AudioLines className="w-3 h-3 text-[#6d28d9]" />
+                    <span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? `أصوات بشرية (${VOCAL_BURST_COUNT})` : `Sons humains (${VOCAL_BURST_COUNT})`}</span>
+                  </div>
+                  {BURST_SECTIONS.map((section) => (
+                    <div key={section.category}>
+                      <div className="text-[10px] font-semibold text-slate-400 px-1 pt-2 pb-1">
+                        {language === 'ar' ? section.ar : section.fr}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {(VOCAL_BURSTS[section.category] || []).map((v) => (
+                          <button
+                            key={v.tag}
+                            onClick={() => handleInsertTag(v.tag)}
+                            title={`${v.tag} — ${language === 'ar' ? v.ar : v.fr}`}
+                            className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer"
+                          >
+                            <span className="block text-[10px] font-semibold text-slate-700">{language === 'ar' ? v.ar : v.fr}</span>
+                            <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{v.tag}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ════════ Popover voix ════════ */}
+              {openPop === 'voices' && (
+                <div className="saw-pop absolute bottom-full mb-2 end-0 w-[min(320px,calc(100vw-3rem))] max-h-[480px] flex flex-col p-3 z-40">
+                  <div className="flex items-center justify-between px-1 pb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t.catalogHeader}</span>
+                    <span className="text-[10px] text-slate-400 font-num">{voices.length}</span>
+                  </div>
+
+                  {/* Filtres genre (icônes lucide, jamais d'emoji) */}
+                  <div className="flex gap-1 mb-2">
+                    {([
+                      { id: 'all' as GenderFilter, label: t.allGenders },
+                      { id: 'male' as GenderFilter, label: t.maleGenders },
+                      { id: 'female' as GenderFilter, label: t.femaleGenders },
+                    ]).map((g) => (
+                      <button
+                        key={g.id}
+                        onClick={() => setGenderFilter(g.id)}
+                        className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${genderFilter === g.id ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Filtre style */}
+                  <div className="relative mb-2">
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+                      className="w-full appearance-none px-3 py-2 pe-8 rounded-full text-[11px] font-medium text-slate-700 bg-white/70 border border-[rgba(76,29,149,0.12)] hover:bg-white focus:outline-none cursor-pointer"
+                    >
+                      {categoryOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.label}</option>))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2.5 pointer-events-none" />
+                  </div>
+
+                  {/* Liste des voix */}
+                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-0.5">
+                    {filteredVoices.map((voice) => {
+                      const isSelected = voice.id === selectedVoiceId;
+                      const isPreviewing = previewingVoiceId === voice.id;
+                      return (
+                        <div
+                          key={voice.id}
+                          onClick={() => { setSelectedVoiceId(voice.id); setOpenPop(null); }}
+                          className={`flex items-center gap-2 px-2.5 py-2 rounded-2xl cursor-pointer transition-colors ${isSelected ? 'bg-[#ede9fe]' : 'hover:bg-white/80'}`}
+                        >
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#6d28d9] text-white' : 'bg-white text-slate-500 border border-[rgba(76,29,149,0.12)]'}`}>
+                            <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[11px] font-semibold text-slate-800 truncate block">{voice.name}</span>
+                            <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
+                          </div>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }}
+                              className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-white'}`}
+                              title="Favori"
+                              aria-pressed={favoriteVoiceIds.includes(voice.id)}
+                              aria-label={isRTL ? "إضافة إلى المفضلة" : "Ajouter aux favoris"}
+                            >
+                              <Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} />
+                            </button>
+                            <button
+                              onClick={(e) => handlePreviewVoice(e, voice)}
+                              className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9] bg-white' : 'text-slate-400 hover:text-slate-700 hover:bg-white'}`}
+                              aria-label={isRTL ? "معاينة صوتية" : "Aperçu audio"}
+                            >
+                              {isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredVoices.length === 0 && (
+                      <p className="text-[11px] text-slate-400 text-center py-4">{language === 'ar' ? 'لا توجد نتائج' : 'Aucun résultat'}</p>
+                    )}
+                  </div>
+
+                  {/* Vitesse / hauteur */}
+                  <div className="mt-2 pt-2 border-t border-[rgba(76,29,149,0.10)] space-y-2">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-slate-500 font-medium">{t.speedLabel}</span>
+                        <span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span>
+                      </div>
+                      <input type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-slate-500 font-medium">{t.pitchLabel}</span>
+                        <span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span>
+                      </div>
+                      <input type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ════════ Popover réglages script ════════ */}
+              {openPop === 'region' && (
+                <div className="saw-pop absolute bottom-full mb-2 end-0 w-[min(300px,calc(100vw-3rem))] p-3 z-40">
+                  <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                    {language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {regionButtons.map(r => (
+                      <button
+                        key={r.id}
+                        onClick={() => { setSelectedRegion(r.id); setOpenPop(null); }}
+                        className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${selectedRegion === r.id ? 'saw-chip-active' : 'saw-flat text-slate-700'}`}
+                      >
+                        {language === 'ar' ? r.ar : r.fr}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 px-1 pt-2.5 leading-relaxed">
+                    {language === 'ar' ? 'النص يتبع اللهجة المختارة.' : 'Le script suit la région choisie.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Suggestions (changent selon le mode) */}
+            <div className="flex flex-wrap justify-center gap-2 mt-5">
+              {suggestions.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => {
+                    setText(s.starter);
+                    requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); });
+                  }}
+                  className="saw-flat rounded-full px-3.5 py-2 text-[11px] font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"
+                >
+                  <span className="text-[#6d28d9]">{s.icon}</span>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Réutiliser un texte récent */}
+            {recentGenerations.length > 0 && (
+              <div className="flex flex-wrap justify-center items-center gap-2 mt-3">
+                <History className="w-3 h-3 text-slate-400" />
+                {recentGenerations.slice(0, 3).map((gen) => (
+                  <button
+                    key={gen.id}
+                    onClick={() => {
+                      setText(gen.text);
+                      setComposerMode('voice');
+                      requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); });
+                    }}
+                    className="text-[10px] text-slate-500 hover:text-[#6d28d9] cursor-pointer transition-colors max-w-[220px] truncate"
+                    title={gen.text}
+                  >
+                    {gen.text.substring(0, 28)}…
                   </button>
                 ))}
               </div>
+            )}
+
+            {/* Coût estimé + compteur + feedback IA */}
+            <div className="w-full flex flex-wrap items-center justify-between gap-2 mt-3 px-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`text-[11px] ${needsTopUp ? 'font-semibold text-rose-600' : 'text-slate-500'}`}
+                  title={language === 'ar'
+                    ? 'تقدير مبني على طول النص — التكلفة النهائية حسب المدة الفعلية للتسجيل.'
+                    : 'Estimation basée sur la longueur du texte — coût final selon la durée réelle de l’audio.'}
+                >
+                  {language === 'ar' ? (
+                    <>هذا النص يستهلك <span className="font-num font-bold">~{estimatedCost}</span> نقطة{estimatedSeconds > 0 ? <> · ≈ <span className="font-num">{estimatedSeconds}s</span></> : null}</>
+                  ) : (
+                    <>Ce texte consomme <span className="font-num font-bold">~{estimatedCost}</span> points{estimatedSeconds > 0 ? <> · ≈ <span className="font-num">{estimatedSeconds}s</span></> : null}</>
+                  )}
+                </span>
+                <span className="text-[10px] text-slate-400 font-num">
+                  <span className={`font-semibold ${text.length >= maxChars * 0.9 ? 'text-amber-600' : 'text-slate-500'}`}>{text.length}</span> / {maxChars}
+                </span>
+              </div>
+
+              {needsTopUp && (
+                <button
+                  onClick={onOpenRecharge}
+                  className="rounded-full bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold px-4 py-2 cursor-pointer transition-colors"
+                >
+                  {language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer'}
+                </button>
+              )}
             </div>
 
-            <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">
-              {language === 'ar' ? 'اكتب اسم المنتج أو الخدمة.' : 'Nom du produit ou service.'}
-            </p>
-            <div className="space-y-2">
-              <input 
-                type="text" 
-                value={productName} 
-                onChange={(e) => setProductName(e.target.value)}
-                placeholder={language === 'ar' ? 'مثال: ساعة, formation...' : 'Ex: formation, baskets...'}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/10" 
-              />
-              <button 
-                onClick={handleGenerateScript} 
-                disabled={isGeneratingScript || !productName.trim() || balance < 5}
-                className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
-                {isGeneratingScript ? (
-                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>{language === 'ar' ? 'جاري التوليد...' : 'Génération...'}</span></>
-                ) : (
-                  <><Sparkles className="w-3.5 h-3.5 text-yellow-400 animate-pulse" /><span>{language === 'ar' ? 'إنشاء' : 'Générer'}</span><span className="text-[9px] font-bold text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">5 pts</span></>
-                )}
-              </button>
-            </div>
-          </div>
+            {balance < TTS_UNLOCK_BALANCE_THRESHOLD && (
+              <p className="w-full text-[10px] text-slate-400 px-1 mt-1">
+                {language === 'ar'
+                  ? `(افتح ${TTS_MAX_CHARS_UNLOCKED} حرف عند ${TTS_UNLOCK_BALANCE_THRESHOLD}+ نقطة)`
+                  : `(débloquez ${TTS_MAX_CHARS_UNLOCKED} caractères à ${TTS_UNLOCK_BALANCE_THRESHOLD}+ points)`}
+              </p>
+            )}
 
-          <div className="p-3 border-b border-slate-100 bg-slate-50/10">
-            <h3 className="text-[11px] font-semibold text-slate-800 flex items-center gap-1.5">
-              <History className="w-3.5 h-3.5 text-purple-600" /> 
-              {language === 'ar' ? 'الأخيرة' : 'Récentes'}
-            </h3>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 space-y-1">
-            {recentGenerations.slice(0, 8).map((gen) => (
-              <button 
-                key={gen.id} 
-                onClick={() => { setText(gen.text); setIsScriptMenuOpen(false); }} 
-                className="w-full text-left p-2 rounded-lg text-[11px] text-slate-500 hover:bg-slate-50 transition cursor-pointer truncate">
-                {gen.text.substring(0, 30)}...
-              </button>
-            ))}
-            {recentGenerations.length === 0 && (
-              <p className="text-[10px] text-slate-400 p-2">{language === 'ar' ? 'لا شيء' : 'Aucune'}</p>
+            {/* Feedback IA (après Magique ou Script IA) */}
+            {lastGenType && lastGenOutput && (
+              <div className="flex items-center gap-2 mt-2 px-1">
+                <span className="text-[10px] text-slate-400">
+                  {feedbackSent
+                    ? (language === 'ar' ? 'تم استلام رأيك' : 'Avis envoyé')
+                    : (language === 'ar' ? 'نتيجة الذكاء الاصطناعي:' : 'Résultat IA :')}
+                </span>
+                <button
+                  onClick={() => handleSendFeedback(5)}
+                  disabled={feedbackSent}
+                  className="saw-flat w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-default text-slate-500"
+                  title={language === 'ar' ? 'نتيجة جيدة' : 'Bon résultat'}
+                  aria-label={language === 'ar' ? 'نتيجة جيدة' : 'Bon résultat'}
+                >
+                  <ThumbsUp className={`w-3.5 h-3.5 ${feedbackGiven === 'up' ? 'text-emerald-600' : ''}`} />
+                </button>
+                <button
+                  onClick={() => handleSendFeedback(1)}
+                  disabled={feedbackSent}
+                  className="saw-flat w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-default text-slate-500"
+                  title={language === 'ar' ? 'نتيجة سيئة' : 'Mauvais résultat'}
+                  aria-label={language === 'ar' ? 'نتيجة سيئة' : 'Mauvais résultat'}
+                >
+                  <ThumbsDown className={`w-3.5 h-3.5 ${feedbackGiven === 'down' ? 'text-rose-600' : ''}`} />
+                </button>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* ============ EDITEUR CENTRAL ============ */}
-        <div className="w-full min-w-0 flex flex-col p-3 sm:p-4 lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-          {insufficientAlert && (
-            <div className="mb-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500" />
-                <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
-              </div>
-              <button 
-                onClick={onOpenRecharge} 
-                className="px-2.5 py-1 bg-rose-600 text-white font-medium rounded-lg text-[11px] cursor-pointer">
-                {language === 'ar' ? 'شحن' : 'Recharger'}
-              </button>
-            </div>
-          )}
-
-          <div className="bg-white border border-slate-200/80 rounded-2xl min-h-[400px] lg:min-h-0 flex-none flex flex-col p-3 sm:p-4 shadow-xs focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/10 relative lg:h-full lg:flex-1">
-            
-            {/* Header */}
-              <div className="shrink-0 flex items-center justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
-                <div className="flex min-w-0 items-center gap-2">
-                <div className="relative" ref={emotionsMenuRef}>
-                <button 
-                  onClick={() => setIsEmotionsMenuOpen(!isEmotionsMenuOpen)}
-                  className="group relative px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                  <span>{language === 'ar' ? 'إدراج تأثير' : 'Insérer effet'}</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${isEmotionsMenuOpen ? 'rotate-180' : ''}`} />
-                  {/* Tooltip rapide : comment utiliser les balises de ton ([calm], [excited]…). */}
-                  <span className="pointer-events-none absolute top-full start-0 z-30 mt-1.5 w-60 rounded-xl bg-slate-900 px-3 py-2 text-[10px] leading-relaxed text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-                    {language === 'ar'
-                      ? 'اختر تأثيراً ليُدرج مثل [calm] أو [excited] داخل النص : الصوت يتبع هذه النبرة على كامل القراءة.'
-                      : 'Choisis un effet : il insère une balise comme [calm] ou [excited] dans le texte — la voix suit cette tonalité sur toute la lecture.'}
-                  </span>
-                </button>
-                
-                {isEmotionsMenuOpen && (
-                  <div className="absolute top-full mt-1.5 start-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-72 max-h-96 overflow-y-auto custom-scrollbar">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1.5 pb-1.5 border-b border-slate-100 mb-1.5">
-                      {language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}
-                    </div>
-
-                    {/* ① النبرة : تدوم على كامل النص (ليست لحظية). */}
-                    <div className="text-[9px] font-bold text-purple-500 uppercase tracking-wider px-1.5 pb-1 mb-1">
-                      {language === 'ar' ? '🎚️ نبرة الأداء (كامل النص)' : '🎚️ Ton (toute la lecture)'}
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {styleTags.map((tagObj) => (
-                        <button 
-                          key={tagObj.tag}
-                          onClick={() => handleInsertTag(tagObj.tag)} 
-                          title={`${tagObj.tag} — ${tagObj.desc}`}
-                          className="text-[10px] font-semibold px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 text-slate-700 hover:text-purple-800 transition cursor-pointer text-start">
-                          {`[${tagObj.label}]`}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* ② كل الأصوات البشرية `<...>` (35) — تُدرج كما هي. */}
-                    <div className="text-[9px] font-bold text-purple-500 uppercase tracking-wider px-1.5 pt-2.5 pb-1 mb-1">
-                      {language === 'ar' ? `🔊 أصوات بشرية (${VOCAL_BURST_COUNT})` : `🔊 Sons humains (${VOCAL_BURST_COUNT})`}
-                    </div>
-                    {BURST_SECTIONS.map((section) => (
-                      <div key={section.category}>
-                        <div className="text-[9px] font-semibold text-slate-400 px-1.5 pt-2 pb-1">
-                          {language === 'ar' ? section.ar : section.fr}
-                        </div>
-                        <div className="grid grid-cols-2 gap-1">
-                          {(VOCAL_BURSTS[section.category] || []).map((v) => (
-                            <button
-                              key={v.tag}
-                              onClick={() => handleInsertTag(v.tag)}
-                              title={`${v.tag} — ${language === 'ar' ? v.ar : v.fr}`}
-                              className="px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-transparent hover:border-purple-200 transition cursor-pointer text-start">
-                              <span className="block text-[10px] font-semibold text-slate-700">{language === 'ar' ? v.ar : v.fr}</span>
-                              <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{v.tag}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+          {/* ════════ Carte script généré (mode Script IA) ════════ */}
+          {(scriptResult || isGeneratingScript) && (
+            <section className="w-full mt-7">
+              <div className={`saw-glass rounded-[22px] p-5 ${isMagicActive && lastGenType === 'script' ? 'saw-magic-pulse' : ''}`}>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-xl bg-[#6d28d9] text-white flex items-center justify-center">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-sm font-bold text-[#2e1065]">
+                      {isGeneratingScript
+                        ? (language === 'ar' ? 'جارٍ كتابة النص…' : "Le script s'écrit…")
+                        : (language === 'ar' ? 'السيناريو المولّد' : 'Script généré')}
+                    </span>
                   </div>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-full bg-[#ede9fe] text-[#6d28d9] text-[11px] font-bold px-2.5 py-1">{language === 'ar' ? '5 نقاط' : '5 points'}</span>
+                    <button
+                      onClick={() => setScriptResult(null)}
+                      className="saw-flat w-7 h-7 rounded-full flex items-center justify-center cursor-pointer text-slate-500"
+                      title={language === 'ar' ? 'إغلاق' : 'Fermer'}
+                      aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Rappel des nouveautés : la pop-up ne s'affiche qu'une fois,
-                    ce bouton permet de la revoir (et de la montrer à quelqu'un). */}
-                <button
-                  type="button"
-                  onClick={() => setShowWhatsNew(true)}
-                  title={language === 'ar' ? 'ما الجديد في 4.1' : 'Nouveautés de la version 4.1'}
-                  className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-2 py-1.5 text-[10px] font-extrabold text-violet-700 transition hover:border-violet-300 hover:from-violet-100 hover:to-fuchsia-100 sm:px-2.5"
+                <div
+                  className={`rounded-2xl bg-white/60 border border-white/80 px-4 py-3.5 text-[14px] leading-relaxed text-slate-700 whitespace-pre-wrap ${isGeneratingScript ? 'saw-shimmer text-transparent select-none' : ''}`}
+                  dir="auto"
                 >
-                  <Sparkles className="h-3 w-3" />
-                  <span className="hidden sm:inline">{language === 'ar' ? 'جديد 4.1' : 'Nouveautés 4.1'}</span>
-                </button>
+                  {isGeneratingScript ? '........' : scriptResult}
                 </div>
-                
-                <div className="text-[11px] text-slate-400 font-num">
-                <span className={`font-semibold ${text.length >= maxChars * 0.9 ? 'text-amber-600' : 'text-slate-600'}`}>{text.length}</span> / {maxChars}
-                {balance < TTS_UNLOCK_BALANCE_THRESHOLD && (
-                  <span className="ml-1 text-slate-400">(débloquez {TTS_MAX_CHARS_UNLOCKED} à {TTS_UNLOCK_BALANCE_THRESHOLD}+ points)</span>
+
+                {!isGeneratingScript && scriptResult && (
+                  <div className="flex flex-wrap items-center gap-2 mt-4">
+                    <button
+                      onClick={handleUseScript}
+                      className="saw-flat-violet rounded-full px-4 py-2.5 text-xs font-bold cursor-pointer flex items-center gap-2"
+                    >
+                      {language === 'ar' ? 'استخدم للتعليق الصوتي' : 'Utiliser pour la voix'}
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={handleGenerateScript}
+                      disabled={isGeneratingScript}
+                      className="saw-flat rounded-full px-4 py-2.5 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      {language === 'ar' ? 'إعادة التوليد' : 'Régénérer'}
+                    </button>
+                    <button
+                      onClick={handleCopyScript}
+                      className="saw-flat rounded-full px-4 py-2.5 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      {language === 'ar' ? 'نسخ' : 'Copier'}
+                    </button>
+                  </div>
                 )}
               </div>
-            </div>
+            </section>
+          )}
 
-            {/* Textarea */}
-            <div className="flex-1 min-h-0 relative">
-              <textarea 
-                ref={textareaRef} 
-                value={text} 
-                onChange={(e) => setText(e.target.value)} 
-                maxLength={maxChars}
-                placeholder={t.textPlaceholder || 'Écrivez votre texte ici...'} 
-                className={`w-full min-h-[200px] lg:h-full lg:min-h-0 p-1 sm:p-2 text-sm text-slate-900 placeholder:text-slate-400 bg-transparent border-0 outline-none leading-relaxed resize-none overflow-y-auto custom-scrollbar transition-all duration-500 ${isMagicActive ? 'animate-[magicPulse_0.9s_ease-in-out]' : ''}`}
-                style={{ unicodeBidi: 'plaintext' }}
-                dir="auto" 
-              />
-              {isMagicActive && (
-                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-400/0 via-purple-300/25 to-pink-300/0 animate-[magicSweep_0.9s_ease-in-out]" />
-                  <Sparkles className="absolute top-1 end-1 w-4 h-4 text-purple-500 animate-ping" />
-                  <Sparkles className="absolute bottom-6 start-4 w-3 h-3 text-pink-500 animate-pulse" />
-                </div>
-              )}
-              <style>{`
-                @keyframes magicSweep { 0% { transform: translateX(-100%); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(100%); opacity: 0; } }
-                @keyframes magicPulse { 0%, 100% { filter: none; } 40% { filter: drop-shadow(0 0 6px rgba(168,85,247,0.35)); } }
-              `}</style>
-            </div>
+          {/* ════════ Carte résultat audio ════════ */}
+          {currentAudioUrl && (
+            <section className="w-full mt-7">
+              <div className="flex items-center gap-2 mb-2.5 px-1">
+                <Sparkles className="w-3 h-3 text-[#6d28d9]" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  {language === 'ar' ? 'بعد التوليد' : 'Après génération'}
+                </span>
+              </div>
 
-            {/* Barre actions (Magique + Copier + Coût + Générer) */}
-            <div className="shrink-0 mt-3 pt-3 border-t border-slate-100">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                
-                <div className="flex items-center gap-1.5">
-                  <button 
-                    onClick={handleEnhanceText} 
-                    disabled={isEnhancing || !text.trim() || balance < 2}
-                    className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 disabled:opacity-40 transition cursor-pointer shadow-sm flex items-center gap-1.5"
-                    title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer (2 pts)'}>
-                    {isEnhancing ? (
-                      <><RefreshCw className="w-3 h-3 text-purple-600 animate-spin" /><span className="text-[10px] font-bold text-purple-700">{language === 'ar' ? 'جاري...' : 'Analyse...'}</span></>
-                    ) : (
-                      <><Wand2 className="w-3 h-3 text-purple-600" /><span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider whitespace-nowrap">{language === 'ar' ? 'المحسن' : 'Magique'}</span><span className="text-[9px] font-bold text-purple-500 bg-white px-1.5 py-0.5 rounded-full border border-purple-200">2 pts</span></>
-                    )}
-                  </button>
-                  
-                  <button 
-                    onClick={handleCopyText} 
-                    className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200"
-                    title={language === 'ar' ? 'نسخ' : 'Copier'}>
-                    {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-
-                  {lastGenType && lastGenOutput && (
-                    <div className="flex items-center gap-1 ms-2 ps-2 border-s border-slate-200">
-                      <span className="text-[9px] text-slate-400 me-1">
-                        {feedbackSent ? '✅' : (language === 'ar' ? 'نتيجة IA:' : 'IA:')}
-                      </span>
-                      <button onClick={() => handleSendFeedback(5)} disabled={feedbackSent} className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'up' ? 'bg-green-100' : 'hover:bg-green-50'}`} title="👍">
-                        <ThumbsUp className={`w-3 h-3 ${feedbackGiven === 'up' ? 'text-green-700 fill-green-600' : 'text-slate-400 hover:text-green-600'}`} />
-                      </button>
-                      <button onClick={() => handleSendFeedback(1)} disabled={feedbackSent} className={`p-1 rounded transition cursor-pointer disabled:cursor-default ${feedbackGiven === 'down' ? 'bg-red-100' : 'hover:bg-red-50'}`} title="👎">
-                        <ThumbsDown className={`w-3 h-3 ${feedbackGiven === 'down' ? 'text-red-700 fill-red-500' : 'text-slate-400 hover:text-red-500'}`} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Estimation dynamique : « ce texte consomme ~N points » (barème serveur). */}
-                  <span
-                    className={`text-[10px] ${needsTopUp ? 'font-semibold text-rose-600' : 'text-slate-500'}`}
-                    title={language === 'ar'
-                      ? 'تقدير مبني على طول النص — التكلفة النهائية حسب المدة الفعلية للتسجيل.'
-                      : 'Estimation basée sur la longueur du texte — coût final selon la durée réelle de l’audio.'}
+              <div className="saw-glass rounded-[22px] p-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Lecture */}
+                  <button
+                    onClick={togglePlay}
+                    className="w-11 h-11 rounded-full bg-[#6d28d9] hover:bg-[#8b5cf6] text-white flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                    title={isPlaying ? (language === 'ar' ? 'إيقاف' : 'Pause') : (language === 'ar' ? 'تشغيل' : 'Lecture')}
+                    aria-label={isPlaying ? (language === 'ar' ? 'إيقاف' : 'Pause') : (language === 'ar' ? 'تشغيل' : 'Lecture')}
                   >
-                    {language === 'ar' ? (
-                      <>هذا النص يستهلك <span className="font-num font-bold">~{estimatedCost}</span> نقطة{estimatedSeconds > 0 ? <> · ≈ <span className="font-num">{estimatedSeconds}s</span></> : null}</>
-                    ) : (
-                      <>Ce texte consomme <span className="font-num font-bold">~{estimatedCost}</span> points{estimatedSeconds > 0 ? <> · ≈ <span className="font-num">{estimatedSeconds}s</span></> : null}</>
-                    )}
-                  </span>
-                  <button 
-                    onClick={() => {
-                      // Solde insuffisant pour ce texte : on va directement recharger (page Tarifs).
-                      if (needsTopUp) { onOpenRecharge(); return; }
-                      if (!text.trim() || balance < POINTS_COST) { setInsufficientAlert(true); return; }
-                      if (isGenerating) return;
-                      setTtsStep('tone');
-                      setPendingRegister('darija');
-                      setPendingIntensity('normal');
-                      setShowStartToneModal(true);
-                    }} 
-                    disabled={isGenerating || !text.trim()} 
-                    className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-semibold text-white shadow-lg transition disabled:opacity-40 cursor-pointer ${
-                      needsTopUp
-                        ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 shadow-orange-500/30 hover:brightness-105 growth-glow'
-                        : 'bg-purple-600 shadow-purple-600/20 hover:bg-purple-500'
-                    }`}>
-                    {isGenerating ? (
-                      <><span className="sawtify-button-loader"><span className="sawtify-button-loader-ring" /><span className="sawtify-button-loader-letters"><span>S</span><span>A</span><span>W</span></span></span><span>{t.generatingBtn}</span></>
-                    ) : needsTopUp ? (
-                      <><Zap className="w-3.5 h-3.5" /><span>{language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer'}</span></>
-                    ) : (
-                      <><Volume2 className="w-3.5 h-3.5" /><span>{t.generateBtn}</span></>
-                    )}
+                    {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 ms-0.5 fill-white" />}
                   </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* ============ PANNEAU VOIX ============ */}
-        {isVoiceMenuOpen && <div onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />}
-        <div className={`
-          fixed lg:static inset-y-0 end-0 z-50 lg:z-0
-          w-72 xl:w-80 shrink-0 min-w-0 flex flex-col gap-3 bg-white border-s lg:border-s-0 lg:border-e border-slate-200 p-4 transition-all duration-300 transform lg:h-full lg:min-h-0
-          ${isVoiceMenuOpen 
-            ? 'translate-x-0 opacity-100 pointer-events-auto' 
-            : (isRTL ? '-translate-x-full' : 'translate-x-full') + ' lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
-        `}>
-          <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-100">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
-              <Layers className="w-3.5 h-3.5 text-purple-600" />
-              <span>{t.catalogHeader}</span>
-            </div>
-            <button onClick={() => setIsVoiceMenuOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-slate-700 rounded-lg">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="shrink-0 flex bg-slate-100 p-0.5 rounded-lg text-[10px] mb-2">
-              <button onClick={() => setGenderFilter('all')} className={`flex-1 text-center py-1.5 rounded-md transition ${genderFilter === 'all' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}>{t.allGenders}</button>
-              <button onClick={() => setGenderFilter('male')} className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md transition ${genderFilter === 'male' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}><span className="text-[12px]">👨</span><span>{t.maleGenders}</span></button>
-              <button onClick={() => setGenderFilter('female')} className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md transition ${genderFilter === 'female' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-500'}`}><span className="text-[12px]">👩</span><span>{t.femaleGenders}</span></button>
-            </div>
-
-            <div className="shrink-0 mb-2">
-              <div className="relative">
-                <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)} className="w-full appearance-none px-3 py-1.5 pe-8 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:border-purple-400 cursor-pointer">
-                  {categoryOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.label}</option>))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2 pointer-events-none" />
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1 pe-1">
-              {filteredVoices.map((voice) => {
-                const isSelected = voice.id === selectedVoiceId;
-                const isPreviewing = previewingVoiceId === voice.id;
-                return (
-                  <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setIsVoiceMenuOpen(false); }} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition border ${isSelected ? 'bg-purple-50 border-purple-400/50' : 'hover:bg-slate-50 border-transparent'}`}>
-                    {/* flex-1 : le bloc de gauche PREND la place restante au lieu
-                        de pousser les boutons. Résultat : l'étoile et le bouton
-                        lecture tombent à la MÊME abscisse sur les 30 lignes, que
-                        la description fasse 12 ou 40 caractères. */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[11px] font-medium text-slate-800 truncate block">{voice.name}</span>
-                        <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
-                      </div>
+                  {/* Infos voix */}
+                  <div className="flex flex-col min-w-0 shrink-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-800 truncate max-w-[130px]">{playerVoiceName}</span>
+                      <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                        <Check className="w-2.5 h-2.5" />
+                        {language === 'ar' ? 'جاهز' : 'Prêt'}
+                      </span>
                     </div>
-                    {/* Colonne d'actions à largeur FIXE (2 × 28 px) : elle ne
-                        bouge plus jamais, donc plus d'effet « dents de scie ». */}
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'}`}
-                        title="Favori" aria-pressed={favoriteVoiceIds.includes(voice.id)}
-                        aria-label={isRTL ? "إضافة إلى المفضلة" : "Ajouter aux favoris"}>
-                        <Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} />
-                      </button>
-                      <button onClick={(e) => handlePreviewVoice(e, voice)}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition ${isPreviewing ? 'text-purple-600 bg-purple-50' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
-                        aria-label={isRTL ? "معاينة صوتية" : "Aperçu audio"}>
-                        {isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
+                    <span className="text-[10px] text-slate-500 font-num">
+                      {formatTime(currentTime)} / {formatTime(audioDuration)}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
-                <VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[11px] font-bold text-slate-900 truncate block">{currentVoice.name}</span>
-                <span className="text-[10px] text-slate-400 truncate block">{currentVoice.dialect}</span>
-              </div>
-              <button onClick={(e) => handlePreviewVoice(e, currentVoice)} className={`p-1.5 rounded-lg shrink-0 ${previewingVoiceId === currentVoice.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-200 border border-slate-200 bg-white'}`}>
-                {previewingVoiceId === currentVoice.id ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-            
-            <div className="space-y-2.5">
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-slate-500 font-medium">{t.speedLabel}</span>
-                  <span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span>
-                </div>
-                <input type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-slate-500 font-medium">{t.pitchLabel}</span>
-                  <span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span>
-                </div>
-                <input type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" />
-              </div>
-            </div>
-          </div>
-        </div>
+                  {/* Waveform + scrub */}
+                  <div
+                    ref={mobileSeekRef}
+                    className="flex-1 min-w-[160px] flex items-center bg-white/60 px-3 py-2.5 rounded-2xl border border-white/80 relative min-h-[3.25rem] cursor-ew-resize touch-none select-none"
+                    onPointerDown={(e) => {
+                      try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+                      mobileSeekingRef.current = true;
+                      seekFromClientX(e.clientX);
+                    }}
+                    onPointerMove={(e) => { if (mobileSeekingRef.current) seekFromClientX(e.clientX); }}
+                    onPointerUp={() => { mobileSeekingRef.current = false; }}
+                    onPointerCancel={() => { mobileSeekingRef.current = false; }}
+                    title={language === 'ar' ? 'اسحب للتنقل في الصوت' : 'Glisser pour avancer / reculer'}
+                  >
+                    <WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} height={30} />
+                  </div>
 
-      </div>
+                  {/* Coût réel */}
+                  <span className="rounded-full bg-[#ede9fe] text-[#6d28d9] text-[11px] font-bold px-2.5 py-1 whitespace-nowrap font-num">
+                    {language === 'ar' ? `≈ ${lastGeneratedCost} نقطة` : `≈ ${lastGeneratedCost} points`}
+                  </span>
+
+                  {/* Téléchargements */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleDownloadClick('wav')}
+                      className="saw-flat rounded-full px-3 py-2 text-[11px] font-bold text-slate-700 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      WAV
+                    </button>
+                    {mp3Url ? (
+                      <button
+                        onClick={() => handleDownloadClick('mp3')}
+                        className="saw-flat-violet rounded-full px-3 py-2 text-[11px] font-bold cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        MP3
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1.5 px-2 py-2 text-slate-400 text-[11px]">
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        MP3
+                      </span>
+                    )}
+                    <button
+                      onClick={handleClosePlayer}
+                      className="saw-flat w-8 h-8 rounded-full flex items-center justify-center cursor-pointer text-slate-500"
+                      title={language === 'ar' ? 'إغلاق' : 'Fermer'}
+                      aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <audio
+                ref={audioRef}
+                src={currentAudioUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={() => setIsPlaying(false)}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                preload="auto"
+                className="hidden"
+              />
+            </section>
+          )}
+        </main>
       </fieldset>
 
-      {/* ==================================================================
-          LECTEUR AUDIO : VERSION ADAPTATIVE CORRIGÉE
-          - Sur mobile : Se place à bottom-[4.5rem] (PILE AU-DESSUS DE LA BARRE DE TÂCHES)
-          - Sur PC : Flotte au centre à bottom-4 sans être coupé
-          ================================================================== */}
-      {currentAudioUrl && (
-        <div 
-          className="
-            fixed z-[65]
-            bottom-[4.5rem] inset-x-2
-            lg:bottom-4 lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2 lg:w-[calc(100%-2rem)] lg:max-w-3xl
-            bg-slate-900/95 border border-purple-500/40 rounded-2xl
-            shadow-[0_-8px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl
-            animate-in slide-in-from-bottom-3 duration-200
-          "
-        >
-          {/* Version Desktop (> lg) */}
-          <div className="hidden lg:flex items-center gap-4 px-5 py-3">
-            {/* Play/Pause */}
-            <button 
-              onClick={togglePlay} 
-              className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform shrink-0 shadow-lg shadow-purple-600/30"
-            >
-              {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 ms-0.5 fill-white" />}
-            </button>
-            
-            {/* Infos voix */}
-            <div className="flex flex-col min-w-0 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white truncate max-w-[130px]">{playerVoiceName}</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">{language === 'ar' ? 'جاهز ✓' : 'Prêt ✓'}</span>
-              </div>
-              <span className="text-[10px] text-purple-300 font-mono mt-0.5">
-                {formatTime(currentTime)} / {formatTime(audioDuration)}
-              </span>
-            </div>
-
-            {/* Waveform Desktop — zone de scrub AGRANDIE : cliquer ou glisser
-                n'importe où pour écouter depuis le début, le milieu, etc. */}
-            <div className="flex-1 min-w-0 flex items-center bg-slate-800/60 px-3 py-2.5 rounded-xl border border-slate-700/50 relative group min-h-[3.25rem]">
-              <WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} height={30} />
-              <input
-                type="range" min={0} max={audioDuration || 0} step={0.1} value={currentTime}
-                onChange={(e) => { if(audioRef.current) { audioRef.current.currentTime = parseFloat(e.target.value); setCurrentTime(parseFloat(e.target.value)); }}}
-                title={language === 'ar' ? 'اسحب للتنقل في الصوت' : 'Glisser pour avancer / reculer'}
-                aria-label={language === 'ar' ? 'التنقل في الصوت' : 'Avancer dans l’audio'}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
-              />
-            </div>
-
-            {/* Actions Desktop : téléchargement direct. La note est demandée
-                dans une popup au moment du clic (voir plus bas). */}
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => handleDownloadClick('wav')}
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer"
-              >
-                <Download className="w-4 h-4" /><span>WAV</span>
-              </button>
-              {mp3Url ? (
-                <button
-                  onClick={() => handleDownloadClick('mp3')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer"
-                >
-                  <Download className="w-4 h-4" /><span>MP3</span>
-                </button>
-              ) : (
-                <span className="flex items-center gap-1.5 px-2 py-2 text-slate-500 text-xs">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>MP3…</span>
-                </span>
-              )}
-              <button onClick={handleClosePlayer} className="p-2 text-slate-400 hover:text-white rounded-xl transition cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Version Mobile (lg:hidden) — Compacte, ne cache rien, pile au-dessus du menu */}
-          <div className="lg:hidden flex items-center gap-2.5 px-3 py-2.5">
-            {/* Play/Pause */}
-            <button 
-              onClick={togglePlay} 
-              className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center cursor-pointer active:scale-95 transition-transform shrink-0 shadow-md"
-            >
-              {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 ms-0.5 fill-white" />}
-            </button>
-
-            {/* Nom + Progress bar tactile */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-white truncate">{playerVoiceName}</span>
-                <span className="text-[10px] text-purple-300 font-mono">
-                  {formatTime(currentTime)} / {formatTime(audioDuration)}
-                </span>
-              </div>
-              {/* Barre de lecture AGRANDIE : toucher ou GLISSER le doigt pour
-                  écouter depuis le début, le milieu, etc. */}
-              <div
-                ref={mobileSeekRef}
-                className="py-2.5 -my-1.5 cursor-pointer relative touch-none select-none"
-                onPointerDown={(e) => {
-                  try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-                  mobileSeekingRef.current = true;
-                  seekFromClientX(e.clientX);
-                }}
-                onPointerMove={(e) => { if (mobileSeekingRef.current) seekFromClientX(e.clientX); }}
-                onPointerUp={() => { mobileSeekingRef.current = false; }}
-                onPointerCancel={() => { mobileSeekingRef.current = false; }}
-              >
-                <div className="h-2.5 bg-slate-700 rounded-full relative">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
-                    style={{ width: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }}
-                  />
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white border-[3px] border-purple-500 shadow-md pointer-events-none"
-                    style={{ left: `${audioDuration > 0 ? Math.min(100, (currentTime / audioDuration) * 100) : 0}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Téléchargement : ouvre la popup de notation si pas encore noté,
-                sinon télécharge directement (MP3 dès qu'il est prêt). */}
-            <button
-              onClick={() => handleDownloadClick(mp3Url ? 'mp3' : 'wav')}
-              className="shrink-0 p-2 bg-purple-600 rounded-xl text-white active:scale-95 transition cursor-pointer"
-              aria-label={language === 'ar' ? 'تحميل' : 'Télécharger'}
-            >
-              <Download className="w-4 h-4" />
-            </button>
-
-            {/* Bouton Fermer */}
-            <button onClick={handleClosePlayer} className="shrink-0 p-1.5 text-slate-400 hover:text-white rounded-lg">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <audio 
-            ref={audioRef} 
-            src={currentAudioUrl} 
-            onTimeUpdate={handleTimeUpdate} 
-            onEnded={() => setIsPlaying(false)} 
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            preload="auto"
-            className="hidden" 
-          />
-        </div>
-      )}
-
-      {/* Popup de notation : s'ouvre au clic sur « Télécharger » (desktop +
-          mobile). Un clic sur une étoile enregistre la note PUIS lance le
-          téléchargement ; « sans noter » télécharge directement. */}
+      {/* Popup de notation : s'ouvre au clic sur « Télécharger » (jamais bloquante). */}
       {pendingDownload && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label={language === 'ar' ? 'قيّم الصوت' : 'Noter l’audio'}
           onMouseDown={(e) => { if (e.target === e.currentTarget) setPendingDownload(null); }}
         >
-          <div className="w-full max-w-xs rounded-3xl border border-purple-200 bg-white p-6 text-center shadow-2xl">
+          <div className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-xl">
             <button
               onClick={() => setPendingDownload(null)}
-              className="float-end -me-2 -mt-2 rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="float-end -me-2 -mt-2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
             >
               <X className="h-4 w-4" />
             </button>
             <p className="text-sm font-extrabold text-slate-900">
-              {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت 👇' : 'Tu as écouté ? Dis-nous c’était comment 👇'}
+              {language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت' : 'Tu as écouté ? Dis-nous c’était comment'}
             </p>
             <div className="mt-3 flex justify-center">
               <StarRating rating={0} onRate={handleModalRate} size="lg" />
             </div>
             <button
               onClick={handleModalSkip}
-              className="mt-5 w-full rounded-2xl bg-purple-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-purple-500 cursor-pointer"
+              className="mt-5 w-full rounded-2xl bg-[#6d28d9] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#8b5cf6] cursor-pointer"
             >
               {language === 'ar' ? 'تحميل بدون تقييم' : 'Télécharger sans noter'}
             </button>
             <button
               onClick={() => setPendingDownload(null)}
-              className="mt-1 w-full rounded-2xl px-3 py-2 text-[11px] font-semibold text-slate-400 transition hover:text-slate-600 cursor-pointer"
+              className="mt-1 w-full rounded-2xl px-3 py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:text-slate-600 cursor-pointer"
             >
               {language === 'ar' ? 'إلغاء' : 'Annuler'}
             </button>
@@ -1506,31 +1595,31 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
       {/* Modal génération */}
       {isGenerating && (
-        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/30 backdrop-blur-[2px]" aria-live="polite">
-          <div className="mx-5 w-full max-w-sm rounded-3xl border border-purple-200 bg-white/95 p-7 text-center shadow-2xl">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 shadow-lg shadow-purple-600/30">
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-slate-950/25 backdrop-blur-[2px]" aria-live="polite">
+          <div className="mx-5 w-full max-w-sm rounded-3xl bg-white/95 p-7 text-center shadow-xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#6d28d9]">
               <RefreshCw className="h-7 w-7 animate-spin text-white" />
             </div>
             <h3 className="mt-4 text-base font-extrabold text-slate-900">{language === 'ar' ? 'جاري إنشاء الصوت...' : 'Génération en cours…'}</h3>
             <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'لا تغلق الصفحة' : 'Ne ferme pas la page'}</p>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" /></div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#ede9fe]"><div className="h-full w-1/2 animate-pulse rounded-full bg-[#6d28d9]" /></div>
           </div>
         </div>
       )}
 
-      {/* Popup ton de départ — s'affiche au-dessus de tout, avant chaque génération */}
+      {/* Popup ton de départ — avant chaque génération (2 étapes) */}
       {showStartToneModal && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label={language === 'ar' ? 'اختر طريقة بدء الصوت' : 'Ton de départ de la voix'}
           onMouseDown={(event) => { if (event.target === event.currentTarget) setShowStartToneModal(false); }}
         >
-          <div className="w-full max-w-sm rounded-3xl border border-purple-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[.14em] text-purple-600">
+                <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d28d9]">
                   {language === 'ar' ? 'قبل التوليد' : 'Avant de générer'}
                 </p>
                 <h3 className="mt-1 text-base font-extrabold text-slate-900">
@@ -1541,7 +1630,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
               <button
                 onClick={() => setShowStartToneModal(false)}
-                className="shrink-0 rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
               >
                 <X className="h-4 w-4" />
@@ -1558,9 +1647,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 <div className="mt-4 grid gap-2">
                   <button
                     onClick={() => confirmStartTone('calm')}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition-colors hover:border-purple-300 hover:bg-purple-50"
                   >
-                    <span className="text-xl">😌</span>
+                    <span className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#6d28d9]">
+                      <Cloud className="w-4.5 h-4.5" />
+                    </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'هادئ' : 'Calme'}</span>
                       <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'بداية هادئة ومريحة' : 'Démarrage posé et apaisé'}</span>
@@ -1568,9 +1659,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   </button>
                   <button
                     onClick={() => confirmStartTone('natural')}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition-colors hover:border-purple-300 hover:bg-purple-50"
                   >
-                    <span className="text-xl">🙂</span>
+                    <span className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#6d28d9]">
+                      <Smile className="w-4.5 h-4.5" />
+                    </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'عادي' : 'Simple'}</span>
                       <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'نبرة طبيعية وعفوية' : 'Ton neutre et spontané'}</span>
@@ -1578,9 +1671,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                   </button>
                   <button
                     onClick={() => confirmStartTone('excited')}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition hover:border-purple-300 hover:bg-purple-50"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition-colors hover:border-purple-300 hover:bg-purple-50"
                   >
-                    <span className="text-xl">🤩</span>
+                    <span className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#6d28d9]">
+                      <Zap className="w-4.5 h-4.5" />
+                    </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'متحمس' : 'Excité'}</span>
                       <span className="block text-[11px] text-slate-500">{language === 'ar' ? 'طاقة عالية من أول كلمة' : 'Énergie haute dès le premier mot'}</span>
@@ -1593,7 +1688,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 <p className="mt-2 text-xs leading-5 text-slate-500">
                   {language === 'ar'
                     ? 'اختر لغة النطق ثم شدة المشاعر.'
-                    : 'Choisis la langue de prononciation puis l\'intensité émotionnelle.'}
+                    : "Choisis la langue de prononciation puis l'intensité émotionnelle."}
                 </p>
 
                 <p className="mt-4 text-[11px] font-black uppercase tracking-[.1em] text-slate-400">
@@ -1601,16 +1696,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </p>
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {([
-                    { id: 'darija' as const, emoji: '🇩🇿', fr: 'Darija', ar: 'دارجة' },
-                    { id: 'fusha' as const, emoji: '📖', fr: 'Fusha', ar: 'فصحى' },
-                    { id: 'francais' as const, emoji: '🇫🇷', fr: 'Français', ar: 'فرنسية' },
+                    { id: 'darija' as const, icon: <MessageCircle className="w-4.5 h-4.5" />, fr: 'Darija', ar: 'دارجة' },
+                    { id: 'fusha' as const, icon: <BookOpen className="w-4.5 h-4.5" />, fr: 'Fusha', ar: 'فصحى' },
+                    { id: 'francais' as const, icon: <Languages className="w-4.5 h-4.5" />, fr: 'Français', ar: 'فرنسية' },
                   ]).map((r) => (
                     <button
                       key={r.id}
                       onClick={() => setPendingRegister(r.id)}
-                      className={`flex flex-col items-center gap-1 rounded-2xl border p-2.5 text-center transition ${pendingRegister === r.id ? 'border-purple-500 bg-purple-50' : 'border-slate-200 bg-slate-50 hover:border-purple-300'}`}
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border p-2.5 text-center transition-colors ${pendingRegister === r.id ? 'border-purple-500 bg-purple-50' : 'border-slate-200 bg-slate-50 hover:border-purple-300'}`}
                     >
-                      <span className="text-lg">{r.emoji}</span>
+                      <span className={`w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center ${pendingRegister === r.id ? 'text-[#6d28d9]' : 'text-slate-500'}`}>
+                        {r.icon}
+                      </span>
                       <span className="text-[11px] font-bold text-slate-900">{language === 'ar' ? r.ar : r.fr}</span>
                     </button>
                   ))}
@@ -1621,16 +1718,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </p>
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {([
-                    { id: 'low' as const, emoji: '🔉', fr: 'Faible', ar: 'خفيفة' },
-                    { id: 'normal' as const, emoji: '🔊', fr: 'Normale', ar: 'عادية' },
-                    { id: 'high' as const, emoji: '📢', fr: 'Forte', ar: 'قوية' },
+                    { id: 'low' as const, icon: <Volume className="w-4.5 h-4.5" />, fr: 'Faible', ar: 'خفيفة' },
+                    { id: 'normal' as const, icon: <Volume1 className="w-4.5 h-4.5" />, fr: 'Normale', ar: 'عادية' },
+                    { id: 'high' as const, icon: <Volume2 className="w-4.5 h-4.5" />, fr: 'Forte', ar: 'قوية' },
                   ]).map((i) => (
                     <button
                       key={i.id}
                       onClick={() => setPendingIntensity(i.id)}
-                      className={`flex flex-col items-center gap-1 rounded-2xl border p-2.5 text-center transition ${pendingIntensity === i.id ? 'border-purple-500 bg-purple-50' : 'border-slate-200 bg-slate-50 hover:border-purple-300'}`}
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border p-2.5 text-center transition-colors ${pendingIntensity === i.id ? 'border-purple-500 bg-purple-50' : 'border-slate-200 bg-slate-50 hover:border-purple-300'}`}
                     >
-                      <span className="text-lg">{i.emoji}</span>
+                      <span className={`w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center ${pendingIntensity === i.id ? 'text-[#6d28d9]' : 'text-slate-500'}`}>
+                        {i.icon}
+                      </span>
                       <span className="text-[11px] font-bold text-slate-900">{language === 'ar' ? i.ar : i.fr}</span>
                     </button>
                   ))}
@@ -1639,13 +1738,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 <div className="mt-5 flex gap-2">
                   <button
                     onClick={() => setTtsStep('tone')}
-                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100"
+                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100"
                   >
                     {language === 'ar' ? 'رجوع' : 'Retour'}
                   </button>
                   <button
                     onClick={confirmRegisterAndIntensity}
-                    className="flex-1 rounded-2xl bg-purple-600 px-3 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-500"
+                    className="flex-1 rounded-2xl bg-[#6d28d9] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#8b5cf6]"
                   >
                     {language === 'ar' ? 'توليد' : 'Générer'}
                   </button>
@@ -1656,8 +1755,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </div>
       )}
 
-      {/* « Quoi de neuf en 4.1 » — première visite, ou bouton « Nouveautés ».
-          « Commencer à créer » ferme la pop-up : le studio est déjà derrière. */}
+      {/* « Quoi de neuf en 4.1 » — première visite, ou bouton « Nouveautés » */}
       {showWhatsNew && (
         <WhatsNewV41
           onClose={() => setShowWhatsNew(false)}
