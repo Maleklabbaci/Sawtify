@@ -37,55 +37,23 @@ const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').th
 const importStudio = () => import('./components/TTSStudio');
 const TTSStudio = lazy(() => importStudio().then((m) => ({ default: m.TTSStudio })));
 
-/**
- * Loader minimal : ne bloque pas l'interface, juste un indicateur subtil.
- * Avant c'était un écran plein qui empêchait tout accès.
- */
+/** A branded, non-blocking placeholder for code-split screens; never a blank spinner. */
 const MinimalLoader = () => (
-  <div className="fixed top-16 right-4 z-[100] bg-white/90 backdrop-blur-sm border border-slate-200 
-                  rounded-xl px-4 py-2 shadow-lg flex items-center gap-2 animate-in fade-in duration-300">
-    <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-    <span className="text-xs font-medium text-slate-600">Chargement...</span>
-  </div>
-);
-
-/**
- * Ancien ViewFallback conservé uniquement pour les vrais cas d'erreur critique 
- * (mais avec timeout forcé)
- */
-const ViewFallback = () => {
-  const [showRealLoader, setShowRealLoader] = React.useState(false);
-  
-  React.useEffect(() => {
-    // On attend max 3 secondes avant de vraiment afficher le gros loader
-    // Si c'est plus rapide que 3s, on montre rien (l'utilisateur ne voit pas de flash)
-    const timer = setTimeout(() => setShowRealLoader(true), 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!showRealLoader) return <MinimalLoader />;
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f7ff] px-6 gap-5">
-      <div className="sawtify-fallback-loader-wrapper">
-        <div className="sawtify-fallback-loader" />
-        {'Sawtify'.split('').map((char, i) => (
-          <span key={i} className="sawtify-fallback-loader-letter">{char}</span>
-        ))}
+  <div className="mx-auto flex min-h-[55vh] w-full max-w-5xl flex-1 items-center justify-center px-4 py-8" role="status" aria-live="polite">
+    <div className="w-full max-w-2xl rounded-[28px] border border-violet-100 bg-white/90 p-5 shadow-[0_16px_60px_rgba(76,29,149,.08)] sm:p-8">
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-200"><Mic className="h-5 w-5" /></span>
+        <div><p className="text-sm font-extrabold text-slate-900">Sawtify</p><p className="text-xs text-slate-500">Ton espace arrive…</p></div>
       </div>
-      <div className="text-center">
-        <h2 className="text-lg font-extrabold text-slate-900">Sawtify prépare ton espace</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Chargement un peu long... vérifie ta connexion</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition"
-        >
-          Réessayer
-        </button>
+      <div className="mt-7 space-y-3" aria-hidden="true">
+        <div className="h-5 w-40 animate-pulse rounded-lg bg-violet-100" />
+        <div className="h-24 animate-pulse rounded-2xl bg-slate-50" />
+        <div className="flex gap-2"><div className="h-9 w-24 animate-pulse rounded-full bg-violet-100" /><div className="h-9 w-20 animate-pulse rounded-full bg-slate-100" /></div>
+        <p className="pt-2 text-xs text-slate-500">Le chargement prend plus de temps que prévu ? Vérifie ta connexion puis actualise la page.</p>
       </div>
     </div>
-  );
-};
+  </div>
+);
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
@@ -111,7 +79,6 @@ function AppContent() {
   
   // KEY FIX : Timeout de sécurité pour ne jamais rester bloqué sur "checking session"
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [sessionCheckTimeout, setSessionCheckTimeout] = React.useState(false);
   
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
   const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
@@ -123,7 +90,6 @@ function AppContent() {
     const timer = setTimeout(() => {
       console.warn('[App] Session check timeout - forcing display');
       setIsCheckingSession(false);
-      setSessionCheckTimeout(true); // Pour savoir qu'on a forcé
     }, 5000); // 5 secondes max
     return () => clearTimeout(timer);
   }, [isCheckingSession]);
@@ -288,8 +254,8 @@ function AppContent() {
   }, [growth.status, growth.nowMs]);
 
   React.useEffect(() => {
-    if (!isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
-  }, [isLoggedIn, authModalMode]);
+    if (!isCheckingSession && !isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
+  }, [isCheckingSession, isLoggedIn, authModalMode]);
 
   // Détecte la session Supabase avec timeout intégré
   React.useEffect(() => {
@@ -507,13 +473,8 @@ function AppContent() {
       );
     }
 
-    // Si pas connecté et pas en train de checker -> Landing ou Modals
+    // La landing reste visible pendant la vérification de session : aucun écran d'attente vide.
     if (!isLoggedIn) {
-      // Mais si on est encore en train de checker et qu'on a timeout, on assume non-connecté
-      if (isCheckingSession && !sessionCheckTimeout) {
-        return <MinimalLoader />; // Subtil, on attend encore un peu
-      }
-
       if (authModalMode === 'login') {
         return (
           <Suspense fallback={<MinimalLoader />}>
@@ -731,11 +692,47 @@ function AppContent() {
   return displayContent;
 }
 
+interface AppErrorBoundaryState { hasError: boolean }
+
+class AppErrorBoundary extends React.Component<React.PropsWithChildren<{}>, AppErrorBoundaryState> {
+  private readonly appChildren: React.ReactNode;
+  state: AppErrorBoundaryState = { hasError: false };
+
+  constructor(props: React.PropsWithChildren<{}>) {
+    super(props);
+    this.appChildren = props.children;
+  }
+
+  static getDerivedStateFromError(): AppErrorBoundaryState { return { hasError: true }; }
+
+  componentDidCatch(error: Error) {
+    console.error('[Sawtify] App render failed:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-[#f8f7ff] px-5 py-10" role="alert">
+          <section className="w-full max-w-md rounded-3xl border border-violet-100 bg-white p-7 text-center shadow-xl shadow-violet-900/5">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 text-white"><Mic className="h-6 w-6" /></div>
+            <h1 className="mt-4 text-lg font-extrabold text-slate-900">Le studio n’a pas pu s’ouvrir</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Actualise la page. Si le problème continue, vérifie ta connexion puis réessaie.</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white hover:bg-violet-700">Actualiser la page</button>
+          </section>
+        </main>
+      );
+    }
+    return this.appChildren;
+  }
+}
+
 export function App() {
   return (
-    <LanguageProvider>
-      <AppContent />
-    </LanguageProvider>
+    <AppErrorBoundary>
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
+    </AppErrorBoundary>
   );
 }
 
