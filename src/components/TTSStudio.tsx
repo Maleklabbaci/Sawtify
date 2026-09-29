@@ -929,9 +929,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
         )}
 
-        <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-6 sm:pt-12 lg:pt-24">
+        <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-5 sm:pt-8 lg:pt-14">
 
-          <div className="w-full flex flex-col items-center gap-5 sm:gap-8 mb-10 sm:mb-20 lg:mb-28">
+          <div className="w-full flex flex-col items-center gap-4 sm:gap-6 mb-7 sm:mb-10 lg:mb-14">
             <button onClick={onOpenRecharge} className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5" title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}>
               <span className="font-num">{language === 'ar' ? `الرصيد ${balance} نقطة` : `Solde ${balance} pts`}</span>
               <span className="text-slate-400">·</span>
@@ -939,7 +939,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </button>
             <h1 className="flex items-center gap-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
               <Sparkles className="w-5 h-5 text-[#6d28d9]" fill="currentColor" />
-              <span className="text-4xl sm:text-5xl font-medium tracking-tight text-[#2e1065]">
+              <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[#2e1065]">
                 {language === 'ar' ? `أهلا${firstName ? `، ${firstName}` : ''}` : `Hé${firstName ? `, ${firstName}` : ''}`}
               </span>
             </h1>
@@ -962,7 +962,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 onPaste={handleEditorPaste}
                 onDrop={(e) => e.preventDefault()}
                 onClick={handleEditorClick}
-                className={`saw-editor w-full min-h-[52px] max-h-[320px] overflow-y-auto bg-transparent outline-none text-[15px] leading-[1.9] text-slate-900 custom-scrollbar whitespace-pre-wrap break-words ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
+                className={`saw-editor w-full min-h-[88px] sm:min-h-[104px] max-h-[360px] overflow-y-auto bg-transparent outline-none text-[16px] leading-[1.85] text-slate-900 custom-scrollbar whitespace-pre-wrap break-words ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }} dir="auto"
               />
 
@@ -1011,7 +1011,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
             <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
               {suggestions.map((s) => (
-                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-[11px] font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
+                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
               ))}
             </div>
 
@@ -1024,9 +1024,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
             )}
 
-            <div className="w-full flex flex-wrap items-center justify-between gap-2 mt-3 px-1">
+            <div className={`w-full flex flex-wrap items-center justify-between gap-2 mt-3 px-3 py-2.5 rounded-xl border ${needsTopUp ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-violet-100 bg-white/75 text-slate-700'} shadow-sm`}>
               <div className="flex items-center gap-2 min-w-0">
-                <span className={`text-[11px] ${needsTopUp ? 'font-semibold text-rose-600' : 'text-slate-500'}`} title={language === 'ar' ? 'تقدير مبني على طول النص — التكلفة النهائية حسب المدة الفعلية للتسجيل.' : 'Estimation basée sur la longueur du texte — coût final selon la durée réelle de l’audio.'}>
+                <span className={`text-xs font-medium ${needsTopUp ? 'font-semibold text-rose-700' : 'text-slate-700'}`} title={language === 'ar' ? 'تقدير مبني على طول النص — التكلفة النهائية حسب المدة الفعلية للتسجيل.' : 'Estimation basée sur la longueur du texte — coût final selon la durée réelle de l’audio.'}>
                   {language === 'ar' ? (<>هذا النص يستهلك <span className="font-num font-bold">~{estimatedCost}</span> نقطة{estimatedSeconds > 0 ? <> · ≈ <span className="font-num">{estimatedSeconds}s</span></> : null}</>) : (<>Ce texte consomme <span className="font-num font-bold">~{estimatedCost}</span> points{estimatedSeconds > 0 ? <> · ≈ <span className="font-num">{estimatedSeconds}s</span></> : null}</>)}
                 </span>
                 <span className="text-[10px] text-slate-400 font-num"><span className={`font-semibold ${text.length >= maxChars * 0.9 ? 'text-amber-600' : 'text-slate-500'}`}>{text.length}</span> / {maxChars}</span>
@@ -1068,7 +1068,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           {currentAudioUrl && (
             <section className="w-full mt-7">
-              <div className="flex items-center gap-2 mb-2.5 px-1"><Sparkles className="w-3 h-3 text-[#6d28d9]" /><span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{language === 'ar' ? 'بعد التوليد' : 'Après génération'}</span></div>
+              <div className="flex items-center gap-2 mb-2.5 px-1"><Sparkles className="w-3.5 h-3.5 text-[#6d28d9]" /><span className="text-xs font-bold text-slate-600 uppercase tracking-wider">{language === 'ar' ? 'بعد التوليد' : 'Après génération'}</span></div>
               <div className="saw-glass rounded-[22px] p-4">
                 <div className="flex items-center gap-3 flex-wrap">
                   <button onClick={togglePlay} className="w-11 h-11 rounded-full bg-[#6d28d9] hover:bg-[#8b5cf6] text-white flex items-center justify-center cursor-pointer transition-colors shrink-0">{isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 ms-0.5 fill-white" />}</button>
@@ -1076,7 +1076,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                     <div className="flex items-center gap-1.5"><span className="text-xs font-bold text-slate-800 truncate max-w-[130px]">{playerVoiceName}</span><span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"><Check className="w-2.5 h-2.5" />{language === 'ar' ? 'جاهز' : 'Prêt'}</span></div>
                     <span className="text-[10px] text-slate-500 font-num">{formatTime(currentTime)} / {formatTime(audioDuration)}</span>
                   </div>
-                  <div ref={mobileSeekRef} className="flex-1 min-w-[160px] flex items-center bg-white/60 px-3 py-2.5 rounded-2xl border border-white/80 relative min-h-[3.25rem] cursor-ew-resize touch-none select-none" onPointerDown={(e) => { try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {} mobileSeekingRef.current = true; seekFromClientX(e.clientX); }} onPointerMove={(e) => { if (mobileSeekingRef.current) seekFromClientX(e.clientX); }} onPointerUp={() => { mobileSeekingRef.current = false; }} onPointerCancel={() => { mobileSeekingRef.current = false; }}><WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} height={30} /></div>
+                  <div ref={mobileSeekRef} className="flex-1 min-w-[160px] flex items-center bg-white/60 px-3 py-2.5 rounded-2xl border border-violet-100 relative min-h-[3.5rem] cursor-ew-resize touch-none select-none" onPointerDown={(e) => { try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {} mobileSeekingRef.current = true; seekFromClientX(e.clientX); }} onPointerMove={(e) => { if (mobileSeekingRef.current) seekFromClientX(e.clientX); }} onPointerUp={() => { mobileSeekingRef.current = false; }} onPointerCancel={() => { mobileSeekingRef.current = false; }}><WaveformPlayer isPlaying={isPlaying} hasAudio={!!currentAudioUrl} currentTime={currentTime} duration={audioDuration} height={42} /></div>
                   <span className="rounded-full bg-[#ede9fe] text-[#6d28d9] text-[11px] font-bold px-2.5 py-1 whitespace-nowrap font-num">{language === 'ar' ? `≈ ${lastGeneratedCost} نقطة` : `≈ ${lastGeneratedCost} points`}</span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button onClick={() => handleDownloadClick('wav')} className="saw-flat rounded-full px-3 py-2 text-[11px] font-bold text-slate-700 cursor-pointer flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />WAV</button>
