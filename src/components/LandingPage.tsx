@@ -9,8 +9,6 @@ import React, {
 import { Helmet } from "react-helmet-async";
 import {
   ArrowRight,
-  Play,
-  Pause,
   Menu,
   X,
   Check,
@@ -203,6 +201,7 @@ function useScrollProgress() {
 
 function useVoicePlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playRequestRef = useRef(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -219,12 +218,17 @@ function useVoicePlayer() {
         setProgress(0);
       });
     }
+    const requestId = ++playRequestRef.current;
     audioRef.current.pause();
     audioRef.current.src = url;
-    audioRef.current.play().then(() => setPlayingId(id)).catch(() => setPlayingId(null));
+    setPlayingId(id);
+    audioRef.current.play().catch(() => {
+      if (requestId === playRequestRef.current) setPlayingId(null);
+    });
   }, []);
 
   const stop = useCallback(() => {
+    playRequestRef.current += 1;
     audioRef.current?.pause();
     setPlayingId(null);
     setProgress(0);
@@ -318,22 +322,35 @@ const MicWidget = ({ label, sublabel, onClick }: { label: string; sublabel: stri
   </motion.button>
 );
 
+const LANDING_VOICE_PALETTES = [
+  { c1: "#ff4e50", c2: "#f9d423", c3: "#ff8e53", accent: "#ff0044" },
+  { c1: "#3b82f6", c2: "#4338ca", c3: "#22d3ee", accent: "#38bdf8" },
+  { c1: "#ec4899", c2: "#be185d", c3: "#f9a8d4", accent: "#fb7185" },
+];
+
 const VoiceOrbCard = ({
   name,
   role,
   audioUrl,
   player,
+  paletteIndex,
+  isRTL,
 }: {
   name: string;
   role: string;
   audioUrl: string;
   player: any;
+  paletteIndex: number;
+  isRTL: boolean;
 }) => {
   const playing = player.playingId === audioUrl;
-
-  const start = useCallback(() => {
-    if (player.playingId !== audioUrl) player.play(audioUrl, audioUrl);
-  }, [player, audioUrl]);
+  const palette = LANDING_VOICE_PALETTES[paletteIndex % LANDING_VOICE_PALETTES.length];
+  const paletteStyle = {
+    "--aura-core": `linear-gradient(135deg, ${palette.c1} 0%, ${palette.c2} 50%, ${palette.c3} 100%)`,
+    "--aura-wave-1": `linear-gradient(135deg, ${palette.accent}, ${palette.c1}, ${palette.c3})`,
+    "--aura-wave-2": `linear-gradient(135deg, ${palette.c1}, ${palette.c2}, ${palette.accent})`,
+    "--aura-glow": palette.accent,
+  } as React.CSSProperties;
 
   return (
     <motion.div
@@ -341,50 +358,28 @@ const VoiceOrbCard = ({
       transition={{ type: "spring", stiffness: 250, damping: 20 }}
       className="flex flex-col items-center text-center gap-4"
     >
-      <div
-        className="relative cursor-pointer"
-        style={{ width: 132, height: 132 }}
+      <button
+        type="button"
+        className={`aura-wrapper ${playing ? "listening" : ""}`}
+        style={paletteStyle}
         onClick={() => player.toggle(audioUrl, audioUrl)}
-        onMouseEnter={start}
+        aria-label={`${playing ? (isRTL ? "إيقاف الاستماع" : "Mettre en pause") : (isRTL ? "استمع إلى" : "Écouter")} ${name}`}
+        aria-pressed={playing}
       >
-        <motion.div
-          className="absolute inset-0 rounded-full p-[3px]"
-          style={{ background: `conic-gradient(from 0deg, ${PURPLE}, ${PURPLE_SOFT}, ${PURPLE_DEEP}, ${PURPLE})` }}
-          animate={playing ? { rotate: 360 } : { rotate: 0 }}
-          transition={{ duration: 5, repeat: playing ? Infinity : 0, ease: "linear" }}
-        >
-          <div className="w-full h-full rounded-full" style={{ background: BG_ZINC_950 }} />
-        </motion.div>
-        <div
-          className="absolute inset-[6px] rounded-full flex items-center justify-center text-4xl font-extrabold"
-          style={{ background: BG_CARD, color: PURPLE_SOFT, fontFamily: FR_HEADING_STACK }}
-        >
-          {name.charAt(0)}
-        </div>
-        <motion.div
-          whileHover={{ scale: 1.15 }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute bottom-0 right-0 w-11 h-11 rounded-full flex items-center justify-center shadow-lg pointer-events-none"
-          style={{ background: PURPLE, boxShadow: `0 0 20px ${PURPLE_GLOW_STRONG}` }}
-        >
-          {playing ? <Pause className="w-4 h-4" style={{ color: BG_BLACK }} /> : <Play className="w-4 h-4 ml-0.5" style={{ color: BG_BLACK }} />}
-        </motion.div>
-      </div>
+        <span className="aura-layer layer-core" />
+        <span className="aura-layer layer-wave-1" />
+        <span className="aura-layer layer-wave-2" />
+      </button>
+      <p className={`aura-status ${playing ? "active" : ""}`} aria-live="polite">
+        {playing
+          ? (isRTL ? `الصوت قيد التشغيل · ${name}` : `En cours : ${name}`)
+          : (isRTL ? "اضغط للاستماع" : "Cliquez pour écouter")}
+      </p>
       <div>
         <h4 className="font-bold text-white text-lg">{name}</h4>
         <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
       </div>
-      <div className="flex items-end gap-1 h-6">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <motion.span
-            key={i}
-            className="w-1 rounded-full"
-            style={{ background: PURPLE }}
-            animate={playing ? { height: [6, 22, 6] } : { height: 6 }}
-            transition={{ duration: 0.6 + i * 0.04, repeat: playing ? Infinity : 0, ease: "easeInOut", delay: i * 0.05 }}
-          />
-        ))}
-      </div>
+
     </motion.div>
   );
 };
@@ -964,7 +959,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
               <div className="grid sm:grid-cols-3 gap-10 justify-items-center">
                 {voices.map((voice, i) => (
                   <AnimatedSection key={i} delay={i * 0.15}>
-                    <VoiceOrbCard {...voice} player={player} />
+                    <VoiceOrbCard {...voice} player={player} paletteIndex={i} isRTL={isRTL} />
                   </AnimatedSection>
                 ))}
               </div>
