@@ -1,6 +1,5 @@
 import React from 'react';
 import { Gift } from 'lucide-react';
-import { REFERRAL } from '../../config/growth';
 import { getGrowthCopy } from '../../data/growthCopy';
 import type { LanguageCode } from '../../data/voices';
 
@@ -10,7 +9,7 @@ interface ReferralInviteBannerProps {
   onSignup: () => void;
 }
 
-/** Visiteur arrivé par le lien d'un ami (?ref=CODE) : on rappelle le cadeau avant l'inscription. */
+/** Visiteur arrivé par le lien d'un ami (?ref=CODE) : on rappelle l'invitation avant l'inscription. */
 export const ReferralInviteBanner: React.FC<ReferralInviteBannerProps> = ({ language, isRTL, onSignup }) => {
   const copy = getGrowthCopy(language);
   return (
@@ -20,7 +19,7 @@ export const ReferralInviteBanner: React.FC<ReferralInviteBannerProps> = ({ lang
       role="status"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white"><Gift className="h-4 w-4" /></div>
-      <p className="min-w-0 flex-1 text-xs font-bold leading-snug text-slate-800">{copy.referralBanner(REFERRAL.rewardPoints)}</p>
+      <p className="min-w-0 flex-1 text-xs font-bold leading-snug text-slate-800">{copy.referralBanner}</p>
       <button type="button" onClick={onSignup} className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-extrabold text-white transition hover:bg-purple-600 active:scale-95">
         {copy.referralBannerCta}
       </button>

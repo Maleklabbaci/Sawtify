@@ -2615,15 +2615,16 @@ async function startServer() {
       const milestoneBonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: userId });
       if (milestoneBonus.data?.awarded) remainingBalance = milestoneBonus.data.new_balance;
 
-      // Parrainage : le filleul vient peut-être de terminer son 3e essai -> +50 pts pour lui ET son parrain.
+      // Parrainage : le filleul vient peut-être de terminer son 3e essai -> +50 pts pour le PARRAIN
+      // uniquement (celui qui a envoyé le lien) ; le générateur ne reçoit rien, son solde ne bouge pas.
       // Best-effort : une erreur ici ne doit jamais faire échouer une génération déjà débitée.
       let referralReward = 0;
       try {
         if (await isGrowthReady()) {
           const referral = await supabaseClient.rpc("award_referral_if_ready", { p_referred_id: userId, p_max_rewarded_per_referrer: REFERRAL.maxRewardedPerReferrer });
           if (referral.data?.awarded) {
-            referralReward = Number(referral.data.reward_points || 0);
-            if (typeof referral.data.referred_new_balance === "number") remainingBalance = referral.data.referred_new_balance;
+            // Informationnel : points versés au parrain (l'utilisateur courant, lui, n'en reçoit aucun).
+            referralReward = Number(referral.data.referrer_reward_points || 0);
           }
         }
       } catch (referralErr: any) { console.warn("[Growth] Récompense de parrainage ignorée :", referralErr?.message || referralErr); }
@@ -3099,9 +3100,11 @@ Style vocal souhaité : ${style || "excited"}`;
       if (!(await isGrowthReady())) return res.json({ success: false, reason: "disabled" });
       const code = String(req.body?.code || "").trim().toUpperCase();
       if (!/^[A-Z0-9]{4,16}$/.test(code)) return res.status(400).json({ success: false, reason: "invalid_code" });
-      // Le complément de départ n'est versé qu'aux comptes dont le bonus de bienvenue a été
-      // validé par la règle « 1 compte par IP » (ip_claims) : pas de points gratuits en plus
-      // pour un compte multiple.
+      // Aucun point de départ au filleul (REFERRAL.friendStarterPoints = 0) : ses 50 pts de
+      // bienvenue ne paient que 2 voix, la 3e suppose donc une recharge payante — c'est voulu,
+      // le parrain est récompensé quand l'ami paie et lance sa 3e génération.
+      // (Si friendStarterPoints > 0, il n'est versé qu'aux comptes dont le bonus de bienvenue
+      // a été validé par la règle « 1 compte par IP » — trace ip_claims.)
       const { data: ipClaim } = await supabaseClient.from("ip_claims").select("user_id").eq("user_id", userId).limit(1).maybeSingle();
       const starterPoints = ipClaim ? REFERRAL.friendStarterPoints : 0;
       const { data, error } = await supabaseClient.rpc("claim_referral", {

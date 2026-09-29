@@ -42,14 +42,17 @@ export const OUT_OF_BALANCE_THRESHOLD = POINTS_PER_VOICEOVER;
 export const CASHBACK = { percent: 20, validityDays: 7 } as const;
 
 /**
- * 3) Parrainage viral : l'ami teste 3 voix -> 50 points pour lui ET pour le parrain.
- *    friendStarterPoints : les 50 points de bienvenue ne permettent que 2 générations
- *    (2 × 20 = 40). On ajoute 10 points au filleul pour que les 3 essais soient possibles.
+ * 3) Parrainage viral : l'ami teste 3 voix -> 50 points pour le PARRAIN seulement
+ *    (celui qui a envoyé le lien). Le filleul n'est pas récompensé.
+ *    Les 50 pts de bienvenue ne paient que 2 générations (2 × 20) : la 3e impose
+ *    donc une recharge payante — c'est voulu (le parrain est payé quand l'ami paie).
+ *    friendStarterPoints reste à 0 (plus de coup de pouce gratuit vers la 3e voix).
  */
 export const REFERRAL = {
   requiredGenerations: 3,
+  /** Points versés UNIQUEMENT au parrain (expéditeur du lien). */
   rewardPoints: 50,
-  friendStarterPoints: 10,
+  friendStarterPoints: 0,
   maxRewardedPerReferrer: 20,
   maxAccountAgeDays: 3,
 } as const;

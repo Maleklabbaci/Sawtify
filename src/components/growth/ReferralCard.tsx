@@ -12,10 +12,10 @@ interface ReferralCardProps {
   variant?: 'card' | 'modal';
 }
 
-/**
- * Boucle virale « avec friction » : la récompense n'est versée que quand l'ami a réellement testé
- * 3 voix (voir supabase/growth_engine.sql). Le message parle de ce qu'on NE paie PLUS,
- * pas de « points à gagner » — ça déclenche bien plus.
+  /**
+ * Boucle virale « avec friction » : 50 points UNIQUEMENT pour le parrain (expéditeur du lien),
+ * versés quand l'ami a réellement testé 3 voix (souvent après une recharge pour la 3e).
+ * Le message parle de ce qu'on NE paie PLUS — ça déclenche bien plus.
  */
 export const ReferralCard: React.FC<ReferralCardProps> = ({ status, language, variant = 'card' }) => {
   const copy = getGrowthCopy(language);
@@ -62,7 +62,7 @@ export const ReferralCard: React.FC<ReferralCardProps> = ({ status, language, va
           <div className="min-w-0">
             <h3 className="text-base font-extrabold leading-snug text-slate-900 sm:text-lg">{copy.referralTitle}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-              {copy.referralBody(referral.rewardPoints, referral.rewardPoints, referral.requiredGenerations)}
+              {copy.referralBody(referral.rewardPoints, referral.requiredGenerations)}
             </p>
           </div>
         </div>
@@ -119,8 +119,8 @@ export const ReferralCard: React.FC<ReferralCardProps> = ({ status, language, va
         {friend && (
           <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold ${friend.status === 'rewarded' ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'}`}>
             {friend.status === 'rewarded'
-              ? copy.referralFriendDone(friend.rewardPoints)
-              : copy.referralFriendProgress(friend.done, friend.required, friend.rewardPoints)}
+              ? copy.referralFriendDone
+              : copy.referralFriendProgress(friend.done, friend.required)}
           </p>
         )}
       </div>

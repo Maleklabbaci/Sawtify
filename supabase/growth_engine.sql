@@ -4,7 +4,7 @@
 -- Ajoute la mécanique « psychologie d'achat » :
 --   1. Offre de première recharge (foot-in-the-door 500 DZD + flash 5 min)
 --   2. Cashback moral : +20 % de points sur la recharge suivante (7 jours)
---   3. Parrainage viral : l'ami teste 3 voix -> 50 points chacun
+--   3. Parrainage viral : l'ami teste 3 voix -> 50 points pour le PARRAIN seulement
 --
 -- Sécurité : tout est écrit UNIQUEMENT par le backend (clé service_role).
 -- Aucun accès anon/authenticated : impossible de s'auto-offrir des points.
@@ -193,8 +193,9 @@ GRANT EXECUTE ON FUNCTION public.credit_user_balance_with_promo(
 -- 4. PARRAINAGE : ENREGISTREMENT DU FILLEUL (atomique)
 --    Garde-fous : pas d'auto-parrainage, compte récent et vierge, un seul
 --    parrain par filleul, pas de parrainage croisé A<->B.
---    p_starter_points : petit complément offert au filleul pour que les 3 essais
---    soient possibles (50 points de bienvenue = 2 générations de 20 points).
+--    p_starter_points : petit complément éventuel au filleul (le serveur envoie 0 —
+--    les 50 points de bienvenue ne paient que 2 générations : la 3e suppose une
+--    recharge payante, ce qui déclenche la récompense du parrain).
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.claim_referral(
     p_referred_id UUID,
@@ -286,9 +287,10 @@ GRANT EXECUTE ON FUNCTION public.claim_referral(UUID, TEXT, INTEGER, INTEGER, IN
 
 -- ------------------------------------------------------------------------------
 -- 5. PARRAINAGE : RÉCOMPENSE (appelée après chaque génération réussie du filleul)
---    Quand le filleul atteint le nombre d'essais requis, le parrain ET le
---    filleul reçoivent les points, une seule fois. Plafond par parrain pour
---    éviter la ferme à comptes (au-delà, seul le filleul est récompensé).
+--    Quand le filleul atteint le nombre d'essais requis (typiquement après avoir
+--    payé pour lancer sa 3e génération), SEUL le parrain (celui qui a envoyé le
+--    lien) reçoit les points, une seule fois. Le filleul n'est PAS récompensé.
+--    Plafond par parrain pour éviter la ferme à comptes.
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.award_referral_if_ready(
     p_referred_id UUID,
@@ -304,7 +306,6 @@ DECLARE
     v_done INTEGER;
     v_rewarded INTEGER;
     v_referrer_reward INTEGER;
-    v_referred_balance INTEGER;
 BEGIN
     SELECT * INTO r
     FROM public.referrals
@@ -330,18 +331,12 @@ BEGIN
     FROM public.referrals
     WHERE referrer_id = r.referrer_id AND status = 'rewarded';
 
+    -- Seul le parrain est récompensé (plafond anti-ferme à comptes).
     v_referrer_reward := CASE
         WHEN v_rewarded >= GREATEST(p_max_rewarded_per_referrer, 0) THEN 0
         ELSE r.reward_points
     END;
 
-    -- Filleul : +points.
-    UPDATE public.profiles
-    SET credits_balance = credits_balance + r.reward_points, updated_at = NOW()
-    WHERE id = r.referred_id
-    RETURNING credits_balance INTO v_referred_balance;
-
-    -- Parrain : +points (si plafond non atteint).
     IF v_referrer_reward > 0 THEN
         UPDATE public.profiles
         SET credits_balance = credits_balance + v_referrer_reward, updated_at = NOW()
@@ -358,9 +353,8 @@ BEGIN
         'awarded', true,
         'referrer_id', r.referrer_id,
         'referred_id', r.referred_id,
-        'reward_points', r.reward_points,
-        'referrer_reward_points', v_referrer_reward,
-        'referred_new_balance', v_referred_balance
+        'reward_points', 0,
+        'referrer_reward_points', v_referrer_reward
     );
 END;
 $$;

@@ -217,9 +217,9 @@ function AppContent() {
     isLoggedIn,
     balance,
     balanceReady: isLoggedIn && !isBalanceLoading && !isBootstrapping,
-    onReferralRewarded: (kind, points) => {
+    onReferralRewarded: (points) => {
       const copy = getGrowthCopy(language);
-      showToastRef.current(kind === 'friend' ? copy.referralRewardedFriend(points) : copy.referralRewardedReferrer(points));
+      showToastRef.current(copy.referralRewardedReferrer(points));
       refreshAccountData();
     },
   });
@@ -248,7 +248,7 @@ function AppContent() {
       clearPendingReferralCode();
       setPendingReferral(null);
       if (result.success) {
-        showToastRef.current(getGrowthCopy(language).referralClaimed(result.requiredGenerations ?? 3, result.rewardPoints ?? 50));
+        showToastRef.current(getGrowthCopy(language).referralClaimed(result.requiredGenerations ?? 3));
         refreshAccountData();
         growth.refresh();
       }
@@ -271,6 +271,11 @@ function AppContent() {
     const timer = window.setTimeout(() => setFirstOfferOpen(true), 2500);
     return () => window.clearTimeout(timer);
   }, [isLoggedIn, growth.status, growth.nowMs, balance, isBalanceLoading, isBootstrapping, welcomeUser, needsPasswordSetup, activeTab]);
+
+  // Dès le premier paiement validé (hasPaid), le pop-up d'offre disparaît définitivement.
+  React.useEffect(() => {
+    if (growth.status?.hasPaid && firstOfferOpen) setFirstOfferOpen(false);
+  }, [growth.status, firstOfferOpen]);
 
   const closeFirstOffer = React.useCallback(() => {
     setFirstOfferOpen(false);
@@ -421,6 +426,12 @@ function AppContent() {
         refreshAccountData();
         // Retour de la page de paiement (mobile) : le cashback arrive dès que le crédit est confirmé.
         growth.expectCashback('any');
+        // Premier paiement validé : l'offre flash / 1re recharge ne s'affiche plus jamais.
+        setFirstOfferOpen(false);
+        try {
+          sessionStorage.setItem('sawtify_first_offer_dismissed_flash', '1');
+          sessionStorage.setItem('sawtify_first_offer_dismissed_entry', '1');
+        } catch { /* ignore */ }
         showToast(language === 'ar' ? 'تم استلام الدفع بنجاح!' : 'Paiement validé avec succès !');
 
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -457,6 +468,12 @@ function AppContent() {
 
   const handleRechargeSuccess = (pack: CreditPack, method: 'edahabia' | 'cib', record: PurchaseRecord) => {
     refreshAccountData();
+    // Premier paiement validé : le pop-up flash / première recharge disparaît définitivement.
+    setFirstOfferOpen(false);
+    try {
+      sessionStorage.setItem('sawtify_first_offer_dismissed_flash', '1');
+      sessionStorage.setItem('sawtify_first_offer_dismissed_entry', '1');
+    } catch { /* ignore */ }
     // Notification immédiate du cashback (+20 % sur la prochaine recharge) posé par le serveur au crédit.
     growth.expectCashback('previous');
     setPurchases((prev) => [record, ...prev]);

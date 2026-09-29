@@ -28,7 +28,8 @@ interface UseGrowthOptions {
   balance: number;
   /** true quand le solde affiché est fiable (déjà chargé depuis la base). */
   balanceReady: boolean;
-  onReferralRewarded?: (kind: 'friend' | 'referrer', points: number) => void;
+  /** 50 points versés UNIQUEMENT au parrain (expéditeur du lien), jamais au filleul. */
+  onReferralRewarded?: (points: number) => void;
 }
 
 const WATCH_INTERVAL_MS = 3500;
@@ -50,15 +51,11 @@ export function useGrowth({ isLoggedIn, balance, balanceReady, onReferralRewarde
   const apply = useCallback((next: GrowthStatus | null): GrowthStatus | null => {
     if (!next) return null;
     offsetRef.current = Date.parse(next.serverNow) - Date.now();
-    const prev = statusRef.current;
     statusRef.current = next;
     setStatus(next);
 
-    // Filleul : 3e essai atteint pendant cette session.
-    if (prev?.referral.asFriend?.status === 'pending' && next.referral.asFriend?.status === 'rewarded') {
-      rewardedCallbackRef.current?.('friend', next.referral.asFriend.rewardPoints);
-    }
     // Parrain : des points sont arrivés depuis sa dernière visite (repère mémorisé par navigateur).
+    // Seul le parrain est récompensé ; le filleul ne reçoit rien (voir growth_engine.sql).
     try {
       if (next.referral.code) {
         const key = `sawtify_ref_seen_earned_${next.referral.code}`;
@@ -66,7 +63,7 @@ export function useGrowth({ isLoggedIn, balance, balanceReady, onReferralRewarde
         if (seen === null) {
           localStorage.setItem(key, String(next.referral.earnedPoints));
         } else if (next.referral.earnedPoints > Number(seen)) {
-          rewardedCallbackRef.current?.('referrer', next.referral.earnedPoints - Number(seen));
+          rewardedCallbackRef.current?.(next.referral.earnedPoints - Number(seen));
           localStorage.setItem(key, String(next.referral.earnedPoints));
         }
       }

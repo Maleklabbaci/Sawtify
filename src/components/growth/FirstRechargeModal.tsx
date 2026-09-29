@@ -20,6 +20,8 @@ interface FirstRechargeModalProps {
 
 /** Offres « première recharge » encore vivantes à cet instant (jamais plus que ce que dit le serveur). */
 export function liveFirstRechargeOffers(status: GrowthStatus, nowMs: number): { flash: PackOffer | null; entry: PackOffer | null } {
+  // Dès le premier paiement validé (hasPaid), les offres 1re recharge disparaissent définitivement.
+  if (status.hasPaid) return { flash: null, entry: null };
   const alive = (o?: PackOffer) => (o && remainingMs(o.endsAt, nowMs) > 0 ? o : null);
   const all = Object.values(status.packOffers);
   return {

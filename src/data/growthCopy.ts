@@ -49,23 +49,22 @@ export interface GrowthCopy {
   cashbackCta: string;
   close: string;
 
-  // — Parrainage —
+  // — Parrainage (50 pts UNIQUEMENT pour l'expéditeur du lien) —
   referralTitle: string;
-  referralBody: (friendPoints: number, myPoints: number, generations: number) => string;
+  referralBody: (myPoints: number, generations: number) => string;
   referralCopy: string;
   referralCopied: string;
   referralWhatsapp: string;
   referralShare: string;
   referralWhatsappMessage: (link: string, points: number) => string;
   referralStats: (rewarded: number, pending: number, earned: number) => string;
-  referralFriendProgress: (done: number, required: number, points: number) => string;
-  referralFriendDone: (points: number) => string;
+  referralFriendProgress: (done: number, required: number) => string;
+  referralFriendDone: string;
   referralInviteButton: string;
   referralLinkLabel: string;
-  referralBanner: (points: number) => string;
+  referralBanner: string;
   referralBannerCta: string;
-  referralClaimed: (generations: number, points: number) => string;
-  referralRewardedFriend: (points: number) => string;
+  referralClaimed: (generations: number) => string;
   referralRewardedReferrer: (points: number) => string;
 }
 
@@ -108,21 +107,20 @@ const fr: GrowthCopy = {
   close: 'Fermer',
 
   referralTitle: '🎁 Ne paie plus tes voix-off dès aujourd’hui !',
-  referralBody: (friend, mine, gens) => `Envoie Sawtify à ton ami : il n’a qu’à tester ${gens} voix, tu gagnes ${mine} points et il gagne ${friend} points, gratuit. Copie le lien et partage-le !`,
+  referralBody: (mine, gens) => `Envoie ton lien à un ami : dès qu’il teste ${gens} voix (il recharge pour la 3ᵉ), tu reçois ${mine} points gratuits. Copie le lien et partage-le !`,
   referralCopy: 'Copier mon lien',
   referralCopied: 'Lien copié ✓',
   referralWhatsapp: 'WhatsApp',
   referralShare: 'Partager',
-  referralWhatsappMessage: (link, points) => `Essaie Sawtify, la voix-off IA en darija 🎙️ Crée ton compte avec mon lien et on gagne chacun ${points} points gratuits : ${link}`,
+  referralWhatsappMessage: (link, points) => `Essaie Sawtify, la voix-off IA en darija 🎙️ Crée ton compte avec mon lien — je gagne ${points} points quand tu testes 3 voix : ${link}`,
   referralStats: (rewarded, pending, earned) => `${rewarded} ami(s) validé(s) • ${pending} en cours • ${earned} points gagnés`,
-  referralFriendProgress: (done, required, points) => `Parrainage : ${done}/${required} voix testées — encore ${required - done} pour gagner ${points} points 🎁`,
-  referralFriendDone: (points) => `Parrainage validé : +${points} points reçus 🎉`,
+  referralFriendProgress: (done, required) => `Invitation d’un ami : ${done}/${required} voix testées`,
+  referralFriendDone: 'Invitation d’un ami validée ✓',
   referralInviteButton: 'Invite un ami +50',
   referralLinkLabel: 'Ton lien personnel',
-  referralBanner: (points) => `🎁 Un ami t’offre ${points} points gratuits : crée ton compte et teste 3 voix.`,
+  referralBanner: '🎁 Un ami t’invite sur Sawtify : crée ton compte et teste la voix-off IA.',
   referralBannerCta: 'Créer mon compte',
-  referralClaimed: (gens, points) => `🎁 Parrainage activé ! Teste ${gens} voix et gagne ${points} points.`,
-  referralRewardedFriend: (points) => `🎉 Parrainage validé : +${points} points offerts !`,
+  referralClaimed: (gens) => `🎁 Invitation activée ! Teste ${gens} voix pour valider le parrainage de ton ami.`,
   referralRewardedReferrer: (points) => `🎉 Ton ami a testé Sawtify : +${points} points pour toi !`,
 };
 
@@ -165,21 +163,20 @@ const ar: GrowthCopy = {
   close: 'إغلاق',
 
   referralTitle: '🎁 ما تزيدش تخلص على الفويس أوف من اليوم!',
-  referralBody: (friend, mine, gens) => `ابعت السيت لصاحبك، غير يجرب ${gens} أصوات برك، تدي أنت ${mine} نقطة وهو يدي ${friend} نقطة باطل. كبس على الرابط وبارتاجي!`,
+  referralBody: (mine, gens) => `ابعت الرابط لصاحبك: كي يجرب ${gens} أصوات (يشحن على الثالثة)، تدي أنت ${mine} نقطة باطل. كبس على الرابط وبارتاجي!`,
   referralCopy: 'انسخ الرابط تاعي',
   referralCopied: 'تم النسخ ✓',
   referralWhatsapp: 'واتساب',
   referralShare: 'مشاركة',
-  referralWhatsappMessage: (link, points) => `جرب Sawtify، فويس أوف بالذكاء الاصطناعي بالدارجة 🎙️ سجل بالرابط تاعي ونربحو كل واحد ${points} نقطة باطل: ${link}`,
+  referralWhatsappMessage: (link, points) => `جرب Sawtify، فويس أوف بالذكاء الاصطناعي بالدارجة 🎙️ سجل بالرابط تاعي — نربح ${points} نقطة كي تجرب 3 أصوات: ${link}`,
   referralStats: (rewarded, pending, earned) => `${rewarded} صديق مؤكّد • ${pending} في الانتظار • ${earned} نقطة ربحتها`,
-  referralFriendProgress: (done, required, points) => `الإحالة: ${done}/${required} أصوات مجرّبة — باقي ${required - done} باش تاخذ ${points} نقطة 🎁`,
-  referralFriendDone: (points) => `تم تأكيد الإحالة: +${points} نقطة وصلتك 🎉`,
+  referralFriendProgress: (done, required) => `دعوة صديق: ${done}/${required} أصوات مجرّبة`,
+  referralFriendDone: 'تم تأكيد دعوة الصديق ✓',
   referralInviteButton: 'ادعُ صديق +50',
   referralLinkLabel: 'الرابط الشخصي تاعك',
-  referralBanner: (points) => `🎁 صاحبك يهديك ${points} نقطة باطل: سجل وجرب 3 أصوات.`,
+  referralBanner: '🎁 صاحبك يدعوك لـ Sawtify: سجل وجرب الفويس أوف بالذكاء الاصطناعي.',
   referralBannerCta: 'أنشئ حسابي',
-  referralClaimed: (gens, points) => `🎁 تم تفعيل الإحالة! جرب ${gens} أصوات وخذ ${points} نقطة.`,
-  referralRewardedFriend: (points) => `🎉 تم تأكيد الإحالة: +${points} نقطة هدية!`,
+  referralClaimed: (gens) => `🎁 تم تفعيل الدعوة! جرب ${gens} أصوات باش يتأكد باريناج صاحبك.`,
   referralRewardedReferrer: (points) => `🎉 صاحبك جرب السيت: +${points} نقطة ليك!`,
 };
 

@@ -7,8 +7,8 @@ Tout ce qui touche aux points est **décidé et crédité par le serveur** ; le 
 |---|-----------|----------------------|------------------|
 | 1 | Offre de première recharge : 500 DZD → **150 points au lieu de 100** | Foot-in-the-door (1re carte enregistrée = les paiements suivants deviennent faciles) | Pop-up à la 1re fin de solde + carte du pack 500 DZD |
 | 2 | Price framing : « ≈ 90 DZD par voix-off » sous chaque pack | Ancrage (10× moins cher qu'un comédien) | Page Tarifs (FR + AR) |
-| 3 | Parrainage : l'ami teste 3 voix → **50 points chacun** | Boucle virale, réciprocité | Bouton cadeau du header, carte Tarifs, lien `?ref=CODE` |
-| 4 | Flash 5 min : pack 1 000 DZD **+50 % de points** | Aversion à la perte + FOMO | Pop-up à 0 point + bannière Tarifs |
+| 3 | Parrainage : l'ami teste 3 voix (la 3e après une recharge) → **50 points pour l'expéditeur du lien uniquement** | Boucle virale : on ne récompense que celui qui partage | Bouton cadeau du header, carte Tarifs, lien `?ref=CODE` |
+| 4 | Flash 5 min : pack 1 000 DZD **+50 % de points** — **disparaît dès le 1er paiement validé** | Aversion à la perte + FOMO | Pop-up à 0 point + bannière Tarifs |
 | 5 | Cashback : **+20 % sur la prochaine recharge, 7 jours** | Rétention (le crédit « attend » l'utilisateur) | Notification juste après un paiement |
 
 ## Fichiers
@@ -32,7 +32,8 @@ Sans l'étape 1, rien ne casse : les routes growth répondent `enabled:false`, a
 - Le chrono de l'offre est posé par le serveur (impossible de le rallonger en changeant l'heure du téléphone).
 - Cashback : consommé à la recharge suivante puis reposé ; jamais cumulé avec l'offre de première recharge.
 - Parrainage : pas d'auto-parrainage, pas de cycle A↔B, un seul parrain par filleul, compte de moins de 3 jours et sans historique, plafond de 20 filleuls récompensés par parrain.
-- Le filleul reçoit +10 points de départ **seulement si** son bonus de bienvenue a été accordé (trace `ip_claims`) : les 50 points de bienvenue ne paient que 2 voix, il en faut 3 pour valider le parrainage.
+- **Seul le parrain (expéditeur du lien) reçoit les 50 points** ; le filleul n'en reçoit aucun. Aucun point de départ n'est versé au filleul : ses 50 points de bienvenue ne paient que 2 voix, la 3e génération suppose donc une recharge payante — la récompense tombe donc quand l'ami paie réellement (« il paie et lance la 3e génération »).
+- Le pop-up / la bannière de l'offre flash **ne s'affiche plus jamais dès que le premier paiement est validé** (`hasPaid` côté serveur + fermeture immédiate côté front) : l'offre ne concerne que les comptes qui n'ont jamais payé.
 
 ## Points d'attention business
 
@@ -40,3 +41,4 @@ Sans l'étape 1, rien ne casse : les routes growth répondent `enabled:false`, a
 - Les offres de première recharge (150 / 330 points) diffèrent du catalogue (100 / 220) : la marge sur cette 1re recharge est plus faible ; elle est compensée par la valeur à vie du client qui a enregistré sa carte.
 - Le pack 5 000 DZD est présenté « **+35 % de points** » (et non « -35 % de prix ») car le prix par voix-off calculé est 74 DZD contre 100 DZD au pack d'entrée : ~26 % moins cher, pas 35 %.
 - Le parrainage n'est pas branché sur l'API développeur (`/api/v1/developer/tts`) : seules les générations faites depuis le studio comptent.
+- Le parrainage ne rémunère que le partage (50 pts à l'envoyeur) : le filleul, lui, doit payer sa 3e voix. C'est un choix assumé — la viralité récompense l'apporteur d'affaires, pas le compte invité (qui bénéficie du bonus de bienvenue comme tout le monde).

@@ -173,7 +173,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const growthStatus = growth?.status ?? null;
   const nowMs = growth ? growth.nowMs() : Date.now();
   const allOffers: PackOffer[] = growthStatus ? Object.values(growthStatus.packOffers) : [];
-  const liveOffers = allOffers.filter((o) => remainingMs(o.endsAt, nowMs) > 0);
+  // Dès le premier paiement validé (hasPaid), les offres « première recharge » (flash inclus) disparaissent définitivement.
+  const liveOffers = allOffers.filter((o) => remainingMs(o.endsAt, nowMs) > 0 && !(growthStatus?.hasPaid && o.type !== 'cashback'));
   const flashOffer = liveOffers.find((o) => o.type === 'first_recharge_flash') ?? null;
   const entryOffer = liveOffers.find((o) => o.type === 'first_recharge_entry') ?? null;
   const cashbackOffer = liveOffers.find((o) => o.type === 'cashback') ?? null;
