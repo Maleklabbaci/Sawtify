@@ -98,17 +98,16 @@ const CARD_3D_STYLES = `
 
 /* Popular Theme */
 .theme-popular .u-card {
-  background: linear-gradient(145deg, #6d28d9 0%, #7c3aed 60%, #8b5cf6 100%);
+  background: linear-gradient(43deg, rgb(65, 88, 208) 0%, rgb(200, 80, 192) 46%, rgb(255, 204, 112) 100%);
   color: white;
-  box-shadow: 0 18px 38px -18px rgba(109, 40, 217, .58);
+  box-shadow: 0 20px 40px -10px rgba(200, 80, 192, 0.4);
 }
 
 .theme-popular .u-card::before {
   content: '';
-  background: linear-gradient(145deg, #6d28d9, #8b5cf6);
-  filter: blur(1.5rem);
-  border-radius: inherit;
-  opacity: 0.22;
+  background: linear-gradient(43deg, rgb(65, 88, 208) 0%, rgb(200, 80, 192) 46%, rgb(255, 204, 112) 100%);
+  filter: blur(2rem);
+  opacity: 0.4;
   width: 100%;
   height: 100%;
   position: absolute;
@@ -379,8 +378,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
         {/* Offre de première recharge (compte à rebours réel, horloge serveur) */}
         {(flashOffer || entryOffer) && (
-          <div className="max-w-2xl mx-auto rounded-[24px] border border-violet-100 bg-white/75 p-1 shadow-[0_12px_36px_rgba(76,29,149,.08)] backdrop-blur-xl">
-            <div className="rounded-[20px] bg-gradient-to-r from-violet-50/80 via-white to-fuchsia-50/70 px-4 py-3 sm:px-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+          <div className="max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-purple-700 via-fuchsia-600 to-orange-400 p-[1.5px] shadow-lg shadow-purple-500/20">
+            <div className="rounded-[14px] bg-white px-4 py-3 sm:px-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
               <div className="flex items-start gap-3 min-w-0">
                 <div className="w-10 h-10 shrink-0 rounded-xl bg-purple-600 text-white flex items-center justify-center">
                   <Clock className="w-5 h-5" />
