@@ -201,6 +201,7 @@ function useScrollProgress() {
 
 function useVoicePlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playRequestRef = useRef(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -217,12 +218,17 @@ function useVoicePlayer() {
         setProgress(0);
       });
     }
+    const requestId = ++playRequestRef.current;
     audioRef.current.pause();
     audioRef.current.src = url;
-    audioRef.current.play().then(() => setPlayingId(id)).catch(() => setPlayingId(null));
+    setPlayingId(id);
+    audioRef.current.play().catch(() => {
+      if (requestId === playRequestRef.current) setPlayingId(null);
+    });
   }, []);
 
   const stop = useCallback(() => {
+    playRequestRef.current += 1;
     audioRef.current?.pause();
     setPlayingId(null);
     setProgress(0);
@@ -343,6 +349,7 @@ const VoiceOrbCard = ({
     "--aura-core": `linear-gradient(135deg, ${palette.c1} 0%, ${palette.c2} 50%, ${palette.c3} 100%)`,
     "--aura-wave-1": `linear-gradient(135deg, ${palette.accent}, ${palette.c1}, ${palette.c3})`,
     "--aura-wave-2": `linear-gradient(135deg, ${palette.c1}, ${palette.c2}, ${palette.accent})`,
+    "--aura-glow": palette.accent,
   } as React.CSSProperties;
 
   return (
@@ -365,7 +372,7 @@ const VoiceOrbCard = ({
       </button>
       <p className={`aura-status ${playing ? "active" : ""}`} aria-live="polite">
         {playing
-          ? (isRTL ? "جاري الاستماع..." : "Écoute active...")
+          ? (isRTL ? `الصوت قيد التشغيل · ${name}` : `En cours : ${name}`)
           : (isRTL ? "اضغط للاستماع" : "Cliquez pour écouter")}
       </p>
       <div>

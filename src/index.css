@@ -406,7 +406,7 @@
   cursor: pointer;
   filter: blur(12px);
   opacity: 0.70;
-  transition: transform 0.4s ease, opacity 0.4s ease;
+  transition: transform 0.4s ease, opacity 0.4s ease, filter 0.4s ease;
 }
 .aura-wrapper:hover { transform: scale(1.04); opacity: 0.78; }
 .aura-wrapper:focus-visible { outline: 2px solid #fff; outline-offset: 5px; }
@@ -437,7 +437,11 @@
   animation-delay: -4s;
   z-index: 1;
 }
-.aura-wrapper.listening { transform: scale(1.06); opacity: 0.85; }
+.aura-wrapper.listening {
+  transform: scale(1.1);
+  opacity: 0.96;
+  filter: blur(12px) drop-shadow(0 0 24px var(--aura-glow));
+}
 .aura-wrapper.listening .layer-core { animation-duration: 2.8s, 3.5s; }
 .aura-wrapper.listening .layer-wave-1 { animation-duration: 2.4s, 2.5s; }
 .aura-wrapper.listening .layer-wave-2 { animation-duration: 3.5s, 4.5s; }
@@ -451,8 +455,14 @@
   55% { border-radius: 58% 42% 62% 38% / 52% 58% 42% 48%; }
   100% { border-radius: 46% 54% 44% 56% / 56% 46% 54% 44%; }
 }
-.aura-status { margin: -8px 0 0; color: #7f8c9d; font-size: 13px; min-height: 20px; }
-.aura-status.active { color: #ff4e50; }
+.aura-status { margin: -8px 0 0; color: #7f8c9d; font-size: 13px; min-height: 20px; transition: color 0.25s ease; }
+.aura-status.active { color: #fff; font-weight: 700; }
+.aura-status.active::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-inline-end: 7px;
+  border-radius: 50%; background: var(--aura-glow, #ff4e50);
+  box-shadow: 0 0 12px var(--aura-glow, #ff4e50); animation: aura-live-pulse 1.1s ease-in-out infinite;
+}
+@keyframes aura-live-pulse { 50% { opacity: .35; transform: scale(.72); } }
 @media (prefers-reduced-motion: reduce) {
   .aura-wrapper, .aura-layer { animation: none !important; transition: none; }
 }
