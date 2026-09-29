@@ -257,13 +257,14 @@
   position: relative; width: 58px; height: 58px; border-radius: 50%; overflow: hidden; z-index: 3; isolation: isolate;
   background: radial-gradient(ellipse at 30% 22%, #fff 0%, transparent 42%), linear-gradient(145deg, #fff, var(--vb-base));
   border: 1px solid rgba(255,255,255,.92);
-  box-shadow: inset 0 -5px 12px rgba(55,35,80,.12), inset 0 2px 8px rgba(255,255,255,.85), 0 4px 18px color-mix(in srgb, var(--vb-accent) 30%, transparent);
+  box-shadow: inset 0 -5px 12px rgba(55,35,80,.12), inset 0 2px 8px rgba(255,255,255,.85);
+  contain: paint; clip-path: circle(50% at 50% 50%); -webkit-clip-path: circle(50% at 50% 50%);
 }
-.saw-vb-liquid { position: absolute; border-radius: 50%; filter: blur(9px); mix-blend-mode: multiply; opacity: .7; }
+.saw-vb-liquid { position: absolute; border-radius: 50%; opacity: .72; }
 .saw-vb-liquid-1 { width: 110%; height: 75%; top: -8%; left: -12%; background: radial-gradient(ellipse, var(--vb-liquid-1) 0%, transparent 72%); animation: aura-flow-1 4s ease-in-out infinite alternate; }
 .saw-vb-liquid-2 { width: 86%; height: 90%; top: 25%; right: -17%; background: radial-gradient(ellipse, var(--vb-liquid-2) 0%, transparent 72%); animation: aura-flow-2 5s ease-in-out infinite alternate; }
 .saw-vb-liquid-3 { width: 85%; height: 72%; bottom: -20%; left: 2%; background: radial-gradient(ellipse, var(--vb-liquid-3) 0%, transparent 72%); animation: aura-flow-3 4.5s ease-in-out infinite alternate; }
-.saw-vb-shine { position: absolute; z-index: 2; width: 48%; height: 19%; top: 10%; left: 14%; border-radius: 50%; background: rgba(255,255,255,.62); filter: blur(5px); }
+.saw-vb-shine { position: absolute; z-index: 2; width: 48%; height: 19%; top: 10%; left: 14%; border-radius: 50%; background: radial-gradient(ellipse, rgba(255,255,255,.62), transparent 75%); }
 .saw-vb-label { color: #31234b; font-size: 12px; font-weight: 700; line-height: 1.3; max-width: 175px; white-space: normal; }
 @keyframes saw-vb-in { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 480px) {
@@ -280,33 +281,28 @@
   position: relative; width: 190px; height: 190px; flex: 0 0 190px;
   display: flex; align-items: center; justify-content: center;
   padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer;
-  opacity: .96; isolation: isolate; transition: transform .35s ease, opacity .35s ease;
-}
-.aura-wrapper::before {
-  content: ''; position: absolute; z-index: 0; inset: 15px; border-radius: 50%;
-  background: radial-gradient(circle, var(--aura-glow) 0%, transparent 70%);
-  filter: blur(25px); opacity: .28; transition: opacity .35s ease, transform .35s ease;
+  opacity: 1; isolation: isolate; transition: transform .35s ease;
+  overflow: visible;
 }
 .aura-wrapper:hover { transform: scale(1.04); }
-.aura-wrapper:hover::before { opacity: .45; }
 .aura-wrapper:focus-visible { outline: 2px solid #fff; outline-offset: 5px; }
 .aura-layer { position: absolute; border-radius: 50%; }
 .layer-core {
   position: relative; width: 152px; height: 152px; z-index: 3; overflow: hidden; isolation: isolate;
+  contain: paint; clip-path: circle(50% at 50% 50%); -webkit-clip-path: circle(50% at 50% 50%);
   background: radial-gradient(ellipse at 28% 22%, rgba(255,255,255,.95) 0%, transparent 42%), linear-gradient(145deg, #fff, var(--aura-base));
   border: 1px solid rgba(255,255,255,.88);
-  box-shadow: inset 0 -10px 24px rgba(85,55,100,.12), inset 0 2px 9px rgba(255,255,255,.9), 0 10px 28px color-mix(in srgb, var(--aura-glow) 20%, transparent);
+  box-shadow: inset 0 -10px 24px rgba(85,55,100,.12), inset 0 2px 9px rgba(255,255,255,.9);
 }
-.aura-fluid { position: absolute; border-radius: 50%; filter: blur(17px); mix-blend-mode: multiply; opacity: .72; }
+.aura-fluid { position: absolute; border-radius: 50%; opacity: .72; }
 .aura-fluid-1 { width: 105%; height: 72%; top: -8%; left: -13%; background: radial-gradient(ellipse, var(--aura-fluid-1) 0%, transparent 72%); animation: aura-flow-1 7.5s ease-in-out infinite alternate; }
 .aura-fluid-2 { width: 86%; height: 92%; top: 19%; right: -18%; background: radial-gradient(ellipse, var(--aura-fluid-2) 0%, transparent 72%); animation: aura-flow-2 9s ease-in-out infinite alternate; }
 .aura-fluid-3 { width: 92%; height: 76%; bottom: -22%; left: -4%; background: radial-gradient(ellipse, var(--aura-fluid-3) 0%, transparent 72%); animation: aura-flow-3 8s ease-in-out infinite alternate; }
-.aura-gloss { position: absolute; z-index: 2; width: 48%; height: 20%; top: 10%; left: 15%; border-radius: 50%; background: rgba(255,255,255,.58); filter: blur(8px); }
+.aura-gloss { position: absolute; z-index: 2; width: 48%; height: 20%; top: 10%; left: 15%; border-radius: 50%; background: radial-gradient(ellipse, rgba(255,255,255,.58), transparent 75%); }
 @keyframes aura-flow-1 { from { transform: translate3d(-6%, -2%, 0) scale(.94) rotate(-10deg); } to { transform: translate3d(12%, 14%, 0) scale(1.12) rotate(16deg); } }
 @keyframes aura-flow-2 { from { transform: translate3d(8%, -9%, 0) scale(1.06) rotate(12deg); } to { transform: translate3d(-12%, 10%, 0) scale(.9) rotate(-18deg); } }
 @keyframes aura-flow-3 { from { transform: translate3d(-8%, 8%, 0) scale(.92) rotate(18deg); } to { transform: translate3d(13%, -10%, 0) scale(1.12) rotate(-12deg); } }
 .aura-wrapper.listening { transform: scale(1.08); opacity: 1; }
-.aura-wrapper.listening::before { opacity: .58; transform: scale(1.12); }
 .aura-wrapper.listening .aura-fluid-1 { animation-duration: 3s; }
 .aura-wrapper.listening .aura-fluid-2 { animation-duration: 3.5s; }
 .aura-wrapper.listening .aura-fluid-3 { animation-duration: 3.2s; }
