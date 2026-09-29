@@ -262,14 +262,19 @@
 }
 .saw-chip-active:hover { background: #6d28d9; }
 
-/* Popovers : carte verre flottante, sans ombre gonflée */
-.saw-pop {
-  background: rgba(255, 255, 255, 0.82);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 24px 60px rgba(76, 29, 149, 0.18);
-  border-radius: 22px;
+/* Popups (balises / voix / région) : rendus dans <body> via portail React.
+   Fond blanc opaque (posé par Tailwind dans le composant), cases nettes. */
+.saw-pop-fix .saw-flat {
+  background: #f5f3ff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.saw-pop-fix .saw-flat:hover {
+  background: #ede9fe;
+}
+.saw-pop-fix .saw-chip-active {
+  background: #6d28d9;
+  color: #fff;
 }
 
 /* Écriture du script IA : shimmer doux pendant la génération */
