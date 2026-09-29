@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Play, Pause, Download, Volume2, Volume1, Volume, AlertCircle,
   Check, Copy, RefreshCw, Sparkles, Zap, Mic, Radio, Headphones, Flame,
@@ -36,6 +37,17 @@ const BURST_SECTIONS: { category: TagCategory; ar: string; fr: string }[] = [
 ];
 
 const chargerConvertisseurMp3 = () => import('../utils/audioConverter');
+
+// ==========================================================================
+// CLASSES COMMUNES DES POPUPS (rendus dans <body> via portail)
+// Fond blanc opaque, au-dessus de tout (z-[300])
+// ==========================================================================
+const POP_BASE =
+  'saw-pop-fix fixed z-[300] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
+  // mobile : panneau en bas de l'écran
+  'inset-x-3 bottom-3 max-h-[70vh] ' +
+  // PC : panneau sur le côté
+  'lg:inset-x-auto lg:bottom-auto lg:top-24 lg:max-h-[calc(100vh-160px)]';
 
 // ==========================================================================
 // UTILITAIRES
@@ -158,6 +170,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [composerMode, setComposerMode] = useState<'voice' | 'script'>('voice');
   const [openPop, setOpenPop] = useState<PopoverId>(null);
   const popAnchorRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
 
   const onPrefillConsumedRef = useRef(onPrefillConsumed);
   onPrefillConsumedRef.current = onPrefillConsumed;
@@ -272,11 +285,25 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     return () => { cancelled = true; isRestoringRef.current = false; };
   }, []);
 
+  // Clic extérieur : ignore la barre ET le popup (rendu dans <body>)
   useEffect(() => {
-    const handler = (e: MouseEvent) => { if (popAnchorRef.current && !popAnchorRef.current.contains(e.target as Node)) { setOpenPop(null); } };
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (popAnchorRef.current?.contains(target)) return;
+      if (popRef.current?.contains(target)) return;
+      setOpenPop(null);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Échap ferme le popup
+  useEffect(() => {
+    if (!openPop) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenPop(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [openPop]);
 
   useEffect(() => { return () => { if (previousAudioUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousAudioUrlRef.current); if (previousMp3UrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousMp3UrlRef.current); }; }, []);
   useEffect(() => { if (previousAudioUrlRef.current && previousAudioUrlRef.current !== currentAudioUrl && previousAudioUrlRef.current.startsWith('blob:')) { URL.revokeObjectURL(previousAudioUrlRef.current); } previousAudioUrlRef.current = currentAudioUrl; }, [currentAudioUrl]);
@@ -565,14 +592,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
         )}
 
-        {/* ========================================================================================= */}
-        {/* = ESPACEMENT GÉANT AJOUTÉ ICI : pt-12 lg:pt-24 (en haut) pour descendre tout le bloc = */}
-        {/* ========================================================================================= */}
         <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-12 lg:pt-24">
 
-          {/* ========================================================================================= */}
-          {/* = ESPACEMENT GÉANT AJOUTÉ ICI : gap-8 (entre solde et "Ahla") et mb-20 lg:mb-28 (en bas) = */}
-          {/* ========================================================================================= */}
           <div className="w-full flex flex-col items-center gap-8 mb-20 lg:mb-28">
             <button onClick={onOpenRecharge} className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5" title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}>
               <span className="font-num">{language === 'ar' ? `الرصيد ${balance} نقطة` : `Solde ${balance} pts`}</span>
@@ -637,110 +658,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 </button>
               </div>
 
-              {/* ==================================================================================================== */}
-              {/* = FENÊTRE FLOTTANTE "BALISES" (À DROITE dans l'espace vide sur PC, liste déroulante sur Mobile)    = */}
-              {/* ==================================================================================================== */}
-              {openPop === 'tags' && (
-                <div className="saw-pop absolute top-full mt-2 start-0 w-[min(352px,calc(100vw-3rem))] max-h-[min(450px,60vh)] overflow-y-auto custom-scrollbar p-3 z-[100] lg:fixed lg:top-24 lg:start-8 xl:start-16 lg:w-[352px] lg:max-h-[calc(100vh-160px)] lg:shadow-2xl lg:mt-0 lg:border lg:border-white/50 lg:rounded-3xl">
-                  <div className="flex items-center justify-between px-1 pb-2">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
-                    <span className="text-[10px] text-slate-400">{language === 'ar' ? 'الصوت يتبع النبرة' : 'la voix suit la tonalité'}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 px-1 pt-1 pb-1.5"><SlidersHorizontal className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'نبرة الأداء (كامل النص)' : 'Ton (toute la lecture)'}</span></div>
-                  <div className="grid grid-cols-2 gap-1">
-                    {styleTags.map((tagObj) => (
-                      <button key={tagObj.tag} onClick={() => handleInsertTag(tagObj.tag)} title={`${tagObj.tag} — ${tagObj.desc}`} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer text-slate-700">
-                        <span className="block text-[11px] font-semibold">{`[${tagObj.label}]`}</span>
-                        <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{tagObj.tag}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><AudioLines className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? `أصوات بشرية (${VOCAL_BURST_COUNT})` : `Sons humains (${VOCAL_BURST_COUNT})`}</span></div>
-                  {BURST_SECTIONS.map((section) => (
-                    <div key={section.category}>
-                      <div className="text-[10px] font-semibold text-slate-400 px-1 pt-2 pb-1">{language === 'ar' ? section.ar : section.fr}</div>
-                      <div className="grid grid-cols-2 gap-1">
-                        {(VOCAL_BURSTS[section.category] || []).map((v) => (
-                          <button key={v.tag} onClick={() => handleInsertTag(v.tag)} title={`${v.tag} — ${language === 'ar' ? v.ar : v.fr}`} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer">
-                            <span className="block text-[10px] font-semibold text-slate-700">{language === 'ar' ? v.ar : v.fr}</span>
-                            <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{v.tag}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ==================================================================================================== */}
-              {/* = FENÊTRE FLOTTANTE "VOIX" (À GAUCHE dans l'espace vide sur PC, liste déroulante sur Mobile)       = */}
-              {/* ==================================================================================================== */}
-              {openPop === 'voices' && (
-                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(320px,calc(100vw-3rem))] max-h-[min(450px,60vh)] flex flex-col p-3 z-[100] lg:fixed lg:top-24 lg:end-8 xl:end-16 lg:w-[340px] lg:max-h-[calc(100vh-160px)] lg:shadow-2xl lg:mt-0 lg:border lg:border-white/50 lg:rounded-3xl">
-                  <div className="flex items-center justify-between px-1 pb-2">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t.catalogHeader}</span>
-                    <span className="text-[10px] text-slate-400 font-num">{voices.length}</span>
-                  </div>
-
-                  <div className="flex gap-1 mb-2">
-                    {([ { id: 'all' as GenderFilter, label: t.allGenders }, { id: 'male' as GenderFilter, label: t.maleGenders }, { id: 'female' as GenderFilter, label: t.femaleGenders } ]).map((g) => (
-                      <button key={g.id} onClick={() => setGenderFilter(g.id)} className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${genderFilter === g.id ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{g.label}</button>
-                    ))}
-                  </div>
-
-                  <div className="relative mb-2">
-                    <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)} className="w-full appearance-none px-3 py-2 pe-8 rounded-full text-[11px] font-medium text-slate-700 bg-white/70 border border-[rgba(76,29,149,0.12)] hover:bg-white focus:outline-none cursor-pointer">
-                      {categoryOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.label}</option>))}
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2.5 pointer-events-none" />
-                  </div>
-
-                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-0.5">
-                    {filteredVoices.map((voice) => {
-                      const isSelected = voice.id === selectedVoiceId;
-                      const isPreviewing = previewingVoiceId === voice.id;
-                      return (
-                        <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setOpenPop(null); }} className={`flex items-center gap-2 px-2.5 py-2 rounded-2xl cursor-pointer transition-colors ${isSelected ? 'bg-[#ede9fe]' : 'hover:bg-white/80'}`}>
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#6d28d9] text-white' : 'bg-white text-slate-500 border border-[rgba(76,29,149,0.12)]'}`}>
-                            <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[11px] font-semibold text-slate-800 truncate block">{voice.name}</span>
-                            <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
-                          </div>
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-white'}`} title="Favori" aria-pressed={favoriteVoiceIds.includes(voice.id)}><Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} /></button>
-                            <button onClick={(e) => handlePreviewVoice(e, voice)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9] bg-white' : 'text-slate-400 hover:text-slate-700 hover:bg-white'}`}>{isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {filteredVoices.length === 0 && <p className="text-[11px] text-slate-400 text-center py-4">{language === 'ar' ? 'لا توجد نتائج' : 'Aucun résultat'}</p>}
-                  </div>
-
-                  <div className="mt-2 pt-2 border-t border-[rgba(76,29,149,0.10)] space-y-2">
-                    <div className="space-y-1"><div className="flex justify-between text-[10px]"><span className="text-slate-500 font-medium">{t.speedLabel}</span><span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span></div><input type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" /></div>
-                    <div className="space-y-1"><div className="flex justify-between text-[10px]"><span className="text-slate-500 font-medium">{t.pitchLabel}</span><span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span></div><input type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" /></div>
-                  </div>
-                </div>
-              )}
-
-              {/* ==================================================================================================== */}
-              {/* = FENÊTRE FLOTTANTE "RÉGION/SCRIPT" (À GAUCHE dans l'espace vide sur PC, liste sur Mobile)         = */}
-              {/* ==================================================================================================== */}
-              {openPop === 'region' && (
-                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(300px,calc(100vw-3rem))] max-h-[min(300px,50vh)] overflow-y-auto p-3 z-[100] lg:fixed lg:top-24 lg:end-8 xl:end-16 lg:w-[320px] lg:shadow-2xl lg:mt-0 lg:border lg:border-white/50 lg:rounded-3xl">
-                  <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {regionButtons.map(r => (
-                      <button key={r.id} onClick={() => { setSelectedRegion(r.id); setOpenPop(null); }} className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${selectedRegion === r.id ? 'saw-chip-active' : 'saw-flat text-slate-700'}`}>{language === 'ar' ? r.ar : r.fr}</button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-slate-400 px-1 pt-2.5 leading-relaxed">{language === 'ar' ? 'النص يتبع اللهجة المختارة.' : 'Le script suit la région choisie.'}</p>
-                </div>
-              )}
+              {/* Les popups (balises / voix / région) sont rendus dans <body> via un portail — voir plus bas */}
             </div>
 
             <div className="flex flex-wrap justify-center gap-2 mt-5">
@@ -781,7 +699,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             )}
           </div>
 
-          {/* Cartes résultats et autres... inchangées ci-dessous */}
           {(scriptResult || isGeneratingScript) && (
             <section className="w-full mt-7">
               <div className={`saw-glass rounded-[22px] p-5 ${isMagicActive && lastGenType === 'script' ? 'saw-magic-pulse' : ''}`}>
@@ -826,9 +743,131 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         </main>
       </fieldset>
 
+      {/* ==================================================================================================== */}
+      {/* = POPUPS BALISES / VOIX / RÉGION — rendus dans <body> (portail) : opaques, toujours au premier plan = */}
+      {/* ==================================================================================================== */}
+      {openPop && createPortal(
+        <>
+          {/* Fond cliquable : ferme le popup (assombri sur mobile, invisible sur PC) */}
+          <div
+            className="fixed inset-0 z-[299] bg-slate-950/25 lg:bg-transparent"
+            onClick={() => setOpenPop(null)}
+          />
+
+          {openPop === 'tags' && (
+            <div
+              ref={popRef}
+              dir={isRTL ? 'rtl' : 'ltr'}
+              className={`${POP_BASE} overflow-y-auto custom-scrollbar lg:start-8 xl:start-16 lg:w-[352px]`}
+            >
+              <div className="flex items-center justify-between px-1 pb-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
+                <span className="text-[10px] text-slate-400">{language === 'ar' ? 'الصوت يتبع النبرة' : 'la voix suit la tonalité'}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 px-1 pt-1 pb-1.5"><SlidersHorizontal className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'نبرة الأداء (كامل النص)' : 'Ton (toute la lecture)'}</span></div>
+              <div className="grid grid-cols-2 gap-1">
+                {styleTags.map((tagObj) => (
+                  <button key={tagObj.tag} onClick={() => handleInsertTag(tagObj.tag)} title={`${tagObj.tag} — ${tagObj.desc}`} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer text-slate-700">
+                    <span className="block text-[11px] font-semibold">{`[${tagObj.label}]`}</span>
+                    <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{tagObj.tag}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><AudioLines className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? `أصوات بشرية (${VOCAL_BURST_COUNT})` : `Sons humains (${VOCAL_BURST_COUNT})`}</span></div>
+              {BURST_SECTIONS.map((section) => (
+                <div key={section.category}>
+                  <div className="text-[10px] font-semibold text-slate-400 px-1 pt-2 pb-1">{language === 'ar' ? section.ar : section.fr}</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(VOCAL_BURSTS[section.category] || []).map((v) => (
+                      <button key={v.tag} onClick={() => handleInsertTag(v.tag)} title={`${v.tag} — ${language === 'ar' ? v.ar : v.fr}`} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer">
+                        <span className="block text-[10px] font-semibold text-slate-700">{language === 'ar' ? v.ar : v.fr}</span>
+                        <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{v.tag}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {openPop === 'voices' && (
+            <div
+              ref={popRef}
+              dir={isRTL ? 'rtl' : 'ltr'}
+              className={`${POP_BASE} flex flex-col lg:end-8 xl:end-16 lg:w-[340px]`}
+            >
+              <div className="flex items-center justify-between px-1 pb-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t.catalogHeader}</span>
+                <span className="text-[10px] text-slate-400 font-num">{voices.length}</span>
+              </div>
+
+              <div className="flex gap-1 mb-2">
+                {([ { id: 'all' as GenderFilter, label: t.allGenders }, { id: 'male' as GenderFilter, label: t.maleGenders }, { id: 'female' as GenderFilter, label: t.femaleGenders } ]).map((g) => (
+                  <button key={g.id} onClick={() => setGenderFilter(g.id)} className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${genderFilter === g.id ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{g.label}</button>
+                ))}
+              </div>
+
+              <div className="relative mb-2">
+                <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)} className="w-full appearance-none px-3 py-2 pe-8 rounded-full text-[11px] font-medium text-slate-700 bg-white border border-[rgba(76,29,149,0.12)] hover:bg-slate-50 focus:outline-none cursor-pointer">
+                  {categoryOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.label}</option>))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 end-2.5 pointer-events-none" />
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-0.5">
+                {filteredVoices.map((voice) => {
+                  const isSelected = voice.id === selectedVoiceId;
+                  const isPreviewing = previewingVoiceId === voice.id;
+                  return (
+                    <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setOpenPop(null); }} className={`flex items-center gap-2 px-2.5 py-2 rounded-2xl cursor-pointer transition-colors ${isSelected ? 'bg-[#ede9fe]' : 'hover:bg-slate-100'}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#6d28d9] text-white' : 'bg-white text-slate-500 border border-[rgba(76,29,149,0.12)]'}`}>
+                        <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[11px] font-semibold text-slate-800 truncate block">{voice.name}</span>
+                        <span className="text-[9px] text-slate-400 truncate block">{voice.dialect}</span>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${favoriteVoiceIds.includes(voice.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-white'}`} title="Favori" aria-pressed={favoriteVoiceIds.includes(voice.id)}><Star className="w-3.5 h-3.5" fill={favoriteVoiceIds.includes(voice.id) ? 'currentColor' : 'none'} /></button>
+                        <button onClick={(e) => handlePreviewVoice(e, voice)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9] bg-white' : 'text-slate-400 hover:text-slate-700 hover:bg-white'}`}>{isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredVoices.length === 0 && <p className="text-[11px] text-slate-400 text-center py-4">{language === 'ar' ? 'لا توجد نتائج' : 'Aucun résultat'}</p>}
+              </div>
+
+              <div className="mt-2 pt-2 border-t border-[rgba(76,29,149,0.10)] space-y-2 shrink-0">
+                <div className="space-y-1"><div className="flex justify-between text-[10px]"><span className="text-slate-500 font-medium">{t.speedLabel}</span><span className="font-num font-bold text-slate-900">{speed.toFixed(1)}x</span></div><input type="range" min="0.7" max="1.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" /></div>
+                <div className="space-y-1"><div className="flex justify-between text-[10px]"><span className="text-slate-500 font-medium">{t.pitchLabel}</span><span className="font-num font-bold text-slate-900">{pitch.toFixed(1)}</span></div><input type="range" min="0.8" max="1.3" step="0.1" value={pitch} onChange={(e) => setPitch(parseFloat(e.target.value))} className="thick-slider w-full bg-slate-200 rounded appearance-none cursor-pointer" /></div>
+              </div>
+            </div>
+          )}
+
+          {openPop === 'region' && (
+            <div
+              ref={popRef}
+              dir={isRTL ? 'rtl' : 'ltr'}
+              className={`${POP_BASE} overflow-y-auto custom-scrollbar lg:end-8 xl:end-16 lg:w-[320px]`}
+            >
+              <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {regionButtons.map(r => (
+                  <button key={r.id} onClick={() => { setSelectedRegion(r.id); setOpenPop(null); }} className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${selectedRegion === r.id ? 'saw-chip-active' : 'saw-flat text-slate-700'}`}>{language === 'ar' ? r.ar : r.fr}</button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 px-1 pt-2.5 leading-relaxed">{language === 'ar' ? 'النص يتبع اللهجة المختارة.' : 'Le script suit la région choisie.'}</p>
+            </div>
+          )}
+        </>,
+        document.body
+      )}
+
       {/* POPUPS ET MODALES CI-DESSOUS */}
       {pendingDownload && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" onMouseDown={(e) => { if (e.target === e.currentTarget) setPendingDownload(null); }}>
+        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" onMouseDown={(e) => { if (e.target === e.currentTarget) setPendingDownload(null); }}>
           <div className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-xl">
             <button onClick={() => setPendingDownload(null)} className="float-end -me-2 -mt-2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" /></button>
             <p className="text-sm font-extrabold text-slate-900">{language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت' : 'Tu as écouté ? Dis-nous c’était comment'}</p>
@@ -851,7 +890,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       )}
 
       {showStartToneModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowStartToneModal(false); }}>
+        <div className="fixed inset-0 z-[310] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowStartToneModal(false); }}>
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
