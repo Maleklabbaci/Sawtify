@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, Download, Volume2, Volume1, Volume, AlertCircle,
@@ -46,8 +46,8 @@ const POP_BASE =
   'saw-pop-fix fixed z-[300] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
   // mobile : panneau en bas de l'écran
   'inset-x-3 bottom-3 max-h-[70vh] ' +
-  // PC : panneau sur le côté
-  'lg:inset-x-auto lg:bottom-auto lg:top-24 lg:max-h-[calc(100vh-160px)]';
+  // PC : la position exacte (left/top/bottom/width/maxHeight) vient du style inline, calculé depuis la barre
+  'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
 // ==========================================================================
 // UTILITAIRES
@@ -171,6 +171,34 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [openPop, setOpenPop] = useState<PopoverId>(null);
   const popAnchorRef = useRef<HTMLDivElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
+
+  // PC : colle le popup à la barre (au-dessus si la place suffit, sinon en dessous)
+  useLayoutEffect(() => {
+    if (!openPop) return;
+    const update = () => {
+      const bar = barRef.current;
+      if (!bar || window.innerWidth < 1024) { setPopStyle({}); return; }
+      const r = bar.getBoundingClientRect();
+      const w = openPop === 'tags' ? 352 : openPop === 'voices' ? 340 : 320;
+      const atStart = openPop === 'tags'; // le "+" est au début, voix/région à la fin
+      const alignLeft = atStart !== isRTL;
+      const rawLeft = alignLeft ? r.left : r.right - w;
+      const left = Math.max(12, Math.min(rawLeft, window.innerWidth - w - 12));
+      const spaceAbove = r.top - 80;
+      const spaceBelow = window.innerHeight - r.bottom - 16;
+      if (spaceAbove >= 260 || spaceAbove >= spaceBelow) {
+        setPopStyle({ left, width: w, bottom: window.innerHeight - r.top + 8, maxHeight: Math.min(480, spaceAbove) });
+      } else {
+        setPopStyle({ left, width: w, top: r.bottom + 8, maxHeight: Math.min(480, spaceBelow) });
+      }
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+  }, [openPop, isRTL]);
 
   const onPrefillConsumedRef = useRef(onPrefillConsumed);
   onPrefillConsumedRef.current = onPrefillConsumed;
@@ -592,9 +620,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           </div>
         )}
 
-        <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-12 lg:pt-24">
+        <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-6 sm:pt-12 lg:pt-24">
 
-          <div className="w-full flex flex-col items-center gap-8 mb-20 lg:mb-28">
+          <div className="w-full flex flex-col items-center gap-5 sm:gap-8 mb-10 sm:mb-20 lg:mb-28">
             <button onClick={onOpenRecharge} className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5" title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}>
               <span className="font-num">{language === 'ar' ? `الرصيد ${balance} نقطة` : `Solde ${balance} pts`}</span>
               <span className="text-slate-400">·</span>
@@ -610,7 +638,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
           {/* ════════ LA BARRE ════════ */}
           <div ref={popAnchorRef} className="w-full relative">
-            <div className="saw-glass relative rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
+            <div ref={barRef} className="saw-glass relative rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
 
               <textarea
                 ref={textareaRef} value={text} onChange={(e) => setText(e.target.value)} maxLength={maxChars} rows={1}
@@ -619,41 +647,42 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
                 style={{ unicodeBidi: 'plaintext' }} dir="auto"
               />
 
-              <div className="flex items-center gap-1.5 sm:gap-2 mt-2">
+              <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-2">
                 {composerMode === 'voice' && (
-                  <button onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
+                  <button onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
                     <Plus className="w-4 h-4" />
                   </button>
                 )}
 
-                <button onClick={() => setComposerMode('voice')} className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}</button>
-                <button onClick={() => setComposerMode('script')} className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}</button>
-                <div className="flex-1" />
+                <button onClick={() => setComposerMode('voice')} className={`order-2 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}</button>
+                <button onClick={() => setComposerMode('script')} className={`order-3 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}</button>
+                <div className="hidden sm:block flex-1" />
+                <div className="order-5 basis-full h-0 sm:hidden" aria-hidden="true" />
 
                 {composerMode === 'voice' && (
-                  <button onClick={handleEnhanceText} disabled={isEnhancing || !text.trim() || balance < 2} className="saw-flat h-9 rounded-full px-3 flex items-center gap-1.5 cursor-pointer disabled:opacity-40 text-slate-600" title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer le texte (2 pts)'}>
+                  <button onClick={handleEnhanceText} disabled={isEnhancing || !text.trim() || balance < 2} className="order-7 sm:order-none shrink-0 saw-flat h-9 rounded-full px-3 flex items-center gap-1.5 cursor-pointer disabled:opacity-40 text-slate-600" title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer le texte (2 pts)'}>
                     {isEnhancing ? <RefreshCw className="w-4 h-4 animate-spin text-[#6d28d9]" /> : <Wand2 className="w-4 h-4 text-[#6d28d9]" />}
                     <span className="text-[11px] font-bold text-[#6d28d9]">{language === 'ar' ? 'المحسن' : 'Magique'}</span>
                   </button>
                 )}
 
-                <button onClick={handleCopyText} className="saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer text-slate-600" title={language === 'ar' ? 'نسخ' : 'Copier'}>
+                <button onClick={handleCopyText} className="order-8 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer text-slate-600" title={language === 'ar' ? 'نسخ' : 'Copier'}>
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
 
                 {composerMode === 'voice' ? (
-                  <button onClick={() => setOpenPop(openPop === 'voices' ? null : 'voices')} className={`flex items-center gap-2 rounded-full ps-1.5 pe-2.5 py-1.5 cursor-pointer transition-colors ${openPop === 'voices' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={t.catalogHeader}>
+                  <button onClick={() => setOpenPop(openPop === 'voices' ? null : 'voices')} className={`order-6 sm:order-none flex-1 min-w-0 sm:flex-none flex items-center gap-2 rounded-full ps-1.5 pe-2.5 py-1.5 cursor-pointer transition-colors ${openPop === 'voices' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={t.catalogHeader}>
                     <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${openPop === 'voices' ? 'bg-white/20 text-white' : 'bg-[#ede9fe] text-[#6d28d9]'}`}><VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-3.5 h-3.5" /></span>
-                    <span className="text-xs font-bold max-w-[80px] truncate">{currentVoice.name}</span>
+                    <span className="text-xs font-bold flex-1 sm:flex-none text-start sm:max-w-[80px] truncate">{currentVoice.name}</span>
                     <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${openPop === 'voices' ? 'rotate-180' : ''}`} />
                   </button>
                 ) : (
-                  <button onClick={() => setOpenPop(openPop === 'region' ? null : 'region')} className={`flex items-center gap-2 rounded-full px-3 py-2 cursor-pointer transition-colors ${openPop === 'region' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={language === 'ar' ? 'إعدادات النص' : 'Réglages du script'}>
+                  <button onClick={() => setOpenPop(openPop === 'region' ? null : 'region')} className={`order-6 sm:order-none flex-1 sm:flex-none justify-center flex items-center gap-2 rounded-full px-3 py-2 cursor-pointer transition-colors ${openPop === 'region' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={language === 'ar' ? 'إعدادات النص' : 'Réglages du script'}>
                     <Sparkles className="w-3.5 h-3.5" /><span className="text-xs font-bold">{language === 'ar' ? currentRegion.ar : currentRegion.fr}</span><ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${openPop === 'region' ? 'rotate-180' : ''}`} />
                   </button>
                 )}
 
-                <button onClick={handleComposerSubmit} disabled={isGenerating || (composerMode === 'script' ? isGeneratingScript : !text.trim())} className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors disabled:opacity-40 ${needsTopUp && composerMode === 'voice' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'saw-flat-violet'}`} title={composerMode === 'script' ? (language === 'ar' ? 'إنشاء النص' : 'Générer le script') : (needsTopUp ? (language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer') : t.generateBtn)}>
+                <button onClick={handleComposerSubmit} disabled={isGenerating || (composerMode === 'script' ? isGeneratingScript : !text.trim())} className={`order-4 sm:order-none ms-auto sm:ms-0 shrink-0 w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors disabled:opacity-40 ${needsTopUp && composerMode === 'voice' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'saw-flat-violet'}`} title={composerMode === 'script' ? (language === 'ar' ? 'إنشاء النص' : 'Générer le script') : (needsTopUp ? (language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer') : t.generateBtn)}>
                   {composerMode === 'script' ? (isGeneratingScript ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />) : (needsTopUp ? <Zap className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />)}
                 </button>
               </div>
@@ -661,9 +690,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               {/* Les popups (balises / voix / région) sont rendus dans <body> via un portail — voir plus bas */}
             </div>
 
-            <div className="flex flex-wrap justify-center gap-2 mt-5">
+            <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
               {suggestions.map((s) => (
-                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); }); }} className="saw-flat rounded-full px-3.5 py-2 text-[11px] font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
+                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); }); }} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-[11px] font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
               ))}
             </div>
 
@@ -758,7 +787,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             <div
               ref={popRef}
               dir={isRTL ? 'rtl' : 'ltr'}
-              className={`${POP_BASE} overflow-y-auto custom-scrollbar lg:start-8 xl:start-16 lg:w-[352px]`}
+              style={popStyle}
+              className={`${POP_BASE} overflow-y-auto custom-scrollbar`}
             >
               <div className="flex items-center justify-between px-1 pb-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
@@ -796,7 +826,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             <div
               ref={popRef}
               dir={isRTL ? 'rtl' : 'ltr'}
-              className={`${POP_BASE} flex flex-col lg:end-8 xl:end-16 lg:w-[340px]`}
+              style={popStyle}
+              className={`${POP_BASE} flex flex-col`}
             >
               <div className="flex items-center justify-between px-1 pb-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t.catalogHeader}</span>
@@ -850,7 +881,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             <div
               ref={popRef}
               dir={isRTL ? 'rtl' : 'ltr'}
-              className={`${POP_BASE} overflow-y-auto custom-scrollbar lg:end-8 xl:end-16 lg:w-[320px]`}
+              style={popStyle}
+              className={`${POP_BASE} overflow-y-auto custom-scrollbar`}
             >
               <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}</div>
               <div className="flex flex-wrap gap-1.5">
