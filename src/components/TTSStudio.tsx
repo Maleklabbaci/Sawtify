@@ -959,7 +959,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-8 lg:pt-12">
 
           {/* Salutation centrée + solde au-dessus */}
-          <div className="w-full flex flex-col items-center gap-3 mb-7">
+          {/* CORRECTION : gap-6 (au lieu de gap-3) pour aérer entre le solde et la salutation */}
+          {/* CORRECTION : mb-14 (au lieu de mb-7) pour aérer entre la salutation et le champ de texte */}
+          <div className="w-full flex flex-col items-center gap-6 mb-14">
             <button
               onClick={onOpenRecharge}
               className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5"
@@ -1094,8 +1096,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               </div>
 
               {/* ════════ Popover balises (s'ouvre vers le bas) ════════ */}
+              {/* CORRECTION : max-h en min(380px,50vh) pour éviter de dépasser l'écran, z-[100] pour rester au-dessus */}
               {openPop === 'tags' && (
-                <div className="saw-pop absolute top-full mt-2 start-0 w-[min(352px,calc(100vw-3rem))] max-h-[420px] overflow-y-auto custom-scrollbar p-3 z-40">
+                <div className="saw-pop absolute top-full mt-2 start-0 w-[min(352px,calc(100vw-3rem))] max-h-[min(380px,50vh)] overflow-y-auto custom-scrollbar p-3 z-[100]">
                   <div className="flex items-center justify-between px-1 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
                     <span className="text-[10px] text-slate-400">{language === 'ar' ? 'الصوت يتبع النبرة' : 'la voix suit la tonalité'}</span>
@@ -1149,8 +1152,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               )}
 
               {/* ════════ Popover voix (s'ouvre vers le bas) ════════ */}
+              {/* CORRECTION : max-h en min(400px,50vh) pour scroll interne si écran petit, z-[100] au premier plan */}
               {openPop === 'voices' && (
-                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(320px,calc(100vw-3rem))] max-h-[480px] flex flex-col p-3 z-40">
+                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(320px,calc(100vw-3rem))] max-h-[min(400px,50vh)] flex flex-col p-3 z-[100]">
                   <div className="flex items-center justify-between px-1 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t.catalogHeader}</span>
                     <span className="text-[10px] text-slate-400 font-num">{voices.length}</span>
@@ -1251,8 +1255,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               )}
 
               {/* ════════ Popover réglages script (s'ouvre vers le bas) ════════ */}
+              {/* CORRECTION : max-h + overflow-y-auto pour scroll interne, z-[100] au premier plan */}
               {openPop === 'region' && (
-                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(300px,calc(100vw-3rem))] p-3 z-40">
+                <div className="saw-pop absolute top-full mt-2 end-0 w-[min(300px,calc(100vw-3rem))] max-h-[min(300px,50vh)] overflow-y-auto p-3 z-[100]">
                   <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
                     {language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}
                   </div>
