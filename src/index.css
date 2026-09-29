@@ -316,3 +316,11 @@
 @keyframes aura-live-pulse { 50% { opacity: .35; transform: scale(.72); } }
 @media (max-width: 640px) { .aura-wrapper { width: 160px; height: 160px; flex-basis: 160px; } .layer-core { width: 128px; height: 128px; } }
 @media (prefers-reduced-motion: reduce) { .aura-wrapper, .aura-layer, .aura-fluid, .aura-status.active::before { animation: none !important; transition: none; } }
+
+@keyframes saw-loader-progress {
+  0% { transform: translateX(-115%); }
+  100% { transform: translateX(330%); }
+}
+.saw-loader-progress { animation: saw-loader-progress 1.7s cubic-bezier(.45,0,.55,1) infinite; }
+[dir="rtl"] .saw-loader-progress { animation-direction: reverse; }
+@media (prefers-reduced-motion: reduce) { .saw-loader-progress { animation: none; width: 60%; } }

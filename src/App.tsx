@@ -6,7 +6,7 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 import { trackMarketingEvent } from './services/marketingTracking';
-import { Mic, History, CreditCard, Code2, Lock } from 'lucide-react';
+import { Mic, AudioLines, History, CreditCard, Code2, Lock } from 'lucide-react';
 import { useGrowth } from './hooks/useGrowth';
 import { claimReferral, captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from './services/growth';
 import { getGrowthCopy } from './data/growthCopy';
@@ -37,23 +37,55 @@ const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').th
 const importStudio = () => import('./components/TTSStudio');
 const TTSStudio = lazy(() => importStudio().then((m) => ({ default: m.TTSStudio })));
 
-/** A branded, non-blocking placeholder for code-split screens; never a blank spinner. */
-const MinimalLoader = () => (
-  <div className="mx-auto flex min-h-[55vh] w-full max-w-5xl flex-1 items-center justify-center px-4 py-8" role="status" aria-live="polite">
-    <div className="w-full max-w-2xl rounded-[28px] border border-violet-100 bg-white/90 p-5 shadow-[0_16px_60px_rgba(76,29,149,.08)] sm:p-8">
-      <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-200"><Mic className="h-5 w-5" /></span>
-        <div><p className="text-sm font-extrabold text-slate-900">Sawtify</p><p className="text-xs text-slate-500">Ton espace arrive…</p></div>
+/** Branded, page-aware loading surface — no detached spinner or blank screen. */
+const MinimalLoader: React.FC<{ page?: 'studio' | 'pricing' | 'history' | 'developer' | 'admin' | 'account' }> = ({ page = 'studio' }) => {
+  const { language, isRTL } = useLanguage();
+  const arabic = language === 'ar';
+  const title = page === 'pricing'
+    ? (arabic ? 'نحضّرو لك باقات النقاط' : 'Préparation des packs de points')
+    : page === 'history'
+      ? (arabic ? 'نحمّلو سجلّك' : 'Chargement de ton historique')
+      : page === 'account'
+        ? (arabic ? 'نحضّرو حسابك' : 'Préparation de ton compte')
+        : (arabic ? 'نحضّرو الاستوديو' : 'Préparation de ton studio');
+  const subtitle = arabic ? 'ثواني برك، واجهتك راهي تتحضّر.' : 'Un instant, ton espace se prépare.';
+
+  return (
+    <section className={`mx-auto flex min-h-[58vh] w-full max-w-6xl flex-1 flex-col justify-center px-4 py-8 sm:px-6 ${isRTL ? 'text-right' : 'text-left'}`} role="status" aria-live="polite" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="mb-6 flex items-center gap-3 sm:mb-8">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-200/70"><AudioLines className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-violet-600">Sawtify · {arabic ? 'مساحة العمل' : 'Espace de travail'}</p>
+          <h1 className="mt-1 text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
+          <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+        </div>
+        <span className="hidden shrink-0 items-center gap-2 rounded-full border border-violet-100 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 shadow-sm sm:inline-flex">
+          <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-50" /><span className="relative inline-flex h-2 w-2 rounded-full bg-violet-600" /></span>
+          {arabic ? 'جاري التحضير' : 'En préparation'}
+        </span>
       </div>
-      <div className="mt-7 space-y-3" aria-hidden="true">
-        <div className="h-5 w-40 animate-pulse rounded-lg bg-violet-100" />
-        <div className="h-24 animate-pulse rounded-2xl bg-slate-50" />
-        <div className="flex gap-2"><div className="h-9 w-24 animate-pulse rounded-full bg-violet-100" /><div className="h-9 w-20 animate-pulse rounded-full bg-slate-100" /></div>
-        <p className="pt-2 text-xs text-slate-500">Le chargement prend plus de temps que prévu ? Vérifie ta connexion puis actualise la page.</p>
-      </div>
-    </div>
-  </div>
-);
+
+      {page === 'pricing' ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+          {[0, 1, 2].map((item) => <div key={item} className={`rounded-[26px] border bg-white p-5 shadow-[0_14px_45px_rgba(49,24,90,.05)] sm:p-6 ${item === 1 ? 'border-violet-200 ring-1 ring-violet-100' : 'border-slate-100'}`}>
+            <div className="flex justify-between"><div className="h-4 w-24 animate-pulse rounded bg-slate-100" /><div className="h-6 w-14 animate-pulse rounded-full bg-violet-50" /></div>
+            <div className="mt-7 h-9 w-32 animate-pulse rounded-lg bg-violet-100/80" />
+            <div className="mt-3 h-3 w-40 animate-pulse rounded bg-slate-100" />
+            <div className="mt-7 space-y-3"><div className="h-3 w-full animate-pulse rounded bg-slate-50" /><div className="h-3 w-4/5 animate-pulse rounded bg-slate-50" /><div className="h-3 w-3/5 animate-pulse rounded bg-slate-50" /></div>
+            <div className="mt-8 h-11 w-full animate-pulse rounded-xl bg-violet-100" />
+          </div>)}
+        </div>
+      ) : (
+        <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_14px_45px_rgba(49,24,90,.05)] sm:p-6" aria-hidden="true">
+          <div className="h-4 w-32 animate-pulse rounded bg-violet-100" />
+          <div className="mt-4 h-28 animate-pulse rounded-2xl bg-slate-50 sm:h-36" />
+          <div className="mt-4 flex flex-wrap gap-2"><div className="h-9 w-24 animate-pulse rounded-full bg-violet-100" /><div className="h-9 w-20 animate-pulse rounded-full bg-slate-100" /><div className="h-9 w-28 animate-pulse rounded-full bg-slate-100" /></div>
+        </div>
+      )}
+      <div className="mt-6 h-1 overflow-hidden rounded-full bg-violet-100" aria-hidden="true"><span className="saw-loader-progress block h-full w-1/3 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-500" /></div>
+    </section>
+  );
+};
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
@@ -459,7 +491,7 @@ function AppContent() {
     // Setup mot de passe prioritaire
     if (needsPasswordSetup) {
       return (
-        <Suspense fallback={<MinimalLoader />}>
+        <Suspense fallback={<MinimalLoader page="account" />}>
           <SetPasswordScreen
             userEmail={pendingUserEmail}
             language={language}
@@ -477,7 +509,7 @@ function AppContent() {
     if (!isLoggedIn) {
       if (authModalMode === 'login') {
         return (
-          <Suspense fallback={<MinimalLoader />}>
+          <Suspense fallback={<MinimalLoader page="account" />}>
             <LoginModal
               onClose={() => setAuthModalMode('none')}
               onLoginSuccess={() => {
@@ -495,7 +527,7 @@ function AppContent() {
 
       if (authModalMode === 'signin') {
         return (
-          <Suspense fallback={<MinimalLoader />}>
+          <Suspense fallback={<MinimalLoader page="account" />}>
             <SigninModal
               onClose={() => setAuthModalMode('none')}
               onSigninSuccess={() => {
@@ -580,7 +612,7 @@ function AppContent() {
         >
           {/* Studio : PAS DE SUSPENSE (chargement direct pour éviter le blocage) */}
           {activeTab === 'studio' && (
-            <Suspense fallback={<MinimalLoader />}>
+            <Suspense fallback={<MinimalLoader page="studio" />}>
               <TTSStudio
                 balance={balance}
                 onDeductPoints={handleDeductPoints}
@@ -593,7 +625,7 @@ function AppContent() {
           )}
 
           {/* Autres pages : Suspense OK car ce sont des pages secondaires */}
-          <Suspense fallback={<MinimalLoader />}>
+          <Suspense fallback={<MinimalLoader page={activeTab} />} >
             {activeTab === 'history' && (
               <HistoryList
                 generations={generations}
