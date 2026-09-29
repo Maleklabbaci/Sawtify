@@ -572,7 +572,7 @@ function AppContent() {
     // Même si isBootstrapping est true, on affiche le contenu (le solde arrivera après)
     // C'est le KEY FIX : avant, on bloquait ici jusqu'à la fin du bootstrap
     return (
-      <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
+      <div className={`${activeTab === 'studio' ? 'h-dvh overflow-hidden' : 'min-h-screen'} saw-app-background text-slate-900 flex flex-col font-sans selection:bg-purple-500/20 selection:text-purple-900 ${isRTL ? 'text-right' : 'text-left'}`}>
         
         {/* Header */}
         <Header

@@ -130,15 +130,17 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 animate-in fade-in">
+    <div className="saw-secondary-page saw-history-page max-w-4xl mx-auto space-y-5 animate-in fade-in">
       
-      <div className="flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-slate-800">
-            {t.historyHeader}
-          </h2>
-          <span className="text-xs font-mono text-slate-400">
-            ({filteredGenerations.length}{filteredGenerations.length !== generations.length ? ` / ${generations.length}` : ''})
+      <div className="flex flex-col gap-4 rounded-[28px] border border-white/80 bg-white/55 px-5 py-5 shadow-[0_12px_38px_rgba(76,29,149,.06)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700"><Radio className="h-5 w-5" /></span>
+          <div className="min-w-0">
+            <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">{t.historyHeader}</h1>
+            <p className="mt-0.5 text-xs text-slate-500">{language === 'ar' ? 'كل تسجيلاتك الصوتية وعمليات الشحن في مكان واحد.' : 'Retrouve tes audios et recharges au même endroit.'}</p>
+          </div>
+          <span className="shrink-0 rounded-full border border-violet-100 bg-white px-2.5 py-1 text-xs font-bold font-num text-violet-700 shadow-sm">
+            {filteredGenerations.length}{filteredGenerations.length !== generations.length ? ` / ${generations.length}` : ''}
           </span>
         </div>
 
@@ -193,7 +195,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs">
+      <div className="saw-glass rounded-[28px] p-5 sm:p-6">
         {purchases.length > 0 && <section className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-extrabold text-emerald-900">Paiements et recharges</h3><span className="text-xs font-bold text-emerald-700">{purchases.length}</span></div><div className="mt-3 space-y-2">{purchases.map((purchase) => <div key={purchase.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/80 px-3 py-2.5 text-xs"><div><p className="font-bold text-slate-900">{purchase.packName}</p><p className="text-slate-500">{new Date(purchase.createdAt).toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} · {purchase.paymentMethod.toUpperCase()}</p></div><div className="text-right"><p className="font-black text-emerald-700">+{purchase.pointsCredited} points</p><p className="text-slate-500">{purchase.amountDZD.toLocaleString()} DZD · {purchase.status === 'paid' ? 'Confirmé' : purchase.status}</p></div></div>)}</div></section>}
         {generations.length === 0 ? (
           <div className="text-center py-16 space-y-3">
@@ -240,7 +242,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                 <div
                   key={gen.id}
                   id={`history-row-${gen.id}`}
-                  className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                  className="group -mx-2 flex flex-col justify-between gap-4 rounded-2xl px-2 py-4 transition-colors hover:bg-white/55 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
                 >
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
