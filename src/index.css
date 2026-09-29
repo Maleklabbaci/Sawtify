@@ -387,3 +387,44 @@
 @media (prefers-reduced-motion: reduce) {
   .saw-vb-overlay, .saw-vb-bubble, .saw-vb-bubble::before, .saw-vb-bubble::after, .saw-vb-wave { animation: none; }
 }
+
+/* Trois bulles liquides de démonstration sur la landing page */
+.saw-landing-bubble {
+  --vb-1: #ff8a35; --vb-2: #ff3d6e; --vb-3: #ffd166; --vb-accent: #ff5e3a;
+  position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer;
+  filter: url('#saw-landing-goo'); isolation: isolate;
+}
+.saw-landing-bubble:focus-visible { outline: 2px solid white; outline-offset: 8px; }
+.saw-landing-bubble-core {
+  position: relative; z-index: 4; width: 94px; height: 94px; border-radius: 50%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--vb-1), var(--vb-2) 52%, var(--vb-3)); background-size: 250% 250%;
+  box-shadow: inset -8px -10px 22px rgba(25, 10, 55, .2), inset 5px 5px 12px rgba(255,255,255,.28), 0 8px 30px color-mix(in srgb, var(--vb-accent) 38%, transparent);
+  animation: saw-vb-gradient 5s ease infinite;
+}
+.saw-landing-bubble-core::before, .saw-landing-bubble-core::after {
+  content: ''; position: absolute; border-radius: 50%; filter: blur(12px); pointer-events: none;
+}
+.saw-landing-bubble-core::before { width: 110%; height: 85%; left: -15%; bottom: -25%; background: radial-gradient(circle, var(--vb-3), transparent 70%); animation: saw-vb-glow 4s ease-in-out infinite alternate; }
+.saw-landing-bubble-core::after { width: 75%; height: 75%; right: -25%; top: -24%; background: radial-gradient(circle, var(--vb-accent), transparent 70%); }
+.saw-landing-bubble-initial {
+  position: relative; z-index: 1; color: white; font-family: inherit; font-size: 42px; font-weight: 800;
+  text-shadow: 0 2px 12px rgba(24, 12, 50, .25);
+}
+.saw-landing-bubble-wave {
+  position: absolute; z-index: 2; width: 96px; height: 96px; opacity: .78;
+  background: linear-gradient(135deg, var(--vb-accent), var(--vb-1), var(--vb-3)); background-size: 200% 200%;
+  animation: saw-vb-expand 3s ease-in-out infinite alternate, saw-vb-morph 6s linear infinite, saw-vb-gradient 4s ease infinite;
+}
+.saw-landing-bubble-wave-2 { z-index: 1; opacity: .58; background: linear-gradient(135deg, var(--vb-2), var(--vb-3), var(--vb-accent)); animation-duration: 3.5s, 8s, 5s; animation-delay: -1s, -2s, -1s; }
+.saw-landing-bubble-control {
+  position: absolute; z-index: 6; right: 3px; bottom: 2px; width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; background: color-mix(in srgb, var(--vb-accent) 86%, #231044);
+  border: 2px solid rgba(255,255,255,.85); box-shadow: 0 4px 18px rgba(0,0,0,.35); transition: transform .2s ease;
+}
+.saw-landing-bubble:hover .saw-landing-bubble-control { transform: scale(1.1); }
+.saw-landing-bubble.is-listening .saw-landing-bubble-core { animation-duration: 1.8s; box-shadow: inset -8px -10px 22px rgba(25, 10, 55, .2), inset 5px 5px 12px rgba(255,255,255,.28), 0 0 40px color-mix(in srgb, var(--vb-accent) 65%, transparent); }
+.saw-landing-bubble.is-listening .saw-landing-bubble-wave { animation-duration: 1s, 2.4s, 1.7s; }
+.saw-landing-bubble.is-listening .saw-landing-bubble-wave-2 { animation-duration: 1.3s, 3s, 2s; }
+@media (prefers-reduced-motion: reduce) { .saw-landing-bubble-core, .saw-landing-bubble-core::before, .saw-landing-bubble-wave { animation: none !important; } }

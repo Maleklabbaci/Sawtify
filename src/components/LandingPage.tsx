@@ -318,22 +318,30 @@ const MicWidget = ({ label, sublabel, onClick }: { label: string; sublabel: stri
   </motion.button>
 );
 
+const LANDING_VOICE_PALETTES = [
+  { c1: "#ff8a35", c2: "#ff3d6e", c3: "#ffd166", accent: "#ff5e3a" },
+  { c1: "#3b82f6", c2: "#4338ca", c3: "#22d3ee", accent: "#38bdf8" },
+  { c1: "#ec4899", c2: "#be185d", c3: "#f9a8d4", accent: "#fb7185" },
+];
+
 const VoiceOrbCard = ({
   name,
   role,
   audioUrl,
   player,
+  paletteIndex,
 }: {
   name: string;
   role: string;
   audioUrl: string;
   player: any;
+  paletteIndex: number;
 }) => {
   const playing = player.playingId === audioUrl;
-
-  const start = useCallback(() => {
-    if (player.playingId !== audioUrl) player.play(audioUrl, audioUrl);
-  }, [player, audioUrl]);
+  const palette = LANDING_VOICE_PALETTES[paletteIndex % LANDING_VOICE_PALETTES.length];
+  const paletteStyle = {
+    "--vb-1": palette.c1, "--vb-2": palette.c2, "--vb-3": palette.c3, "--vb-accent": palette.accent,
+  } as React.CSSProperties;
 
   return (
     <motion.div
@@ -341,45 +349,36 @@ const VoiceOrbCard = ({
       transition={{ type: "spring", stiffness: 250, damping: 20 }}
       className="flex flex-col items-center text-center gap-4"
     >
-      <div
-        className="relative cursor-pointer"
-        style={{ width: 132, height: 132 }}
+      <button
+        type="button"
+        className={`saw-landing-bubble ${playing ? "is-listening" : ""}`}
+        style={paletteStyle}
         onClick={() => player.toggle(audioUrl, audioUrl)}
-        onMouseEnter={start}
+        aria-label={`${playing ? "Pause" : "Écouter"} ${name}`}
+        aria-pressed={playing}
       >
-        <motion.div
-          className="absolute inset-0 rounded-full p-[3px]"
-          style={{ background: `conic-gradient(from 0deg, ${PURPLE}, ${PURPLE_SOFT}, ${PURPLE_DEEP}, ${PURPLE})` }}
-          animate={playing ? { rotate: 360 } : { rotate: 0 }}
-          transition={{ duration: 5, repeat: playing ? Infinity : 0, ease: "linear" }}
-        >
-          <div className="w-full h-full rounded-full" style={{ background: BG_ZINC_950 }} />
-        </motion.div>
-        <div
-          className="absolute inset-[6px] rounded-full flex items-center justify-center text-4xl font-extrabold"
-          style={{ background: BG_CARD, color: PURPLE_SOFT, fontFamily: FR_HEADING_STACK }}
-        >
-          {name.charAt(0)}
-        </div>
-        <motion.div
-          whileHover={{ scale: 1.15 }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute bottom-0 right-0 w-11 h-11 rounded-full flex items-center justify-center shadow-lg pointer-events-none"
-          style={{ background: PURPLE, boxShadow: `0 0 20px ${PURPLE_GLOW_STRONG}` }}
-        >
-          {playing ? <Pause className="w-4 h-4" style={{ color: BG_BLACK }} /> : <Play className="w-4 h-4 ml-0.5" style={{ color: BG_BLACK }} />}
-        </motion.div>
-      </div>
+        <span className="saw-landing-bubble-wave" />
+        <span className="saw-landing-bubble-wave saw-landing-bubble-wave-2" />
+        <span className="saw-landing-bubble-core">
+          <span className="saw-landing-bubble-initial">{name.charAt(0)}</span>
+        </span>
+        <span className="saw-landing-bubble-control">
+          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+        </span>
+        <svg width="0" height="0" className="absolute" aria-hidden="true">
+          <defs><filter id="saw-landing-goo"><feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" /><feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9" result="goo" /><feComposite in="SourceGraphic" in2="goo" operator="atop" /></filter></defs>
+        </svg>
+      </button>
       <div>
         <h4 className="font-bold text-white text-lg">{name}</h4>
         <p className="text-sm" style={{ color: TEXT_ZINC_400 }}>{role}</p>
       </div>
-      <div className="flex items-end gap-1 h-6">
+      <div className="flex items-end gap-1 h-6" aria-hidden="true">
         {Array.from({ length: 9 }).map((_, i) => (
           <motion.span
             key={i}
             className="w-1 rounded-full"
-            style={{ background: PURPLE }}
+            style={{ background: palette.accent }}
             animate={playing ? { height: [6, 22, 6] } : { height: 6 }}
             transition={{ duration: 0.6 + i * 0.04, repeat: playing ? Infinity : 0, ease: "easeInOut", delay: i * 0.05 }}
           />
@@ -964,7 +963,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
               <div className="grid sm:grid-cols-3 gap-10 justify-items-center">
                 {voices.map((voice, i) => (
                   <AnimatedSection key={i} delay={i * 0.15}>
-                    <VoiceOrbCard {...voice} player={player} />
+                    <VoiceOrbCard {...voice} player={player} paletteIndex={i} />
                   </AnimatedSection>
                 ))}
               </div>
