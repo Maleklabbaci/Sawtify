@@ -49,6 +49,137 @@ const POP_BASE =
   // PC : la position exacte (left/top/bottom/width/maxHeight) vient du style inline, calculé depuis la barre
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
+// Popup de changement de balise (pastille cliquable dans le texte)
+const CHIP_POP_BASE =
+  'saw-pop-fix fixed z-[310] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
+  'overflow-y-auto custom-scrollbar inset-x-3 bottom-3 max-h-[60vh] ' +
+  'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
+
+// ==========================================================================
+// ÉDITEUR À PASTILLES : les balises <...> et [...] connues deviennent des
+// "boutons" dans le texte. Le texte enregistré reste une simple chaîne.
+// ==========================================================================
+type TagKind = 'style' | 'vocal';
+interface TagMeta { kind: TagKind; category?: string; label: string }
+const TAG_RE_SOURCE = '(<[^<>\\s]+>|\\[[^\\[\\]\\n]+\\])';
+
+function serializeNode(node: Node): string {
+  let out = '';
+  node.childNodes.forEach((n) => {
+    if (n.nodeType === Node.TEXT_NODE) { out += (n.nodeValue || '').replace(/\u00a0/g, ' '); return; }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const e = n as HTMLElement;
+    if (e.dataset && e.dataset.tag) { out += e.dataset.tag; return; }
+    if (e.tagName === 'BR') { if (!(e.dataset && e.dataset.sentinel)) out += '\n'; return; }
+    if (e.tagName === 'DIV' || e.tagName === 'P') {
+      if (out && !out.endsWith('\n')) out += '\n';
+      out += serializeNode(e);
+      return;
+    }
+    out += serializeNode(e);
+  });
+  return out;
+}
+
+function makeChip(tag: string, meta: TagMeta): HTMLElement {
+  const span = document.createElement('span');
+  span.contentEditable = 'false';
+  span.dataset.tag = tag;
+  span.dataset.kind = meta.kind;
+  span.className = 'saw-chip-tag';
+  span.title = tag;
+  span.textContent = meta.label;
+  return span;
+}
+
+// Un <br> final invisible pour que la dernière ligne vide s'affiche quand le texte finit par "\n"
+function syncSentinel(el: HTMLElement, value: string) {
+  const last = el.lastChild as HTMLElement | null;
+  const has = !!(last && last.nodeType === 1 && last.dataset && last.dataset.sentinel);
+  if (value.endsWith('\n')) {
+    if (!has) { const br = document.createElement('br'); br.dataset.sentinel = '1'; el.appendChild(br); }
+  } else if (has && last) {
+    el.removeChild(last);
+  }
+}
+
+function renderEditor(el: HTMLElement, value: string, info: Map<string, TagMeta>) {
+  el.textContent = '';
+  const push = (str: string) => { if (str) el.appendChild(document.createTextNode(str)); };
+  const re = new RegExp(TAG_RE_SOURCE, 'g');
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(value)) !== null) {
+    const meta = info.get(m[0]);
+    if (!meta) continue;
+    push(value.slice(last, m.index));
+    el.appendChild(makeChip(m[0], meta));
+    last = m.index + m[0].length;
+  }
+  push(value.slice(last));
+  syncSentinel(el, value);
+}
+
+function offsetTo(el: HTMLElement, container: Node, offset: number): number {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.setEnd(container, offset);
+  return serializeNode(r.cloneContents()).length;
+}
+
+function getSelOffsets(el: HTMLElement): { start: number; end: number } | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const r = sel.getRangeAt(0);
+  if (!el.contains(r.startContainer) || !el.contains(r.endContainer)) return null;
+  return { start: offsetTo(el, r.startContainer, r.startOffset), end: offsetTo(el, r.endContainer, r.endOffset) };
+}
+
+function setCaretOffset(el: HTMLElement, offset: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  let acc = 0;
+  let placed = false;
+  const nodes = Array.from(el.childNodes);
+  for (const n of nodes) {
+    if (n.nodeType === Node.TEXT_NODE) {
+      const len = (n.nodeValue || '').length;
+      if (offset <= acc + len) { range.setStart(n, Math.max(0, offset - acc)); placed = true; break; }
+      acc += len;
+    } else if (n.nodeType === Node.ELEMENT_NODE) {
+      const e = n as HTMLElement;
+      if (e.dataset && e.dataset.tag) {
+        const len = e.dataset.tag.length;
+        if (offset <= acc) { range.setStartBefore(e); placed = true; break; }
+        if (offset <= acc + len) { range.setStartAfter(e); placed = true; break; }
+        acc += len;
+      }
+    }
+  }
+  if (!placed) {
+    const last = el.lastChild as HTMLElement | null;
+    if (last && last.nodeType === 1 && last.dataset && last.dataset.sentinel) range.setStartBefore(last);
+    else { range.selectNodeContents(el); range.collapse(false); }
+  }
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// Prénom affiché dans le titre, dérivé du compte connecté
+function deriveFirstName(user: any): string {
+  const md = user?.user_metadata || {};
+  const raw = md.first_name || md.given_name || md.full_name || md.name || md.display_name || md.username || '';
+  let n = String(raw).trim().split(/\s+/)[0] || '';
+  if (!n && user?.email) {
+    n = String(user.email).split('@')[0].split(/[._\-+\d]+/).filter(Boolean)[0] || '';
+  }
+  if (n.length < 2) return '';
+  return /^[a-z]/i.test(n) ? n.charAt(0).toUpperCase() + n.slice(1) : n;
+}
+
+
 // ==========================================================================
 // UTILITAIRES
 // ==========================================================================
@@ -223,7 +354,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [notification, setNotification] = useState<string | null>(null);
   const showNotif = useCallback((msg: string) => { setNotification(msg); setTimeout(() => setNotification(null), 2800); }, []);
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoCloseTimerRef = useRef<number | null>(null);
   const mobileSeekRef = useRef<HTMLDivElement | null>(null);
@@ -255,15 +386,176 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
     .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
 
-  const growTextarea = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    const max = 320;
-    el.style.height = `${Math.min(max, el.scrollHeight)}px`;
-    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+  // ── PRÉNOM DYNAMIQUE ────────────────────────────────────────────────
+  const [firstName, setFirstName] = useState<string>(() => { try { return localStorage.getItem('sawtify_first_name') || ''; } catch { return ''; } });
+  useEffect(() => {
+    let cancelled = false;
+    const store = (n: string) => { try { if (n) localStorage.setItem('sawtify_first_name', n); else localStorage.removeItem('sawtify_first_name'); } catch {} };
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const n = deriveFirstName(data?.user);
+      if (n) { setFirstName(n); store(n); }
+    }).catch(() => {});
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      const n = deriveFirstName(session?.user);
+      setFirstName(n); store(n);
+    });
+    return () => { cancelled = true; sub?.subscription?.unsubscribe(); };
   }, []);
-  useEffect(() => { growTextarea(); }, [text, composerMode, growTextarea]);
+
+  // ── ÉDITEUR À PASTILLES ─────────────────────────────────────────────
+  const tagInfo = React.useMemo(() => {
+    const m = new Map<string, TagMeta>();
+    styleTags.forEach((st: any) => m.set(st.tag, { kind: 'style', label: st.label || st.tag }));
+    Object.entries(VOCAL_BURSTS).forEach(([cat, list]) => {
+      (list as any[]).forEach((v) => m.set(v.tag, { kind: 'vocal', category: cat, label: (language === 'ar' ? v.ar : v.fr) || v.tag }));
+    });
+    return m;
+  }, [language]);
+
+  const [chipPop, setChipPop] = useState<{ el: HTMLElement; tag: string } | null>(null);
+  const [chipPopStyle, setChipPopStyle] = useState<React.CSSProperties>({});
+  const lastSelRef = useRef<{ start: number; end: number } | null>(null);
+  const pendingCaretRef = useRef<number | null>(null);
+  const lastLangRef = useRef(language);
+
+  const growTextarea = useCallback(() => {}, []);
+
+  const focusEditorEnd = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    setCaretOffset(el, serializeNode(el).length);
+  }, []);
+
+  // Relit le DOM de l'éditeur -> met à jour `text` (et convertit les balises tapées à la main en pastilles)
+  const commitEditor = useCallback((composing: boolean = false) => {
+    const el = editorRef.current;
+    if (!el) return;
+    let val = serializeNode(el);
+    if (!el.querySelector('[data-tag]') && (el.textContent || '') === '') { val = ''; el.innerHTML = ''; }
+    const tooLong = val.length > maxChars;
+    if (tooLong) val = val.slice(0, maxChars);
+    let raw = false;
+    if (!composing) {
+      const re = new RegExp(TAG_RE_SOURCE, 'g');
+      for (const n of Array.from(el.childNodes)) {
+        if (n.nodeType !== Node.TEXT_NODE) continue;
+        const v = n.nodeValue || '';
+        let m: RegExpExecArray | null;
+        re.lastIndex = 0;
+        while ((m = re.exec(v)) !== null) { if (tagInfo.has(m[0])) { raw = true; break; } }
+        if (raw) break;
+      }
+    }
+    if (!composing && (tooLong || raw)) {
+      const caret = tooLong ? val.length : (getSelOffsets(el)?.end ?? val.length);
+      renderEditor(el, val, tagInfo);
+      setCaretOffset(el, Math.min(caret, val.length));
+    } else if (!composing) {
+      syncSentinel(el, val);
+    }
+    setText(val);
+    const o = getSelOffsets(el);
+    if (o) lastSelRef.current = o;
+  }, [maxChars, tagInfo]);
+
+  const insertPlainAtCaret = useCallback((str: string) => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel) return;
+    let range: Range;
+    if (sel.rangeCount && el.contains(sel.getRangeAt(0).startContainer)) range = sel.getRangeAt(0);
+    else { range = document.createRange(); range.selectNodeContents(el); range.collapse(false); }
+    range.deleteContents();
+    const tn = document.createTextNode(str);
+    range.insertNode(tn);
+    range.setStartAfter(tn);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    commitEditor();
+  }, [commitEditor]);
+
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter') { e.preventDefault(); insertPlainAtCaret('\n'); }
+  };
+  const handleEditorPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const str = e.clipboardData.getData('text/plain');
+    if (str) insertPlainAtCaret(str.replace(/\r\n?/g, '\n'));
+  };
+
+  // Synchronise le DOM avec `text` quand le texte change de l'extérieur (script IA, suggestion, "Magique", insertion de balise…)
+  useLayoutEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const langChanged = lastLangRef.current !== language;
+    lastLangRef.current = language;
+    const pending = pendingCaretRef.current;
+    if (serializeNode(el) !== text || langChanged) {
+      const hadFocus = document.activeElement === el;
+      const off = getSelOffsets(el)?.end;
+      renderEditor(el, text, tagInfo);
+      if (pending == null && hadFocus) setCaretOffset(el, Math.min(off ?? text.length, text.length));
+    }
+    if (pending != null) {
+      pendingCaretRef.current = null;
+      el.focus();
+      setCaretOffset(el, Math.min(pending, text.length));
+    }
+  }, [text, language, tagInfo]);
+
+  // Mémorise la sélection (pour insérer une balise là où était le curseur)
+  useEffect(() => {
+    const h = () => {
+      const el = editorRef.current;
+      if (!el) return;
+      const o = getSelOffsets(el);
+      if (o) lastSelRef.current = o;
+    };
+    document.addEventListener('selectionchange', h);
+    return () => document.removeEventListener('selectionchange', h);
+  }, []);
+
+  // Clic sur une pastille -> popup pour la remplacer par une balise du même type
+  const handleEditorClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const chip = (target.closest ? target.closest('.saw-chip-tag') : null) as HTMLElement | null;
+    if (!chip || !editorRef.current || !editorRef.current.contains(chip)) return;
+    e.preventDefault();
+    setOpenPop(null);
+    const r = chip.getBoundingClientRect();
+    if (window.innerWidth < 1024) {
+      setChipPopStyle({});
+    } else {
+      const w = 300;
+      const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12));
+      const below = window.innerHeight - r.bottom - 16;
+      if (below >= 220) setChipPopStyle({ left, width: w, top: r.bottom + 6, maxHeight: Math.min(360, below) });
+      else setChipPopStyle({ left, width: w, bottom: window.innerHeight - r.top + 6, maxHeight: Math.min(360, r.top - 16) });
+    }
+    setChipPop({ el: chip, tag: chip.dataset.tag || '' });
+  };
+
+  const handleChipPick = (newTag: string) => {
+    const chip = chipPop?.el;
+    const meta = tagInfo.get(newTag);
+    setChipPop(null);
+    if (!chip || !chip.isConnected || !meta) return;
+    chip.dataset.tag = newTag;
+    chip.dataset.kind = meta.kind;
+    chip.title = newTag;
+    chip.textContent = meta.label;
+    commitEditor();
+  };
+  const handleChipRemove = () => {
+    const chip = chipPop?.el;
+    setChipPop(null);
+    if (chip && chip.isConnected) { chip.remove(); commitEditor(); }
+  };
 
   useEffect(() => {
     if (isRestoringRef.current) return;
@@ -327,11 +619,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   // Échap ferme le popup
   useEffect(() => {
-    if (!openPop) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenPop(null); };
+    if (!openPop && !chipPop) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpenPop(null); setChipPop(null); } };
+    const onScroll = () => setChipPop(null);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [openPop]);
+    if (chipPop) window.addEventListener('scroll', onScroll, true);
+    return () => { document.removeEventListener('keydown', onKey); window.removeEventListener('scroll', onScroll, true); };
+  }, [openPop, chipPop]);
 
   useEffect(() => { return () => { if (previousAudioUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousAudioUrlRef.current); if (previousMp3UrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousMp3UrlRef.current); }; }, []);
   useEffect(() => { if (previousAudioUrlRef.current && previousAudioUrlRef.current !== currentAudioUrl && previousAudioUrlRef.current.startsWith('blob:')) { URL.revokeObjectURL(previousAudioUrlRef.current); } previousAudioUrlRef.current = currentAudioUrl; }, [currentAudioUrl]);
@@ -347,12 +641,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   };
 
   const handleInsertTag = useCallback((tag: string) => {
-    if (!textareaRef.current) return;
-    const start = textareaRef.current.selectionStart;
-    const end = textareaRef.current.selectionEnd;
-    setText(prev => prev.substring(0, start) + ' ' + tag + ' ' + prev.substring(end));
+    const sel = lastSelRef.current || { start: text.length, end: text.length };
+    const start = Math.min(sel.start, text.length);
+    const end = Math.min(Math.max(sel.end, start), text.length);
+    const ins = ' ' + tag + ' ';
+    const next = text.slice(0, start) + ins + text.slice(end);
     setOpenPop(null);
-  }, []);
+    if (next.length > maxChars) { showNotif(language === 'ar' ? 'تجاوزت الحد الأقصى للأحرف' : 'Limite de caractères atteinte'); return; }
+    pendingCaretRef.current = start + ins.length;
+    setText(next);
+  }, [text, maxChars, language, showNotif]);
 
   const handlePreviewVoice = useCallback(async (e: React.MouseEvent, voice: Voice) => {
     e.stopPropagation();
@@ -480,7 +778,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const handleUseScript = useCallback(() => {
     if (!scriptResult) return; setText(scriptResult); setComposerMode('voice');
     showNotif(language === 'ar' ? 'تم وضع النص في المربع — جاهز للتوليد' : 'Script placé dans la barre — prêt pour la voix');
-    requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); });
+    requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); });
   }, [scriptResult, language, showNotif, growTextarea]);
 
   const handleCopyScript = useCallback(() => {
@@ -580,6 +878,17 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       ? [ { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'متجر إلكتروني — تخفيضات -30%', starter: 'متجر ملابس إلكتروني، تخفيضات -30% هذ السيمانة، توصيل لكامل الجزائر' }, { icon: <UtensilsCrossed className="w-3.5 h-3.5" />, label: 'مطعم — افتتاح جديد', starter: 'مطعم جديد في الجزائر العاصمة، مطبخ تقليدي، أجواء عائلية' }, { icon: <House className="w-3.5 h-3.5" />, label: 'عقار — شقة للبيع', starter: 'شقة F3 للبيع في وهران، حي هادئ قريب من كل الخدمات' }, { icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'حدث — سهرة نهاية الأسبوع', starter: 'سهرة فنية هذا السبت في قسنطينة، موسيقى مباشرة وأنشطة' } ]
       : [ { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'Boutique en ligne — promo -30%', starter: 'Boutique de vêtements en ligne, promo -30% cette semaine, livraison partout en Algérie' }, { icon: <UtensilsCrossed className="w-3.5 h-3.5" />, label: 'Restaurant — nouvelle ouverture', starter: "Nouveau restaurant à Alger qui vient d'ouvrir, cuisine traditionnelle, ambiance familiale" }, { icon: <House className="w-3.5 h-3.5" />, label: 'Immobilier — appartement à vendre', starter: 'Appartement F3 à vendre à Oran, quartier calme, proche de tous les services' }, { icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'Événement — soirée du week-end', starter: 'Soirée événementielle ce samedi à Constantine, musique live et animations' } ]);
 
+  const placeholderText = composerMode === 'script'
+    ? (language === 'ar' ? 'صف منتجك أو فكرتك… (مثال: متجر أحذية في وهران، تخفيضات -30%)' : 'Décris ton produit ou ton idée… (ex : boutique de sneakers à Oran, promo -30%)')
+    : (t.textPlaceholder || 'Écrivez votre texte ici...');
+
+  const chipMeta = chipPop ? tagInfo.get(chipPop.tag) : undefined;
+  const chipOptions: { tag: string; label: string }[] = chipMeta
+    ? (chipMeta.kind === 'style'
+        ? (styleTags as any[]).map((st) => ({ tag: st.tag, label: st.label || st.tag }))
+        : (((VOCAL_BURSTS as any)[chipMeta.category || ''] || []) as any[]).map((v) => ({ tag: v.tag, label: (language === 'ar' ? v.ar : v.fr) || v.tag })))
+    : [];
+
   const handleComposerSubmit = () => {
     if (composerMode === 'script') { handleGenerateScript(); return; }
     if (needsTopUp) { onOpenRecharge(); return; }
@@ -631,7 +940,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             <h1 className="flex items-center gap-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
               <Sparkles className="w-5 h-5 text-[#6d28d9]" fill="currentColor" />
               <span className="text-4xl sm:text-5xl font-medium tracking-tight text-[#2e1065]">
-                {language === 'ar' ? 'أهلا، Labbaci' : 'Hé, Labbaci'}
+                {language === 'ar' ? `أهلا${firstName ? `، ${firstName}` : ''}` : `Hé${firstName ? `, ${firstName}` : ''}`}
               </span>
             </h1>
           </div>
@@ -640,10 +949,20 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
           <div ref={popAnchorRef} className="w-full relative">
             <div ref={barRef} className="saw-glass relative rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
 
-              <textarea
-                ref={textareaRef} value={text} onChange={(e) => setText(e.target.value)} maxLength={maxChars} rows={1}
-                placeholder={composerMode === 'script' ? (language === 'ar' ? 'صف منتجك أو فكرتك… (مثال: متجر أحذية في وهران، تخفيضات -30%)' : 'Décris ton produit ou ton idée… (ex : boutique de sneakers à Oran, promo -30%)') : (t.textPlaceholder || 'Écrivez votre texte ici...')}
-                className={`w-full min-h-[52px] bg-transparent border-0 outline-none resize-none text-[15px] leading-relaxed text-slate-900 placeholder:text-slate-400/80 custom-scrollbar ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
+              <div
+                ref={editorRef}
+                contentEditable={!isGenerating}
+                suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
+                data-placeholder={placeholderText}
+                onInput={(e) => commitEditor((e.nativeEvent as InputEvent).isComposing === true)}
+                onCompositionEnd={() => commitEditor(false)}
+                onKeyDown={handleEditorKeyDown}
+                onPaste={handleEditorPaste}
+                onDrop={(e) => e.preventDefault()}
+                onClick={handleEditorClick}
+                className={`saw-editor w-full min-h-[52px] max-h-[320px] overflow-y-auto bg-transparent outline-none text-[15px] leading-[1.9] text-slate-900 custom-scrollbar whitespace-pre-wrap break-words ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }} dir="auto"
               />
 
@@ -692,7 +1011,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
             <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
               {suggestions.map((s) => (
-                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); }); }} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-[11px] font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
+                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-[11px] font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
               ))}
             </div>
 
@@ -700,7 +1019,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               <div className="flex flex-wrap justify-center items-center gap-2 mt-3">
                 <History className="w-3 h-3 text-slate-400" />
                 {recentGenerations.slice(0, 3).map((gen) => (
-                  <button key={gen.id} onClick={() => { setText(gen.text); setComposerMode('voice'); requestAnimationFrame(() => { growTextarea(); textareaRef.current?.focus(); }); }} className="text-[10px] text-slate-500 hover:text-[#6d28d9] cursor-pointer transition-colors max-w-[220px] truncate" title={gen.text}>{gen.text.substring(0, 28)}…</button>
+                  <button key={gen.id} onClick={() => { setText(gen.text); setComposerMode('voice'); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="text-[10px] text-slate-500 hover:text-[#6d28d9] cursor-pointer transition-colors max-w-[220px] truncate" title={gen.text}>{gen.text.substring(0, 28)}…</button>
                 ))}
               </div>
             )}
@@ -893,6 +1212,30 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               <p className="text-[10px] text-slate-400 px-1 pt-2.5 leading-relaxed">{language === 'ar' ? 'النص يتبع اللهجة المختارة.' : 'Le script suit la région choisie.'}</p>
             </div>
           )}
+        </>,
+        document.body
+      )}
+
+      {chipPop && chipMeta && createPortal(
+        <>
+          <div className="fixed inset-0 z-[309] bg-slate-950/25 lg:bg-transparent" onClick={() => setChipPop(null)} />
+          <div dir={isRTL ? 'rtl' : 'ltr'} style={chipPopStyle} className={CHIP_POP_BASE}>
+            <div className="flex items-center justify-between px-1 pb-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'غيّر التأثير' : 'Changer l’effet'}</span>
+              <button type="button" onClick={handleChipRemove} className="flex items-center gap-1 text-[10px] font-semibold text-rose-500 hover:text-rose-600 cursor-pointer"><X className="w-3 h-3" />{language === 'ar' ? 'حذف' : 'Supprimer'}</button>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {chipOptions.map((o) => {
+                const active = o.tag === chipPop.tag;
+                return (
+                  <button key={o.tag} type="button" onClick={() => handleChipPick(o.tag)} className={`rounded-xl px-2 py-1.5 text-start cursor-pointer border ${active ? 'bg-[#6d28d9] text-white border-transparent' : 'saw-flat text-slate-700'}`}>
+                    <span className="block text-[11px] font-semibold">{o.label}</span>
+                    <span className={`block text-[9px] font-num ${active ? 'text-white/70' : 'text-slate-400'}`} dir="ltr">{o.tag}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </>,
         document.body
       )}
