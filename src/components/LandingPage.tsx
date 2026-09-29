@@ -266,6 +266,7 @@ const AnimatedSection = ({
   className = "",
   delay = 0,
 }: {
+  key?: React.Key;
   children: React.ReactNode;
   className?: string;
   delay?: number;
@@ -389,7 +390,7 @@ const VoiceOrbCard = ({
   );
 };
 
-const FAQItem = ({ q, a }: { q: string; a: string }) => {
+const FAQItem = ({ q, a }: { key?: React.Key; q: string; a: string }) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-b pb-6" style={{ borderColor: BORDER_ZINC_800 }}>
