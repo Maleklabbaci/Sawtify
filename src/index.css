@@ -297,3 +297,37 @@
 @media (prefers-reduced-motion: reduce) {
   .saw-shimmer, .saw-magic-pulse { animation: none; }
 }
+
+
+/* ── Éditeur à pastilles (balises <...> et [...] cliquables dans le texte) ── */
+.saw-editor { caret-color: #6d28d9; word-break: break-word; }
+.saw-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(148, 163, 184, 0.85);
+  pointer-events: none;
+}
+.saw-chip-tag {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(109, 40, 217, 0.18);
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  vertical-align: baseline;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  unicode-bidi: isolate;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.saw-chip-tag:hover { background: #ddd6fe; border-color: rgba(109, 40, 217, 0.35); }
+.saw-chip-tag[data-kind="vocal"] {
+  background: #fdf4ff;
+  color: #a21caf;
+  border-color: rgba(162, 28, 175, 0.2);
+}
+.saw-chip-tag[data-kind="vocal"]:hover { background: #fae8ff; border-color: rgba(162, 28, 175, 0.4); }
