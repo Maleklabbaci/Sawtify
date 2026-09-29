@@ -331,3 +331,59 @@
   border-color: rgba(162, 28, 175, 0.2);
 }
 .saw-chip-tag[data-kind="vocal"]:hover { background: #fae8ff; border-color: rgba(162, 28, 175, 0.4); }
+
+/* ── Bulle vocale liquide (écoute d'une voix) — couleurs via --vb-* ── */
+.saw-vb-overlay {
+  position: fixed; z-index: 400; left: 50%; top: calc(76px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px;
+  pointer-events: none; animation: saw-vb-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.saw-vb-wrapper {
+  position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center;
+  filter: url('#saw-vb-goo'); background: none; border: 0; padding: 0; cursor: pointer; pointer-events: auto;
+}
+.saw-vb-bubble {
+  position: relative; width: 88px; height: 88px; border-radius: 50%; overflow: hidden; z-index: 5;
+  background: linear-gradient(135deg, var(--vb-1) 0%, var(--vb-2) 50%, var(--vb-3) 100%);
+  background-size: 300% 300%; transform: scale(1.05); animation: saw-vb-gradient 3s ease infinite;
+}
+.saw-vb-bubble::before, .saw-vb-bubble::after {
+  content: ''; position: absolute; border-radius: 50%; filter: blur(14px);
+}
+.saw-vb-bubble::before {
+  width: 140%; height: 140%; top: 25%; left: -20%;
+  background: radial-gradient(circle, var(--vb-3) 0%, transparent 70%);
+  animation: saw-vb-glow 6s ease-in-out infinite alternate;
+}
+.saw-vb-bubble::after {
+  width: 130%; height: 130%; top: -20%; left: 15%;
+  background: radial-gradient(circle, var(--vb-accent) 0%, transparent 70%);
+  animation: saw-vb-glow 4s ease-in-out infinite alternate-reverse;
+}
+.saw-vb-wave {
+  position: absolute; width: 95px; height: 95px; z-index: 1; opacity: 0.85;
+  background: linear-gradient(135deg, var(--vb-accent), var(--vb-1), var(--vb-3)); background-size: 200% 200%;
+  animation: saw-vb-expand 1.6s ease-in-out infinite alternate, saw-vb-morph 3.5s linear infinite, saw-vb-gradient 3s ease infinite;
+}
+.saw-vb-wave-2 {
+  background: linear-gradient(135deg, var(--vb-1), var(--vb-2), var(--vb-accent)); background-size: 200% 200%;
+  opacity: 0.7; animation-duration: 2s, 5s, 4s; animation-delay: -1s, -2s, -1s;
+}
+.saw-vb-label {
+  pointer-events: none; font-size: 12px; font-weight: 700; color: var(--vb-accent);
+  background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(76, 29, 149, 0.10);
+  padding: 4px 12px; border-radius: 999px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08); white-space: nowrap;
+}
+@keyframes saw-vb-in { from { opacity: 0; transform: translateX(-50%) scale(0.7); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+@keyframes saw-vb-gradient { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes saw-vb-glow { from { transform: translate(0, 0) scale(1); opacity: 0.7; } to { transform: translate(6px, -6px) scale(1.1); opacity: 1; } }
+@keyframes saw-vb-morph {
+  0% { border-radius: 38% 62% 45% 55% / 40% 45% 55% 60%; transform: rotate(0deg); }
+  33% { border-radius: 65% 35% 60% 40% / 45% 60% 40% 55%; }
+  66% { border-radius: 40% 60% 35% 65% / 55% 40% 65% 45%; }
+  100% { border-radius: 38% 62% 45% 55% / 40% 45% 55% 60%; transform: rotate(360deg); }
+}
+@keyframes saw-vb-expand { from { scale: 1.05; } to { scale: 1.45; } }
+@media (prefers-reduced-motion: reduce) {
+  .saw-vb-overlay, .saw-vb-bubble, .saw-vb-bubble::before, .saw-vb-bubble::after, .saw-vb-wave { animation: none; }
+}
