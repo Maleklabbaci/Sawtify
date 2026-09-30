@@ -380,8 +380,8 @@ function AppContent() {
           if (isBrandNewAccount) {
             welcomeBonusPromiseRef.current = import('./services/supabaseClient').then(({ claimWelcomeBonus }) => claimWelcomeBonus());
             welcomeBonusPromiseRef.current.then((result) => {
-              if (result === 'denied') showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP.' : "⚠️ Tu as déjà un compte avec cette IP.");
-              if (result === 'error') showToast(language === 'ar' ? '⚠️ تعذر التحقق من نقاط الترحيب' : "⚠️ Impossible de vérifier ton bonus.");
+              if (result === 'denied') showToast(language === 'ar' ? 'لديك حساب بالفعل بهذا عنوان IP.' : "Tu as déjà un compte avec cette IP.");
+              if (result === 'error') showToast(language === 'ar' ? 'تعذر التحقق من نقاط الترحيب' : "Impossible de vérifier ton bonus.");
             });
             if (!wantsPasswordSetup) {
               showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');

@@ -143,7 +143,7 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
         className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-purple-600"
       >
         {snippetCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-        {snippetCopied ? (isAR ? 'تم النسخ ✓' : 'Copié ✓') : (isAR ? 'نسخ الكود' : 'Copier le code')}
+        {snippetCopied ? (isAR ? 'تم النسخ' : 'Copié') : (isAR ? 'نسخ الكود' : 'Copier le code')}
       </button>
     </section>
     {/* B2B : volumes importants et solutions sur mesure. */}

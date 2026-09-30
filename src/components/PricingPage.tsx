@@ -694,7 +694,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
                       {selectedBonus > 0 && (
                         <div className="flex justify-between items-center text-sm text-emerald-600 font-semibold">
-                          <span>🎁 {copy.confirmBonusLine}</span>
+                          <span>{copy.confirmBonusLine}</span>
                           <span>+{selectedBonus}</span>
                         </div>
                       )}

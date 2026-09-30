@@ -78,7 +78,7 @@ const TestimonialsWidget: React.FC<TestimonialsWidgetProps> = ({ isRTL, onSignIn
 
   const t = useMemo(() => ({
     eyebrow: isRTL ? "شهادات العملاء" : "Avis clients",
-    title: isRTL ? "آراء عملائنا بالدارجة الجزائرية 🇩🇿" : "Ce que disent nos clients, en darija 🇩🇿",
+    title: isRTL ? "آراء عملائنا بالدارجة الجزائرية" : "Ce que disent nos clients, en darija",
     sub: isRTL
       ? "تجارب حقيقية لأصحاب المتاجر وصنّاع المحتوى اللي يستعملوا صوتيفي كل نهار."
       : "Des retours authentiques de commerçants et créateurs de contenu qui utilisent Sawtify au quotidien.",
