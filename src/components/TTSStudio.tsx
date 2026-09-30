@@ -14,7 +14,7 @@ import { getVoices, getStyleTags } from '../data/voices';
 import { tagsByCategory } from '../../tts/vocalTags';
 import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
-import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, sendAIFeedback } from '../services/api';
+import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   loadTaste, persistTaste, learnFromText, rememberPick, forgetTaste, bestNiche, buildSuggestions,
@@ -269,6 +269,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
   const [text, setText] = useState<string>(() => { try { return localStorage.getItem('sawtify_draft_text') || defaultStarterText; } catch { return defaultStarterText; } });
   // Mémoire locale : domaines déduits des textes déjà générés (aucun envoi serveur).
   const [taste, setTaste] = useState<TasteSnapshot>(() => loadTaste());
+  // Idées écrites par l'IA (2 points, débités seulement si l'IA répond bien) — repartent à zéro
+  // quand on change d'onglet ou de langue, car le format attendu n'est pas le même.
+  const [aiIdeas, setAiIdeas] = useState<Suggestion[] | null>(null);
+  const [isLoadingIdeas, setIsLoadingIdeas] = useState<boolean>(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_amin');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
@@ -914,6 +918,36 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     }
   };
 
+  useEffect(() => { setAiIdeas(null); }, [composerMode, language]);
+
+  const handleLoadIdeas = async () => {
+    if (isLoadingIdeas) return;
+    if (balance < 2) { setInsufficientAlert(true); return; }
+    setIsLoadingIdeas(true);
+    try {
+      const context = [text.trim(), ...recentGenerations.slice(0, 2).map((g) => g.text)].filter(Boolean);
+      const result = await requestSubjectIdeas({
+        domain: nicheMatch?.niche.id ?? 'general',
+        domainLabel: nicheMatch ? nicheMatch.niche.name[language] : '',
+        mode: composerMode,
+        language,
+        context,
+      });
+      if (!result.ideas.length) { showNotif(language === 'ar' ? 'ما رجعتش أفكار صالحة — بلا خصم' : 'Aucune idée exploitable — rien débité'); return; }
+      setAiIdeas(result.ideas.map((idea) => ({
+        nicheId: nicheMatch?.niche.id,
+        icon: 'sparkles' as NicheIcon,
+        label: idea.label,
+        starter: idea.text,
+      })));
+      showNotif(result.notification || (language === 'ar' ? '-2 نقاط' : '-2 Points'));
+      window.dispatchEvent(new CustomEvent('refresh-account-balance'));
+    } catch (e: any) {
+      if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
+      else showNotif(e?.message || (language === 'ar' ? 'خطأ في توليد الأفكار' : 'Erreur idées IA'));
+    } finally { setIsLoadingIdeas(false); }
+  };
+
   const SUGGESTION_ICONS: Record<string, React.ReactNode> = {
     sparkles: <Sparkles className="w-3.5 h-3.5" />, cart: <ShoppingBag className="w-3.5 h-3.5" />,
     food: <UtensilsCrossed className="w-3.5 h-3.5" />, home: <House className="w-3.5 h-3.5" />,
@@ -1064,6 +1098,16 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             </div>
 
             <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center items-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
+              {aiIdeas?.map((idea) => (
+                <button
+                  key={idea.label}
+                  onClick={() => handleSuggestionClick(idea)}
+                  className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5 bg-[#f5f3ff] text-[#5b21b6] border border-[#ddd6fe] hover:bg-[#ede9fe] transition-colors"
+                  title={`${idea.starter}\n\n${language === 'ar' ? 'فكرة مولّدة بالذكاء الاصطناعي' : 'Idée générée par l’IA'}`}
+                >
+                  <span className="text-[#6d28d9]">{SUGGESTION_ICONS[idea.icon]}</span>{idea.label}
+                </button>
+              ))}
               {personalized && nicheMatch && (
                 <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-slate-400 me-0.5" title={language === 'ar' ? 'اقتراحات مبنية على نصوصك' : 'Suggestions déduites de vos textes'}>
                   {language === 'ar' ? <>حسب نصوصك · {nicheName(nicheMatch.niche, language)}:</> : <>D’après vos textes · {nicheName(nicheMatch.niche, language)} :</>}
@@ -1072,10 +1116,27 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               {suggestions.map((s) => (
                 <button key={s.label} onClick={() => handleSuggestionClick(s)} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]" title={s.starter}><span className="text-[#6d28d9]">{SUGGESTION_ICONS[s.icon]}</span>{s.label}</button>
               ))}
+              <button
+                type="button"
+                onClick={handleLoadIdeas}
+                disabled={isLoadingIdeas}
+                className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold cursor-pointer flex items-center gap-1.5 bg-white text-[#6d28d9] border border-[#ddd6fe] hover:bg-[#f5f3ff] transition-colors disabled:opacity-50"
+                title={language === 'ar'
+                  ? 'ثلاث أفكار جديدة في مجالك، مكتوبة بالذكاء الاصطناعي (2 نقاط)'
+                  : 'Trois idées neuves dans votre domaine, écrites par l’IA (2 points)'}
+              >
+                {isLoadingIdeas ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {isLoadingIdeas
+                  ? (language === 'ar' ? 'جاري التوليد…' : 'Génération…')
+                  : aiIdeas
+                    ? (language === 'ar' ? 'أفكار جديدة · 2 نقاط' : 'Nouvelles idées · 2 pts')
+                    : (language === 'ar' ? 'أفكار بالذكاء الاصطناعي · 2 نقاط' : 'Idées IA · 2 pts')}
+              </button>
+
               {personalized && (
                 <button
                   type="button"
-                  onClick={() => { setTaste(forgetTaste()); showNotif(language === 'ar' ? 'تم محو ما تعلمه الاستوديو عنك' : 'Le studio a oublié vos habitudes'); }}
+                  onClick={() => { setTaste(forgetTaste()); setAiIdeas(null); showNotif(language === 'ar' ? 'تم محو ما تعلمه الاستوديو عنك' : 'Le studio a oublié vos habitudes'); }}
                   className="shrink-0 whitespace-nowrap text-[10px] text-slate-400 hover:text-[#6d28d9] underline decoration-dotted cursor-pointer"
                   title={language === 'ar' ? 'امسح ما تعلّمه الاستوديو عنك (محلي فقط)' : 'Effacer ce que le studio a appris de vous (local uniquement)'}
                 >
