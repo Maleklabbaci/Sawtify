@@ -366,46 +366,46 @@ export const STYLE_TAGS_AR = [
 
 export const SAMPLE_PROMPTS_FR = [
   {
-    title: '🇩🇿 Spot Publicitaire Voix-Off',
+    title: 'Spot Publicitaire Voix-Off',
     text: '[natural] [articulated] Bonjour à tous ! Avec la plateforme Sawtify, transformez vos textes en une voix humaine fluide, vivante et d\'une clarté studio absolue, sans aucune sonorité robotique.'
   },
   {
-    title: '🛍️ Annonce E-commerce & Livraison 58 Wilayas',
+    title: 'Annonce E-commerce & Livraison 58 Wilayas',
     text: '[excited] [articulated] Ne manquez pas cette opportunité exclusive ! [calm] Livraison express disponible dans les 58 wilayas jusqu\'à votre porte avec paiement sécurisé à la réception. Commandez dès maintenant !'
   },
   {
-    title: '🎙️ Podcast & Narration Storytelling',
+    title: 'Podcast & Narration Storytelling',
     text: '[natural] [articulated] Bienvenue dans cet épisode dédié à l\'innovation sonore. Nous explorons aujourd\'hui les nouvelles frontières de la voix avec une articulation soignée et chaleureuse.'
   },
   {
-    title: '📞 Standard Téléphonique & Répondeur IVR',
+    title: 'Standard Téléphonique & Répondeur IVR',
     text: '[natural] [articulated] Bienvenue sur notre standard d\'accueil. [calm] Pour le service commercial, appuyez sur 1. Pour l\'assistance technique, appuyez sur 2. Merci de votre fidélité.'
   },
   {
-    title: '📱 Story Réseaux Sociaux & Vidéo Courte',
+    title: 'Story Réseaux Sociaux & Vidéo Courte',
     text: '[excited] [natural] Salut l\'équipe ! Découvrez sans attendre notre nouvelle sélection avec des finitions haut de gamme au meilleur tarif. Rendez-vous sur le lien en description !'
   }
 ];
 
 export const SAMPLE_PROMPTS_AR = [
   {
-    title: '🇩🇿 سبوت إشهاري بالدارجة الجزائرية',
+    title: 'سبوت إشهاري بالدارجة الجزائرية',
     text: '[natural] [articulated] سلام عليكم خاوتي! مع منصة صوتيفي، كل كلمة تخرج بنطق دارجة نقي ومفهوم مئة بالمئة، صوت دافئ وبلا أي تصنع أو روبوتيك.'
   },
   {
-    title: '🛍️ إعلان إيكوميرس وتوصيل 58 ولاية',
+    title: 'إعلان إيكوميرس وتوصيل 58 ولاية',
     text: '[excited] [articulated] هاد البروموسيون ما تتعاودش خاوتنا! [calm] التوصيل متوفر لـ 58 ولاية حتى لباب الدار والدفع عند الاستلام. اطلب درك وما تترددش!'
   },
   {
-    title: '🎙️ بودكاست ومحتوى يوتيوب بالدارجة',
+    title: 'بودكاست ومحتوى يوتيوب بالدارجة',
     text: '[natural] [articulated] مرحبا بيكم في هاد الحلقة الجديدة. اليوم راح نحكيو على موضوع يهم كامل الجزائريين، بنبرة عفوية وقريبة من القلب.'
   },
   {
-    title: '📞 خدمة الزبائن والموزع الصوتي (IVR)',
+    title: 'خدمة الزبائن والموزع الصوتي (IVR)',
     text: '[natural] [articulated] مرحباً بكم في خدمة الزبائن. [calm] للتواصل باللغة العربية والدارجة اضغط على الرقم واحد. Pour le français, tapez deux. شكراً لثقتكم بنا.'
   },
   {
-    title: '📱 ستوري ريلز وتيك توك شبابي',
+    title: 'ستوري ريلز وتيك توك شبابي',
     text: '[excited] [natural] واش راكم ليكيب؟ شوفو هاد الهاتف الجديد واش فيه مواصفات خيالية وسومة ولا في الأحلام، شوفو الرابط في البايو!'
   }
 ];

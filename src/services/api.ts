@@ -275,6 +275,45 @@ export async function requestGenerateScript(
 }
 
 /**
+ * Idées de sujets écrites par l'IA dans le domaine de l'utilisateur (studio).
+ * Coût : 2 points — débités uniquement si l'IA a renvoyé des idées exploitables.
+ * `context` = quelques textes récents du client (max 3, tronqués) pour rester dans son univers.
+ */
+export async function requestSubjectIdeas(payload: {
+  domain?: string;
+  domainLabel?: string;
+  mode: 'voice' | 'script';
+  language: string;
+  context?: string[];
+}): Promise<{ ideas: { label: string; text: string }[]; points_cost: number; remaining_balance?: number; notification?: string }> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/api/v1/llm/subject-ideas`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      domain: payload.domain || 'general',
+      domainLabel: payload.domainLabel || '',
+      mode: payload.mode,
+      language: payload.language,
+      context: (payload.context || []).filter(Boolean).slice(0, 3),
+    }),
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || "Erreur lors de la génération des idées.");
+  }
+
+  const data = await response.json();
+  return {
+    ideas: Array.isArray(data.ideas) ? data.ideas : [],
+    points_cost: data.points_cost || 2,
+    remaining_balance: data.remaining_balance,
+    notification: data.notification,
+  };
+}
+
+/**
  * Envoie un avis (👍 / 👎) pour l'apprentissage automatique de l'IA.
  */
 export async function sendAIFeedback(payload: {

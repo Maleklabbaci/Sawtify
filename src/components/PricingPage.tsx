@@ -181,7 +181,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const [invoiceId, setInvoiceId] = useState<string | number | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
-  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
   // Points annoncés par le SERVEUR à la création de la facture (bonus inclus) et points réellement crédités.
   const [promisedPoints, setPromisedPoints] = useState<number | null>(null);
@@ -255,11 +254,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   };
 
   const openPaymentUrl = (url: string) => {
+    // Mobile (majorité des paiements Edahabia / CIB) : redirection directe, même onglet.
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       window.location.href = url;
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
     }
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    // Si le navigateur bloque l'ouverture d'onglet, on redirige quand même :
+    // le client doit TOUJOURS atterrir sur la page de paiement.
+    if (!opened) window.location.href = url;
   };
 
   const handleInitiatePayment = async (e: React.FormEvent) => {
@@ -298,7 +301,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         setInvoiceId(data.invoiceId);
         setPaymentUrl(data.paymentUrl);
         setPromisedPoints(typeof data.pointsPromised === 'number' ? data.pointsPromised : null);
-        setShowConfirmModal(true);
+        setStatusMessage('');
+        // Aucun écran de confirmation : dès que les coordonnées sont remplies,
+        // on envoie directement le client sur la page de paiement SlickPay / SATIM.
+        openPaymentUrl(data.paymentUrl);
       } else {
         const message = data.error || data.message ||
           (language === 'ar' ? 'خطأ في إنشاء الفاتورة' : 'Erreur de création de facture');
@@ -688,7 +694,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
                       {selectedBonus > 0 && (
                         <div className="flex justify-between items-center text-sm text-emerald-600 font-semibold">
-                          <span>🎁 {copy.confirmBonusLine}</span>
+                          <span>{copy.confirmBonusLine}</span>
                           <span>+{selectedBonus}</span>
                         </div>
                       )}
@@ -1005,94 +1011,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({
           </div>
         </div>
 
-        {/* Confirmation Popup */}
-        {showConfirmModal && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowConfirmModal(false)}
-          >
-            <div
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    {language === 'ar' ? 'تأكيد الطلب' : 'Confirmer votre commande'}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {language === 'ar' ? 'تحقق من التفاصيل قبل الدفع' : 'Vérifiez les détails avant de payer'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{language === 'ar' ? 'الباقة' : 'Pack'}</span>
-                  <span className="font-semibold text-slate-900">{selectedLabel}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{language === 'ar' ? 'النقاط' : 'Points'}</span>
-                  <span className="font-bold text-purple-600">+{selectedPoints}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{language === 'ar' ? 'الاسم' : 'Nom'}</span>
-                  <span className="font-semibold text-slate-900">{firstname} {lastname}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{language === 'ar' ? 'الهاتف' : 'Téléphone'}</span>
-                  <span className="font-semibold text-slate-900">{phone}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{language === 'ar' ? 'الولاية' : 'Wilaya'}</span>
-                  <span className="font-semibold text-slate-900">{address}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{language === 'ar' ? 'طريقة الدفع' : 'Paiement'}</span>
-                  <span className="font-semibold text-slate-900 uppercase">{paymentMethod}</span>
-                </div>
-
-                <div className="border-t border-dashed border-slate-200 my-2"></div>
-
-                <div className="flex justify-between items-center text-sm text-slate-500">
-                  <span>{language === 'ar' ? 'رسوم المعاملة' : 'Frais transaction'}</span>
-                  <span>{paymentFee.toLocaleString()} DZD</span>
-                </div>
-                <div className="flex justify-between items-center text-lg font-bold pt-2">
-                  <span className="text-slate-900">{language === 'ar' ? 'المجموع' : 'Total'}</span>
-                  <span className="text-purple-600">{totalToPay.toLocaleString()} DZD</span>
-                </div>
-              </div>
-
-              <div className="p-6 pt-0 space-y-3">
-                <button
-                  onClick={() => {
-                    setShowConfirmModal(false);
-                    if (paymentUrl) openPaymentUrl(paymentUrl);
-                  }}
-                  className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
-                >
-                  <Lock className="w-4 h-4" />
-                  {language === 'ar'
-                    ? `دفع ${totalToPay.toLocaleString()} دج الآن`
-                    : `Payer ${totalToPay.toLocaleString()} DZD maintenant`}
-                </button>
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  className="w-full py-2 text-sm text-slate-500 hover:text-slate-700 transition"
-                >
-                  {language === 'ar' ? 'إلغاء' : 'Annuler'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </>
   );

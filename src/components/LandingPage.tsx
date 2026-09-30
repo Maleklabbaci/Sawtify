@@ -676,13 +676,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       bentoRights: isRTL ? "حقوق تجارية كاملة" : "Droits commerciaux inclus",
       bentoRightsDesc: isRTL ? "استعمل الأوديو تاعك في يوتيوب، تيكتوك، إشهار أو بودكاست — بلا قيود، بلا دراهم مخفية." : "Utilisez vos audios pour YouTube, TikTok, publicités ou podcasts — sans restriction, sans frais cachés.",
 
-      freePoints: isRTL ? "🎁 اربح 50 نقطة مجانية هنا" : "🎁 Gagne 50 points gratuits ici",
+      freePoints: isRTL ? "اربح 50 نقطة مجانية هنا" : "Gagne 50 points gratuits ici",
       freePointsSub: isRTL ? "اضغط باش تبدا" : "Clique pour commencer",
 
       footerTerms: isRTL ? "الشروط" : "Conditions",
       footerPrivacy: isRTL ? "الخصوصية" : "Confidentialité",
       footerContact: isRTL ? "اتصل بنا" : "Contact",
-      footerMade: isRTL ? "© 2026 Sawtify. صُنع في الجزائر 🇩🇿" : "© 2026 Sawtify. Made in Algeria 🇩🇿",
+      footerMade: isRTL ? "© 2026 Sawtify. صُنع في الجزائر" : "© 2026 Sawtify. Made in Algeria",
     }),
     [isRTL]
   );
