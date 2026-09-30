@@ -90,6 +90,22 @@ CREATE POLICY "Users can read own profile"
     ON public.profiles FOR SELECT 
     USING (auth.uid() = id);
 
+-- Publie les changements de solde pour que l'application reçoive aussi les
+-- débits effectués par l'API développeur ou d'autres tâches serveur.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+       AND NOT EXISTS (
+           SELECT 1 FROM pg_publication_tables
+           WHERE pubname = 'supabase_realtime'
+             AND schemaname = 'public'
+             AND tablename = 'profiles'
+       ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+    END IF;
+END;
+$$;
+
 -- Credit Packs: Public read-only catalog
 CREATE POLICY "Anyone can view active credit packs" 
     ON public.credit_packs FOR SELECT 

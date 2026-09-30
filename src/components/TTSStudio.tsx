@@ -205,6 +205,7 @@ const formatTime = (seconds: number): string => {
 
 interface TTSStudioProps {
   balance: number;
+  onBalanceChange: (remainingBalance: number) => void;
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
   onOpenRecharge: () => void;
   recentGenerations?: GenerationRecord[];
@@ -256,7 +257,7 @@ type PopoverId = 'tags' | 'voices' | 'region' | null;
 // ==========================================================================
 // COMPOSANT PRINCIPAL
 // ==========================================================================
-export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, onOpenRecharge, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
+export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
   const { t, isRTL, language } = useLanguage();
   const voices = getVoices(language);
   const styleTags = getStyleTags(language);
@@ -708,6 +709,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const textToSend = startToneTag ? `${startToneTag} ${text.trim()}` : text;
 
       const response = await requestTTSGeneration({ text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags, register: registerRef.current, intensity: intensityRef.current }, balance);
+      // Le serveur renvoie le solde après le débit atomique : on l'affiche sans attendre l'upload audio.
+      if (!response.degraded && Number.isFinite(response.remaining_balance)) onBalanceChange(response.remaining_balance);
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
 
       setCurrentAudioUrl(response.audio_url); setCurrentGenerationId(response.generation_id || null);
@@ -730,7 +733,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             await onDeductPoints(realCost, record, storagePath, response.remaining_balance ?? null);
             learn(record.text);
             try { localStorage.removeItem(PENDING_GEN_KEY); localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: generationId, createdAt: record.createdAt })); } catch (e2) {}
-            window.dispatchEvent(new CustomEvent('refresh-account-balance'));
           } catch (uploadErr) { console.warn('Erreur upload:', uploadErr); }
         })();
         showNotif(response.milestone_bonus ? `-${realCost} Points · +${response.milestone_bonus} bonus` : (response.notification || `-${realCost} Points`));
@@ -771,10 +773,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     try {
       const originalText = text;
       const result = await requestEnhanceText(text, selectedRegion);
+      onBalanceChange(result.remaining_balance);
       setText(result.enhanced_text); showNotif(result.notification || '-2 Points');
       setLastGenType('enhance'); setLastGenInput(originalText); setLastGenOutput(result.enhanced_text);
       setIsMagicActive(true); setTimeout(() => setIsMagicActive(false), 900); playEnhanceChime();
-      window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
       else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي' : 'Limite quotidienne atteinte');
@@ -789,11 +791,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     scriptRequestLockRef.current = true; setInsufficientAlert(false); setIsGeneratingScript(true); setFeedbackSent(false); setFeedbackGiven(null); setOpenPop(null);
     try {
       const result = await requestGenerateScript(description, 'excited', selectedRegion);
+      onBalanceChange(result.remaining_balance);
       setScriptResult(result.script); showNotif(result.notification || '-5 Points');
       setLastGenType('script'); setLastGenInput(description); setLastGenOutput(result.script); setLastGenSector(result.sector_used || 'general');
       learn(description);
       setIsMagicActive(true); setTimeout(() => setIsMagicActive(false), 900); playScriptChime();
-      window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
       else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي' : 'Limite quotidienne');
@@ -934,6 +936,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         context,
       });
       if (!result.ideas.length) { showNotif(language === 'ar' ? 'ما رجعتش أفكار صالحة — بلا خصم' : 'Aucune idée exploitable — rien débité'); return; }
+      if (typeof result.remaining_balance === 'number' && Number.isFinite(result.remaining_balance)) onBalanceChange(result.remaining_balance);
       setAiIdeas(result.ideas.map((idea) => ({
         nicheId: nicheMatch?.niche.id,
         icon: 'sparkles' as NicheIcon,
@@ -941,7 +944,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
         starter: idea.text,
       })));
       showNotif(result.notification || (language === 'ar' ? '-2 نقاط' : '-2 Points'));
-      window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
       else showNotif(e?.message || (language === 'ar' ? 'خطأ في توليد الأفكار' : 'Erreur idées IA'));
