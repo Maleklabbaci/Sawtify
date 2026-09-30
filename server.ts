@@ -2931,7 +2931,11 @@ Style vocal souhaité : ${style || "excited"}`;
         } catch (e: any) { contactErrorDetail = e?.message || "Erreur réseau"; console.warn("[SlickPay create contact] erreur réseau:", e?.message || e); }
       }
       const itemsList = [{ name: `${packName} (+${numPoints} pts, frais de paiement inclus)`, price: numAmount, quantity: 1 }];
-      const payload: any = { amount: numAmount, url: returnUrl, webhook_url: getPublicUrl(req, "/api/slickpay/webhook"), webhook_meta_data: [{ invoice_source: "sawtify", user_id: userId, pack_id: String(packId) }], firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: phone.trim() || "0550123456", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger, Algérie", note: `Sawtify - ${packName}`, items: itemsList };
+      // Le secret du webhook doit voyager DANS l'URL : le serveur le contrôle via ?secret=...
+      // Sans ça (secret configuré dans Render mais absent de l'appel sortant), SlickPay recevait
+      // « invalid_secret » et les points n'étaient jamais crédités automatiquement.
+      const webhookUrl = getPublicUrl(req, "/api/slickpay/webhook") + (SLICKPAY_WEBHOOK_SECRET ? `?secret=${encodeURIComponent(SLICKPAY_WEBHOOK_SECRET)}` : "");
+      const payload: any = { amount: numAmount, url: returnUrl, webhook_url: webhookUrl, webhook_meta_data: [{ invoice_source: "sawtify", user_id: userId, pack_id: String(packId) }], firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: phone.trim() || "0550123456", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger, Algérie", note: `Sawtify - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
 
@@ -2994,6 +2998,40 @@ Style vocal souhaité : ${style || "excited"}`;
       await updateInvoiceStatus(invoiceId, "completed");
       return res.json({ success: true, message: "Paiement validé", newBalance: result.newBalance, pointsCredited: result.pointsCredited, bonusPoints: result.bonusPoints ?? 0, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
+  });
+
+  // Filet de sécurité : quand le client revient de la page de paiement (redirection plein
+  // écran, état du navigateur perdu), plus personne n'interroge SlickPay si le webhook a été
+  // manqué. Cette route revérifie les factures en attente DE CET utilisateur et crédite celles
+  // qui sont réellement payées. Même garantie que le webhook : rien n'est crédité sans que
+  // SlickPay ait confirmé le paiement, et creditIfPaid() est idempotent (pas de double crédit).
+  app.post("/api/slickpay/sync-pending", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      if (!supabaseClient || !SLICKPAY_API_KEY) return res.json({ success: true, credited: false });
+      const { data, error } = await supabaseClient.from("invoices").select("*")
+        .eq("user_id", userId).neq("status", "completed")
+        .order("created_at", { ascending: false }).limit(5);
+      if (error || !Array.isArray(data)) return res.json({ success: true, credited: false });
+      for (const row of data) {
+        const invoiceId = String(row.id);
+        const verification = await verifySlickPayInvoice(invoiceId);
+        if (!verification.paid) continue;
+        const entry = INVOICE_REGISTRY.get(invoiceId) || invoiceFromRow(row);
+        INVOICE_REGISTRY.set(invoiceId, entry);
+        const result = await creditIfPaid(invoiceId);
+        if (result.credited) {
+          await updateInvoiceStatus(invoiceId, "completed");
+          return res.json({ success: true, credited: true, invoiceId, newBalance: result.newBalance, pointsCredited: result.pointsCredited, bonusPoints: result.bonusPoints ?? 0, promoApplied: result.promoApplied ?? null });
+        }
+      }
+      return res.json({ success: true, credited: false });
+    } catch (err: any) {
+      // Paiement : une erreur ici ne doit jamais bloquer l'application.
+      console.warn("[SlickPay sync-pending]", err?.message || err);
+      return res.json({ success: true, credited: false });
+    }
   });
 
   app.post("/api/slickpay/webhook", async (req, res) => {
