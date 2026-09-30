@@ -14,6 +14,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:tts": "tsx tts/selftest.ts",
+    "test:montage": "tsx scripts/test-montage-pipeline.ts",
     "verif:balises": "tsx scripts/verifier-balises.ts",
     "test:voix": "tsx tts/test-noms.ts",
     "compare:tts": "tsx scripts/comparer-3.1-vs-3.8.ts",
@@ -23,6 +24,13 @@
     "verif:doc": "tsx scripts/verifier-doc-api.ts"
   },
   "dependencies": {
+    "@expo-google-fonts/amiri": "^0.4.1",
+    "@expo-google-fonts/cairo": "^0.4.2",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/montserrat": "^0.4.2",
+    "@expo-google-fonts/noto-sans-arabic": "^0.4.3",
+    "@expo-google-fonts/roboto": "^0.4.3",
+    "@expo-google-fonts/tajawal": "^0.4.1",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^2.4.0",
