@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
@@ -182,6 +182,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
+  const [paymentPopupOpened, setPaymentPopupOpened] = useState<boolean>(false);
+  const paymentRequestInFlightRef = useRef(false);
+  const handledSuccessInvoiceRef = useRef<string | number | null>(null);
   // Points annoncés par le SERVEUR à la création de la facture (bonus inclus) et points réellement crédités.
   const [promisedPoints, setPromisedPoints] = useState<number | null>(null);
   const [creditedPoints, setCreditedPoints] = useState<number | null>(null);
@@ -236,6 +239,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   }, [invoiceId, isSuccess]);
 
   const handlePaymentSuccess = (serverPoints?: number) => {
+    if (invoiceId !== null && handledSuccessInvoiceRef.current === invoiceId) return;
+    if (invoiceId !== null) handledSuccessInvoiceRef.current = invoiceId;
     const pointsCredited = typeof serverPoints === 'number' && serverPoints > 0 ? serverPoints : selectedPoints;
     setCreditedPoints(pointsCredited);
     setIsSuccess(true);
@@ -253,28 +258,45 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     onRechargeSuccess({ ...selectedPack, points: pointsCredited }, paymentMethod, newRecord);
   };
 
-  const openPaymentUrl = (url: string) => {
-    // Mobile (majorité des paiements Edahabia / CIB) : redirection directe, même onglet.
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      window.location.href = url;
-      return;
-    }
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    // Si le navigateur bloque l'ouverture d'onglet, on redirige quand même :
-    // le client doit TOUJOURS atterrir sur la page de paiement.
-    if (!opened) window.location.href = url;
-  };
-
   const handleInitiatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Ouvre/réserve l'onglet pendant le clic utilisateur, avant le moindre await.
+    // Sinon les navigateurs bloquent window.open et le fallback envoyait l'onglet
+    // Sawtify lui-même vers SATIM, ce qui arrêtait le suivi du paiement.
+    if (paymentRequestInFlightRef.current) return;
+    paymentRequestInFlightRef.current = true;
     setIsProcessing(true);
     setStatusMessage('');
+    setPaymentPopupOpened(false);
+
+    let paymentWindow: Window | null = null;
+    try {
+      paymentWindow = window.open('about:blank', '_blank');
+      if (paymentWindow) {
+        const title = language === 'ar' ? 'تحضير الدفع — Sawtify' : 'Préparation du paiement — Sawtify';
+        const message = language === 'ar'
+          ? 'يرجى الانتظار، جارٍ فتح بوابة الدفع الآمنة…'
+          : 'Patientez, la page de paiement sécurisée est en cours de préparation…';
+        try {
+          paymentWindow.document.open();
+          paymentWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;color:#0f172a;font:16px system-ui,sans-serif"><main style="max-width:440px;padding:32px;text-align:center"><h1 style="font-size:22px">${title}</h1><p style="color:#475569">${message}</p></main></body></html>`);
+          paymentWindow.document.close();
+          // Empêche la page de paiement de piloter l'onglet Sawtify.
+          paymentWindow.opener = null;
+        } catch {
+          // Même sans écran d'attente, on garde la fenêtre réservée pour SATIM.
+        }
+      }
+    } catch {
+      // Si le navigateur bloque la fenêtre, Sawtify reste ouvert et proposera un lien.
+      paymentWindow = null;
+    }
 
     try {
       const { getMyAccessToken } = await import('../services/supabaseClient');
       const accessToken = await getMyAccessToken();
       if (!accessToken) {
-        setIsProcessing(false);
+        if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
         setStatusMessage(language === 'ar' ? 'يجب تسجيل الدخول' : 'Veuillez vous connecter');
         return;
       }
@@ -302,18 +324,28 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         setPaymentUrl(data.paymentUrl);
         setPromisedPoints(typeof data.pointsPromised === 'number' ? data.pointsPromised : null);
         setStatusMessage('');
-        // Aucun écran de confirmation : dès que les coordonnées sont remplies,
-        // on envoie directement le client sur la page de paiement SlickPay / SATIM.
-        openPaymentUrl(data.paymentUrl);
+        // Le nouvel onglet va vers SATIM. Celui-ci reste sur Sawtify et son polling
+        // ne crédite les points qu'après confirmation serveur du paiement.
+        if (paymentWindow && !paymentWindow.closed) {
+          try {
+            paymentWindow.location.replace(data.paymentUrl);
+            setPaymentPopupOpened(true);
+          } catch {
+            paymentWindow.close();
+          }
+        }
       } else {
+        if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
         const message = data.error || data.message ||
           (language === 'ar' ? 'خطأ في إنشاء الفاتورة' : 'Erreur de création de facture');
         setStatusMessage(message);
       }
     } catch (err) {
       console.warn('[Pricing Checkout Error]:', err);
+      if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
       setStatusMessage(language === 'ar' ? 'خطأ في الاتصال' : 'Erreur de connexion');
     } finally {
+      paymentRequestInFlightRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -346,6 +378,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
     setPaymentUrl(null);
     setInvoiceId(null);
     setIsSuccess(false);
+    setPaymentPopupOpened(false);
     setPromisedPoints(null);
     setCreditedPoints(null);
     setIsCheckoutOpen(true);
@@ -807,25 +840,27 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                             )}
                           </div>
 
-                          <a
-                            href={paymentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => {
-                              if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                                e.preventDefault();
-                                window.location.href = paymentUrl;
-                              }
-                            }}
-                            className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition text-lg"
-                          >
-                            <ExternalLink className="w-5 h-5" />
-                            <span>
+                          {paymentPopupOpened ? (
+                            <p className="rounded-xl border border-purple-200 bg-white/80 px-4 py-3 text-sm text-purple-900">
                               {language === 'ar'
-                                ? `دفع ${totalToPay.toLocaleString()} دج الآن`
-                                : `Payer ${totalToPay.toLocaleString()} DZD maintenant`}
-                            </span>
-                          </a>
+                                ? 'تم فتح الدفع في علامة تبويب أخرى. اترك هذه الصفحة مفتوحة؛ ستُضاف النقاط بعد تأكيد SATIM للدفع.'
+                                : 'La page de paiement est ouverte dans un autre onglet. Garde Sawtify ouvert : les points seront ajoutés après la confirmation de SATIM.'}
+                            </p>
+                          ) : (
+                            <a
+                              href={paymentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition text-lg"
+                            >
+                              <ExternalLink className="w-5 h-5" />
+                              <span>
+                                {language === 'ar'
+                                  ? `فتح صفحة الدفع في علامة تبويب جديدة · ${totalToPay.toLocaleString()} دج`
+                                  : `Ouvrir le paiement dans un nouvel onglet · ${totalToPay.toLocaleString()} DZD`}
+                              </span>
+                            </a>
+                          )}
 
                           <div className="flex items-center justify-between pt-4 border-t border-purple-200">
                             <button
@@ -844,6 +879,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                               onClick={() => {
                                 setPaymentUrl(null);
                                 setInvoiceId(null);
+                                setPaymentPopupOpened(false);
                               }}
                               className="text-sm text-slate-500 hover:text-slate-700 underline"
                             >
@@ -945,8 +981,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
                           <p className="text-xs text-center text-slate-500">
                             {language === 'ar'
-                              ? 'سيتم توجيهك إلى صفحة الدفع الآمنة لـ SATIM'
-                              : 'Vous serez redirigé vers la page de paiement sécurisée SATIM'}
+                              ? 'ستُفتح صفحة الدفع الآمنة في علامة تبويب جديدة. اترك هذه الصفحة مفتوحة حتى تأكيد الدفع.'
+                              : 'La page de paiement SATIM s’ouvrira dans un nouvel onglet. Garde cette page ouverte jusqu’à la validation.'}
                           </p>
                         </form>
                       )}

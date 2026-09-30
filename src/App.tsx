@@ -116,6 +116,22 @@ function AppContent() {
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; email: string } | null>(null);
   const welcomeBonusPromiseRef = React.useRef<Promise<boolean> | null>(null);
   const bootstrappedUserIdRef = React.useRef<string | null>(null);
+  const balanceSyncRequestRef = React.useRef(0);
+
+  const syncDisplayedBalance = React.useCallback((serverBalance: number) => {
+    if (!Number.isFinite(serverBalance)) return;
+    const requestId = ++balanceSyncRequestRef.current;
+    setBalance(serverBalance);
+
+    // Le résultat d'une requête concurrente peut arriver en retard; relire le solde
+    // courant empêche une ancienne réponse de faire remonter le crédit affiché.
+    void import('./services/supabaseClient')
+      .then(({ fetchMyBalance }) => fetchMyBalance())
+      .then((latestBalance) => {
+        if (latestBalance !== null && requestId === balanceSyncRequestRef.current) setBalance(latestBalance);
+      })
+      .catch((error) => console.warn('[Sawtify] Impossible de resynchroniser le solde:', error));
+  }, []);
 
   // Force la fin du checking après 5 secondes max (évite l'écran blanc infini)
   React.useEffect(() => {
@@ -183,6 +199,7 @@ function AppContent() {
   }, [routeToTab, needsPasswordSetup, welcomeUser, isLoggedIn]);
 
   const refreshAccountData = React.useCallback(async () => {
+    const balanceRequestId = ++balanceSyncRequestRef.current;
     setIsBalanceLoading(true);
     try {
       const { fetchMyBalance, fetchMyGenerations, fetchMyPurchases } = await import('./services/supabaseClient');
@@ -191,7 +208,7 @@ function AppContent() {
         fetchMyGenerations(),
         fetchMyPurchases(),
       ]);
-      if (realBalance !== null) setBalance(realBalance);
+      if (realBalance !== null && balanceRequestId === balanceSyncRequestRef.current) setBalance(realBalance);
       setGenerations(realGenerations);
       setPurchases(realPurchases);
     } catch (e) {
@@ -200,6 +217,47 @@ function AppContent() {
       setIsBalanceLoading(false);
     }
   }, []);
+
+  // Les débits externes (API développeur, montage...) n'ont pas de callback React.
+  // Supabase Realtime propage donc chaque mise à jour de la ligne du profil ouvert.
+  React.useEffect(() => {
+    if (!isLoggedIn) return;
+    let active = true;
+    let stopChannel: (() => void) | null = null;
+
+    void (async () => {
+      try {
+        const { supabase, fetchMyBalance } = await import('./services/supabaseClient');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active || !user) return;
+
+        const refreshLatestBalance = () => {
+          const requestId = ++balanceSyncRequestRef.current;
+          void fetchMyBalance()
+            .then((latestBalance) => {
+              if (active && latestBalance !== null && requestId === balanceSyncRequestRef.current) setBalance(latestBalance);
+            })
+            .catch((error) => console.warn('[Sawtify] Erreur de lecture du solde en temps réel:', error));
+        };
+        const channel = supabase
+          .channel(`profile-balance:${user.id}`)
+          .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}`,
+          }, refreshLatestBalance)
+          .subscribe();
+        stopChannel = () => { void supabase.removeChannel(channel); };
+        refreshLatestBalance();
+        if (!active) stopChannel();
+      } catch (error) {
+        console.warn('[Sawtify] Impossible d’activer la synchronisation Realtime du solde:', error);
+      }
+    })();
+
+    return () => {
+      active = false;
+      stopChannel?.();
+    };
+  }, [isLoggedIn]);
 
   const finishWelcome = React.useCallback(async () => {
     setWelcomeUser(null);
@@ -463,8 +521,8 @@ function AppContent() {
         await updateGenerationStoragePath(record.id, storagePath);
       }
 
-      const remaining = typeof remainingBalance === 'number' ? remainingBalance : balance - cost;
-      setBalance(remaining);
+      const remaining = typeof remainingBalance === 'number' && Number.isFinite(remainingBalance) ? remainingBalance : balance - cost;
+      if (typeof remainingBalance !== 'number' || !Number.isFinite(remainingBalance)) syncDisplayedBalance(remaining);
       setGenerations((prev) => [record, ...prev]);
       showToast(t.toastDeducted.replace('{balance}', remaining.toString()));
       // Filleul en cours de parrainage : met à jour « 2/3 voix testées » (et détecte la récompense).
@@ -626,6 +684,7 @@ function AppContent() {
             <Suspense fallback={<MinimalLoader page="studio" />}>
               <TTSStudio
                 balance={balance}
+                onBalanceChange={syncDisplayedBalance}
                 onDeductPoints={handleDeductPoints}
                 onOpenRecharge={() => navigateTo('pricing')}
                 recentGenerations={generations}
