@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, Download, Volume2, Volume1, Volume, AlertCircle,
@@ -6,15 +6,21 @@ import {
   AudioLines, Megaphone, X, Wand2, ThumbsUp, ThumbsDown,
   ChevronDown, Star, Plus, ArrowUp, Cloud, Smile,
   MessageCircle, BookOpen, Languages, ShoppingBag, UtensilsCrossed, House,
-  CalendarDays, SlidersHorizontal, History
+  CalendarDays, SlidersHorizontal, History,
+  GraduationCap, HeartPulse, Shirt, Briefcase, Plane
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
 import { tagsByCategory } from '../../tts/vocalTags';
 import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
-import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, sendAIFeedback } from '../services/api';
+import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import {
+  loadTaste, persistTaste, learnFromText, rememberPick, forgetTaste, bestNiche, buildSuggestions,
+  nicheName, NICHES,
+  type TasteSnapshot, type NicheIcon, type Suggestion,
+} from '../services/taste';
 import { playEnhanceChime, playScriptChime, playGenerationChime } from '../utils/sounds';
 import { estimatePointsFromChars } from '../utils/pointsCost';
 import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services/supabaseClient';
@@ -261,6 +267,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
 
   // STATE
   const [text, setText] = useState<string>(() => { try { return localStorage.getItem('sawtify_draft_text') || defaultStarterText; } catch { return defaultStarterText; } });
+  // Mémoire locale : domaines déduits des textes déjà générés (aucun envoi serveur).
+  const [taste, setTaste] = useState<TasteSnapshot>(() => loadTaste());
+  // Idées écrites par l'IA (2 points, débités seulement si l'IA répond bien) — repartent à zéro
+  // quand on change d'onglet ou de langue, car le format attendu n'est pas le même.
+  const [aiIdeas, setAiIdeas] = useState<Suggestion[] | null>(null);
+  const [isLoadingIdeas, setIsLoadingIdeas] = useState<boolean>(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_amin');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
@@ -716,6 +728,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
             if (userData.user && audioBlob.size > 0) { storagePath = await uploadGenerationAudio(userData.user.id, generationId, audioBlob); }
             const record: GenerationRecord = { id: generationId, text, voiceId: currentVoice.id, voiceName: currentVoice.name, audioUrl: response.audio_url, pointsDeducted: realCost, durationSec: dur, latencyMs: response.latency_ms, createdAt: new Date().toISOString() };
             await onDeductPoints(realCost, record, storagePath, response.remaining_balance ?? null);
+            learn(record.text);
             try { localStorage.removeItem(PENDING_GEN_KEY); localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({ id: generationId, createdAt: record.createdAt })); } catch (e2) {}
             window.dispatchEvent(new CustomEvent('refresh-account-balance'));
           } catch (uploadErr) { console.warn('Erreur upload:', uploadErr); }
@@ -778,6 +791,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
       const result = await requestGenerateScript(description, 'excited', selectedRegion);
       setScriptResult(result.script); showNotif(result.notification || '-5 Points');
       setLastGenType('script'); setLastGenInput(description); setLastGenOutput(result.script); setLastGenSector(result.sector_used || 'general');
+      learn(description);
       setIsMagicActive(true); setTimeout(() => setIsMagicActive(false), 900); playScriptChime();
       window.dispatchEvent(new CustomEvent('refresh-account-balance'));
     } catch (e: any) {
@@ -882,13 +896,67 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
     { id: 'formal', label: t.categoryFormal || 'Formel' },
   ];
 
-  const suggestions = composerMode === 'voice'
-    ? (language === 'ar'
-      ? [ { icon: <Megaphone className="w-3.5 h-3.5" />, label: 'إذاعة راديو 15 ثانية', starter: 'جديد! هذ السيمانة غير، استفد من -30% على كامل المتجر... [excited] زربوا!' }, { icon: <MessageCircle className="w-3.5 h-3.5" />, label: 'رسالة واتساب احترافية', starter: 'سلام، شكرا على رسالتك. [calm] فريقنا غادي يرد عليك في أقرب وقت.' }, { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'تعليق صوتي للمتجر', starter: 'اكتشف مجموعتنا الجديدة... [natural] توصيل مجاني لكامل الجزائر!' }, { icon: <Headphones className="w-3.5 h-3.5" />, label: 'مقدمة بودكاست بالدارجة', starter: 'أهلا بكم في البودكاست تاعنا... [natural] اليوم نحكيلكم على قصة تعلم منها.' } ]
-      : [ { icon: <Megaphone className="w-3.5 h-3.5" />, label: 'Pub radio de 15 secondes', starter: 'Nouveauté ! Cette semaine seulement, profitez de -30% sur toute la boutique... [excited] Foncez !' }, { icon: <MessageCircle className="w-3.5 h-3.5" />, label: 'Message WhatsApp pro', starter: 'Bonjour, merci pour votre message. [calm] Notre équipe vous répondra dans les plus brefs délais.' }, { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'Voix off e-commerce', starter: 'Découvrez notre nouvelle collection... [natural] Livraison gratuite partout en Algérie !' }, { icon: <Headphones className="w-3.5 h-3.5" />, label: 'Intro podcast en darija', starter: 'أهلا بكم في البودكاست تاعنا... [natural] اليوم نحكيلكم على قصة تعلم منها.' } ])
-    : (language === 'ar'
-      ? [ { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'متجر إلكتروني — تخفيضات -30%', starter: 'متجر ملابس إلكتروني، تخفيضات -30% هذ السيمانة، توصيل لكامل الجزائر' }, { icon: <UtensilsCrossed className="w-3.5 h-3.5" />, label: 'مطعم — افتتاح جديد', starter: 'مطعم جديد في الجزائر العاصمة، مطبخ تقليدي، أجواء عائلية' }, { icon: <House className="w-3.5 h-3.5" />, label: 'عقار — شقة للبيع', starter: 'شقة F3 للبيع في وهران، حي هادئ قريب من كل الخدمات' }, { icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'حدث — سهرة نهاية الأسبوع', starter: 'سهرة فنية هذا السبت في قسنطينة، موسيقى مباشرة وأنشطة' } ]
-      : [ { icon: <ShoppingBag className="w-3.5 h-3.5" />, label: 'Boutique en ligne — promo -30%', starter: 'Boutique de vêtements en ligne, promo -30% cette semaine, livraison partout en Algérie' }, { icon: <UtensilsCrossed className="w-3.5 h-3.5" />, label: 'Restaurant — nouvelle ouverture', starter: "Nouveau restaurant à Alger qui vient d'ouvrir, cuisine traditionnelle, ambiance familiale" }, { icon: <House className="w-3.5 h-3.5" />, label: 'Immobilier — appartement à vendre', starter: 'Appartement F3 à vendre à Oran, quartier calme, proche de tous les services' }, { icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'Événement — soirée du week-end', starter: 'Soirée événementielle ce samedi à Constantine, musique live et animations' } ]);
+  // ── SUGGESTIONS APPRISES ────────────────────────────────────────────────
+  // Le domaine vient d'abord du texte en cours d'écriture, sinon de la mémoire des
+  // textes déjà générés (voir services/taste.ts). S'il est connu, ses exemples passent
+  // devant les exemples génériques ; sinon on garde exactement l'ancien comportement.
+  const nicheMatch = useMemo(() => bestNiche(taste, text), [taste, text]);
+  const { suggestions, personalized } = useMemo(
+    () => buildSuggestions(nicheMatch, composerMode, language),
+    [nicheMatch, composerMode, language],
+  );
+
+  const learn = useCallback((value: string, weight = 1) => {
+    setTaste((prev) => { const next = learnFromText(prev, value, weight); persistTaste(next); return next; });
+  }, []);
+
+  const handleSuggestionClick = (suggestion: Suggestion) => {
+    setText(suggestion.starter);
+    requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); });
+    if (suggestion.nicheId) {
+      setTaste((prev) => { const next = rememberPick(prev, suggestion.nicheId!); persistTaste(next); return next; });
+    }
+  };
+
+  useEffect(() => { setAiIdeas(null); }, [composerMode, language]);
+
+  const handleLoadIdeas = async () => {
+    if (isLoadingIdeas) return;
+    if (balance < 2) { setInsufficientAlert(true); return; }
+    setIsLoadingIdeas(true);
+    try {
+      const context = [text.trim(), ...recentGenerations.slice(0, 2).map((g) => g.text)].filter(Boolean);
+      const result = await requestSubjectIdeas({
+        domain: nicheMatch?.niche.id ?? 'general',
+        domainLabel: nicheMatch ? nicheMatch.niche.name[language] : '',
+        mode: composerMode,
+        language,
+        context,
+      });
+      if (!result.ideas.length) { showNotif(language === 'ar' ? 'ما رجعتش أفكار صالحة — بلا خصم' : 'Aucune idée exploitable — rien débité'); return; }
+      setAiIdeas(result.ideas.map((idea) => ({
+        nicheId: nicheMatch?.niche.id,
+        icon: 'sparkles' as NicheIcon,
+        label: idea.label,
+        starter: idea.text,
+      })));
+      showNotif(result.notification || (language === 'ar' ? '-2 نقاط' : '-2 Points'));
+      window.dispatchEvent(new CustomEvent('refresh-account-balance'));
+    } catch (e: any) {
+      if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
+      else showNotif(e?.message || (language === 'ar' ? 'خطأ في توليد الأفكار' : 'Erreur idées IA'));
+    } finally { setIsLoadingIdeas(false); }
+  };
+
+  const SUGGESTION_ICONS: Record<string, React.ReactNode> = {
+    sparkles: <Sparkles className="w-3.5 h-3.5" />, cart: <ShoppingBag className="w-3.5 h-3.5" />,
+    food: <UtensilsCrossed className="w-3.5 h-3.5" />, home: <House className="w-3.5 h-3.5" />,
+    school: <GraduationCap className="w-3.5 h-3.5" />, mic: <Mic className="w-3.5 h-3.5" />,
+    heart: <HeartPulse className="w-3.5 h-3.5" />, shirt: <Shirt className="w-3.5 h-3.5" />,
+    briefcase: <Briefcase className="w-3.5 h-3.5" />, plane: <Plane className="w-3.5 h-3.5" />,
+    radio: <Megaphone className="w-3.5 h-3.5" />, message: <MessageCircle className="w-3.5 h-3.5" />,
+    shop: <ShoppingBag className="w-3.5 h-3.5" />, podcast: <Headphones className="w-3.5 h-3.5" />,
+  };
 
   const placeholderText = composerMode === 'script'
     ? (language === 'ar' ? 'صف منتجك أو فكرتك… (مثال: متجر أحذية في وهران، تخفيضات -30%)' : 'Décris ton produit ou ton idée… (ex : boutique de sneakers à Oran, promo -30%)')
@@ -1029,10 +1097,52 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onDeductPoints, o
               {/* Les popups (balises / voix / région) sont rendus dans <body> via un portail — voir plus bas */}
             </div>
 
-            <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
-              {suggestions.map((s) => (
-                <button key={s.label} onClick={() => { setText(s.starter); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]"><span className="text-[#6d28d9]">{s.icon}</span>{s.label}</button>
+            <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center items-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
+              {aiIdeas?.map((idea) => (
+                <button
+                  key={idea.label}
+                  onClick={() => handleSuggestionClick(idea)}
+                  className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5 bg-[#f5f3ff] text-[#5b21b6] border border-[#ddd6fe] hover:bg-[#ede9fe] transition-colors"
+                  title={`${idea.starter}\n\n${language === 'ar' ? 'فكرة مولّدة بالذكاء الاصطناعي' : 'Idée générée par l’IA'}`}
+                >
+                  <span className="text-[#6d28d9]">{SUGGESTION_ICONS[idea.icon]}</span>{idea.label}
+                </button>
               ))}
+              {personalized && nicheMatch && (
+                <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-slate-400 me-0.5" title={language === 'ar' ? 'اقتراحات مبنية على نصوصك' : 'Suggestions déduites de vos textes'}>
+                  {language === 'ar' ? <>حسب نصوصك · {nicheName(nicheMatch.niche, language)}:</> : <>D’après vos textes · {nicheName(nicheMatch.niche, language)} :</>}
+                </span>
+              )}
+              {suggestions.map((s) => (
+                <button key={s.label} onClick={() => handleSuggestionClick(s)} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]" title={s.starter}><span className="text-[#6d28d9]">{SUGGESTION_ICONS[s.icon]}</span>{s.label}</button>
+              ))}
+              <button
+                type="button"
+                onClick={handleLoadIdeas}
+                disabled={isLoadingIdeas}
+                className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold cursor-pointer flex items-center gap-1.5 bg-white text-[#6d28d9] border border-[#ddd6fe] hover:bg-[#f5f3ff] transition-colors disabled:opacity-50"
+                title={language === 'ar'
+                  ? 'ثلاث أفكار جديدة في مجالك، مكتوبة بالذكاء الاصطناعي (2 نقاط)'
+                  : 'Trois idées neuves dans votre domaine, écrites par l’IA (2 points)'}
+              >
+                {isLoadingIdeas ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {isLoadingIdeas
+                  ? (language === 'ar' ? 'جاري التوليد…' : 'Génération…')
+                  : aiIdeas
+                    ? (language === 'ar' ? 'أفكار جديدة · 2 نقاط' : 'Nouvelles idées · 2 pts')
+                    : (language === 'ar' ? 'أفكار بالذكاء الاصطناعي · 2 نقاط' : 'Idées IA · 2 pts')}
+              </button>
+
+              {personalized && (
+                <button
+                  type="button"
+                  onClick={() => { setTaste(forgetTaste()); setAiIdeas(null); showNotif(language === 'ar' ? 'تم محو ما تعلمه الاستوديو عنك' : 'Le studio a oublié vos habitudes'); }}
+                  className="shrink-0 whitespace-nowrap text-[10px] text-slate-400 hover:text-[#6d28d9] underline decoration-dotted cursor-pointer"
+                  title={language === 'ar' ? 'امسح ما تعلّمه الاستوديو عنك (محلي فقط)' : 'Effacer ce que le studio a appris de vous (local uniquement)'}
+                >
+                  {language === 'ar' ? 'امسح' : 'Oublier'}
+                </button>
+              )}
             </div>
 
             {recentGenerations.length > 0 && (

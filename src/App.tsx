@@ -7,6 +7,7 @@ import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 import { trackMarketingEvent } from './services/marketingTracking';
 import { Mic, AudioLines, History, CreditCard, Code2, Lock } from 'lucide-react';
+import { API_BASE_URL } from './config/apiBase';
 import { useGrowth } from './hooks/useGrowth';
 import { claimReferral, captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from './services/growth';
 import { getGrowthCopy } from './data/growthCopy';
@@ -379,8 +380,8 @@ function AppContent() {
           if (isBrandNewAccount) {
             welcomeBonusPromiseRef.current = import('./services/supabaseClient').then(({ claimWelcomeBonus }) => claimWelcomeBonus());
             welcomeBonusPromiseRef.current.then((result) => {
-              if (result === 'denied') showToast(language === 'ar' ? '⚠️ لديك حساب بالفعل بهذا عنوان IP.' : "⚠️ Tu as déjà un compte avec cette IP.");
-              if (result === 'error') showToast(language === 'ar' ? '⚠️ تعذر التحقق من نقاط الترحيب' : "⚠️ Impossible de vérifier ton bonus.");
+              if (result === 'denied') showToast(language === 'ar' ? 'لديك حساب بالفعل بهذا عنوان IP.' : "Tu as déjà un compte avec cette IP.");
+              if (result === 'error') showToast(language === 'ar' ? 'تعذر التحقق من نقاط الترحيب' : "Impossible de vérifier ton bonus.");
             });
             if (!wantsPasswordSetup) {
               showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
@@ -423,7 +424,17 @@ function AppContent() {
       if (paymentStatus === 'success' && pointsParam) {
         setIsLoggedIn(true);
         navigateTo('pricing', true);
-        refreshAccountData();
+        // Le client revient de la page de paiement au lieu de rester dans l'application :
+        // on resynchronise ses factures en attente (crédit si le webhook a été manqué),
+        // puis on rafraîchit le solde affiché.
+        (async () => {
+          try {
+            const { getMyAccessToken } = await import('./services/supabaseClient');
+            const token = await getMyAccessToken();
+            if (!token) return;
+            await fetch(`${API_BASE_URL}/api/slickpay/sync-pending`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+          } catch { /* silencieux : le solde se rafraîchit juste après */ }
+        })().finally(() => refreshAccountData());
         // Retour de la page de paiement (mobile) : le cashback arrive dès que le crédit est confirmé.
         growth.expectCashback('any');
         // Premier paiement validé : l'offre flash / 1re recharge ne s'affiche plus jamais.

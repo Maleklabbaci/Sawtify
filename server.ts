@@ -362,13 +362,20 @@ function newApiKey(): string {
   return `${API_KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
 }
 
-async function recordGeminiUsage(params: { userId?: string | null; operation: "tts" | "enhance" | "script" | "preview"; characters?: number; success: boolean; model?: string; metadata?: Record<string, unknown> }): Promise<number | null> {
+async function recordGeminiUsage(params: { userId?: string | null; operation: "tts" | "enhance" | "script" | "preview" | "ideas"; characters?: number; success: boolean; model?: string; metadata?: Record<string, unknown> }): Promise<number | null> {
   if (!supabaseClient) return null;
+  const insert = (operation: string) => supabaseClient!.from("gemini_usage_logs").insert({
+    user_id: params.userId || null, operation, model: params.model || null,
+    characters: params.characters || 0, success: params.success, metadata: params.metadata || {},
+  });
   try {
-    await supabaseClient.from("gemini_usage_logs").insert({
-      user_id: params.userId || null, operation: params.operation, model: params.model || null,
-      characters: params.characters || 0, success: params.success, metadata: params.metadata || {},
-    });
+    const { error } = await insert(params.operation);
+    // Contrainte SQL pas encore élargie (supabase/fix_subject_ideas_operation.sql) :
+    // on enregistre sous un type autorisé pour que le QUOTA JOURNALIER continue de compter
+    // ces appels — sinon les idées IA échapperaient au plafond Gemini.
+    if (error && (error.code === "23514" || /check constraint/i.test(error.message || ""))) {
+      await insert("enhance");
+    }
     if (!params.userId) return null;
     const since = new Date(); since.setHours(0, 0, 0, 0);
     const { count } = await supabaseClient.from("gemini_usage_logs").select("id", { count: "exact", head: true })
@@ -641,7 +648,7 @@ async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
      (preview, tts, enhance, script) : un seul format de log, une seule table.
    ========================================================================== */
 async function logGeminiCall(params: {
-  userId: string | null; callType: "preview" | "tts" | "enhance" | "script";
+  userId: string | null; callType: "preview" | "tts" | "enhance" | "script" | "ideas";
   billable: boolean; pointsCost: number; charCount?: number; success: boolean; latencyMs?: number;
   model?: string; inputTokens?: number; outputTokens?: number; totalCostUsd?: number;
 }): Promise<void> {
@@ -1610,6 +1617,56 @@ function detectSector(product: string): string {
   if (/sport|fitness|gym|رياضة/i.test(p)) return "sport";
   if (/immo|maison|appartement|villa|عقار/i.test(p)) return "immobilier";
   return "general";
+}
+
+/** Libellé d'idée : court, sans guillemets ni markdown. */
+function cleanIdeaLabel(label: string): string {
+  return String(label || "").replace(/^["'«»\s]+|["'«»\s]+$/g, "").replace(/\s{2,}/g, " ").trim().slice(0, 42);
+}
+
+/**
+ * Texte d'une idée. Filet de sécurité identique au reste de l'app : seules les balises
+ * [excited] / [natural] / [calm] survivent (le moteur vocal ne connaît qu'elles), et en
+ * mode voix le texte commence toujours par une balise.
+ */
+function cleanIdeaText(text: string, scriptMode: boolean): string {
+  let out = String(text || "").replace(/\s{2,}/g, " ").trim();
+  out = out.replace(/\[([^\]]+)\]/g, (_full, inner) => {
+    const key = String(inner).trim().toLowerCase();
+    return ["excited", "natural", "calm"].includes(key) ? `[${key}]` : "";
+  });
+  // Deux balises collées → on garde la première, CROCHETS COMPRIS (sinon le mot
+  // « excited » resterait dans le texte lu par la voix).
+  out = out.replace(/\[([a-z]+)\]\s*\[([a-z]+)\]/gi, "[$1]").replace(/\s{2,}/g, " ").trim();
+  if (out.length > 220) out = out.slice(0, 217).replace(/\s\S*$/, "") + "…";
+  if (!scriptMode && !/^\[(excited|natural|calm)\]/i.test(out)) out = `[natural] ${out}`;
+  return out;
+}
+
+/**
+ * Découpe la réponse de l'IA en idées { label, text }.
+ * Format demandé : « 1. Libellé court » puis le texte sur la ligne suivante.
+ */
+function parseSubjectIdeas(raw: string, scriptMode: boolean): { label: string; text: string }[] {
+  const cleaned = String(raw || "")
+    .replace(/```[a-z]*/gi, "").replace(/\*+/g, "").replace(/^#+\s*/gm, "")
+    .replace(/^\s*(Voici|Here|Sujets?|Idées?)\s*:?\s*$/gim, "")
+    .trim();
+  const lines = cleaned.split(/\r?\n/)
+    .map((l) => l.trim().replace(/^[-–—_=*~\s]+$/, ""))   // « --- », « === » : séparateurs, pas du texte
+    .filter(Boolean);
+  const found: { label: string; text: string }[] = [];
+  let current: { label: string; text: string } | null = null;
+  for (const line of lines) {
+    const m = line.match(/^(\d)\s*[.)\-–:]\s*(.+)$/);
+    if (m) { if (current) found.push(current); current = { label: m[2], text: "" }; continue; }
+    if (current) current.text = current.text ? `${current.text} ${line}` : line;
+  }
+  if (current) found.push(current);
+  return found
+    .map((i) => ({ label: cleanIdeaLabel(i.label), text: cleanIdeaText(i.text || i.label, scriptMode) }))
+    .filter((i) => i.label.length > 0 && i.text.length > 12)
+    .slice(0, 3);
 }
 
 const HOOKS = [
@@ -2858,6 +2915,81 @@ Style vocal souhaité : ${style || "excited"}`;
   app.post("/api/v1/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
   app.post("/api/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
 
+  /* ===================================================================     LLM IDÉES DE SUJETS (-2 pts)
+     Trois sujets NEUFS écrits par l'IA, dans le domaine de l'utilisateur (déduit côté
+     client par src/services/taste.ts). Les points ne sont débités QUE si l'IA a répondu
+     quelque chose d'exploitable : une réponse vide ou illisible ne coûte rien.
+     ========================================================================== */
+  const handleLLMSubjectIdeas = async (req: express.Request, res: express.Response) => {
+    try {
+      const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ error: "Authentification requise." });
+
+      const body = req.body || {};
+      const domain = String(body.domain || "general").slice(0, 40);
+      const domainLabel = String(body.domainLabel || "").slice(0, 60);
+      const mode = String(body.mode || "voice") === "script" ? "script" : "voice";
+      const isArabic = String(body.language || "fr") === "ar";
+      const contextList: string[] = (Array.isArray(body.context) ? body.context : [])
+        .filter((c: unknown) => typeof c === "string" && (c as string).trim())
+        .slice(0, 3)
+        .map((c: string) => c.slice(0, 240));
+
+      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
+
+      const pointsCost = 2;
+      const currentBalance = await getUserBalance(userId);
+      if (currentBalance === null) return res.status(503).json({ error: "Impossible de vérifier le solde. Aucun point n'a été débité." });
+      if (currentBalance < pointsCost) return res.status(402).json({ error: "Solde de points insuffisant (2 points requis)." });
+      if (await hasReachedDailyLLMLimit(userId)) return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_LLM_LIMIT} générations IA texte).` });
+
+      const isScriptMode = mode === "script";
+      const styleBlock = isScriptMode
+        ? `Chaque proposition est une DESCRIPTION de vidéo/audio : 1 phrase courte (max 140 caractères), SANS aucune balise, comme une note de brief. Exemple : "Formation IA en ligne pour débutants, 12 leçons, attestation incluse".`
+        : `Chaque proposition est un TEXTE PRÊT À LIRE À VOIX HAUTE : 1 à 2 phrases (max 180 caractères), commençant par UNE SEULE balise autorisée ([excited], [natural] ou [calm]), jamais deux balises collées, aucune autre balise.`;
+      const contextBlock = contextList.length
+        ? `\nCE QUE LE CLIENT ÉCRIT DÉJÀ (reste dans le même univers, ne recopie pas) :\n${contextList.map((c) => `- ${c}`).join("\n")}\n`
+        : "";
+
+      const ideaPrompt = `Tu aides un client de Sawtify (voix-off IA en Darija algérienne) à trouver ses 3 PROCHAINS sujets. Tu ne rédiges pas un script : tu proposes 3 angles courts, prêts à lancer.
+
+DOMAINE DU CLIENT : ${domainLabel || domain}${contextBlock}
+${styleBlock}
+
+RÈGLES :
+1. Exactement 3 propositions, chacune avec un ANGLE DIFFÉRENT (jamais 3 fois la même idée).
+2. Tout reste dans le domaine du client : si son domaine est l'IA, pas de restaurant ni de voiture.
+3. ${isArabic ? "Langue : DARIJA ALGÉRIENNE, avec les mots français techniques en alphabet latin (livraison, formation, clients...)." : "Langue : FRANÇAIS simple et concret."}
+4. Pas de titre, pas de markdown, pas de commentaire, pas de numérotation dans le texte proposé.
+
+FORMAT DE SORTIE — respecte-le à la lettre, rien d'autre :
+1. LIBELLÉ COURT (3 à 5 mots)
+Le texte de la proposition
+2. LIBELLÉ COURT (3 à 5 mots)
+Le texte de la proposition
+3. LIBELLÉ COURT (3 à 5 mots)
+Le texte de la proposition`;
+
+      const ideasCallStart = Date.now();
+      const ideaResult = await callGeminiTextAPI(ideaPrompt, 0.95);
+      logGeminiCall({ userId, callType: "ideas", billable: true, pointsCost, charCount: contextList.join(" ").length, success: Boolean(ideaResult.text), latencyMs: Date.now() - ideasCallStart, model: ideaResult.model, inputTokens: ideaResult.inputTokens, outputTokens: ideaResult.outputTokens, totalCostUsd: ideaResult.costUsd });
+      await recordGeminiUsage({ userId, operation: "ideas", characters: contextList.join(" ").length, success: Boolean(ideaResult.text), model: ideaResult.model, metadata: { domain, mode, input_tokens: ideaResult.inputTokens, output_tokens: ideaResult.outputTokens, total_tokens: ideaResult.totalTokens, cost_usd: ideaResult.costUsd } });
+
+      const ideas = parseSubjectIdeas(ideaResult.text, isScriptMode);
+      if (!ideas.length) return res.status(502).json({ error: "L'IA n'a pas renvoyé d'idées exploitables. Aucun point débité." });
+
+      const reduction = await deductCredits(userId, pointsCost);
+      if (!reduction.success) return res.status(402).json({ error: reduction.error || "Le débit des points a échoué. Aucune idée n'a été validée." });
+
+      return res.json({
+        success: true, ideas, points_deducted: pointsCost, points_cost: pointsCost,
+        notification: "-2 Points", remaining_balance: reduction.remaining, domain, mode,
+      });
+    } catch (err: any) { console.error("[LLM Subject Ideas Error]", err.message || err); return res.status(500).json({ error: err.message || "Erreur lors de la génération des idées" }); }
+  };
+  app.post("/api/v1/llm/subject-ideas", resolveUserIdMiddleware, llmLimiter, handleLLMSubjectIdeas);
+  app.post("/api/llm/subject-ideas", resolveUserIdMiddleware, llmLimiter, handleLLMSubjectIdeas);
+
   /* ===================================================================     AI FEEDBACK
      ========================================================================== */
   const handleAIFeedback = async (req: express.Request, res: express.Response) => {
@@ -2931,7 +3063,11 @@ Style vocal souhaité : ${style || "excited"}`;
         } catch (e: any) { contactErrorDetail = e?.message || "Erreur réseau"; console.warn("[SlickPay create contact] erreur réseau:", e?.message || e); }
       }
       const itemsList = [{ name: `${packName} (+${numPoints} pts, frais de paiement inclus)`, price: numAmount, quantity: 1 }];
-      const payload: any = { amount: numAmount, url: returnUrl, webhook_url: getPublicUrl(req, "/api/slickpay/webhook"), webhook_meta_data: [{ invoice_source: "sawtify", user_id: userId, pack_id: String(packId) }], firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: phone.trim() || "0550123456", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger, Algérie", note: `Sawtify - ${packName}`, items: itemsList };
+      // Le secret du webhook doit voyager DANS l'URL : le serveur le contrôle via ?secret=...
+      // Sans ça (secret configuré dans Render mais absent de l'appel sortant), SlickPay recevait
+      // « invalid_secret » et les points n'étaient jamais crédités automatiquement.
+      const webhookUrl = getPublicUrl(req, "/api/slickpay/webhook") + (SLICKPAY_WEBHOOK_SECRET ? `?secret=${encodeURIComponent(SLICKPAY_WEBHOOK_SECRET)}` : "");
+      const payload: any = { amount: numAmount, url: returnUrl, webhook_url: webhookUrl, webhook_meta_data: [{ invoice_source: "sawtify", user_id: userId, pack_id: String(packId) }], firstname: firstname.trim() || "Client", lastname: lastname.trim() || "Sawtify", phone: phone.trim() || "0550123456", email: email.trim() || "client@sawtify.dz", address: address.trim() || "Alger, Algérie", note: `Sawtify - ${packName}`, items: itemsList };
       if (defaultAccountUuid) payload.account = defaultAccountUuid; if (contactUuid) payload.contact = contactUuid;
       const primaryUrl = `${SLICKPAY_BASE_URL.replace(/\/+$/, '')}/users/invoices`;
 
@@ -2994,6 +3130,40 @@ Style vocal souhaité : ${style || "excited"}`;
       await updateInvoiceStatus(invoiceId, "completed");
       return res.json({ success: true, message: "Paiement validé", newBalance: result.newBalance, pointsCredited: result.pointsCredited, bonusPoints: result.bonusPoints ?? 0, record: { invoiceId, packId: entry.packId, points: entry.points, amountDZD: entry.amountDZD } });
     } catch (err: any) { return res.status(500).json({ success: false, error: err.message }); }
+  });
+
+  // Filet de sécurité : quand le client revient de la page de paiement (redirection plein
+  // écran, état du navigateur perdu), plus personne n'interroge SlickPay si le webhook a été
+  // manqué. Cette route revérifie les factures en attente DE CET utilisateur et crédite celles
+  // qui sont réellement payées. Même garantie que le webhook : rien n'est crédité sans que
+  // SlickPay ait confirmé le paiement, et creditIfPaid() est idempotent (pas de double crédit).
+  app.post("/api/slickpay/sync-pending", async (req, res) => {
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      if (!supabaseClient || !SLICKPAY_API_KEY) return res.json({ success: true, credited: false });
+      const { data, error } = await supabaseClient.from("invoices").select("*")
+        .eq("user_id", userId).neq("status", "completed")
+        .order("created_at", { ascending: false }).limit(5);
+      if (error || !Array.isArray(data)) return res.json({ success: true, credited: false });
+      for (const row of data) {
+        const invoiceId = String(row.id);
+        const verification = await verifySlickPayInvoice(invoiceId);
+        if (!verification.paid) continue;
+        const entry = INVOICE_REGISTRY.get(invoiceId) || invoiceFromRow(row);
+        INVOICE_REGISTRY.set(invoiceId, entry);
+        const result = await creditIfPaid(invoiceId);
+        if (result.credited) {
+          await updateInvoiceStatus(invoiceId, "completed");
+          return res.json({ success: true, credited: true, invoiceId, newBalance: result.newBalance, pointsCredited: result.pointsCredited, bonusPoints: result.bonusPoints ?? 0, promoApplied: result.promoApplied ?? null });
+        }
+      }
+      return res.json({ success: true, credited: false });
+    } catch (err: any) {
+      // Paiement : une erreur ici ne doit jamais bloquer l'application.
+      console.warn("[SlickPay sync-pending]", err?.message || err);
+      return res.json({ success: true, credited: false });
+    }
   });
 
   app.post("/api/slickpay/webhook", async (req, res) => {
