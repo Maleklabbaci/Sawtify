@@ -80,14 +80,13 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => undefined}
-              disabled
-              title="Montage vidéo — Prochainement"
-              className="group relative flex cursor-not-allowed items-center gap-1.5 rounded-lg px-3 py-1.5 text-slate-400 opacity-60 blur-[0.4px] transition"
+              onClick={() => setActiveTab('edit-video')}
+              className={`group relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                activeTab === 'edit-video' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
             >
               <Clapperboard className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Montage vidéo</span>
-              <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[8px] font-black text-slate-500">Prochainement</span>
             </button>
 
             {/* Pricing Tab */}

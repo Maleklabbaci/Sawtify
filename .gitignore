@@ -1,0 +1,14 @@
+# Dépendances et artefacts de build
+node_modules/
+dist/
+
+# Environnement
+.env
+.env.*
+
+# Stockage local des rushs / montages vidéo (purge côté serveur)
+storage/
+
+# Divers
+*.log
+.DS_Store
