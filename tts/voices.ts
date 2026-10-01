@@ -1,135 +1,428 @@
-/**
- * ============================================================================
- *  SAWTIFY — CATALOGUE DES 30 VOIX STUDIO GEMINI 3.8 TTS
- * ============================================================================
- *  Source : documentation officielle Gemini 3.8 TTS (24/09/2026)
- *  → « Prebuilt voices » (30 voix) + « Extended Voice Library »
- *
- *  GENRE (homme/femme) — CONFIRMÉ le 26/09 sur les 30 voix
- *  Genre officiel Google (catalogue Gemini TTS, listes "Voix féminines" /
- *  "Voix masculines"). Avant cette date, les 21 voix ajoutées en 4.1
- *  portaient `gender: "unknown"`, ce qui les excluait silencieusement des
- *  filtres Homme/Femme du studio. Ne plus repasser une voix à "unknown".
- * ============================================================================
- */
+import { Voice, CreditPack } from '../types';
 
-export type VoiceGender = "male" | "female" | "unknown";
+export type LanguageCode = 'fr' | 'ar';
 
-export type StudioVoice = {
-  /** Nom exact attendu par l'API Google. */
-  id: string;
-  /** Descripteur officiel Google (un mot). */
-  character: string;
-  /** Traduction française du descripteur. */
-  characterFr: string;
-  /** Traduction arabe du descripteur. */
-  characterAr: string;
-  gender: VoiceGender;
-  /** Utilisée par Sawtify avant le passage à 3.8 (compatibilité des anciens IDs). */
-  legacyFor?: string[];
-};
+import { VOICES_V41, VOICES_V41_AR } from './voicesV41';
 
-/**
- * Les 30 voix studio officielles, dans l'ordre du tableau Google.
- * `character` = traduction littérale du descripteur officiel.
- */
-export const STUDIO_VOICES: StudioVoice[] = [
-  // ── Les 9 voix DÉJÀ en production chez Sawtify (genre vérifié) ────────────
-  { id: "Puck",     character: "Upbeat",        characterFr: "Enjoué",          characterAr: "مرح",      gender: "male",   legacyFor: ["voice_amin", "voice_dz_amine", "voice_ar_sofiane"] },
-  { id: "Charon",   character: "Informative",   characterFr: "Informatif",      characterAr: "معلوماتي", gender: "male",   legacyFor: ["voice_khalid"] },
-  { id: "Fenrir",   character: "Excitable",     characterFr: "Excitant",        characterAr: "متحمس",    gender: "male",   legacyFor: ["voice_rashid", "voice_dz_rachid"] },
-  { id: "Algenib",  character: "Gravelly",      characterFr: "Grave / rocailleux", characterAr: "أجش",   gender: "male",   legacyFor: ["voice_bilal"] },
-  { id: "Orus",     character: "Firm",          characterFr: "Ferme",           characterAr: "حازم",     gender: "male",   legacyFor: ["voice_faycal"] },
-  { id: "Zephyr",   character: "Bright",        characterFr: "Éclatant",        characterAr: "مشرق",     gender: "female", legacyFor: ["voice_yasmin", "voice_dz_yasmine"] },
-  { id: "Sulafat",  character: "Warm",          characterFr: "Chaleureux",      characterAr: "دافئ",     gender: "female", legacyFor: ["voice_maryam", "voice_fr_ines"] },
-  { id: "Leda",     character: "Youthful",      characterFr: "Juvénile",        characterAr: "شبابي",    gender: "female", legacyFor: ["voice_layla", "voice_en_lina"] },
-  { id: "Achernar", character: "Soft",          characterFr: "Doux",            characterAr: "ناعم",     gender: "female", legacyFor: ["voice_nour"] },
+export const VOICES_FR: Voice[] = [
+  {
+    id: 'voice_amin',
+    geminiVoice: 'Puck',
+    name: 'Amine',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix masculine naturelle et jeune',
+    gender: 'male',
+    icon: 'mic',
+    category: 'commercial',
+    sampleText: 'Salam alaykoum khawti ! Avec Sawtify, vos textes deviennent une voix humaine 100% naturelle et de haute qualité.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3',
+    badge: 'Le plus populaire',
+    styles: ['Naturel', 'Dynamique', 'Publicitaire']
+  },
+  {
+    id: 'voice_yasmin',
+    geminiVoice: 'Zephyr',
+    name: 'Yasmine',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix féminine chaleureuse et souriante',
+    gender: 'female',
+    icon: 'sparkles',
+    category: 'commercial',
+    sampleText: 'Bienvenue à tous ! Découvrez la synthèse vocale IA algérienne au son chaleureux et d\'une clarté parfaite.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3',
+    badge: 'Publicité & Commerce',
+    styles: ['Fluide', 'Souriante', 'Marketing']
+  },
+  {
+    id: 'voice_khalid',
+    geminiVoice: 'Charon',
+    name: 'Khalid',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix masculine posée et solennelle',
+    gender: 'male',
+    icon: 'radio',
+    category: 'formal',
+    sampleText: 'Nous vous présentons aujourd\'hui une technologie vocale d\'élite, avec une articulation précise et équilibrée.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav',
+    badge: 'Documentaire & Formel',
+    styles: ['Solennel', 'Documentaire', 'Journalistique']
+  },
+  {
+    id: 'voice_maryam',
+    geminiVoice: 'Sulafat',
+    name: 'Maryam',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix féminine douce et élégante',
+    gender: 'female',
+    icon: 'podcast',
+    category: 'narrative',
+    sampleText: 'Écoutez une diction fluide et harmonieuse, apportant une touche d\'élégance à tous vos podcasts et vidéos.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248186/Maryam.wav',
+    badge: 'Podcast & Documentaire',
+    styles: ['Professionnel', 'Apaisant', 'Pédagogique']
+  },
+  {
+    id: 'voice_rashid',
+    geminiVoice: 'Fenrir',
+    name: 'Rachid',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix masculine puissante et percutante',
+    gender: 'male',
+    icon: 'flame',
+    category: 'commercial',
+    sampleText: 'Bienvenue à tous ! Une expérience sonore algérienne dynamique et percutante, idéale pour vos spots publicitaires.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248190/rachide.wav',
+    badge: 'Énergique & Publicité',
+    styles: ['Puissant', 'Expressif', 'Récit']
+  },
+  {
+    id: 'voice_layla',
+    geminiVoice: 'Leda',
+    name: 'Layla',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix féminine moderne et rythmée',
+    gender: 'female',
+    icon: 'zap',
+    category: 'social',
+    sampleText: 'Bonjour à tous ! Une voix dynamique, fraîche et rapide, parfaite pour vos stories Instagram et vidéos TikTok.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248175/layla.mp3',
+    badge: 'TikTok & Réseaux',
+    styles: ['Dynamique', 'Interactif', 'Lumineux']
+  },
+  {
+    id: 'voice_bilal',
+    geminiVoice: 'Algenib',
+    name: 'Bilal',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix masculine profonde et narrative',
+    gender: 'male',
+    icon: 'audio-lines',
+    category: 'narrative',
+    sampleText: 'Avec Sawtify, le rendu vocal est si naturel qu\'on croirait un présentateur en studio d\'enregistrement.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248188/bilel.mp3',
+    badge: 'Narration & Récit',
+    styles: ['Chaleureux', 'Authentique', 'Narratif']
+  },
+  {
+    id: 'voice_nour',
+    geminiVoice: 'Achernar',
+    name: 'Nour',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix féminine douce et limpide',
+    gender: 'female',
+    icon: 'volume-2',
+    category: 'social',
+    sampleText: 'Profitez d\'une élocution limpide et agréable pour tous les auditeurs, avec une intonation douce et fluide.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248191/nour.mp3',
+    badge: 'Doux & Fluide',
+    styles: ['Doux', 'Harmonieux', 'Interactif']
+  },
+  {
+    id: 'voice_faycal',
+    geminiVoice: 'Orus',
+    name: 'Fayçal',
+    locale: 'ar-DZ',
+    dialect: 'Darja algérienne • Voix masculine affirmée et directe',
+    gender: 'male',
+    icon: 'megaphone',
+    category: 'commercial',
+    sampleText: 'Vous recherchez une voix-off professionnelle pour votre entreprise ou vos produits ? Vous êtes au bon endroit.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248187/faycel.mp3',
+    badge: 'Commerce & Vente',
+    styles: ['Assuré', 'Commercial', 'Direct']
+  },
 
-  // ── Les 21 autres voix studio (genre à auditer) ──────────────────────────
-  { id: "Kore",            character: "Firm",          characterFr: "Ferme",              characterAr: "حازم",          gender: "female" },
-  { id: "Aoede",           character: "Breezy",        characterFr: "Léger / aérien",     characterAr: "خفيف",          gender: "female" },
-  { id: "Callirrhoe",      character: "Easy-going",    characterFr: "Décontracté",        characterAr: "مرتاح",         gender: "female" },
-  { id: "Autonoe",         character: "Bright",        characterFr: "Éclatant",           characterAr: "مشرق",          gender: "female" },
-  { id: "Enceladus",       character: "Breathy",       characterFr: "Soufflé / aéré",     characterAr: "متنفس",         gender: "male" },
-  { id: "Iapetus",         character: "Clear",         characterFr: "Clair",              characterAr: "واضح",          gender: "male" },
-  { id: "Umbriel",         character: "Easy-going",    characterFr: "Décontracté",        characterAr: "مرتاح",         gender: "male" },
-  { id: "Algieba",         character: "Smooth",        characterFr: "Lisse",              characterAr: "سلس",           gender: "male" },
-  { id: "Despina",         character: "Smooth",        characterFr: "Lisse",              characterAr: "سلس",           gender: "female" },
-  { id: "Erinome",         character: "Clear",         characterFr: "Clair",              characterAr: "واضح",          gender: "female" },
-  { id: "Rasalgethi",      character: "Informative",   characterFr: "Informatif",         characterAr: "معلوماتي",      gender: "male" },
-  { id: "Laomedeia",       character: "Upbeat",        characterFr: "Enjoué",             characterAr: "مرح",           gender: "female" },
-  { id: "Alnilam",         character: "Firm",          characterFr: "Ferme",              characterAr: "حازم",          gender: "male" },
-  { id: "Schedar",         character: "Even",          characterFr: "Égal / posé",        characterAr: "متوازن",        gender: "male" },
-  { id: "Gacrux",          character: "Mature",        characterFr: "Mûr",                characterAr: "ناضج",          gender: "female" },
-  { id: "Pulcherrima",     character: "Forward",       characterFr: "Direct / assuré",    characterAr: "مباشر",         gender: "male" },
-  { id: "Achird",          character: "Friendly",      characterFr: "Amical",             characterAr: "ودود",          gender: "male" },
-  { id: "Zubenelgenubi",   character: "Casual",        characterFr: "Décontracté",        characterAr: "عفوي",          gender: "male" },
-  { id: "Vindemiatrix",    character: "Gentle",        characterFr: "Doux / délicat",     characterAr: "لطيف",          gender: "female" },
-  { id: "Sadachbia",       character: "Lively",        characterFr: "Vivant",             characterAr: "حيوي",          gender: "male" },
-  { id: "Sadaltager",      character: "Knowledgeable", characterFr: "Savant / érudit",    characterAr: "مثقف",          gender: "male" },
+  // Sawtify 4.1 — les 21 nouvelles voix (voir voicesV41.ts).
+  ...VOICES_V41,
+
 ];
 
-/** Index rapide par ID (insensible à la casse). */
-export const STUDIO_VOICE_INDEX = new Map<string, StudioVoice>(
-  STUDIO_VOICES.map((v) => [v.id.toLowerCase(), v])
-);
+export const VOICES_AR: Voice[] = [
+  {
+    id: 'voice_amin',
+    geminiVoice: 'Puck',
+    name: 'أمين',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت رجالي طبيعي وشبابي',
+    gender: 'male',
+    icon: 'mic',
+    category: 'commercial',
+    sampleText: 'سلام عليكم خاوتي، واش راكم لاباس؟ مع منصة صوتيفي تقدر تحول نصوصك لصوت بشري طبيعي مئة بالمئة بلا أي نبرة آلية وبأعلى جودة.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139928/AMINE.mp3',
+    badge: 'الأكثر طلباً',
+    styles: ['طبيعي', 'حيوي', 'إعلاني']
+  },
+  {
+    id: 'voice_yasmin',
+    geminiVoice: 'Zephyr',
+    name: 'ياسمين',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت نسائي دافئ ومبتسم',
+    gender: 'female',
+    icon: 'sparkles',
+    category: 'commercial',
+    sampleText: 'مرحبا بيكم كاملين! هادي أحسن منصة جزائرية بالذكاء الاصطناعي الصوتي، بنطق دقيق، صوت دافئ وبلا أي روبوتيك.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139890/YASMINE.mp3',
+    badge: 'إعلانات وتجارة',
+    styles: ['انسيابي', 'مبتسم', 'تسويقي']
+  },
+  {
+    id: 'voice_khalid',
+    geminiVoice: 'Charon',
+    name: 'خالد',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت رجالي وقور ورزين',
+    gender: 'male',
+    icon: 'radio',
+    category: 'formal',
+    sampleText: 'السلام عليكم ورحمة الله، نقدّم ليكم اليوم أحدث تقنية في الصوت الرقمي، بصوت موزون ونقي ومخارج حروف واضحة ومتقنة.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789139847/KHALED.wav',
+    badge: 'وثائقي ورسمي',
+    styles: ['وقور', 'وثائقي', 'إخباري']
+  },
+  {
+    id: 'voice_maryam',
+    geminiVoice: 'Sulafat',
+    name: 'مريم',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت نسائي هادئ وأنيق',
+    gender: 'female',
+    icon: 'podcast',
+    category: 'narrative',
+    sampleText: 'سلام، استمعوا لنطق دارجة جزائرية نقية وسلسة، تزيد لمسة احترافية وهادئة لكل الفيديوهات والبودكاست ديالكم.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248186/Maryam.wav',
+    badge: 'بودكاست ورواية',
+    styles: ['احترافي', 'هادئ', 'تعليمي']
+  },
+  {
+    id: 'voice_rashid',
+    geminiVoice: 'Fenrir',
+    name: 'رشيد',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت رجالي قوي وحماسي',
+    gender: 'male',
+    icon: 'flame',
+    category: 'commercial',
+    sampleText: 'يا هلا بيكم خاوتنا العزاز! هاذي تجربة صوتية جزائرية قوية وصافية، هايلة للسبوتات الإشهارية والحكايات المشوقة.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248190/rachide.wav',
+    badge: 'حماسي وإشهاري',
+    styles: ['قوي', 'معبر', 'قصصي']
+  },
+  {
+    id: 'voice_layla',
+    geminiVoice: 'Leda',
+    name: 'ليلى',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت نسائي عصري ومشرق',
+    gender: 'female',
+    icon: 'zap',
+    category: 'social',
+    sampleText: 'أهلاً وسهلاً بيكم! صوت حيوي، خفيف على الودن وسريع، يوالم ستوريات إنستغرام، تيك توك وخدمة الزبائن.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248175/layla.mp3',
+    badge: 'تيك توك وريلز',
+    styles: ['حيوي', 'تفاعلي', 'مشرق']
+  },
+  {
+    id: 'voice_bilal',
+    geminiVoice: 'Algenib',
+    name: 'بلال',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت رجالي دافئ وعميق',
+    gender: 'male',
+    icon: 'audio-lines',
+    category: 'narrative',
+    sampleText: 'صحا خاوتي، مع صوتيفي ما تزيدش تشقى تسجل، الصوت يخرج طبيعي وسلس كأنو متحدث جزائري حقيقي معاك في الستوديو.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248188/bilel.mp3',
+    badge: 'سردي وقصصي',
+    styles: ['دافئ', 'طبيعي', 'سردي']
+  },
+  {
+    id: 'voice_nour',
+    geminiVoice: 'Achernar',
+    name: 'نور',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت نسائي ناعم وواضح',
+    gender: 'female',
+    icon: 'volume-2',
+    category: 'social',
+    sampleText: 'مرحباً بيكم، تمتعوا بنطق دارجة واضحة ومفهومة عند كامل الجزائريين، بنبرة خفيفة ومريحة تسمعها بلا ما تعيا.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248191/nour.mp3',
+    badge: 'لطيف ومرن',
+    styles: ['لطيف', 'ناعم', 'تفاعلي']
+  },
+  {
+    id: 'voice_faycal',
+    geminiVoice: 'Orus',
+    name: 'فيصل',
+    locale: 'ar-DZ',
+    dialect: 'دارجة جزائرية • صوت رجالي واثق ومباشر',
+    gender: 'male',
+    icon: 'megaphone',
+    category: 'commercial',
+    sampleText: 'واش راكم خاوتي؟ إلى راك تحوس على فويس أوفر دارجة جزائرية احترافية للمشروع ولا السلعة ديالك، راك في المكان الصحيح.',
+    sampleAudioUrl: 'https://res.cloudinary.com/gz65ybug/video/upload/v1789248187/faycel.mp3',
+    badge: 'تجارة وتسويق',
+    styles: ['واثق', 'تجاري', 'مباشر']
+  },
 
-/** Retrouve une voix studio par son nom, quelle que soit la casse. */
-export function findStudioVoice(name: string): StudioVoice | null {
-  return STUDIO_VOICE_INDEX.get(String(name || "").toLowerCase()) ?? null;
+  // Sawtify 4.1 — les 21 nouvelles voix (voir voicesV41.ts).
+  ...VOICES_V41_AR,
+
+];
+
+export const CREDIT_PACKS_FR: CreditPack[] = [
+  {
+    id: 'pack_starter',
+    name: '100 Points',
+    points: 100,
+    priceDZD: 500,
+    tagline: 'Idéal pour tester et créer 5 voix-off haute définition.',
+  },
+  {
+    id: 'pack_pro',
+    name: '220 Points',
+    points: 220,
+    priceDZD: 1000,
+    bonusPercent: 10,
+    isPopular: true,
+    tagline: 'Le plus populaire en Algérie. +20 points offerts (11 générations complètes).',
+  },
+  {
+    id: 'pack_studio',
+    name: '600 Points',
+    points: 600,
+    priceDZD: 2500,
+    bonusPercent: 20,
+    tagline: 'Pour les créateurs réguliers et agences. +100 points offerts.',
+  },
+  {
+    id: 'pack_business',
+    name: '1 350 Points',
+    points: 1350,
+    priceDZD: 5000,
+    bonusPercent: 35,
+    tagline: 'Volume étendu, support dédié et accès prioritaire aux modèles.',
+  }
+];
+
+export const CREDIT_PACKS_AR: CreditPack[] = [
+  {
+    id: 'pack_starter',
+    name: '100 نقطة',
+    points: 100,
+    priceDZD: 500,
+    tagline: 'مثالية للتجربة وإنشاء 5 تسجيلات صوتية عالية الدقة.',
+  },
+  {
+    id: 'pack_pro',
+    name: '220 نقطة',
+    points: 220,
+    priceDZD: 1000,
+    bonusPercent: 10,
+    isPopular: true,
+    tagline: 'الأكثر طلباً في الجزائر. +20 نقطة مهداة (11 تسجيلاً كاملاً).',
+  },
+  {
+    id: 'pack_studio',
+    name: '600 نقطة',
+    points: 600,
+    priceDZD: 2500,
+    bonusPercent: 20,
+    tagline: 'للوكالات وصناع المحتوى المنتظمين. +100 نقطة مهداة.',
+  },
+  {
+    id: 'pack_business',
+    name: '1350 نقطة',
+    points: 1350,
+    priceDZD: 5000,
+    bonusPercent: 35,
+    tagline: 'رصيد ضخم، دعم مخصص وأولوية الوصول لأحدث النماذج الصوتية.',
+  }
+];
+
+export const STYLE_TAGS_FR = [
+  { tag: '[natural]', label: 'Voix 100% Naturelle', desc: 'Zéro ton robotique, intonation humaine et vivante' },
+  { tag: '[articulated]', label: 'Diction Parfaite', desc: 'Articulation nette et précise de chaque consonne' },
+  { tag: '[excited]', label: 'Énergique / Enthousiaste', desc: 'Idéal pour promotions et e-commerce' },
+  { tag: '[calm]', label: 'Calme & Posé', desc: 'Méditation, e-learning ou tutoriel' },
+  { tag: '[dramatic]', label: 'Dramatique & Captivant', desc: 'Cinéma, storytelling et documentaires' },
+  { tag: '[fast]', label: 'Rythme Rapide', desc: 'Spot radio et formats courts 15s' },
+];
+
+export const STYLE_TAGS_AR = [
+  { tag: '[natural]', label: 'صوت بشري طبيعي 100%', desc: 'بلا أي نبرة آلية، نطق حي وطبيعي' },
+  { tag: '[articulated]', label: 'مخارج حروف متقنة', desc: 'نطق واضح وصافي لكامل الحروف ومخارجها' },
+  { tag: '[excited]', label: 'حماسي ونشيط', desc: 'مثالي للإعلانات والعروض الترويجية' },
+  { tag: '[calm]', label: 'هادئ ورزين', desc: 'مناسب للشروحات والكتب الصوتية' },
+  { tag: '[dramatic]', label: 'درامي ومؤثر', desc: 'للسرد القصصي والأفلام الوثائقية' },
+  { tag: '[fast]', label: 'إيقاع سريع', desc: 'للإعلانات القصيرة وسبوتات الراديو' },
+];
+
+export const SAMPLE_PROMPTS_FR = [
+  {
+    title: 'Spot Publicitaire Voix-Off',
+    text: '[natural] [articulated] Bonjour à tous ! Avec la plateforme Sawtify, transformez vos textes en une voix humaine fluide, vivante et d\'une clarté studio absolue, sans aucune sonorité robotique.'
+  },
+  {
+    title: 'Annonce E-commerce & Livraison 58 Wilayas',
+    text: '[excited] [articulated] Ne manquez pas cette opportunité exclusive ! <short pause> Livraison express disponible dans les 58 wilayas jusqu\'à votre porte avec paiement sécurisé à la réception. Commandez dès maintenant !'
+  },
+  {
+    title: 'Podcast & Narration Storytelling',
+    text: '[natural] [articulated] Bienvenue dans cet épisode dédié à l\'innovation sonore. Nous explorons aujourd\'hui les nouvelles frontières de la voix avec une articulation soignée et chaleureuse.'
+  },
+  {
+    title: 'Standard Téléphonique & Répondeur IVR',
+    text: '[natural] [articulated] Bienvenue sur notre standard d\'accueil. <short pause> Pour le service commercial, appuyez sur 1. Pour l\'assistance technique, appuyez sur 2. Merci de votre fidélité.'
+  },
+  {
+    title: 'Story Réseaux Sociaux & Vidéo Courte',
+    text: '[excited] Salut l\'équipe ! Découvrez sans attendre notre nouvelle sélection avec des finitions haut de gamme au meilleur tarif. Rendez-vous sur le lien en description !'
+  }
+];
+
+export const SAMPLE_PROMPTS_AR = [
+  {
+    title: 'سبوت إشهاري بالدارجة الجزائرية',
+    text: '[natural] [articulated] سلام عليكم خاوتي! مع منصة صوتيفي، كل كلمة تخرج بنطق دارجة نقي ومفهوم مئة بالمئة، صوت دافئ وبلا أي تصنع أو روبوتيك.'
+  },
+  {
+    title: 'إعلان إيكوميرس وتوصيل 58 ولاية',
+    text: '[excited] [articulated] هاد البروموسيون ما تتعاودش خاوتنا! <short pause> التوصيل متوفر لـ 58 ولاية حتى لباب الدار والدفع عند الاستلام. اطلب درك وما تترددش!'
+  },
+  {
+    title: 'بودكاست ومحتوى يوتيوب بالدارجة',
+    text: '[natural] [articulated] مرحبا بيكم في هاد الحلقة الجديدة. اليوم راح نحكيو على موضوع يهم كامل الجزائريين، بنبرة عفوية وقريبة من القلب.'
+  },
+  {
+    title: 'خدمة الزبائن والموزع الصوتي (IVR)',
+    text: '[natural] [articulated] مرحباً بكم في خدمة الزبائن. <short pause> للتواصل باللغة العربية والدارجة اضغط على الرقم واحد. Pour le français, tapez deux. شكراً لثقتكم بنا.'
+  },
+  {
+    title: 'ستوري ريلز وتيك توك شبابي',
+    text: '[excited] واش راكم ليكيب؟ شوفو هاد الهاتف الجديد واش فيه مواصفات خيالية وسومة ولا في الأحلام، شوفو الرابط في البايو!'
+  }
+];
+
+// Helper functions for dynamic language support
+export function getVoices(lang: LanguageCode = 'fr'): Voice[] {
+  return lang === 'ar' ? VOICES_AR : VOICES_FR;
 }
 
-/**
- * Voix FEMININES connues sur les 30 (d'après l'usage historique Sawtify).
- * ⚠️ Non exhaustif : sert uniquement d'indice, pas de vérité officielle.
- */
-export const KNOWN_FEMALE_VOICES = new Set(
-  STUDIO_VOICES.filter((v) => v.gender === "female").map((v) => v.id)
-);
+export function getCreditPacks(lang: LanguageCode = 'fr'): CreditPack[] {
+  return lang === 'ar' ? CREDIT_PACKS_AR : CREDIT_PACKS_FR;
+}
 
-/**
- * Migration des anciens identifiants Sawtify (voice_amin, voice_yasmin…)
- * vers les voix studio 3.8. Utilisé pour ne perdre AUCUN utilisateur existant
- * (l'historique, les favoris, les clés API pointent sur ces IDs).
- */
-export const LEGACY_VOICE_MIGRATION: Record<string, string> = (() => {
-  const m: Record<string, string> = {};
-  for (const v of STUDIO_VOICES) {
-    for (const legacy of v.legacyFor || []) m[legacy] = v.id;
-  }
-  // Pass-through technique : si un client envoie déjà un nom de voix officiel.
-  for (const v of STUDIO_VOICES) m[v.id] = v.id;
-  return m;
-})();
+export function getStyleTags(lang: LanguageCode = 'fr') {
+  return lang === 'ar' ? STYLE_TAGS_AR : STYLE_TAGS_FR;
+}
 
-/**
- * Descripteurs de caractère officiels → texte de style exploitable.
- * Sert à générer un `speech_metadata.style` de départ cohérent avec la voix,
- * SANS jamais mettre le nom, l'âge ou le genre dans le style
- * (la doc l'interdit explicitement : « Do not try to change immutable
- * speaker traits in style »).
- */
-export const CHARACTER_STYLE_HINT: Record<string, string> = {
-  Upbeat: "energetic and upbeat",
-  Informative: "clear and informative",
-  Excitable: "excited and high-energy",
-  Gravelly: "low, gravelly and warm",
-  Firm: "confident and firm",
-  Bright: "bright and cheerful",
-  Warm: "warm and friendly",
-  Youthful: "young and playful",
-  Soft: "soft and gentle",
-  Breezy: "light and breezy",
-  "Easy-going": "relaxed and easy-going",
-  Breathy: "soft and breathy",
-  Clear: "clear and articulate",
-  Smooth: "smooth and flowing",
-  Even: "steady and even",
-  Mature: "mature and assured",
-  Forward: "direct and assertive",
-  Friendly: "friendly and approachable",
-  Casual: "casual and laid-back",
-  Gentle: "gentle and delicate",
-  Lively: "lively and animated",
-  Knowledgeable: "knowledgeable and authoritative",
-};
+export function getSamplePrompts(lang: LanguageCode = 'fr') {
+  return lang === 'ar' ? SAMPLE_PROMPTS_AR : SAMPLE_PROMPTS_FR;
+}
+
+// Fallback exports for backward compatibility
+export const VOICES = VOICES_FR;
+export const CREDIT_PACKS = CREDIT_PACKS_FR;
+export const STYLE_TAGS = STYLE_TAGS_FR;
+export const SAMPLE_PROMPTS = SAMPLE_PROMPTS_FR;
