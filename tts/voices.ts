@@ -2,7 +2,7 @@ import { Voice, CreditPack } from '../types';
 
 export type LanguageCode = 'fr' | 'ar';
 
-import { VOICES_V41, VOICES_V41_AR } from './voicesV41';
+import { VOICES_V41, VOICES_V41_AR } from './voicesV41.ts';
 
 export const VOICES_FR: Voice[] = [
   {
