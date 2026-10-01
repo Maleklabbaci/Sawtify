@@ -766,6 +766,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const confirmStartTone = (tone: 'calm' | 'natural' | 'excited') => { startToneRef.current = tone; setTtsStep('register'); };
   const confirmRegisterAndIntensity = () => { registerRef.current = pendingRegister; intensityRef.current = pendingIntensity; setShowStartToneModal(false); handleGenerate(); };
 
+  const SCRIPT_DESCRIPTION_MAX = 200; // aligné sur server.ts (product.length > 200)
+
   const handleEnhanceText = async () => {
     if (!text.trim() || isEnhancing || enhanceRequestLockRef.current) return;
     if (balance < 2) { setInsufficientAlert(true); return; }
@@ -787,6 +789,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const handleGenerateScript = async () => {
     const description = text.trim();
     if (!description || isGeneratingScript || scriptRequestLockRef.current) return;
+    if (description.length > SCRIPT_DESCRIPTION_MAX) {
+      showNotif(language === 'ar'
+        ? `الوصف طويل جدًا (${description.length}/${SCRIPT_DESCRIPTION_MAX} حرف) — اختصره`
+        : `Description trop longue (${description.length}/${SCRIPT_DESCRIPTION_MAX} caractères) — raccourcissez-la`);
+      return;
+    }
     if (balance < 5) { setInsufficientAlert(true); return; }
     scriptRequestLockRef.current = true; setInsufficientAlert(false); setIsGeneratingScript(true); setFeedbackSent(false); setFeedbackGiven(null); setOpenPop(null);
     try {
@@ -799,6 +807,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     } catch (e: any) {
       if (e?.message?.includes('insuffisant')) setInsufficientAlert(true);
       else if (e?.message?.includes('quotidienne')) showNotif(language === 'ar' ? 'لقد بلغت حدك اليومي' : 'Limite quotidienne');
+      else if (e?.message?.includes('trop long')) showNotif(language === 'ar' ? `الوصف طويل جدًا (الحد الأقصى ${SCRIPT_DESCRIPTION_MAX} حرف)` : `Description trop longue (maximum ${SCRIPT_DESCRIPTION_MAX} caractères)`);
       else showNotif(language === 'ar' ? 'خطأ في إنشاء السيناريو' : 'Erreur script');
     } finally { setIsGeneratingScript(false); scriptRequestLockRef.current = false; }
   };
@@ -1056,6 +1065,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 style={{ unicodeBidi: 'plaintext' }} dir="auto"
               />
 
+              {composerMode === 'script' && (
+                <div className={`text-[11px] font-num px-1 mt-1 text-end ${text.length > SCRIPT_DESCRIPTION_MAX ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+                  {text.length}/{SCRIPT_DESCRIPTION_MAX}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-2">
                 {composerMode === 'voice' && (
                   <button onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
@@ -1064,7 +1079,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 )}
 
                 <button onClick={() => setComposerMode('voice')} className={`order-2 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}</button>
-                <button onClick={() => setComposerMode('script')} className={`order-3 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}</button>
+                <button onClick={() => setComposerMode('script')} className={`order-3 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}<span className="ms-1.5 font-num opacity-70 text-[10px] font-bold">{language === 'ar' ? '5 نقاط' : '5 pts'}</span></button>
                 <div className="hidden sm:block flex-1" />
                 <div className="order-5 basis-full h-0 sm:hidden" aria-hidden="true" />
 
@@ -1072,6 +1087,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                   <button onClick={handleEnhanceText} disabled={isEnhancing || !text.trim() || balance < 2} className="order-7 sm:order-none shrink-0 saw-flat h-9 rounded-full px-3 flex items-center gap-1.5 cursor-pointer disabled:opacity-40 text-slate-600" title={language === 'ar' ? 'تحسين النص (2 نقاط)' : 'Améliorer le texte (2 pts)'}>
                     {isEnhancing ? <RefreshCw className="w-4 h-4 animate-spin text-[#6d28d9]" /> : <Wand2 className="w-4 h-4 text-[#6d28d9]" />}
                     <span className="text-[11px] font-bold text-[#6d28d9]">{language === 'ar' ? 'المحسن' : 'Magique'}</span>
+                    <span className="text-[10px] font-bold font-num text-[#6d28d9] opacity-70">{language === 'ar' ? '2 نقاط' : '2 pts'}</span>
                   </button>
                 )}
 
