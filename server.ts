@@ -43,8 +43,8 @@ import {
   VERBATIM_INSTRUCTION,
 } from "./tts/engine";
 
-import { parseTranscript, VOCAL_TAGS } from "./tts/vocalTags";
-import { LEGACY_VOICE_MIGRATION } from "./tts/voices";
+import { parseTranscript, VOCAL_TAGS, normalizeTagKey } from "./tts/vocalTags";
+import { LEGACY_VOICE_MIGRATION, CHARACTER_STYLE_HINT, findStudioVoice } from "./tts/voices";
 import { resolveVoiceName, voiceNameStats, voiceNameEntry, VOICE_NAMES } from "./tts/voiceNames";
 import {
   AUDITION_SCRIPT,
@@ -1378,7 +1378,10 @@ async function synthesizeWithRetry(
   const pitchNote = pitch >= 1.1 ? "Slightly higher pitch, lively." : pitch <= 0.9 ? "Slightly lower pitch, grounded." : "";
   const emotionNote = buildEmotionPromptInstruction(emotionTags);
   // Version courte du persona, pour le champ `style` du 3.8 (voir VOICE_DELIVERY).
-  const character = VOICE_DELIVERY[originalVoiceId] || VOICE_DELIVERY_FALLBACK;
+  const officialCharacter = findStudioVoice(selectedVoiceName)?.character;
+  const character = VOICE_DELIVERY[originalVoiceId]
+    || (officialCharacter && CHARACTER_STYLE_HINT[officialCharacter] ? `${CHARACTER_STYLE_HINT[officialCharacter]}, natural` : "")
+    || VOICE_DELIVERY_FALLBACK;
 
   // ── Style pour le mode MODERN (3.8) ──────────────────────────────────────
   // En 3.8, le « comment dire » vit dans `speech_metadata.style` et doit
@@ -1822,8 +1825,83 @@ function validateLatinPreservation(original: string, enhanced: string): boolean 
   return preserved.length >= Math.floor(originalLatins.length * 0.7);
 }
 
+
+// ============================================================================
+//  EXPRESSION VOCALE (Gemini 3.8) — guide partagé « Script IA » + « Magique »
+// ----------------------------------------------------------------------------
+//  Quatre leviers, tous pris en charge par le moteur :
+//   A. TON            → UNE balise [excited]/[natural]/[calm]/[dramatic] au début
+//                        (le ton dure toute la lecture : speech_metadata.style)
+//   B. SONS HUMAINS   → <laugh>, <sigh>, <gasp>… entre deux phrases
+//   C. PONCTUATION    → "...", "--", "!", "?" (rythme et intonation)
+//   D. MAJUSCULES     → insistance sur 1 à 3 mots latins
+//  (Le 5e levier — le choix de la voix — est géré par VOICE_DELIVERY.)
+// ============================================================================
+const AI_SOUND_LIST = "<laugh>, <chuckle>, <giggle>, <cheer>, <gasp>, <sigh>, <breath>, <whispers>, <short pause>, <long pause>";
+
+const EXPRESSION_GUIDE = `🎭 EXPRESSION VOCALE — 4 outils, à utiliser avec parcimonie :
+A. TON : UNE SEULE balise de ton, tout au DÉBUT du texte, parmi [excited], [natural], [calm], [dramatic]. Le ton dure toute la lecture : JAMAIS une 2e balise de ton plus loin. Écris-la en anglais, alphabet latin, crochets carrés, JAMAIS traduite en arabe.
+B. SONS HUMAINS (chevrons, en anglais) : ${AI_SOUND_LIST}. Place-les ENTRE deux phrases, jamais au milieu d'un mot, et seulement quand le contexte les justifie (un <laugh> après une blague, un <gasp> sur une surprise, un <short pause> juste avant un prix ou un chiffre choc). N'invente JAMAIS d'autre balise ; aucun bruitage (applaudissements, musique, porte…).
+C. PONCTUATION : "..." = hésitation ou suspense, "--" = coupure franche, "!" = énergie, "?" = vraie question. Phrases courtes, rythme varié.
+D. MAJUSCULES = insistance : mets 1 à 3 mots-clés LATINS (français) en MAJUSCULES (ex : "livraison GRATUITE"). Jamais une phrase entière en majuscules. L'arabe n'a pas de majuscules : pour insister sur un mot arabe, utilise "!" ou "..." devant lui.`;
+
+const AI_TONE_WORDS = new Set(["excited", "natural", "calm", "dramatic", "serious"]);
+const AI_DELIVERY_WORDS = new Set(["articulated", "fast"]);
+const AI_ARABIC_TONE_MAP: Record<string, string> = {
+  "متحمس": "excited", "حماس": "excited", "طبيعي": "natural", "عادي": "natural",
+  "هادئ": "calm", "هادئة": "calm", "درامي": "dramatic",
+};
+/** Toutes les écritures de sons connues (anglais / français / arabe), normalisées. */
+const ACCEPTED_SOUND_KEYS: Set<string> = new Set(
+  VOCAL_TAGS.flatMap((t) => [t.tag, ...(t.aliases || []), ...(t.aliasesFr || []), ...(t.aliasesAr || [])])
+    .map((x) => normalizeTagKey(String(x).replace(/^<|>$/g, "")))
+);
+
+/**
+ * Nettoie un texte écrit par l'IA pour qu'il soit lu tel quel par le moteur :
+ *  • UN SEUL ton, placé au début (les suivants sont retirés — en 3.8 ils seraient ignorés) ;
+ *  • sons `<...>` : seules les balises du catalogue sont gardées (une balise inconnue serait lue à voix haute) ;
+ *  • au plus `maxSounds` sons ; espaces propres autour des balises.
+ * La ponctuation (..., --, !, ?) et les MAJUSCULES ne sont JAMAIS modifiées.
+ */
+function sanitizeAiExpressionText(raw: string, opts: { maxSounds?: number; defaultTone?: string } = {}): string {
+  const maxSounds = opts.maxSounds ?? 4;
+  let t = String(raw || "");
+
+  // 1) Sons humains <...> : on garde le catalogue, on retire le reste, on plafonne.
+  let sounds = 0;
+  t = t.replace(/<\s*([^<>\n]{1,40}?)\s*>/g, (_m, inner: string) => {
+    if (!ACCEPTED_SOUND_KEYS.has(normalizeTagKey(inner))) return " ";
+    sounds++;
+    return sounds <= maxSounds ? `<${inner.trim()}>` : " ";
+  });
+
+  // 2) Tons [..] : le premier ton gagne et passe en tête ; les autres sont retirés.
+  let tone: string | null = null;
+  const deliveries: string[] = [];
+  t = t.replace(/\[\s*([^\[\]\n]{1,30}?)\s*\]/g, (full, inner: string) => {
+    const key = AI_ARABIC_TONE_MAP[inner.trim()] || inner.trim().toLowerCase();
+    if (AI_TONE_WORDS.has(key)) { if (!tone) tone = key; return " "; }
+    if (AI_DELIVERY_WORDS.has(key)) { if (!deliveries.includes(key)) deliveries.push(key); return " "; }
+    return full; // ex. « [promo] » : mot à prononcer, on n'y touche pas
+  });
+  const head = [`[${tone || opts.defaultTone || "natural"}]`, ...deliveries.map((d) => `[${d}]`)].join(" ");
+
+  // 3) Espaces : jamais une balise collée à une lettre ; on ne touche pas à la ponctuation.
+  t = t
+    .replace(/([^\s<])(<[^<>\n]+>)/g, "$1 $2")
+    .replace(/(<[^<>\n]+>)([^\s.,!?؟،؛:…<])/g, "$1 $2")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
+  return `${head} ${t}`.trim();
+}
+
 function countEmotionTags(text: string): number {
-  return (text.match(/\[(excited|natural|calm)\]/gi) || []).length;
+  // ton(s) [..] + sons humains <..> reconnus
+  const tones = (text.match(/\[(excited|natural|calm|dramatic|serious)\]/gi) || []).length;
+  const sounds = (text.match(/<[^<>\n]{1,40}>/g) || []).filter((m) => ACCEPTED_SOUND_KEYS.has(normalizeTagKey(m.slice(1, -1)))).length;
+  return tones + sounds;
 }
 
 function runVideoFfmpeg(args: string[]) {
@@ -2714,13 +2792,10 @@ RÈGLES STRICTES :
 - Mots FR/techniques TOUJOURS en alphabet LATIN : livraison, WhatsApp, Instagram, Facebook, marketing digital, B2B, leads, closing, clients, service, formation, promotion, chiffre d'affaires, rendez-vous, réservation, etc.
 - JAMAIS de translittération arabe de ces mots ("لا ليفريزون" INTERDIT).
 
-2. BALISES D'ÉMOTION (LIMITÉES) :
-- Utilise UNIQUEMENT ces 3 balises, jamais d'autres : [excited], [natural], [calm].
-- Maximum 2 balises différentes dans tout le script (pas une par phrase).
-- Si le client ne demande aucun ton particulier, reste simple : UNE SEULE balise [natural] au tout début, rien d'autre.
-- JAMAIS deux balises collées ([excited][natural] INTERDIT).
-- JAMAIS de balise inventée ([whisper], [fast], [sigh], [laugh], etc. INTERDITS — non supportées par le moteur vocal).
-- ⚠️ CRITIQUE : les balises restent TOUJOURS exactement en anglais et en alphabet latin, MÊME quand le texte autour est en arabe/darija. INTERDIT de les traduire ou translittérer en arabe (ex: "[متحمس]", "[هادئ]" INTERDITS). Écris littéralement "[excited]", "[natural]" ou "[calm]", crochets inclus, sans aucune modification.
+2. EXPRESSION VOCALE :
+${EXPRESSION_GUIDE}
+- Si le client ne demande aucun ton particulier, reste simple : [natural] au début, 1 son humain au plus, 1 à 2 mots en MAJUSCULES.
+- Les balises restent EXACTEMENT comme ci-dessus (anglais, alphabet latin), même dans un texte arabe/darija.
 
 3. LONGUEUR DES SCRIPTS :
 - Par défaut (si le client ne précise rien) : 30 à 40 secondes, environ 90 à 120 mots.
@@ -2756,7 +2831,8 @@ RÈGLES STRICTES :
       const energyLevel = analyzeEnergyLevel(text);
       const originalLatinWords = extractLatinWords(text);
       const wordCount = text.split(/\s+/).length;
-      const expectedMinTags = Math.min(8, Math.max(2, Math.floor(wordCount / 25)));
+      const soundBudget = Math.min(3, Math.max(1, Math.floor(wordCount / 40)));
+      const userSounds = (text.match(/<[^<>\n]{1,40}>/g) || []).length;
       const randomBooster = ENHANCE_BOOSTERS[Math.floor(Math.random() * ENHANCE_BOOSTERS.length)];
 
       const buildEnhancePrompt = (isRetry: boolean = false) => `Tu es un DIRECTEUR ARTISTIQUE + rédacteur TTS ÉLITE spécialisé en Darija Algérienne pour vidéos courtes.
@@ -2771,12 +2847,15 @@ ${originalLatinWords.length > 0 ? `🔒 MOTS FRANÇAIS/TECHNIQUES À GARDER EN L
 🚨 RÈGLES ABSOLUES :
 1. NE COUPE RIEN. Longueur cible : ${wordCount} à ${Math.floor(wordCount * 1.3)} mots.
 2. Garde TOUS les mots FR/techniques en ALPHABET LATIN.
-3. Ajoute AU MINIMUM ${expectedMinTags} balises d'émotion, UNIQUEMENT parmi : [excited], [natural], [calm]. La PREMIÈRE phrase DOIT commencer par une balise. JAMAIS deux balises collées. JAMAIS d'autre balise ([whisper], [fast], [dramatic]... INTERDITES — non supportées par le moteur vocal).
-4. ⚠️ CRITIQUE : les balises restent TOUJOURS en anglais et alphabet latin exact — "[excited]", "[natural]", "[calm]" — MÊME dans un texte en arabe/darija. INTERDIT de les traduire ou translittérer en arabe.
-5. Alterne phrases courtes et moyennes. Utilise "..." pour les pauses.
+3. Applique l'EXPRESSION VOCALE ci-dessous : UNE balise de ton au tout début, ${soundBudget} son(s) humain(s) au maximum (garde ceux déjà présents dans le texte original), de la ponctuation expressive et 1 à 3 mots-clés LATINS en MAJUSCULES.
+4. Garde les balises exactement comme demandé : anglais, alphabet latin, jamais traduites en arabe.
+5. Alterne phrases courtes et moyennes.
+
+${EXPRESSION_GUIDE}
+
 6. Renvoie UNIQUEMENT le texte final à vocaliser.
 
-${isRetry ? `⚠️ TENTATIVE #2 : Respecte STRICTEMENT : minimum ${expectedMinTags} balises, longueur minimale ${Math.floor(wordCount * 0.9)} mots.` : ""}
+${isRetry ? `⚠️ TENTATIVE #2 : Respecte STRICTEMENT : 1 balise de ton au début, longueur minimale ${Math.floor(wordCount * 0.9)} mots.` : ""}
 
 📝 TEXTE ORIGINAL :
 ${text}
@@ -2792,7 +2871,7 @@ Génère maintenant la version optimisée :`;
 
       const tagCount = countEmotionTags(enhancedText);
       const isTooShort = enhancedText.length < text.length * 0.6;
-      const missingTags = tagCount < expectedMinTags;
+      const missingTags = tagCount < 1;
       const latinPreserved = validateLatinPreservation(text, enhancedText);
       const startsWithTag = /^\[(excited|natural|calm)\]/i.test(enhancedText.trim());
 
@@ -2807,7 +2886,7 @@ Génère maintenant la version optimisée :`;
       });
 
       if (enhancedText.length < text.length * 0.4) enhancedText = /^\[/.test(text.trim()) ? text.trim() : `[natural] ${text.trim()}`;
-      if (!/^\[(excited|natural|calm)\]/i.test(enhancedText.trim())) enhancedText = `[natural] ${enhancedText}`;
+      enhancedText = sanitizeAiExpressionText(enhancedText, { maxSounds: Math.max(4, userSounds + soundBudget), defaultTone: "natural" });
 
       const reduction = await deductCredits(userId, pointsCost);
       if (!reduction.success) {
@@ -2897,7 +2976,8 @@ Style vocal souhaité : ${style || "excited"}`;
         const key = inner.trim();
         return ARABIC_TAG_MAP[key] ? `[${ARABIC_TAG_MAP[key]}]` : full;
       });
-      scriptText = scriptText.replace(/(\[[a-z]+\])\s*(\[[a-z]+\])/gi, "$1").replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Structure|Accroche|Problème|Solution|CTA)\s*:?/gi, "").trim();
+      scriptText = scriptText.replace(/\*+/g, "").replace(/^#+\s*.*$/gm, "").replace(/(TTS\s*Refinement|Refinement|Note|Remarque|Structure|Accroche|Problème|Solution|CTA)\s*:?/gi, "").trim();
+      scriptText = sanitizeAiExpressionText(scriptText, { maxSounds: 3, defaultTone: "natural" });
 
       const reduction = await deductCredits(userId, pointsCost);
       if (!reduction.success) {
