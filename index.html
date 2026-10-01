@@ -1,323 +1,345 @@
-<!doctype html>
-<html lang="fr" dir="ltr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+@import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@400;700&family=Almarai:wght@400;700&family=Anton&family=Archivo+Black&family=Barlow+Condensed:wght@400;700&family=Bebas+Neue&family=Cairo:wght@400;700&family=Changa:wght@400;700&family=El+Messiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;700&family=Inter:wght@400;700&family=Montserrat:wght@400;700&family=Noto+Kufi+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@400;700&family=Oswald:wght@400;700&family=Poppins:wght@400;700&family=Raleway:wght@400;700&family=Readex+Pro:wght@400;700&family=Sora:wght@400;700&family=Tajawal:wght@400;700&display=swap');
+@import "tailwindcss";
 
-    <title>Sawtify — Voix Off Darija Algérienne | Texte à Parole IA</title>
-    <meta name="description" content="Sawtify : voix IA darija algérienne. Texte en voix naturelle, paiement CIB & Edahabia. 30 voix IA, usage commercial. Essai gratuit." />
-    <meta name="keywords" content="voix IA darija, voix off darija, text to speech darija, synthèse vocale algérienne, voix off tiktok darija, voix off youtube darija, sawtify, tts darija, dardja algérienne, مولّد أصوات بالدارجة, تحويل النص إلى كلام بالدارجة, صوت دارجة جزائرية" />
+@layer base {
+  :root {
+    --font-sans-latin: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-sans-arabic: 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-num: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
 
-    <meta name="author" content="Sawtify" />
-    <meta name="publisher" content="Sawtify" />
-    <meta name="copyright" content="Sawtify" />
+  html[lang="fr"] {
+    font-family: var(--font-sans-latin);
+    font-feature-settings: "tnum" on, "cv02" on, "cv03" on, "cv04" on;
+  }
 
-    <meta name="geo.region" content="DZ" />
-    <meta name="geo.placename" content="Algeria" />
-    <meta name="geo.position" content="28.0339;1.6596" />
-    <meta name="ICBM" content="28.0339, 1.6596" />
-    <meta name="distribution" content="global" />
-    <meta name="rating" content="general" />
-    <meta name="revisit-after" content="7 days" />
+  html[lang="ar"] {
+    font-family: var(--font-sans-arabic);
+    font-feature-settings: "tnum" on;
+  }
 
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <meta name="bingbot" content="index, follow" />
+  /* Specific ultra-clean numerals styling */
+  .font-num {
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.02em;
+  }
 
-    <meta name="GPTBot" content="allow" />
-    <meta name="ChatGPT-User" content="allow" />
-    <meta name="OAI-SearchBot" content="allow" />
-    <meta name="ClaudeBot" content="allow" />
-    <meta name="Claude-Web" content="allow" />
-    <meta name="PerplexityBot" content="allow" />
-    <meta name="Google-Extended" content="allow" />
-    <meta name="Applebot-Extended" content="allow" />
-    <meta name="CCBot" content="allow" />
+  /* ✅ FIX MOBILE : empêche tout débordement horizontal (scroll latéral parasite)
+     causé par des éléments décoratifs positionnés en absolute/negative sur petit écran. */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
 
-    <link rel="canonical" href="https://sawtify.space/" />
+  #sawtify-landing {
+    overflow-x: clip;
+  }
 
-    <link rel="alternate" hreflang="fr" href="https://sawtify.space/" />
-    <link rel="alternate" hreflang="ar" href="https://sawtify.space/?lang=ar" />
-    <link rel="alternate" hreflang="en" href="https://sawtify.space/?lang=en" />
-    <link rel="alternate" hreflang="x-default" href="https://sawtify.space/" />
+  body {
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
 
-    <meta property="og:title" content="Sawtify — Voix Off Darija Algérienne" />
-    <meta property="og:description" content="Premier générateur de voix IA en darija algérienne. Texte en voix naturelle, paiement CIB & Edahabia. 30 voix IA, usage commercial." />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://sawtify.space/" />
-    <meta property="og:image" content="https://i.ibb.co/NdP5zKby/IMAGEog.jpg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Sawtify - Voix IA Darija Algérienne" />
-    <meta property="og:site_name" content="Sawtify" />
-    <meta property="og:locale" content="fr_FR" />
-    <meta property="og:locale:alternate" content="ar_DZ" />
-    <meta property="og:locale:alternate" content="en_US" />
+/* ✅ FIX MOBILE : les cartes/éléments qui utilisent .card-lift ne doivent pas
+   déclencher de hover "collé" sur tactile (l'effet restait actif après un tap). */
+@media (hover: none) {
+  .card-lift:hover,
+  .hov-ink:hover {
+    transform: none !important;
+  }
+}
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@sawtify_ai" />
-    <meta name="twitter:creator" content="@sawtify_ai" />
-    <meta name="twitter:title" content="Sawtify — Voix Off Darija Algérienne" />
-    <meta name="twitter:description" content="Texte en voix darija naturelle. Paiement CIB & Edahabia. 30 voix IA, usage commercial." />
-    <meta name="twitter:image" content="https://i.ibb.co/NdP5zKby/IMAGEog.jpg" />
-    <meta name="twitter:image:alt" content="Sawtify - Voix IA Darija" />
+/* Loader compact inspiré du loader fourni, adapté au bouton Générer. */
+.sawtify-button-loader {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+}
+.sawtify-button-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: transparent;
+  animation: sawtify-loader-rotate 1.6s linear infinite;
+  box-shadow: 0 3px 6px 0 #fff inset, 0 5px 8px 0 #ad5fff inset, 0 9px 12px 0 #471eec inset;
+}
+.sawtify-button-loader-letters {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  font-size: 7px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  color: white;
+}
+.sawtify-button-loader-letters span {
+  display: inline-block;
+  opacity: .55;
+  animation: sawtify-loader-letter 1.2s infinite;
+}
+.sawtify-button-loader-letters span:nth-child(2) { animation-delay: .12s; }
+.sawtify-button-loader-letters span:nth-child(3) { animation-delay: .24s; }
+@keyframes sawtify-loader-rotate { to { transform: rotate(360deg); } }
+@keyframes sawtify-loader-letter { 0%, 100% { opacity: .45; transform: translateY(0); } 30% { opacity: 1; transform: scale(1.2) translateY(-1px); } 55% { opacity: .7; transform: translateY(0); } }
 
-    <meta name="theme-color" content="#F8FAFC" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0F172A" />
-    <meta name="msapplication-TileColor" content="#8B5CF6" />
+/* Smooth directional transitions & micro-fades */
+.lang-fade-enter {
+  animation: langFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
-    <link rel="icon" type="image/jpeg" href="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" />
-    <link rel="apple-touch-icon" sizes="180x180" href="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" />
-    <link rel="shortcut icon" href="https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg" />
+@keyframes langFadeIn {
+  from {
+    opacity: 0.82;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
-    <link rel="manifest" href="/site.webmanifest" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Sawtify" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="application-name" content="Sawtify" />
+/* Hide scrollbars cleanly */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="dns-prefetch" href="https://i.ibb.co" />
-    <link rel="dns-prefetch" href="https://*.supabase.co" />
-    <!-- Les apercus audio des voix viennent de Cloudinary : ouvrir la
-         connexion (DNS + TLS) des maintenant fait demarrer le premier
-         apercu plus vite, sans rien telecharger. -->
-    <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
-    <link rel="preconnect" href="https://unpkg.com" crossorigin />
-    <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+/* ── Croissance (offre 1ère recharge, cashback, parrainage) ─────────────── */
+@keyframes growth-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes growth-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.45); }
+  50% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+}
+.growth-pop { animation: growth-pop 0.22s ease-out both; }
+.growth-glow { animation: growth-glow 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .growth-pop, .growth-glow { animation: none; }
+}
 
-    <!-- Fraunces retiree : aucune page ne l'utilise (police telechargee pour rien). -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet" />
+/* Secondary product pages share the TTS Studio's pale violet ambient canvas. */
+.saw-app-background {
+  background-color: #faf9ff;
+  background-image:
+    radial-gradient(ellipse at 0% 0%, rgba(221, 214, 254, .38), transparent 36rem),
+    radial-gradient(ellipse at 100% 15%, rgba(243, 232, 255, .48), transparent 34rem),
+    linear-gradient(180deg, #fbfaff 0%, #f8f7ff 100%);
+}
+.saw-secondary-page { position: relative; }
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "Sawtify",
-      "alternateName": "سوتيفاي",
-      "url": "https://sawtify.space",
-      "logo": {
-        "@type": "ImageObject",
-        "url": "https://i.ibb.co/nqShkPNP/68126702-75e5-4de6-9b53-e51800b05e4a.jpg",
-        "width": 512,
-        "height": 512
-      },
-      "description": "Premier générateur de voix IA spécialisé en darija algérienne",
-      "foundingDate": "2025",
-      "foundingLocation": {
-        "@type": "Place",
-        "name": "Algeria"
-      },
-      "sameAs": [
-        "https://www.instagram.com/sawtify.ai"
-      ],
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "contactType": "customer support",
-        "email": "support@sawtify.space",
-        "availableLanguage": ["Arabic", "French", "English"]
-      }
-    }
-    </script>
+/* ── Studio liquid glass (charte Sawtify : blanc + violet) ───────────────── */
+/* Panneaux verre : fond translucide flou, bord blanchi, reflet intérieur. */
+.saw-bg { background: #faf9ff; }
+.saw-aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.saw-blob { position: absolute; border-radius: 50%; filter: blur(90px); }
+.saw-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42));
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 18px 48px rgba(109, 40, 217, 0.12), 0 2px 8px rgba(139, 92, 246, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Sawtify",
-      "alternateName": "سوتيفاي",
-      "applicationCategory": "MultimediaApplication",
-      "operatingSystem": "Web browser",
-      "url": "https://sawtify.space",
-      "description": "Premier générateur de voix IA spécialisé en darija algérienne. Système de points avec paiement CIB & Edahabia.",
-      "inLanguage": ["ar", "fr", "en"],
-      "offers": {
-        "@type": "Offer",
-        "price": "0.5",
-        "priceCurrency": "DZD",
-        "priceSpecification": {
-          "@type": "UnitPriceSpecification",
-          "price": "0.5",
-          "priceCurrency": "DZD",
-          "unitText": "point"
-        },
-        "availability": "https://schema.org/InStock"
-      },
-      "featureList": [
-        "Synthèse vocale IA en darija algérienne",
-        "30 voix IA aux styles variés",
-        "Système de points pay-as-you-go",
-        "Paiement CIB & Edahabia",
-        "Bonus : +30 points tous les 10 audios",
-        "Usage commercial autorisé",
-        "Téléchargement MP3/WAV",
-        "Fonctionne dans le navigateur sans installation"
-      ],
-      "screenshot": "https://i.ibb.co/1Yj2w4Kh/Capture-d-cran-2026-09-14-053136.png",
-      "softwareVersion": "1.0",
-      "datePublished": "2025-01-01",
-      "dateModified": "2025-01-20"
-    }
-    </script>
+/* Boutons PLATS : aucun dégradé, aucune ombre portée, aucun reflet.
+   Survol = léger fond teinté, jamais de saut ni de grossissement. */
+.saw-flat {
+  background: transparent;
+  border: 1px solid rgba(76, 29, 149, 0.12);
+  box-shadow: none;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+.saw-flat:hover { background: rgba(139, 92, 246, 0.10); }
+.saw-flat:active { transform: none; }
+.saw-flat-violet {
+  background: #6d28d9;
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: background 0.18s ease;
+}
+.saw-flat-violet:hover { background: #8b5cf6; }
+.saw-flat-violet:active { transform: none; }
+.saw-chip-active {
+  background: #6d28d9;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: none;
+}
+.saw-chip-active:hover { background: #6d28d9; }
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "Est-ce que Sawtify parle la vraie darija algérienne ?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Oui, Sawtify est conçu spécifiquement pour la darija algérienne, avec un accent naturel et la gestion des mots français mélangés, comme les Algériens parlent réellement."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Comment fonctionne le système de points ?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Sawtify fonctionne avec un système de points pay-as-you-go. Vous recevez 50 points à l'inscription, et vous gagnez 30 points bonus tous les 10 audios générés. Rechargez via CIB ou Edahabia."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Quels moyens de paiement sont acceptés ?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Sawtify accepte les cartes CIB et Edahabia pour les recharges de points. Pas besoin de carte bancaire internationale."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Puis-je utiliser les voix pour YouTube ou TikTok ?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Oui, l'usage commercial est autorisé : voix off YouTube, TikTok, publicités, livres audio et cours en ligne."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Faut-il installer un logiciel ?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Non. Sawtify fonctionne à 100% dans le navigateur, sur mobile comme sur ordinateur."
-          }
-        }
-      ]
-    }
-    </script>
+/* Popups (balises / voix / région) : rendus dans <body> via portail React.
+   Fond blanc opaque (posé par Tailwind dans le composant), cases nettes. */
+.saw-pop-fix .saw-flat {
+  background: #f5f3ff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.saw-pop-fix .saw-flat:hover {
+  background: #ede9fe;
+}
+.saw-pop-fix .saw-chip-active {
+  background: #6d28d9;
+  color: #fff;
+}
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "HowTo",
-      "name": "Comment convertir un texte en voix darija avec Sawtify",
-      "description": "Guide étape par étape pour générer une voix off en darija algérienne",
-      "totalTime": "PT1M",
-      "step": [
-        {
-          "@type": "HowToStep",
-          "position": 1,
-          "name": "Écrire le texte",
-          "text": "Écrivez ou collez votre texte en darija, jusqu'à 3000 caractères.",
-          "url": "https://sawtify.space/#step-1"
-        },
-        {
-          "@type": "HowToStep",
-          "position": 2,
-          "name": "Choisir la voix",
-          "text": "Choisissez parmi 30 voix IA selon le style voulu : narration, podcast, énergique, etc.",
-          "url": "https://sawtify.space/#step-2"
-        },
-        {
-          "@type": "HowToStep",
-          "position": 3,
-          "name": "Générer et télécharger",
-          "text": "Cliquez sur Générer et téléchargez votre audio en quelques secondes.",
-          "url": "https://sawtify.space/#step-3"
-        }
-      ]
-    }
-    </script>
+/* Écriture du script IA : shimmer doux pendant la génération */
+.saw-shimmer {
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.5) 40%, rgba(237, 233, 254, 0.9) 50%, rgba(255, 255, 255, 0.5) 60%);
+  background-size: 200% 100%;
+  animation: saw-shimmer 1.1s infinite;
+}
+@keyframes saw-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -60% 0; }
+}
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Accueil",
-          "item": "https://sawtify.space/"
-        }
-      ]
-    }
-    </script>
+/* Halo magique (amélioration / script généré) */
+.saw-magic-pulse { animation: saw-magic-pulse 0.9s ease-in-out; }
+@keyframes saw-magic-pulse {
+  0%, 100% { filter: none; }
+  40% { filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.35)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .saw-shimmer, .saw-magic-pulse { animation: none; }
+}
 
-    <style>
-      html, body, #root { height: 100%; margin: 0; padding: 0; }
-      html {
-        /* Empêche tout défilement horizontal (glissement gauche/droite) et
-           le zoom via pincement, pour un rendu figé comme une vraie appli. */
-        overflow-x: hidden;
-        overscroll-behavior-x: none;
-        touch-action: pan-y;
-      }
-      body {
-        overflow-x: hidden;
-        max-width: 100vw;
-        overscroll-behavior-y: none;
-        overscroll-behavior-x: none;
-        touch-action: pan-y;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      #root:empty::before {
-        content: '';
-        display: block;
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 40px;
-        height: 40px;
-        border: 3px solid #e2e8f0;
-        border-top-color: #8b5cf6;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-      @keyframes spin {
-        to { transform: translate(-50%, -50%) rotate(360deg); }
-      }
-    </style>
 
-    <!-- Meta Pixel Code -->
-    <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '27996806400021454');
-      fbq('track', 'PageView');
-    </script>
-  </head>
-  <body class="bg-[#F8FAFC] antialiased">
-    <noscript>
-      <img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=27996806400021454&ev=PageView&noscript=1" />
-    </noscript>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+/* ── Éditeur à pastilles (balises <...> et [...] cliquables dans le texte) ── */
+.saw-editor { caret-color: #6d28d9; word-break: break-word; }
+.saw-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #64748b;
+  pointer-events: none;
+}
+.saw-chip-tag {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(109, 40, 217, 0.18);
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  vertical-align: baseline;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  unicode-bidi: isolate;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.saw-chip-tag:hover { background: #ddd6fe; border-color: rgba(109, 40, 217, 0.35); }
+.saw-chip-tag[data-kind="vocal"] {
+  background: #fdf4ff;
+  color: #a21caf;
+  border-color: rgba(162, 28, 175, 0.2);
+}
+.saw-chip-tag[data-kind="vocal"]:hover { background: #fae8ff; border-color: rgba(162, 28, 175, 0.4); }
+
+/* Compact voice-preview indicator: animated color stays inside the sphere. */
+.saw-vb-overlay {
+  position: fixed; z-index: 400; top: calc(72px + env(safe-area-inset-top, 0px)); left: auto; right: 18px;
+  transform: none; display: flex; flex-direction: row; align-items: center; gap: 8px;
+  padding: 5px 14px 5px 5px; border: 1px solid rgba(76, 29, 149, .12); border-radius: 999px;
+  background: rgba(255, 255, 255, .94); box-shadow: 0 8px 28px rgba(35, 20, 70, .18);
+  backdrop-filter: blur(12px); animation: saw-vb-in .25s ease-out;
+}
+.saw-vb-wrapper {
+  position: relative; width: 76px; height: 76px; flex: 0 0 76px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.saw-vb-bubble {
+  position: relative; width: 58px; height: 58px; border-radius: 50%; overflow: hidden; z-index: 3; isolation: isolate;
+  background: radial-gradient(ellipse at 30% 22%, #fff 0%, transparent 42%), linear-gradient(145deg, #fff, var(--vb-base));
+  border: 1px solid rgba(255,255,255,.92);
+  box-shadow: inset 0 -5px 12px rgba(55,35,80,.12), inset 0 2px 8px rgba(255,255,255,.85);
+  contain: paint; clip-path: circle(50% at 50% 50%); -webkit-clip-path: circle(50% at 50% 50%);
+}
+.saw-vb-liquid { position: absolute; border-radius: 50%; opacity: .72; }
+.saw-vb-liquid-1 { width: 110%; height: 75%; top: -8%; left: -12%; background: radial-gradient(ellipse, var(--vb-liquid-1) 0%, transparent 72%); animation: aura-flow-1 4s ease-in-out infinite alternate; }
+.saw-vb-liquid-2 { width: 86%; height: 90%; top: 25%; right: -17%; background: radial-gradient(ellipse, var(--vb-liquid-2) 0%, transparent 72%); animation: aura-flow-2 5s ease-in-out infinite alternate; }
+.saw-vb-liquid-3 { width: 85%; height: 72%; bottom: -20%; left: 2%; background: radial-gradient(ellipse, var(--vb-liquid-3) 0%, transparent 72%); animation: aura-flow-3 4.5s ease-in-out infinite alternate; }
+.saw-vb-shine { position: absolute; z-index: 2; width: 48%; height: 19%; top: 10%; left: 14%; border-radius: 50%; background: radial-gradient(ellipse, rgba(255,255,255,.62), transparent 75%); }
+.saw-vb-label { color: #31234b; font-size: 12px; font-weight: 700; line-height: 1.3; max-width: 175px; white-space: normal; }
+@keyframes saw-vb-in { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 480px) {
+  .saw-vb-overlay { top: calc(68px + env(safe-area-inset-top, 0px)); right: 10px; gap: 5px; padding-right: 10px; }
+  .saw-vb-wrapper { width: 64px; height: 64px; flex-basis: 64px; }
+  .saw-vb-bubble { width: 52px; height: 52px; }
+  .saw-vb-label { max-width: 145px; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { .saw-vb-overlay, .saw-vb-liquid { animation: none; } }
+
+/* Round landing-page voice bubbles: pastel light with colored currents moving inside. */
+.aura-wrapper {
+  --aura-base: #fff0e8; --aura-fluid-1: #ff7267; --aura-fluid-2: #ffd36e; --aura-fluid-3: #ff9a80; --aura-glow: #ff5e3a;
+  position: relative; width: 190px; height: 190px; flex: 0 0 190px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer;
+  opacity: 1; isolation: isolate; transition: transform .35s ease;
+  overflow: visible;
+}
+.aura-wrapper:hover { transform: scale(1.04); }
+.aura-wrapper:focus-visible { outline: 2px solid #fff; outline-offset: 5px; }
+.aura-layer { position: absolute; border-radius: 50%; }
+.layer-core {
+  position: relative; width: 152px; height: 152px; z-index: 3; overflow: hidden; isolation: isolate;
+  contain: paint; clip-path: circle(50% at 50% 50%); -webkit-clip-path: circle(50% at 50% 50%);
+  background: radial-gradient(ellipse at 28% 22%, rgba(255,255,255,.95) 0%, transparent 42%), linear-gradient(145deg, #fff, var(--aura-base));
+  border: 1px solid rgba(255,255,255,.88);
+  box-shadow: inset 0 -10px 24px rgba(85,55,100,.12), inset 0 2px 9px rgba(255,255,255,.9);
+}
+.aura-fluid { position: absolute; border-radius: 50%; opacity: .72; }
+.aura-fluid-1 { width: 105%; height: 72%; top: -8%; left: -13%; background: radial-gradient(ellipse, var(--aura-fluid-1) 0%, transparent 72%); animation: aura-flow-1 7.5s ease-in-out infinite alternate; }
+.aura-fluid-2 { width: 86%; height: 92%; top: 19%; right: -18%; background: radial-gradient(ellipse, var(--aura-fluid-2) 0%, transparent 72%); animation: aura-flow-2 9s ease-in-out infinite alternate; }
+.aura-fluid-3 { width: 92%; height: 76%; bottom: -22%; left: -4%; background: radial-gradient(ellipse, var(--aura-fluid-3) 0%, transparent 72%); animation: aura-flow-3 8s ease-in-out infinite alternate; }
+.aura-gloss { position: absolute; z-index: 2; width: 48%; height: 20%; top: 10%; left: 15%; border-radius: 50%; background: radial-gradient(ellipse, rgba(255,255,255,.58), transparent 75%); }
+@keyframes aura-flow-1 { from { transform: translate3d(-6%, -2%, 0) scale(.94) rotate(-10deg); } to { transform: translate3d(12%, 14%, 0) scale(1.12) rotate(16deg); } }
+@keyframes aura-flow-2 { from { transform: translate3d(8%, -9%, 0) scale(1.06) rotate(12deg); } to { transform: translate3d(-12%, 10%, 0) scale(.9) rotate(-18deg); } }
+@keyframes aura-flow-3 { from { transform: translate3d(-8%, 8%, 0) scale(.92) rotate(18deg); } to { transform: translate3d(13%, -10%, 0) scale(1.12) rotate(-12deg); } }
+.aura-wrapper.listening { transform: scale(1.08); opacity: 1; }
+.aura-wrapper.listening .aura-fluid-1 { animation-duration: 3s; }
+.aura-wrapper.listening .aura-fluid-2 { animation-duration: 3.5s; }
+.aura-wrapper.listening .aura-fluid-3 { animation-duration: 3.2s; }
+.aura-status { margin: -8px 0 0; color: #a8a1b6; font-size: 13px; min-height: 20px; transition: color .25s ease; }
+.aura-status.active { color: #fff; font-weight: 700; }
+.aura-status.active::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; margin-inline-end: 7px;
+  border-radius: 50%; background: var(--aura-glow, #ff4e50);
+  box-shadow: 0 0 12px var(--aura-glow, #ff4e50); animation: aura-live-pulse 1.1s ease-in-out infinite;
+}
+@keyframes aura-live-pulse { 50% { opacity: .35; transform: scale(.72); } }
+@media (max-width: 640px) { .aura-wrapper { width: 160px; height: 160px; flex-basis: 160px; } .layer-core { width: 128px; height: 128px; } }
+@media (prefers-reduced-motion: reduce) { .aura-wrapper, .aura-layer, .aura-fluid, .aura-status.active::before { animation: none !important; transition: none; } }
+
+@keyframes saw-loader-progress {
+  0% { transform: translateX(-115%); }
+  100% { transform: translateX(330%); }
+}
+.saw-loader-progress { animation: saw-loader-progress 1.7s cubic-bezier(.45,0,.55,1) infinite; }
+[dir="rtl"] .saw-loader-progress { animation-direction: reverse; }
+@media (prefers-reduced-motion: reduce) { .saw-loader-progress { animation: none; width: 60%; } }
+
+
+/* Transition Voix-off ⇄ Script IA : le contenu glisse et se précise pour marquer le changement de mode */
+.saw-mode-swap { animation: saw-mode-swap .38s cubic-bezier(.22, 1, .36, 1); }
+@keyframes saw-mode-swap {
+  from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@media (prefers-reduced-motion: reduce) { .saw-mode-swap { animation: none; } }
