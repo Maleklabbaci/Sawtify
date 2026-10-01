@@ -7,11 +7,12 @@ import {
   ChevronDown, Star, Plus, ArrowUp, Cloud, Smile,
   MessageCircle, BookOpen, Languages, ShoppingBag, UtensilsCrossed, House,
   CalendarDays, SlidersHorizontal, History,
-  GraduationCap, HeartPulse, Shirt, Briefcase, Plane
+  GraduationCap, HeartPulse, Shirt, Briefcase, Plane, Type
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
 import { tagsByCategory } from '../../tts/vocalTags';
+import { findStudioVoice } from '../../tts/voices';
 import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback } from '../services/api';
@@ -263,8 +264,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const styleTags = getStyleTags(language);
 
   const defaultStarterText = language === 'ar'
-    ? '[excited] أسمع مليح خاوتي! مع la plateforme Sawtify جديدة ديالنا... [natural] نصوصكم تتحول لـ voix humaine طبيعية 100%.'
-    : '[excited] Écoute bien ya khawti ! Avec notre nouvelle plateforme Sawtify... [natural] tes textes se transforment en voix humaine 100% naturelle.';
+    ? '[excited] أسمع مليح خاوتي! مع la plateforme Sawtify جديدة ديالنا... <short pause> نصوصكم تتحول لـ voix humaine طبيعية 100%.'
+    : '[excited] Écoute bien ya khawti ! Avec notre nouvelle plateforme Sawtify... <short pause> tes textes se transforment en voix humaine 100% naturelle.';
 
   // STATE
   const [text, setText] = useState<string>(() => { try { return localStorage.getItem('sawtify_draft_text') || defaultStarterText; } catch { return defaultStarterText; } });
@@ -321,6 +322,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   }, []);
 
   const [composerMode, setComposerMode] = useState<'voice' | 'script'>('voice');
+  // Deux zones de saisie indépendantes : le texte de la voix-off n'est PAS la description du script IA.
+  const textRef = useRef<string>(text); textRef.current = text;
+  const voiceDraftRef = useRef<string>(text);
+  const scriptDraftRef = useRef<string>('');
+  const [modeSwapping, setModeSwapping] = useState<boolean>(false);
+  const switchComposerMode = useCallback((next: 'voice' | 'script', nextText?: string) => {
+    if (next === composerMode) { if (nextText != null) setText(nextText); return; }
+    if (composerMode === 'voice') voiceDraftRef.current = textRef.current; else scriptDraftRef.current = textRef.current;
+    setText(nextText != null ? nextText : (next === 'voice' ? voiceDraftRef.current : scriptDraftRef.current));
+    setComposerMode(next); setOpenPop(null);
+    setModeSwapping(true); setTimeout(() => setModeSwapping(false), 450);
+  }, [composerMode]);
   const [openPop, setOpenPop] = useState<PopoverId>(null);
   const popAnchorRef = useRef<HTMLDivElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -356,11 +369,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
   }, [openPop, isRTL]);
 
+  const switchComposerModeRef = useRef<(m: 'voice' | 'script', t?: string) => void>(() => {});
+  switchComposerModeRef.current = (m, t) => switchComposerMode(m, t);
   const onPrefillConsumedRef = useRef(onPrefillConsumed);
   onPrefillConsumedRef.current = onPrefillConsumed;
   useEffect(() => {
     if (!prefillText) return;
-    setText(prefillText);
+    switchComposerModeRef.current('voice', prefillText);
     onPrefillConsumedRef.current?.();
   }, [prefillText]);
 
@@ -655,7 +670,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   useEffect(() => { return () => { if (previousAudioUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousAudioUrlRef.current); if (previousMp3UrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previousMp3UrlRef.current); }; }, []);
   useEffect(() => { if (previousAudioUrlRef.current && previousAudioUrlRef.current !== currentAudioUrl && previousAudioUrlRef.current.startsWith('blob:')) { URL.revokeObjectURL(previousAudioUrlRef.current); } previousAudioUrlRef.current = currentAudioUrl; }, [currentAudioUrl]);
   useEffect(() => { if (previousMp3UrlRef.current && previousMp3UrlRef.current !== mp3Url && previousMp3UrlRef.current.startsWith('blob:')) { URL.revokeObjectURL(previousMp3UrlRef.current); } previousMp3UrlRef.current = mp3Url; }, [mp3Url]);
-  useEffect(() => { const id = setTimeout(() => { try { localStorage.setItem('sawtify_draft_text', text); } catch {} }, 500); return () => clearTimeout(id); }, [text]);
+  useEffect(() => { if (composerMode !== 'voice') return; const id = setTimeout(() => { try { localStorage.setItem('sawtify_draft_text', text); } catch {} }, 500); return () => clearTimeout(id); }, [text, composerMode]);
 
   const toggleFavoriteVoice = (voiceId: string) => {
     setFavoriteVoiceIds((prev) => {
@@ -666,6 +681,23 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   };
 
   const handleInsertTag = useCallback((tag: string) => {
+    // Gemini 3.8 : le TON dure toute la lecture (speech_metadata.style), il ne se change pas en plein texte.
+    // → un ton/une façon de dire se place TOUJOURS au début et remplace le précédent (un seul ton).
+    const TONES = ['[natural]', '[calm]', '[excited]', '[dramatic]', '[serious]'];
+    const DELIVERIES = ['[articulated]', '[fast]'];
+    if (TONES.includes(tag) || DELIVERIES.includes(tag)) {
+      const group = TONES.includes(tag) ? TONES : [tag];
+      let cleaned = text;
+      group.forEach((g) => { cleaned = cleaned.split(g).join(''); });
+      cleaned = cleaned.replace(/^\s+/, '').replace(/ {2,}/g, ' ');
+      const next = tag + ' ' + cleaned;
+      setOpenPop(null);
+      if (next.length > maxChars) { showNotif(language === 'ar' ? 'تجاوزت الحد الأقصى للأحرف' : 'Limite de caractères atteinte'); return; }
+      const sel0 = lastSelRef.current || { start: text.length, end: text.length };
+      pendingCaretRef.current = Math.min(next.length, Math.max(tag.length + 1, sel0.end + (next.length - text.length)));
+      setText(next);
+      return;
+    }
     const sel = lastSelRef.current || { start: text.length, end: text.length };
     const start = Math.min(sel.start, text.length);
     const end = Math.min(Math.max(sel.end, start), text.length);
@@ -676,6 +708,42 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     pendingCaretRef.current = start + ins.length;
     setText(next);
   }, [text, maxChars, language, showNotif]);
+
+  // Ponctuation expressive : « ... » hésitation, « -- » coupure, « ! » énergie, « ? » question.
+  // Collée au mot précédent (jamais d'espace avant), comme l'attend le moteur.
+  const handleInsertPunct = useCallback((mark: string) => {
+    const sel = lastSelRef.current || { start: text.length, end: text.length };
+    const start = Math.min(sel.start, text.length);
+    const end = Math.min(Math.max(sel.end, start), text.length);
+    const before = text.slice(0, start).replace(/[ \t]+$/, '');
+    const ins = mark === '--' ? ' -- ' : mark + ' ';
+    const next = before + ins + text.slice(end).replace(/^[ \t]+/, '');
+    if (next.length > maxChars) { showNotif(language === 'ar' ? 'تجاوزت الحد الأقصى للأحرف' : 'Limite de caractères atteinte'); return; }
+    setOpenPop(null);
+    pendingCaretRef.current = before.length + ins.length;
+    setText(next);
+  }, [text, maxChars, language, showNotif]);
+
+  // Insistance : met la sélection en MAJUSCULES (Gemini appuie la voix sur ce mot). Re-cliquer remet en minuscules.
+  const handleEmphasize = useCallback(() => {
+    const sel = lastSelRef.current;
+    if (!sel || sel.end <= sel.start) {
+      showNotif(language === 'ar' ? 'حدّد كلمة لاتينية في النص ثم اضغط MAJ' : 'Sélectionne un mot dans le texte, puis clique « MAJ »');
+      return;
+    }
+    const start = Math.min(sel.start, text.length);
+    const end = Math.min(sel.end, text.length);
+    const chunk = text.slice(start, end);
+    if (!/[A-Za-zÀ-ÿ]/.test(chunk)) {
+      showNotif(language === 'ar' ? 'العربية بلا حروف كبيرة — استعمل ! أو ... قبل الكلمة' : 'L’arabe n’a pas de majuscules — utilise « ! » ou « ... » devant le mot');
+      return;
+    }
+    const up = chunk.toUpperCase();
+    const swapped = up === chunk ? chunk.toLowerCase() : up;
+    setOpenPop(null);
+    pendingCaretRef.current = end;
+    setText(text.slice(0, start) + swapped + text.slice(end));
+  }, [text, language, showNotif]);
 
   const handlePreviewVoice = useCallback(async (e: React.MouseEvent, voice: Voice) => {
     e.stopPropagation();
@@ -702,7 +770,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     let errMsg = '';
     try {
       const extractedTags = (text.match(/\[(.*?)\]/g) || []).map(tag => tag.replace(/[\[\]]/g, ''));
-      if (extractedTags.length === 0) { showNotif(language === 'ar' ? 'أضف وسم عاطفة لصوت أكثر تعبيرًا' : "Ajoutez une balise d'émotion pour plus d'expression"); }
+      if (extractedTags.length === 0 && !/<[^<>]+>/.test(text)) { showNotif(language === 'ar' ? 'أضف وسم عاطفة لصوت أكثر تعبيرًا' : "Ajoutez une balise d'émotion pour plus d'expression"); }
 
       const startTone = startToneRef.current;
       const startToneTag = startTone === 'calm' ? '[calm]' : startTone === 'excited' ? '[excited]' : startTone === 'natural' ? '[natural]' : '';
@@ -813,10 +881,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   };
 
   const handleUseScript = useCallback(() => {
-    if (!scriptResult) return; setText(scriptResult); setComposerMode('voice');
+    if (!scriptResult) return; switchComposerMode('voice', scriptResult);
     showNotif(language === 'ar' ? 'تم وضع النص في المربع — جاهز للتوليد' : 'Script placé dans la barre — prêt pour la voix');
     requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); });
-  }, [scriptResult, language, showNotif, growTextarea]);
+  }, [scriptResult, language, showNotif, growTextarea, switchComposerMode]);
 
   const handleCopyScript = useCallback(() => {
     if (!scriptResult) return;
@@ -1046,7 +1114,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
 
           {/* ════════ LA BARRE ════════ */}
           <div ref={popAnchorRef} className="w-full relative">
-            <div ref={barRef} className="saw-glass relative rounded-[28px] p-3 sm:p-4 transition-shadow duration-200">
+            <div ref={barRef} className={`saw-glass relative rounded-[28px] p-3 sm:p-4 transition-all duration-300 ${composerMode === 'script' ? 'ring-2 ring-[#c4b5fd] shadow-[0_0_0_4px_rgba(196,181,253,0.18)]' : ''}`}>
 
               <div
                 ref={editorRef}
@@ -1061,15 +1129,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 onPaste={handleEditorPaste}
                 onDrop={(e) => e.preventDefault()}
                 onClick={handleEditorClick}
-                className={`saw-editor w-full min-h-[88px] sm:min-h-[104px] max-h-[360px] overflow-y-auto bg-transparent outline-none text-[16px] leading-[1.85] text-slate-900 custom-scrollbar whitespace-pre-wrap break-words ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
+                className={`saw-editor w-full min-h-[88px] sm:min-h-[104px] max-h-[360px] overflow-y-auto bg-transparent outline-none text-[16px] leading-[1.85] text-slate-900 custom-scrollbar whitespace-pre-wrap break-words ${modeSwapping ? 'saw-mode-swap' : ''} ${isMagicActive && lastGenType === 'enhance' ? 'saw-magic-pulse' : ''}`}
                 style={{ unicodeBidi: 'plaintext' }} dir="auto"
               />
-
-              {composerMode === 'script' && (
-                <div className={`text-[11px] font-num px-1 mt-1 text-end ${text.length > SCRIPT_DESCRIPTION_MAX ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
-                  {text.length}/{SCRIPT_DESCRIPTION_MAX}
-                </div>
-              )}
 
               <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-2">
                 {composerMode === 'voice' && (
@@ -1078,8 +1140,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                   </button>
                 )}
 
-                <button onClick={() => setComposerMode('voice')} className={`order-2 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}</button>
-                <button onClick={() => setComposerMode('script')} className={`order-3 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}<span className="ms-1.5 font-num opacity-70 text-[10px] font-bold">{language === 'ar' ? '5 نقاط' : '5 pts'}</span></button>
+                <button onClick={() => switchComposerMode('voice')} className={`order-2 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}</button>
+                <button onClick={() => switchComposerMode('script')} className={`order-3 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}<span className="ms-1.5 font-num opacity-70 text-[10px] font-bold">{language === 'ar' ? '5 نقاط' : '5 pts'}</span></button>
                 <div className="hidden sm:block flex-1" />
                 <div className="order-5 basis-full h-0 sm:hidden" aria-hidden="true" />
 
@@ -1163,11 +1225,21 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               )}
             </div>
 
+            {composerMode === 'script' ? (
+              <div key="script-info" className="saw-mode-swap w-full flex flex-wrap items-center justify-between gap-2 mt-3 px-3 py-2.5 rounded-xl border border-[#ddd6fe] bg-[#f5f3ff]/80 text-[#5b21b6] shadow-sm">
+                <span className="flex items-center gap-2 text-xs font-medium"><Sparkles className="w-3.5 h-3.5" />{language === 'ar' ? 'النص الذكي يكتب لك سيناريو إعلان من وصفك' : 'Le Script IA écrit ta pub à partir de ta description'}</span>
+                <span className="flex items-center gap-2 text-[11px] font-num">
+                  <span className={text.length > SCRIPT_DESCRIPTION_MAX ? 'text-red-600 font-bold' : 'text-[#7c3aed]'}>{text.length}/{SCRIPT_DESCRIPTION_MAX}</span>
+                  <span className="rounded-full bg-white text-[#6d28d9] font-bold px-2.5 py-1">{language === 'ar' ? '5 نقاط' : '5 points'}</span>
+                </span>
+              </div>
+            ) : (
+              <div key="voice-info" className="saw-mode-swap">
             {recentGenerations.length > 0 && (
               <div className="flex flex-wrap justify-center items-center gap-2 mt-3">
                 <History className="w-3 h-3 text-slate-400" />
                 {recentGenerations.slice(0, 3).map((gen) => (
-                  <button key={gen.id} onClick={() => { setText(gen.text); setComposerMode('voice'); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="text-[10px] text-slate-500 hover:text-[#6d28d9] cursor-pointer transition-colors max-w-[220px] truncate" title={gen.text}>{gen.text.substring(0, 28)}…</button>
+                  <button key={gen.id} onClick={() => { switchComposerMode('voice', gen.text); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="text-[10px] text-slate-500 hover:text-[#6d28d9] cursor-pointer transition-colors max-w-[220px] truncate" title={gen.text}>{gen.text.substring(0, 28)}…</button>
                 ))}
               </div>
             )}
@@ -1184,6 +1256,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
 
             {balance < TTS_UNLOCK_BALANCE_THRESHOLD && (
               <p className="w-full text-[10px] text-slate-400 px-1 mt-1">{language === 'ar' ? `(افتح ${TTS_MAX_CHARS_UNLOCKED} حرف عند ${TTS_UNLOCK_BALANCE_THRESHOLD}+ نقطة)` : `(débloquez ${TTS_MAX_CHARS_UNLOCKED} caractères à ${TTS_UNLOCK_BALANCE_THRESHOLD}+ points)`}</p>
+            )}
+
+              </div>
             )}
 
             {lastGenType && lastGenOutput && (
@@ -1272,6 +1347,25 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 ))}
               </div>
 
+              <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><Type className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'علامات الترقيم والتأكيد' : 'Ponctuation & insistance'}</span></div>
+              <div className="grid grid-cols-3 gap-1">
+                {([
+                  { mark: '...', fr: 'Hésitation', ar: 'تردد' },
+                  { mark: '--', fr: 'Coupure', ar: 'قطع' },
+                  { mark: '!', fr: 'Énergie', ar: 'حماس' },
+                  { mark: '?', fr: 'Question', ar: 'سؤال' },
+                ]).map((p) => (
+                  <button key={p.mark} onClick={() => handleInsertPunct(p.mark)} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer" title={`${p.mark} — ${language === 'ar' ? p.ar : p.fr}`}>
+                    <span className="block text-[12px] font-bold text-slate-700 font-num" dir="ltr">{p.mark}</span>
+                    <span className="block text-[9px] text-slate-400">{language === 'ar' ? p.ar : p.fr}</span>
+                  </button>
+                ))}
+                <button onClick={handleEmphasize} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer" title={language === 'ar' ? 'حدّد كلمة لاتينية ثم اضغط' : 'Sélectionne un mot puis clique'}>
+                  <span className="block text-[12px] font-bold text-slate-700" dir="ltr">MAJ</span>
+                  <span className="block text-[9px] text-slate-400">{language === 'ar' ? 'تأكيد كلمة' : 'Insister'}</span>
+                </button>
+              </div>
+
               <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><AudioLines className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? `أصوات بشرية (${VOCAL_BURST_COUNT})` : `Sons humains (${VOCAL_BURST_COUNT})`}</span></div>
               {BURST_SECTIONS.map((section) => (
                 <div key={section.category}>
@@ -1316,7 +1410,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                       <span className="w-5 flex items-center justify-center shrink-0 text-slate-500">
                         <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-[18px] h-[18px]" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{voice.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{voice.name}{(() => { const sv = findStudioVoice(voice.geminiVoice || ''); return sv ? <span className="ms-1.5 text-[10px] font-normal text-slate-400">{language === 'ar' ? sv.characterAr : sv.characterFr}</span> : null; })()}</span>
                       <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isFav ? 'text-amber-500' : 'text-slate-300 opacity-0 group-hover:opacity-100 hover:text-amber-500'}`} title="Favori" aria-pressed={isFav}><Star className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} /></button>
                       <button type="button" onClick={(e) => handlePreviewVoice(e, voice)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9]' : 'text-slate-400 hover:text-slate-700'}`}>{isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}</button>
                       <span className="w-4 flex items-center justify-center shrink-0">{isSelected && <Check className="w-4 h-4 text-[#6d28d9]" />}</span>
