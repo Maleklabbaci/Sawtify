@@ -427,6 +427,43 @@ export function findStudioVoice(voiceId: string, lang: LanguageCode = 'fr'): Voi
   return voices.find(v => v.id === voiceId);
 }
 
+// ============================================================================
+// STUDIO_VOICES & Migrations (for server.ts and voiceNames.ts)
+// ============================================================================
+
+/** Export pour compatibilité avec voiceNames.ts et voicePreviews.ts */
+export const STUDIO_VOICES = VOICES_FR;
+
+/** Type alias pour voicePreviews.ts */
+export type StudioVoice = Voice;
+
+/**
+ * Table de migration des anciens IDs voice_* vers les slugs modernes
+ * Les 9 voix historiques gardent leur ID pour ne rien casser
+ */
+export const LEGACY_VOICE_MIGRATION: Record<string, string> = {
+  'voice_amin': 'voice_amin',
+  'voice_yasmin': 'voice_yasmin',
+  'voice_khalid': 'voice_khalid',
+  'voice_maryam': 'voice_maryam',
+  'voice_rashid': 'voice_rashid',
+  'voice_layla': 'voice_layla',
+  'voice_bilal': 'voice_bilal',
+  'voice_nour': 'voice_nour',
+  'voice_faycal': 'voice_faycal',
+};
+
+/**
+ * Suggestions de style par catégorie de voix
+ * Utilisé par server.ts pour enrichir les prompts
+ */
+export const CHARACTER_STYLE_HINT: Record<string, string> = {
+  commercial: '[excited] [articulated]',
+  social: '[excited]',
+  narrative: '[natural] [articulated]',
+  formal: '[natural] [articulated]',
+};
+
 // Fallback exports for backward compatibility
 export const VOICES = VOICES_FR;
 export const CREDIT_PACKS = CREDIT_PACKS_FR;
