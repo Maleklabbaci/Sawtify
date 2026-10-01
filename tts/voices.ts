@@ -1,8 +1,7 @@
 import { Voice, CreditPack } from '../types';
+import { VOICES_V41, VOICES_V41_AR } from '../src/data/voicesV41';
 
 export type LanguageCode = 'fr' | 'ar';
-
-import { VOICES_V41, VOICES_V41_AR } from './voicesV41.ts';
 
 export const VOICES_FR: Voice[] = [
   {
@@ -132,9 +131,8 @@ export const VOICES_FR: Voice[] = [
     styles: ['Assuré', 'Commercial', 'Direct']
   },
 
-  // Sawtify 4.1 — les 21 nouvelles voix (voir voicesV41.ts).
+  // Sawtify 4.1 — les 21 nouvelles voix
   ...VOICES_V41,
-
 ];
 
 export const VOICES_AR: Voice[] = [
@@ -265,9 +263,8 @@ export const VOICES_AR: Voice[] = [
     styles: ['واثق', 'تجاري', 'مباشر']
   },
 
-  // Sawtify 4.1 — les 21 nouvelles voix (voir voicesV41.ts).
+  // Sawtify 4.1 — les 21 nouvelles voix
   ...VOICES_V41_AR,
-
 ];
 
 export const CREDIT_PACKS_FR: CreditPack[] = [
