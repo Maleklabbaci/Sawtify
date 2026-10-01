@@ -334,3 +334,12 @@
 .saw-loader-progress { animation: saw-loader-progress 1.7s cubic-bezier(.45,0,.55,1) infinite; }
 [dir="rtl"] .saw-loader-progress { animation-direction: reverse; }
 @media (prefers-reduced-motion: reduce) { .saw-loader-progress { animation: none; width: 60%; } }
+
+
+/* Transition Voix-off ⇄ Script IA : le contenu glisse et se précise pour marquer le changement de mode */
+.saw-mode-swap { animation: saw-mode-swap .38s cubic-bezier(.22, 1, .36, 1); }
+@keyframes saw-mode-swap {
+  from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@media (prefers-reduced-motion: reduce) { .saw-mode-swap { animation: none; } }
