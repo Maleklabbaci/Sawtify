@@ -114,8 +114,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Promo boutique en ligne', ar: 'تخفيضات متجر أونلاين' },
         text: {
-          fr: '[excited] Nouveauté ! Cette semaine seulement : -30% sur toute la boutique... [natural] Livraison partout en Algérie.',
-          ar: '[excited] جديد! هذي السيمانة برك: -30% على كامل المتجر... [natural] توصيل لكامل ولايات الجزائر.',
+          fr: '[excited] Nouveauté ! Cette semaine seulement : -30% sur toute la boutique... <short pause> Livraison partout en Algérie.',
+          ar: '[excited] جديد! هذي السيمانة برك: -30% على كامل المتجر... <short pause> توصيل لكامل ولايات الجزائر.',
         },
       },
       {
@@ -161,8 +161,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Nouvelle ouverture', ar: 'افتتاح جديد' },
         text: {
-          fr: '[excited] Nouveau à Alger : notre pizzeria vient d’ouvrir... [calm] Pâte fraîche et produits du jour.',
-          ar: '[excited] جديد في الجزائر العاصمة: البيتزا تاعنا حلّت... [calm] عجينة طرية ومكوّنات النهار.',
+          fr: '[excited] Nouveau à Alger : notre pizzeria vient d’ouvrir... <short pause> Pâte fraîche et produits du jour.',
+          ar: '[excited] جديد في الجزائر العاصمة: البيتزا تاعنا حلّت... <short pause> عجينة طرية ومكوّنات النهار.',
         },
       },
       {
@@ -215,8 +215,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Programme neuf', ar: 'مشروع جديد' },
         text: {
-          fr: '[excited] Promotion exclusive : 3 logements F4 avec vue sur mer... [calm] Crédit bancaire facilité.',
-          ar: '[excited] عرض خاص: 3 شقق F4 بإطلالة على البحر... [calm] تسهيلات في القرض البنكي.',
+          fr: '[excited] Promotion exclusive : 3 logements F4 avec vue sur mer... <short pause> Crédit bancaire facilité.',
+          ar: '[excited] عرض خاص: 3 شقق F4 بإطلالة على البحر... <short pause> تسهيلات في القرض البنكي.',
         },
       },
       {
@@ -262,8 +262,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Places limitées', ar: 'المقاعد محدودة' },
         text: {
-          fr: '[excited] Inscriptions ouvertes... [natural] Places limitées à un groupe de 15 apprenants.',
-          ar: '[excited] التسجيلات مفتوحة... [natural] المقاعد محدودة لمجموعة من 15 متربص.',
+          fr: '[excited] Inscriptions ouvertes... <short pause> Places limitées à un groupe de 15 apprenants.',
+          ar: '[excited] التسجيلات مفتوحة... <short pause> المقاعد محدودة لمجموعة من 15 متربص.',
         },
       },
       {
@@ -396,8 +396,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Nouvelle collection', ar: 'مجموعة جديدة' },
         text: {
-          fr: '[excited] Nouvelle collection arrivée... [natural] Coupes modernes, tailles du S au XXL.',
-          ar: '[excited] مجموعة جديدة وصلت... [natural] قياسات من S للـXXL.',
+          fr: '[excited] Nouvelle collection arrivée... <short pause> Coupes modernes, tailles du S au XXL.',
+          ar: '[excited] مجموعة جديدة وصلت... <short pause> قياسات من S للـXXL.',
         },
       },
       {
@@ -457,8 +457,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Devis gratuit', ar: 'تسعيرة مجانية' },
         text: {
-          fr: '[excited] Ton commerce mérite une vraie présence en ligne... [natural] Devis gratuit en 24 h.',
-          ar: '[excited] محلك يستاهل حضور قوي على الأنترنت... [natural] تسعيرة مجانية في 24 ساعة.',
+          fr: '[excited] Ton commerce mérite une vraie présence en ligne... <short pause> Devis gratuit en 24 h.',
+          ar: '[excited] محلك يستاهل حضور قوي على الأنترنت... <short pause> تسعيرة مجانية في 24 ساعة.',
         },
       },
     ],
@@ -490,8 +490,8 @@ export const NICHES: Niche[] = [
       {
         label: { fr: 'Formule Omra', ar: 'فورمول العمرة' },
         text: {
-          fr: '[excited] Omra 2026 : formules complètes avec hôtel proche du Haram... [calm] Places limitées.',
-          ar: '[excited] العمرة 2026: فورمولات كاملة مع فندق قريب من الحرم... [calm] المقاعد محدودة.',
+          fr: '[excited] Omra 2026 : formules complètes avec hôtel proche du Haram... <short pause> Places limitées.',
+          ar: '[excited] العمرة 2026: فورمولات كاملة مع فندق قريب من الحرم... <short pause> المقاعد محدودة.',
         },
       },
       {
