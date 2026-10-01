@@ -1,7 +1,8 @@
 import { Voice, CreditPack } from '../types';
-import { VOICES_V41, VOICES_V41_AR } from '../src/data/voicesV41';
 
 export type LanguageCode = 'fr' | 'ar';
+
+import { VOICES_V41, VOICES_V41_AR } from '../src/data/voicesV41';
 
 export const VOICES_FR: Voice[] = [
   {
@@ -416,6 +417,14 @@ export function getStyleTags(lang: LanguageCode = 'fr') {
 
 export function getSamplePrompts(lang: LanguageCode = 'fr') {
   return lang === 'ar' ? SAMPLE_PROMPTS_AR : SAMPLE_PROMPTS_FR;
+}
+
+/**
+ * Trouve une voix par son ID
+ */
+export function findStudioVoice(voiceId: string, lang: LanguageCode = 'fr'): Voice | undefined {
+  const voices = getVoices(lang);
+  return voices.find(v => v.id === voiceId);
 }
 
 // Fallback exports for backward compatibility
