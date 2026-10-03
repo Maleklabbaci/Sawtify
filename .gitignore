@@ -1,0 +1,23 @@
+# Dépendances et résultats de compilation : jamais dans Git.
+# Le serveur Render les reconstitue tout seul (npm install + npm run build).
+node_modules/
+dist/
+
+# Secrets : ne doivent JAMAIS être versionnés.
+.env
+.env.local
+.env.*.local
+
+# Aperçus audio générés localement (npm run apercus:voix).
+# Ils sont lourds et reproductibles : ils se régénèrent, ils ne se stockent pas.
+storage/
+public/audition-voix.html
+
+# Journaux et fichiers temporaires.
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Le dossier de développement de Vite.
+.vite/

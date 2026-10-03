@@ -682,6 +682,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       footerTerms: isRTL ? "الشروط" : "Conditions",
       footerPrivacy: isRTL ? "الخصوصية" : "Confidentialité",
       footerContact: isRTL ? "اتصل بنا" : "Contact",
+      // Liens vers les pages publiques écrites à la main (public/voix-off-*.html).
+      // Ils existent surtout pour que Google trouve ces pages, mais ils servent
+      // aussi à un visiteur : chaque page montre des exemples concrets.
+      footerResources: isRTL ? "صفحات مفيدة" : "Ressources",
+      footerSeoDarija: isRTL ? "تعليق صوتي بالدارجة" : "Voix off darija",
+      footerSeoTiktok: isRTL ? "صوت لتيك توك" : "Voix off TikTok",
+      footerSeoPub: isRTL ? "إشهار صوتي" : "Voix off publicitaire",
+      footerSeoFormation: isRTL ? "أصوات للدروس" : "Cours et formations",
+      footerSeoEcommerce: isRTL ? "صوت للمتاجر" : "E-commerce",
       footerMade: isRTL ? "© 2026 Sawtify. صُنع في الجزائر" : "© 2026 Sawtify. Made in Algeria",
     }),
     [isRTL]
@@ -1135,6 +1144,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
         <footer className="py-16 px-6 border-t" style={{ borderColor: BORDER_ZINC_800 }}>
           <div className="max-w-7xl mx-auto text-center">
             <div className="flex justify-center"><Logo size={36} /></div>
+            <nav aria-label={t.footerResources} className="mt-7">
+              <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: TEXT_ZINC_600 }}>{t.footerResources}</p>
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-medium" style={{ color: TEXT_ZINC_400 }}>
+                <a href="/voix-off-darija" className="hover:text-white transition">{t.footerSeoDarija}</a>
+                <a href="/voix-off-tiktok" className="hover:text-white transition">{t.footerSeoTiktok}</a>
+                <a href="/voix-off-publicite" className="hover:text-white transition">{t.footerSeoPub}</a>
+                <a href="/voix-off-formation" className="hover:text-white transition">{t.footerSeoFormation}</a>
+                <a href="/voix-off-ecommerce" className="hover:text-white transition">{t.footerSeoEcommerce}</a>
+              </div>
+            </nav>
             <div className="flex items-center justify-center gap-6 mt-6 text-sm" style={{ color: TEXT_ZINC_600 }}>
               <a href="#" className="hover:text-white transition">{t.footerTerms}</a>
               <a href="#" className="hover:text-white transition">{t.footerPrivacy}</a>

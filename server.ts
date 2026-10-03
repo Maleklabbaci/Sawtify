@@ -11,7 +11,7 @@ import { createHash, randomBytes } from "node:crypto";
 import * as lamejsModule from "lamejs";
 import ffmpegPath from "ffmpeg-static";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
 
 // ===================================================================
@@ -3385,6 +3385,63 @@ Le texte de la proposition`;
     next();
   }, express.static(PREVIEW_DIR, { fallthrough: true, index: false, dotfiles: "deny" }));
 
+  /* ===================================================================
+     PAGES PUBLIQUES ÉCRITES À LA MAIN (SEO) — 03/10/2026
+     -------------------------------------------------------------------
+     `public/voix-off-darija.html` & co. sont des pages HTML pures, sans
+     React : elles sont donc lues par Google, Bing et les assistants IA
+     sans exécuter de JavaScript.
+
+     1) ADRESSE PROPRE
+        Chaque page répond à DEUX adresses : `/voix-off-darija` (celle qui
+        est déclarée en canonical et dans le sitemap) et
+        `/voix-off-darija.html` (le fichier réel). Les deux servent le même
+        contenu : si quelqu'un partage le lien en `.html`, il fonctionne
+        aussi.
+
+     2) GOOGLE ANALYTICS (optionnel)
+        La balise n'est ajoutée QUE si la variable d'environnement
+        GA4_MEASUREMENT_ID est définie (ex. « G-XXXXXXXXXX ») sur Render.
+        Tant qu'elle est absente, ces pages sont servies exactement comme
+        avant — aucune requête supplémentaire n'est faite au navigateur.
+
+     Le serveur ne sert ces fichiers QUE depuis la liste blanche ci-dessous :
+     impossible qu'une adresse bricolée donne accès à un autre fichier.
+     =================================================================== */
+  const PUBLIC_DIR = process.env.NODE_ENV === "production" ? path.join(process.cwd(), "dist") : path.join(process.cwd(), "public");
+  const SEO_PAGES = ["voix-off-darija", "voix-off-tiktok", "voix-off-publicite", "voix-off-formation", "voix-off-ecommerce", "sawt-darija"];
+  const GA4_ID = (process.env.GA4_MEASUREMENT_ID || "").trim();
+  const ga4Snippet = /^G-[A-Z0-9]{4,12}$/i.test(GA4_ID)
+    ? `\n  <!-- Google Analytics 4 (activé via GA4_MEASUREMENT_ID sur Render) -->\n  <script async src="https://www.googletagmanager.com/gtag/js?id=${GA4_ID}"></script>\n  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA4_ID}');</script>`
+    : "";
+
+  // Injecte la balise Analytics juste avant </head> (jamais deux fois).
+  const withAnalytics = (html: string): string => ga4Snippet && html.includes("</head>") ? html.replace("</head>", `${ga4Snippet}\n</head>`) : html;
+
+  // Les pages publiques changent rarement : on les relit au maximum une fois
+  // par minute au lieu de taper le disque à chaque visite.
+  const htmlCache = new Map<string, { mtimeMs: number; body: string; expiresAt: number }>();
+  const readHtmlOnce = (filePath: string): string | null => {
+    try {
+      const now = Date.now();
+      const cached = htmlCache.get(filePath);
+      if (cached && cached.expiresAt > now) return cached.body;
+      const mtimeMs = statSync(filePath).mtimeMs;
+      if (cached && cached.mtimeMs === mtimeMs) { cached.expiresAt = now + 60_000; return cached.body; }
+      const body = readFileSync(filePath, "utf8");
+      htmlCache.set(filePath, { mtimeMs, body, expiresAt: now + 60_000 });
+      return body;
+    } catch { return null; }
+  };
+
+  for (const slug of SEO_PAGES) {
+    app.get([`/${slug}`, `/${slug}/`, `/${slug}.html`], (_req, res) => {
+      const html = readHtmlOnce(path.join(PUBLIC_DIR, `${slug}.html`));
+      if (html === null) return res.status(404).type("html").send("<!doctype html><meta charset=\"utf-8\"><title>Page indisponible</title><p>Cette page n'est pas disponible pour le moment. <a href=\"/\">Retour à l'accueil Sawtify</a>.</p>");
+      return res.type("html").set("Cache-Control", "public, max-age=300").send(withAnalytics(html));
+    });
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
@@ -3416,7 +3473,17 @@ Le texte de la proposition`;
       if (req.method === "GET" || req.method === "HEAD") return res.status(404).json({ error: "Endpoint API introuvable." });
       return res.status(404).json({ error: "Endpoint API ou méthode introuvable." });
     });
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    // Le HTML de l'application passe par le même injecteur : si
+    // GA4_MEASUREMENT_ID est défini, la balise Analytics est aussi présente
+    // sur le site React (accueil, studio, tarifs…). Sinon : comportement
+    // identique à avant. Le HTML n'est jamais mis en cache navigateur (le nom
+    // des fichiers JS contient une empreinte : une nouvelle version doit
+    // toujours être vue immédiatement).
+    app.get("*", (_req, res) => {
+      const html = readHtmlOnce(path.join(distPath, "index.html"));
+      if (html === null) return res.status(500).type("html").send("<!doctype html><meta charset=\"utf-8\"><title>Sawtify</title><p>Le site est en cours de mise à jour. Merci de réessayer dans un instant.</p>");
+      return res.type("html").set("Cache-Control", "no-cache, must-revalidate").send(withAnalytics(html));
+    });
   }
 
   app.use((error: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {

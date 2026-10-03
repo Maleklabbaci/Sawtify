@@ -1,18 +1,82 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<!--
+  Plan du site Sawtify (sitemap).
+  Chaque adresse ici est une page réellement indexable. Les pages ajoutées le
+  03/10/2026 répondent chacune à une recherche précise (TikTok, publicité,
+  formation, e-commerce, darija en arabe) avec, pour chacune, un canal
+  d'acquisition identifiable : l'adresse contient utm_source=seo, donc le
+  tableau de bord Admin sait quelle page amène quel visiteur.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
   <url>
     <loc>https://sawtify.space/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://sawtify.space/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://sawtify.space/sawt-darija"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sawtify.space/"/>
   </url>
+
+  <url>
+    <loc>https://sawtify.space/voix-off-darija</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://sawtify.space/voix-off-darija"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://sawtify.space/sawt-darija"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sawtify.space/voix-off-darija"/>
+  </url>
+
+  <url>
+    <loc>https://sawtify.space/sawt-darija</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://sawtify.space/sawt-darija"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://sawtify.space/voix-off-darija"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sawtify.space/voix-off-darija"/>
+  </url>
+
+  <url>
+    <loc>https://sawtify.space/voix-off-tiktok</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://sawtify.space/voix-off-publicite</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://sawtify.space/voix-off-formation</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://sawtify.space/voix-off-ecommerce</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
   <url>
     <loc>https://sawtify.space/pricing</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
+
+  <url>
+    <loc>https://sawtify.space/docs/developer-api-beta.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
   <url>
     <loc>https://sawtify.space/studio</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
+
 </urlset>

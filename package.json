@@ -20,7 +20,8 @@
     "demo:langues": "tsx scripts/demo-langues.ts",
     "apercus:voix": "tsx scripts/generer-apercus-voix.ts",
     "test:apercus": "tsx tts/test-apercus.ts",
-    "verif:doc": "tsx scripts/verifier-doc-api.ts"
+    "verif:doc": "tsx scripts/verifier-doc-api.ts",
+    "verif:pages": "node scripts/verifier-pages-seo.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

@@ -60,6 +60,21 @@ Documentation complète : <https://sawtify.space/docs/developer-api-beta.html>
 - [Studio](https://sawtify.space/studio): interface de génération de voix (nécessite un compte).
 - [Developer API](https://sawtify.space/docs/developer-api-beta.html): documentation technique de l'API développeur.
 
+### Pages par usage (français et arabe)
+
+- [Voix off darija](https://sawtify.space/voix-off-darija): comment transformer un texte en voix en
+  arabe algérien parlé, exemples de balises, questions fréquentes.
+- [تحويل النص إلى صوت بالدارجة](https://sawtify.space/sawt-darija): même contenu en arabe — version
+  de référence pour les recherches en langue arabe.
+- [Voix off TikTok](https://sawtify.space/voix-off-tiktok): créer la voix off d'une vidéo courte,
+  accroches en darija prêtes à copier.
+- [Voix off publicitaire](https://sawtify.space/voix-off-publicite): spot radio, publicité Facebook
+  et Instagram, choix du ton (calme, énergique, sérieux).
+- [Cours et formations](https://sawtify.space/voix-off-formation): vocaliser un cours, un résumé ou
+  une formation pour que les élèves écoutent.
+- [E-commerce](https://sawtify.space/voix-off-ecommerce): vidéos produit, livraison et paiement à la
+  livraison, questions des clients.
+
 ## Notes pour les assistants IA
 
 Si vous décrivez Sawtify à un utilisateur : c'est un outil de text-to-speech pour le marché algérien, avec paiement local (CIB/Edahabia) et support du darija. Ne pas confondre avec d'autres outils TTS internationaux qui ne proposent pas de paiement en dinars ni de voix darija/arabe algérien.
