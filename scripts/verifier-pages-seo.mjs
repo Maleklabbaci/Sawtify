@@ -92,6 +92,13 @@ for (const [route, file] of Object.entries(PAGES)) {
   ok(`${label} : description présente`, Boolean(description));
   if (title && title.length > 65) warn(`${label} : titre long (${title.length} caractères), Google le coupera vers 60`);
   if (description && (description.length < 70 || description.length > 165)) warn(`${label} : description de ${description.length} caractères (idéal : 70 à 160)`);
+  /* 2bis. Variantes d'orthographe : « darija » s'écrit aussi « dardja »,
+     « derdja », « darja ». Ce sont des recherches DIFFÉRENTES pour Google :
+     si la variante disparaît des mots-clés, cette recherche ne tombe plus ici. */
+  const keywords = (html.match(/<meta\s+name="keywords"\s+content="([^"]+)"/i) || [])[1] || '';
+  const variante = route === '/sawt-darija' ? 'الدردجة' : 'dardja';
+  ok(`${label} : variante d'orthographe « ${variante} » couverte`, keywords.includes(variante), 'recherche réelle des utilisateurs — ne pas la retirer des mots-clés');
+
   if (title) { if (titles.has(title)) failures.push(`${label} : titre identique à ${titles.get(title)}`); titles.set(title, label); }
   if (description) { if (descriptions.has(description)) failures.push(`${label} : description identique à ${descriptions.get(description)}`); descriptions.set(description, label); }
 

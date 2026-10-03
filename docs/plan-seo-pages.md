@@ -67,6 +67,10 @@ tableau de bord.)*
 
 ## 3. Cinq décisions que j'ai prises — dis-moi si tu veux changer
 
+0. **Les deux orthographes de la langue sont couvertes** : « darija » et « dardja » (et « derdja »,
+   « darja »). Ce n'est pas un détail : Google traite ces écritures comme des recherches
+   distinctes. La page principale explique aussi la différence, dans une question dédiée.
+
 1. **Aucun prix en dinars n'est écrit sur ces pages.** Seule la règle stable est donnée : « 20 points
    la voix off jusqu'à 60 s », et un lien vers `/pricing`. Raison : le jour où tu changes un pack,
    ces 6 pages deviendraient fausses et **menteuses pour Google** — il faudrait les corriger une par
@@ -91,7 +95,7 @@ J'ai écrit un contrôle automatique, dans le même esprit que `verif:doc` :
 npm run verif:pages
 ```
 
-**Résultat actuel : 171 vérifications, 0 échec.** Il vérifie, pour les 6 pages :
+**Résultat actuel : 177 vérifications, 0 échec.** Il vérifie, pour les 6 pages :
 
 - le fichier existe et contient assez de texte (une page vide est ignorée par Google) ;
 - le titre et la description existent et sont **uniques** (deux pages identiques se font concurrence) ;
@@ -101,6 +105,8 @@ npm run verif:pages
 - **chaque lien interne mène quelque part** (une faute de frappe dans un lien = découverte impossible) ;
 - `sitemap.xml` liste bien les 6 pages, et `robots.txt` n'en bloque aucune ;
 - `server.ts` sert bien chaque page.
+- les **variantes d'orthographe** (« darija », « dardja », « derdja », « darja ») sont couvertes :
+  ce sont des recherches différentes pour Google, et les gens tapent l'une ou l'autre.
 
 ### Ce qui a été testé en vrai, dans cet environnement
 
@@ -213,6 +219,6 @@ fichiers `.env` (secrets), et les aperçus audio générés en local.
 ## Résumé en une phrase
 
 **Six pages publiques, en français et en arabe, écrites pour être trouvées sur Google, reliées au
-site et à la mesure d'audience — 171 contrôles automatiques, 0 échec, compilées et testées en dev
+site et à la mesure d'audience — 177 contrôles automatiques, 0 échec, compilées et testées en dev
 comme en production.** Il te reste 3 gestes : redéployer, envoyer le sitemap dans Search Console,
 et (si tu veux) coller un identifiant Google Analytics dans Render.

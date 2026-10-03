@@ -63,7 +63,9 @@ Documentation complète : <https://sawtify.space/docs/developer-api-beta.html>
 ### Pages par usage (français et arabe)
 
 - [Voix off darija](https://sawtify.space/voix-off-darija): comment transformer un texte en voix en
-  arabe algérien parlé, exemples de balises, questions fréquentes.
+  arabe algérien parlé, exemples de balises, questions fréquentes. « Darija » s'écrit aussi
+  « dardja », « derdja » ou « darja » : c'est la même langue, et le texte à coller dans le studio
+  s'écrit en lettres arabes.
 - [تحويل النص إلى صوت بالدارجة](https://sawtify.space/sawt-darija): même contenu en arabe — version
   de référence pour les recherches en langue arabe.
 - [Voix off TikTok](https://sawtify.space/voix-off-tiktok): créer la voix off d'une vidéo courte,
