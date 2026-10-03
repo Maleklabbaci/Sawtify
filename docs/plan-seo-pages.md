@@ -176,15 +176,18 @@ Puis `npm run verif:pages` doit repasser à 0 échec.
 
 ### ① `npm run lint` échoue — et ce n'est PAS à cause de ces pages
 La vérification des **types** TypeScript n'avait jamais pu être lancée (elle échouait pour une raison
-de certificat réseau dans l'environnement précédent). Ici, elle tourne. Résultat : **9 erreurs, toutes
+de certificat réseau dans l'environnement précédent). Ici, elle tourne. Résultat : **8 erreurs, toutes
 préexistantes**, aucune dans le code de ce chantier :
 
-| Fichier | Erreur |
-|---|---|
-| `src/components/LandingPage.tsx` (5 endroits) | la clé React `key` non déclarée dans le type d'un composant |
-| `src/components/LandingPage.tsx` (1 endroit) | idem pour les éléments de la FAQ |
-| `src/components/TTSStudio.tsx` (2 endroits) | `.nodeType` / `.nodeValue` sur un type `unknown` |
-| `tts/voices.ts` (1 endroit) | importe depuis `'../types'` — **ce chemin n'existe pas** |
+| Fichier | Erreur | Nombre |
+|---|---|---|
+| `src/components/LandingPage.tsx` | la clé React `key` n'est pas déclarée dans le type du composant maison `AnimatedSection` | 4 |
+| `src/components/LandingPage.tsx` | la clé React `key` n'est pas déclarée dans le type des éléments de la FAQ | 1 |
+| `src/components/TTSStudio.tsx` | `.nodeType` / `.nodeValue` lus sur un type `unknown` | 2 |
+| `tts/voices.ts` | importe depuis `'../types'` — **ce chemin n'existe pas** (le bon est `src/types`) | 1 |
+
+*(Chiffre vérifié en relançant `npx tsc --noEmit` après ce chantier : 8 erreurs, exactement les
+mêmes qu'avant.)*
 
 **Aucune n'empêche le site de fonctionner** : la compilation (`npm run build`) passe, et le serveur
 tourne (le fichier `tts/voices.ts` utilise `Voice` et `CreditPack` uniquement comme **types**, donc
