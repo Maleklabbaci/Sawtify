@@ -30,3 +30,16 @@ URL du connecteur : `https://sawtify.space/mcp` (OAuth 2.1 + PKCE, inscription d
 - `https://sawtify.space/.well-known/oauth-protected-resource` doit afficher du JSON
 - `https://sawtify.space/.well-known/oauth-authorization-server` doit afficher du JSON avec `registration_endpoint`
 - `https://sawtify.space/mcp` ouvert dans un navigateur affiche « Méthode non autorisée » : c'est normal (le connecteur utilise POST)
+
+## Admin : origine des générations
+- Exécuter une fois `supabase/mcp_generation_channel.sql` (Supabase > SQL Editor) : ajoute la colonne `generation_channel`.
+- Chaque génération MCP est marquée `mcp_claude`, `mcp_chatgpt`, `mcp_apikey` (clé API) ou `mcp_other`, d'après le nom du client OAuth. L'audio est aussi rattaché à la génération (écoute possible dans l'admin).
+- Avant le SQL, l'admin continue de fonctionner (repli automatique), sans l'origine MCP.
+- Les connexions faites avant cette version n'ont pas de nom de client : déconnecter puis reconnecter le connecteur une fois pour obtenir « MCP · Claude ».
+
+## Page Développeur
+- Onglet « Connecteur IA (MCP) » : ouvert à tous.
+- Onglet « API par clé » : réservé aux comptes de plus de 1 000 points (écran verrouillé avec progression sinon).
+
+## Page de connexion OAuth
+`mcp/authorizePage.ts` : même design que le login de la plateforme (connexion e-mail, Google, création de compte, mot de passe oublié, FR/AR). La session est partagée avec sawtify.space : un utilisateur déjà connecté arrive directement sur l'écran « Autoriser ».

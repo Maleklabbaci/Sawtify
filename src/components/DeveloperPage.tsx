@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Code2, Copy, Check, Plus, Trash2, ExternalLink, ShieldCheck, Terminal, Activity, Clock3, Link2, Zap, BookOpen, Building2, Play } from 'lucide-react';
+import { Code2, Copy, Check, Plus, Trash2, ExternalLink, ShieldCheck, Terminal, Activity, Clock3, Link2, Zap, BookOpen, Building2, Play, Lock, Bot } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { API_BASE_URL } from '../config/apiBase';
 import { useLanguage } from '../context/LanguageContext';
@@ -50,6 +50,9 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
   const [snippetCopied, setSnippetCopied] = useState(false);
   // Connecteur MCP : quel bloc vient d'être copié.
   const [mcpCopied, setMcpCopied] = useState<string | null>(null);
+  // Deux espaces : connecteur MCP (ouvert à tous) et API par clé (débloquée au-dessus de 1 000 points).
+  const [tab, setTab] = useState<'mcp' | 'api'>('mcp');
+  const apiUnlocked = balance > 1000;
   const copyMcp = async (id: string, value: string) => { try { await navigator.clipboard.writeText(value); setMcpCopied(id); setTimeout(() => setMcpCopied(null), 1800); } catch { /* presse-papiers indisponible */ } };
 
   const authHeaders = async (): Promise<HeadersInit> => {
@@ -83,9 +86,80 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
     } catch { /* copie impossible : sélection manuelle */ }
   };
 
-  if (balance <= 1000) return <div className="saw-glass max-w-3xl mx-auto rounded-[28px] p-8 text-center"><ShieldCheck className="mx-auto h-12 w-12 text-slate-300" /><h1 className="mt-4 text-2xl font-black text-slate-900">Developer API Beta</h1><p className="mt-2 text-slate-500">Cette fonctionnalité nécessite plus de 1 000 points.</p><p className="mt-4 font-bold text-purple-600">Solde actuel : {balance} points</p></div>;
 
   return <div className="saw-secondary-page saw-developer-page max-w-5xl mx-auto space-y-6">
+    <div className="saw-glass relative overflow-hidden rounded-[30px] p-5 sm:p-7">
+      <div className="pointer-events-none absolute -end-16 -top-20 h-56 w-56 rounded-full bg-violet-200/35 blur-3xl" />
+      <div className="relative">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-violet-700"><Code2 className="h-4 w-4" /> {isAR ? 'المطوّرون' : 'Développeurs'}</div>
+        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">{isAR ? 'ربط Sawtify بأدواتك' : 'Branche Sawtify à tes outils'}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-slate-600">{isAR ? 'الموصّل مفتوح للجميع. واجهة API بمفتاح تُفتح عند تجاوز 1000 نقطة.' : 'Le connecteur IA est ouvert à tous. L’API par clé se débloque au-dessus de 1 000 points.'}</p>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === 'mcp'} onClick={() => setTab('mcp')} className={`flex items-center gap-3 rounded-2xl border p-4 text-start transition ${tab === 'mcp' ? 'border-violet-300 bg-white shadow-sm ring-2 ring-violet-200' : 'border-white/80 bg-white/55 hover:bg-white/80'}`}>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><Bot className="h-5 w-5" /></span>
+            <span className="min-w-0"><span className="flex items-center gap-2 font-black text-slate-900">{isAR ? 'الموصّل والذكاء الاصطناعي (MCP)' : 'Connecteur IA (MCP)'}<span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{isAR ? 'مفتوح' : 'Ouvert à tous'}</span></span><span className="mt-0.5 block text-xs text-slate-500">Claude, ChatGPT</span></span>
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'api'} onClick={() => setTab('api')} className={`flex items-center gap-3 rounded-2xl border p-4 text-start transition ${tab === 'api' ? 'border-violet-300 bg-white shadow-sm ring-2 ring-violet-200' : 'border-white/80 bg-white/55 hover:bg-white/80'}`}>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">{apiUnlocked ? <Terminal className="h-5 w-5" /> : <Lock className="h-5 w-5" />}</span>
+            <span className="min-w-0"><span className="flex items-center gap-2 font-black text-slate-900">{isAR ? 'واجهة API (مفتاح)' : 'API par clé'}<span className="rounded-full border border-violet-100 bg-white px-2 py-0.5 text-[10px] font-bold text-violet-700">BETA</span></span><span className="mt-0.5 block text-xs text-slate-500">{apiUnlocked ? (isAR ? 'مفتوحة' : 'Débloquée') : (isAR ? 'تتطلب أكثر من 1000 نقطة' : '+ de 1 000 points requis')}</span></span>
+          </button>
+        </div>
+      </div>
+    </div>
+    {tab === 'mcp' && <>
+    {/* Connecteur MCP : brancher Sawtify dans Claude, ChatGPT, Gemini CLI. */}
+    <section id="mcp-connector" className="saw-glass rounded-[26px] p-6 scroll-mt-6">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl bg-violet-100 p-3 text-violet-700"><Link2 className="h-5 w-5" /></div>
+        <div>
+          <h2 className="font-black text-slate-900">{isAR ? 'موصّل الذكاء الاصطناعي (MCP)' : 'Connecteur IA (MCP)'}</h2>
+          <p className="mt-1 text-sm text-slate-500">{isAR ? 'اربط Sawtify بـ Claude أو ChatGPT: يكتب الذكاء الاصطناعي السيناريو ثم يولّد الصوت مباشرة.' : 'Branche Sawtify dans Claude ou ChatGPT : l’IA écrit le script puis génère la voix directement.'}</p>
+        </div>
+      </div>
+      <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">{isAR ? 'الرابط الذي تلصقه في الذكاء الاصطناعي' : 'URL à coller dans ton IA'}</p>
+      <div className="mt-2 flex items-center gap-2 rounded-xl border border-violet-100 bg-white/70 p-2">
+        <code className="min-w-0 flex-1 truncate px-2 text-sm font-bold text-slate-900" dir="ltr">https://sawtify.space/mcp</code>
+        <button type="button" onClick={() => copyMcp('url', 'https://sawtify.space/mcp')} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-violet-700">
+          {mcpCopied === 'url' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {mcpCopied === 'url' ? (isAR ? 'تم النسخ' : 'Copié') : (isAR ? 'نسخ' : 'Copier')}
+        </button>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-violet-100 bg-white/60 p-4">
+          <p className="text-sm font-black text-slate-900">Claude</p>
+          <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-slate-600">
+            <li>{isAR ? 'الإعدادات ← الموصّلات ← إضافة موصّل مخصص' : 'Paramètres → Connecteurs → Ajouter un connecteur personnalisé'}</li>
+            <li>{isAR ? 'الصق الرابط أعلاه ثم اضغط إضافة' : 'Colle l’URL ci-dessus, puis Ajouter'}</li>
+            <li>{isAR ? 'اضغط اتصال، سجّل الدخول بحساب Sawtify ثم وافق' : 'Clique Connecter, connecte-toi avec ton compte Sawtify, puis Autoriser'}</li>
+          </ol>
+        </div>
+        <div className="rounded-2xl border border-violet-100 bg-white/60 p-4">
+          <p className="text-sm font-black text-slate-900">ChatGPT</p>
+          <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-slate-600">
+            <li>{isAR ? 'الإعدادات ← التطبيقات والموصّلات ← وضع المطوّر (حسب خطتك)' : 'Paramètres → Applications et connecteurs → mode développeur (selon ton plan)'}</li>
+            <li>{isAR ? 'أنشئ موصّل MCP جديداً والصق الرابط' : 'Crée un connecteur MCP et colle l’URL'}</li>
+            <li>{isAR ? 'سجّل الدخول بحساب Sawtify ثم وافق' : 'Connecte-toi avec ton compte Sawtify, puis Autoriser'}</li>
+          </ol>
+        </div>
+      </div>
+      <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">{isAR ? 'Claude Code و Gemini CLI (بمفتاح API)' : 'Claude Code et Gemini CLI (avec une clé API)'}</p>
+      <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-900 p-4 text-xs leading-relaxed text-slate-100" dir="ltr">{`claude mcp add --transport http sawtify https://sawtify.space/mcp \\
+  --header "Authorization: Bearer swt_beta_VOTRE_CLE"`}</pre>
+      <button type="button" onClick={() => copyMcp('cli', 'claude mcp add --transport http sawtify https://sawtify.space/mcp --header "Authorization: Bearer swt_beta_VOTRE_CLE"')} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white/70 px-3 py-2 text-xs font-bold text-violet-800 transition hover:bg-violet-50">
+        {mcpCopied === 'cli' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {mcpCopied === 'cli' ? (isAR ? 'تم النسخ' : 'Copié') : (isAR ? 'نسخ الأمر' : 'Copier la commande')}
+      </button>
+      <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">{isAR ? 'جرّب هذه الرسالة' : 'Essaie ce message'}</p>
+      <div className="mt-2 flex items-start gap-2 rounded-xl border border-violet-100 bg-white/70 p-3">
+        <p className="min-w-0 flex-1 text-sm text-slate-700">{isAR ? 'اكتب لي سيناريو إعلان مدته 20 ثانية بالدارجة لمطعم، ثم ولّد الصوت باستعمال Sawtify.' : 'Écris-moi un script pub de 20 secondes en darija pour un restaurant, puis génère la voix avec Sawtify.'}</p>
+        <button type="button" onClick={() => copyMcp('prompt', isAR ? 'اكتب لي سيناريو إعلان مدته 20 ثانية بالدارجة لمطعم، ثم ولّد الصوت باستعمال Sawtify.' : 'Écris-moi un script pub de 20 secondes en darija pour un restaurant, puis génère la voix avec Sawtify.')} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-800 transition hover:bg-violet-50">
+          {mcpCopied === 'prompt' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        </button>
+      </div>
+      <p className="mt-4 text-xs text-slate-500">{isAR ? 'كل توليد يستهلك نقاط حسابك. الأدوات: lister_voix، generer_voix، voir_credits، historique_generations.' : 'Chaque génération consomme les points de ton compte. Outils : lister_voix, generer_voix, voir_credits, historique_generations.'}</p>
+    </section>
+    </>}
+    {tab === 'api' && (apiUnlocked ? <>
     <div className="saw-glass relative overflow-hidden rounded-[30px] p-5 sm:p-7">
       <div className="pointer-events-none absolute -end-16 -top-20 h-56 w-56 rounded-full bg-violet-200/35 blur-3xl" />
       <div className="relative flex items-start justify-between gap-4"><div className="min-w-0"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-violet-700"><Code2 className="h-4 w-4" /> Developer API <span className="rounded-full border border-violet-100 bg-white/80 px-2 py-0.5">BETA</span></div><h1 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">Intègre Sawtify partout.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Utilise la synthèse vocale Sawtify dans tes chatbots, boîtes vocales, CRM et automatisations. La sortie est un WAV mono 24 kHz compatible avec les systèmes vocaux.</p></div><Terminal className="hidden sm:block h-14 w-14 shrink-0 text-violet-300" /></div>
@@ -156,57 +230,6 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
         {snippetCopied ? (isAR ? 'تم النسخ' : 'Copié') : (isAR ? 'نسخ الكود' : 'Copier le code')}
       </button>
     </section>
-    {/* Connecteur MCP : brancher Sawtify dans Claude, ChatGPT, Gemini CLI. */}
-    <section id="mcp-connector" className="saw-glass rounded-[26px] p-6 scroll-mt-6">
-      <div className="flex items-start gap-3">
-        <div className="rounded-2xl bg-violet-100 p-3 text-violet-700"><Link2 className="h-5 w-5" /></div>
-        <div>
-          <h2 className="font-black text-slate-900">{isAR ? 'موصّل الذكاء الاصطناعي (MCP)' : 'Connecteur IA (MCP)'}</h2>
-          <p className="mt-1 text-sm text-slate-500">{isAR ? 'اربط Sawtify بـ Claude أو ChatGPT: يكتب الذكاء الاصطناعي السيناريو ثم يولّد الصوت مباشرة.' : 'Branche Sawtify dans Claude ou ChatGPT : l’IA écrit le script puis génère la voix directement.'}</p>
-        </div>
-      </div>
-      <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">{isAR ? 'الرابط الذي تلصقه في الذكاء الاصطناعي' : 'URL à coller dans ton IA'}</p>
-      <div className="mt-2 flex items-center gap-2 rounded-xl border border-violet-100 bg-white/70 p-2">
-        <code className="min-w-0 flex-1 truncate px-2 text-sm font-bold text-slate-900" dir="ltr">https://sawtify.space/mcp</code>
-        <button type="button" onClick={() => copyMcp('url', 'https://sawtify.space/mcp')} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-violet-700">
-          {mcpCopied === 'url' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {mcpCopied === 'url' ? (isAR ? 'تم النسخ' : 'Copié') : (isAR ? 'نسخ' : 'Copier')}
-        </button>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-violet-100 bg-white/60 p-4">
-          <p className="text-sm font-black text-slate-900">Claude</p>
-          <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-slate-600">
-            <li>{isAR ? 'الإعدادات ← الموصّلات ← إضافة موصّل مخصص' : 'Paramètres → Connecteurs → Ajouter un connecteur personnalisé'}</li>
-            <li>{isAR ? 'الصق الرابط أعلاه ثم اضغط إضافة' : 'Colle l’URL ci-dessus, puis Ajouter'}</li>
-            <li>{isAR ? 'اضغط اتصال، سجّل الدخول بحساب Sawtify ثم وافق' : 'Clique Connecter, connecte-toi avec ton compte Sawtify, puis Autoriser'}</li>
-          </ol>
-        </div>
-        <div className="rounded-2xl border border-violet-100 bg-white/60 p-4">
-          <p className="text-sm font-black text-slate-900">ChatGPT</p>
-          <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-slate-600">
-            <li>{isAR ? 'الإعدادات ← التطبيقات والموصّلات ← وضع المطوّر (حسب خطتك)' : 'Paramètres → Applications et connecteurs → mode développeur (selon ton plan)'}</li>
-            <li>{isAR ? 'أنشئ موصّل MCP جديداً والصق الرابط' : 'Crée un connecteur MCP et colle l’URL'}</li>
-            <li>{isAR ? 'سجّل الدخول بحساب Sawtify ثم وافق' : 'Connecte-toi avec ton compte Sawtify, puis Autoriser'}</li>
-          </ol>
-        </div>
-      </div>
-      <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">{isAR ? 'Claude Code و Gemini CLI (بمفتاح API)' : 'Claude Code et Gemini CLI (avec une clé API)'}</p>
-      <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-900 p-4 text-xs leading-relaxed text-slate-100" dir="ltr">{`claude mcp add --transport http sawtify https://sawtify.space/mcp \\
-  --header "Authorization: Bearer swt_beta_VOTRE_CLE"`}</pre>
-      <button type="button" onClick={() => copyMcp('cli', 'claude mcp add --transport http sawtify https://sawtify.space/mcp --header "Authorization: Bearer swt_beta_VOTRE_CLE"')} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white/70 px-3 py-2 text-xs font-bold text-violet-800 transition hover:bg-violet-50">
-        {mcpCopied === 'cli' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-        {mcpCopied === 'cli' ? (isAR ? 'تم النسخ' : 'Copié') : (isAR ? 'نسخ الأمر' : 'Copier la commande')}
-      </button>
-      <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">{isAR ? 'جرّب هذه الرسالة' : 'Essaie ce message'}</p>
-      <div className="mt-2 flex items-start gap-2 rounded-xl border border-violet-100 bg-white/70 p-3">
-        <p className="min-w-0 flex-1 text-sm text-slate-700">{isAR ? 'اكتب لي سيناريو إعلان مدته 20 ثانية بالدارجة لمطعم، ثم ولّد الصوت باستعمال Sawtify.' : 'Écris-moi un script pub de 20 secondes en darija pour un restaurant, puis génère la voix avec Sawtify.'}</p>
-        <button type="button" onClick={() => copyMcp('prompt', isAR ? 'اكتب لي سيناريو إعلان مدته 20 ثانية بالدارجة لمطعم، ثم ولّد الصوت باستعمال Sawtify.' : 'Écris-moi un script pub de 20 secondes en darija pour un restaurant, puis génère la voix avec Sawtify.')} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-800 transition hover:bg-violet-50">
-          {mcpCopied === 'prompt' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-        </button>
-      </div>
-      <p className="mt-4 text-xs text-slate-500">{isAR ? 'كل توليد يستهلك نقاط حسابك. الأدوات: lister_voix، generer_voix، voir_credits، historique_generations.' : 'Chaque génération consomme les points de ton compte. Outils : lister_voix, generer_voix, voir_credits, historique_generations.'}</p>
-    </section>
     {/* B2B : volumes importants et solutions sur mesure. */}
     <section className="rounded-[26px] border border-violet-100 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-6 text-slate-900 shadow-[0_12px_38px_rgba(76,29,149,.06)]">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -230,6 +253,22 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
     <section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">URL Media pour les automatisations</h2><p className="mt-1 text-sm text-slate-500">Pour Viasocket, n8n ou un chatbot qui attend un fichier média, utilise une URL publique directement accessible.</p><div className="mt-4 rounded-2xl bg-slate-950 p-4 text-sm text-purple-200"><code>https://sawtify.space/api/v1/developer/tts</code></div><p className="mt-3 text-xs text-slate-500">Types acceptés par les outils d’automatisation : photo, vidéo, audio, document ou GIF. Sawtify retourne un audio WAV ; si ton outil demande un champ <code>media_url</code>, envoie l’URL publique du fichier après avoir reçu la réponse audio.</p></section>
     {newKey && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="font-bold text-amber-900">Copie ta clé maintenant — elle ne sera plus affichée.</p><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-xl bg-white px-3 py-3 text-xs text-slate-800">{newKey}</code><button onClick={copyKey} className="rounded-xl bg-slate-900 px-4 text-white">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div></div>}
     <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]"><section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">Créer une clé</h2><p className="mt-1 text-sm text-slate-500">Une clé par application ou client.</p><label className="mt-5 block text-xs font-bold text-slate-500">Nom de l’intégration</label><input value={name} onChange={e => setName(e.target.value)} maxLength={80} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-purple-500" /><button disabled={busy || !name.trim()} onClick={createKey} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 py-3 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />{busy ? 'Création…' : 'Créer une clé Beta'}</button>{message && <p className="mt-3 text-sm text-rose-600">{message}</p>}<a href="/docs/developer-api-beta.html" target="_blank" rel="noreferrer" className="mt-5 flex items-center gap-2 text-xs font-bold text-purple-600">Voir la documentation <ExternalLink className="h-3 w-3" /></a></section>
-    <section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">Mes clés API</h2>{loading ? <p className="mt-5 text-sm text-slate-500">Chargement…</p> : keys.length === 0 ? <p className="mt-5 text-sm text-slate-500">Aucune clé créée.</p> : <div className="mt-4 space-y-3">{keys.map(key => <div key={key.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{key.name}</p><code className="text-xs text-slate-500">{key.key_prefix}••••••</code><p className="text-[10px] text-slate-400">{key.active ? 'Active' : 'Révoquée'} · créée le {new Date(key.created_at).toLocaleDateString('fr-FR')}</p></div>{key.active && <button onClick={() => revokeKey(key.id)} title="Révoquer" className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>}</section></div>
+    <section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">Mes clés API</h2>{loading ? <p className="mt-5 text-sm text-slate-500">Chargement…</p> : keys.length === 0 ? <p className="mt-5 text-sm text-slate-500">Aucune clé créée.</p> : <div className="mt-4 space-y-3">{keys.map(key => <div key={key.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{key.name}</p><code className="text-xs text-slate-500">{key.key_prefix}••••••</code><p className="text-[10px] text-slate-400">{key.active ? 'Active' : 'Révoquée'} · créée le {new Date(key.created_at).toLocaleDateString('fr-FR')}</p></div>{key.active && <button onClick={() => revokeKey(key.id)} title="Révoquer" className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>}</section></div>    </> : <>
+      <section className="saw-glass mx-auto max-w-3xl rounded-[28px] p-8 text-center">
+        <Lock className="mx-auto h-12 w-12 text-slate-300" />
+        <h2 className="mt-4 text-2xl font-black text-slate-900">{isAR ? 'واجهة API (نسخة تجريبية)' : 'API par clé (Beta)'}</h2>
+        <p className="mt-2 text-slate-500">{isAR ? 'تتطلب هذه الميزة أكثر من 1000 نقطة في رصيدك.' : 'Cette fonctionnalité se débloque avec plus de 1 000 points.'}</p>
+        <div className="mx-auto mt-5 max-w-xs">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.min(100, Math.round((balance / 1001) * 100))}%` }} /></div>
+          <p className="mt-2 text-xs text-slate-500">{balance} / 1 001 {isAR ? 'نقطة' : 'points'}</p>
+        </div>
+        <p className="mt-4 font-bold text-purple-600">{isAR ? `رصيدك الحالي: ${balance} نقطة` : `Solde actuel : ${balance} points`}</p>
+        <p className="mt-1 text-sm text-slate-500">{isAR ? `ينقصك ${Math.max(0, 1001 - balance)} نقطة للفتح.` : `Il te manque ${Math.max(0, 1001 - balance)} points pour la débloquer.`}</p>
+        <button type="button" onClick={() => setTab('mcp')} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-violet-700">
+          <Bot className="h-4 w-4" />
+          {isAR ? 'استعمل الموصّل المفتوح للجميع' : 'Utiliser le connecteur IA (ouvert à tous)'}
+        </button>
+      </section>
+    </>)}
   </div>;
 };

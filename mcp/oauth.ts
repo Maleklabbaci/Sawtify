@@ -1,6 +1,7 @@
 import express from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import { renderAuthorizePage } from "./authorizePage";
 
 /**
  * OAuth 2.1 minimal et SANS base de données pour le connecteur MCP Sawtify.
@@ -24,7 +25,6 @@ const CODE_TTL = 5 * 60;               // 5 min
 const usedCodes = new Map<string, number>(); // jti -> exp (usage unique, instance unique)
 
 const b64url = (buf: Buffer) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
 function redirectAllowed(uri: string): boolean {
   try {
@@ -34,14 +34,14 @@ function redirectAllowed(uri: string): boolean {
   } catch { return false; }
 }
 
-export function signAccessToken(deps: OAuthDeps, userId: string): string {
-  return jwt.sign({ typ: "access", sub: userId, aud: `${deps.baseUrl}/mcp` }, deps.secret, { algorithm: "HS256", expiresIn: ACCESS_TTL });
+export function signAccessToken(deps: OAuthDeps, userId: string, clientName = ""): string {
+  return jwt.sign({ typ: "access", sub: userId, cn: clientName, aud: `${deps.baseUrl}/mcp` }, deps.secret, { algorithm: "HS256", expiresIn: ACCESS_TTL });
 }
 
-export function verifyAccessToken(deps: OAuthDeps, token: string): string | null {
+export function verifyAccessToken(deps: OAuthDeps, token: string): { userId: string; clientName: string } | null {
   try {
     const d = jwt.verify(token, deps.secret, { algorithms: ["HS256"], audience: `${deps.baseUrl}/mcp` }) as any;
-    return d.typ === "access" && d.sub ? String(d.sub) : null;
+    return d.typ === "access" && d.sub ? { userId: String(d.sub), clientName: String(d.cn || "") } : null;
   } catch { return null; }
 }
 
@@ -97,43 +97,21 @@ export function registerOAuth(app: express.Express, deps: OAuthDeps) {
     } catch { return null; }
   };
 
-  // --- Page d'autorisation (connexion Supabase + consentement)
+  // --- Page d'autorisation (connexion / inscription Supabase + consentement), design identique au login de la plateforme.
+  // Sans paramètres (retour de Google ou du mail de confirmation) : la page reprend ceux gardés dans sessionStorage.
   app.get("/oauth/authorize", (req, res) => {
     const q = req.query as Record<string, string>;
-    const client = readClient(q.client_id);
-    if (!client || !client.redirect_uris.includes(q.redirect_uri)) return res.status(400).send("Client ou redirect_uri invalide.");
-    if (q.response_type !== "code" || !q.code_challenge || q.code_challenge_method !== "S256") {
-      return res.status(400).send("Paramètres OAuth invalides (PKCE S256 requis).");
+    res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
+    let params = null;
+    if (q.client_id) {
+      const client = readClient(q.client_id);
+      if (!client || !client.redirect_uris.includes(q.redirect_uri)) return res.status(400).send("Client ou redirect_uri invalide.");
+      if (q.response_type !== "code" || !q.code_challenge || q.code_challenge_method !== "S256") {
+        return res.status(400).send("Paramètres OAuth invalides (PKCE S256 requis).");
+      }
+      params = { client_id: q.client_id, redirect_uri: q.redirect_uri, code_challenge: q.code_challenge, state: q.state || "", client_name: client.name };
     }
-    const params = { client_id: q.client_id, redirect_uri: q.redirect_uri, code_challenge: q.code_challenge, state: q.state || "" };
-    res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY" });
-    res.send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connecter Sawtify</title>
-<style>body{font-family:system-ui,sans-serif;background:#0b0b10;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
-.c{background:#15151d;border:1px solid #2a2a36;border-radius:16px;padding:28px;width:min(92vw,380px)}h1{font-size:20px;margin:0 0 6px}p{color:#aaa;font-size:14px}
-input{width:100%;box-sizing:border-box;padding:12px;margin:6px 0;border-radius:10px;border:1px solid #333;background:#0f0f15;color:#fff}
-button{width:100%;padding:12px;margin-top:8px;border:0;border-radius:10px;font-weight:600;cursor:pointer;background:#7c5cff;color:#fff}button.s{background:#22222d}
-#e{color:#ff6b6b;font-size:13px;min-height:18px}</style></head><body><div class="c">
-<h1>Connecter Sawtify</h1><p><b>${esc(client.name)}</b> demande l'accès à ton compte Sawtify : générer des voix, consulter ton solde et ton historique. Les crédits de ton compte seront utilisés.</p>
-<div id="login" hidden><input id="em" type="email" placeholder="Email" autocomplete="email"><input id="pw" type="password" placeholder="Mot de passe" autocomplete="current-password">
-<button id="go">Se connecter</button><button class="s" id="gg">Continuer avec Google</button></div>
-<div id="consent" hidden><p id="who"></p><button id="ok">Autoriser</button><button class="s" id="no">Refuser</button></div><div id="e"></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-const P=${JSON.stringify(params).replace(/</g, "\\u003c")};
-const sb=supabase.createClient(${JSON.stringify(deps.supabaseUrl)},${JSON.stringify(deps.supabaseAnonKey)});
-const $=id=>document.getElementById(id), err=m=>$("e").textContent=m||"";
-async function show(){const{data}=await sb.auth.getSession();
- if(data.session){$("login").hidden=true;$("consent").hidden=false;$("who").textContent="Connecté : "+data.session.user.email;}
- else{$("login").hidden=false;$("consent").hidden=true;}}
-$("go").onclick=async()=>{err();const{error}=await sb.auth.signInWithPassword({email:$("em").value,password:$("pw").value});error?err("Identifiants invalides."):show();};
-$("gg").onclick=()=>sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.href}});
-$("no").onclick=()=>{location.href=P.redirect_uri+(P.redirect_uri.includes("?")?"&":"?")+"error=access_denied"+(P.state?"&state="+encodeURIComponent(P.state):"");};
-$("ok").onclick=async()=>{err();const{data}=await sb.auth.getSession();if(!data.session)return show();
- const r=await fetch("/oauth/approve",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+data.session.access_token},body:JSON.stringify(P)});
- const j=await r.json();j.redirect?location.href=j.redirect:err(j.error||"Erreur.");};
-show();
-</script></body></html>`);
+    res.send(renderAuthorizePage({ supabaseUrl: deps.supabaseUrl, supabaseAnonKey: deps.supabaseAnonKey, params }));
   });
 
   // --- Approbation : vérifie la session Supabase, émet le code
@@ -144,7 +122,7 @@ show();
     const { client_id, redirect_uri, code_challenge, state } = req.body || {};
     const client = readClient(client_id);
     if (!client || !client.redirect_uris.includes(redirect_uri) || typeof code_challenge !== "string") return res.status(400).json({ error: "Requête invalide." });
-    const code = jwt.sign({ typ: "code", sub: userId, cid: client_id, ru: redirect_uri, cc: code_challenge, jti: crypto.randomUUID() }, secret, { algorithm: "HS256", expiresIn: CODE_TTL });
+    const code = jwt.sign({ typ: "code", sub: userId, cid: client_id, cn: client.name, ru: redirect_uri, cc: code_challenge, jti: crypto.randomUUID() }, secret, { algorithm: "HS256", expiresIn: CODE_TTL });
     const u = new URL(redirect_uri);
     u.searchParams.set("code", code);
     if (state) u.searchParams.set("state", String(state));
@@ -156,11 +134,11 @@ show();
     res.set("Cache-Control", "no-store");
     const b = req.body || {};
     const fail = (error: string, status = 400) => res.status(status).json({ error });
-    const issue = (userId: string) => res.json({
-      access_token: signAccessToken(deps, userId),
+    const issue = (userId: string, clientName = "") => res.json({
+      access_token: signAccessToken(deps, userId, clientName),
       token_type: "Bearer",
       expires_in: ACCESS_TTL,
-      refresh_token: jwt.sign({ typ: "refresh", sub: userId, cid: b.client_id }, secret, { algorithm: "HS256", expiresIn: REFRESH_TTL }),
+      refresh_token: jwt.sign({ typ: "refresh", sub: userId, cid: b.client_id, cn: clientName }, secret, { algorithm: "HS256", expiresIn: REFRESH_TTL }),
       scope: "sawtify",
     });
     try {
@@ -173,12 +151,12 @@ show();
         for (const [k, exp] of usedCodes) if (exp < now) usedCodes.delete(k);
         if (usedCodes.has(d.jti)) return fail("invalid_grant");
         usedCodes.set(d.jti, now + CODE_TTL * 1000);
-        return issue(d.sub);
+        return issue(d.sub, String(d.cn || ""));
       }
       if (b.grant_type === "refresh_token") {
         const d = jwt.verify(String(b.refresh_token || ""), secret, { algorithms: ["HS256"] }) as any;
         if (d.typ !== "refresh") return fail("invalid_grant");
-        return issue(d.sub);
+        return issue(d.sub, String(d.cn || ""));
       }
       return fail("unsupported_grant_type");
     } catch { return fail("invalid_grant"); }

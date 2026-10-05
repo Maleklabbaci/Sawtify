@@ -32,7 +32,17 @@ function mintInternalToken(secret: string, userId: string): string {
   return jwt.sign({ typ: "mcp-internal", sub: userId }, secret, { algorithm: "HS256", expiresIn: "3m" });
 }
 
-function buildServer(deps: McpDeps, userId: string): McpServer {
+/** Origine d'une génération faite via MCP, déduite du nom du client OAuth (Claude, ChatGPT…). */
+export type McpChannel = "mcp_claude" | "mcp_chatgpt" | "mcp_apikey" | "mcp_other";
+export function channelFromClientName(name: string | null): McpChannel {
+  if (name === null) return "mcp_apikey";
+  const n = name.toLowerCase();
+  if (n.includes("claude") || n.includes("anthropic")) return "mcp_claude";
+  if (n.includes("chatgpt") || n.includes("openai")) return "mcp_chatgpt";
+  return "mcp_other";
+}
+
+function buildServer(deps: McpDeps, userId: string, channel: McpChannel): McpServer {
   const server = new McpServer({ name: "sawtify", version: "1.0.0" });
   const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
   const fail = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
@@ -82,6 +92,12 @@ function buildServer(deps: McpDeps, userId: string): McpServer {
       const path = `${userId}/developer/${MEDIA_KEY_ID}/${fileName}`;
       const up = await deps.supabaseClient.storage.from("audio-generations").upload(path, wav, { contentType: "audio/wav", upsert: false });
       if (up.error) return fail("Audio généré et facturé, mais le lien n'a pas pu être créé. Réessaie depuis sawtify.space (historique).");
+      // Admin : marque l'origine (MCP Claude / ChatGPT…) et rattache l'audio à la génération pour l'écouter.
+      const gid = typeof j.generation_id === "string" && /^[0-9a-f-]{36}$/i.test(j.generation_id) ? j.generation_id : null;
+      if (gid) {
+        const full = await deps.supabaseClient.from("voice_generations").update({ generation_channel: channel, audio_storage_path: path }).eq("id", gid).eq("user_id", userId);
+        if (full.error) await deps.supabaseClient.from("voice_generations").update({ audio_storage_path: path }).eq("id", gid).eq("user_id", userId); // colonne generation_channel pas encore créée
+      }
       const url = `${deps.baseUrl}/api/v1/developer/media/${userId}/${MEDIA_KEY_ID}/${fileName}`;
       return text(`Voix générée (${j.duration_seconds}s, voix ${j.voice_id}).\nÉcouter / télécharger : ${url}\nLien valable 7 jours.\nPoints débités : ${j.points_deducted} — solde restant : ${j.remaining_balance}.`);
     } catch (e: any) {
@@ -145,11 +161,13 @@ export function registerMcp(app: express.Express, deps: McpDeps) {
 
   app.post("/mcp", express.json({ limit: "1mb" }), async (req, res) => {
     const bearer = (req.get("authorization") || "").replace(/^Bearer\s+/i, "");
-    let userId = bearer ? verifyAccessToken(oauthDeps, bearer) : null;
-    if (!userId) userId = (await deps.resolveDeveloperKey(req))?.userId ?? null; // clé swt_beta_… (Claude Code, Gemini CLI)
+    const tok = bearer ? verifyAccessToken(oauthDeps, bearer) : null;
+    let userId: string | null = tok?.userId ?? null;
+    let channel: McpChannel = tok ? channelFromClientName(tok.clientName) : "mcp_apikey";
+    if (!userId) { userId = (await deps.resolveDeveloperKey(req))?.userId ?? null; channel = "mcp_apikey"; } // clé swt_beta_… (Claude Code, Gemini CLI)
     if (!userId) return unauthorized(res);
 
-    const server = buildServer(deps, userId);
+    const server = buildServer(deps, userId, channel);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on("close", () => { transport.close(); server.close(); });
     try {

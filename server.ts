@@ -2200,7 +2200,12 @@ async function startServer() {
       const [{ data: profiles }, { data: transactions }, { data: generations }, { data: usageLogs }] = await Promise.all([
         supabaseClient.from("profiles").select("id, email, full_name, credits_balance, total_generated_audios, created_at, updated_at").order("created_at", { ascending: false }).limit(5000),
         supabaseClient.from("transactions").select("user_id, amount_dzd, points_credited, status, gateway, created_at").limit(10000),
-        supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, rating, created_at").limit(20000),
+        (async () => {
+          // generation_channel = origine MCP (Claude / ChatGPT…). Colonne créée par supabase/mcp_generation_channel.sql : repli sans elle tant que le SQL n'est pas passé.
+          const withChannel = await supabaseClient.from("voice_generations").select("user_id, generation_source, generation_channel, points_deducted, audio_duration_seconds, char_count, rating, created_at").limit(20000);
+          if (!withChannel.error) return withChannel;
+          return await supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, rating, created_at").limit(20000);
+        })(),
         supabaseClient.from("gemini_usage_logs").select("user_id, operation, model, characters, success, metadata, created_at").limit(20000),
       ]);
       const { data: authUsersData, error: authUsersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -2225,6 +2230,10 @@ async function startServer() {
       const freeGenerations = gens.filter((row: any) => row.generation_source === "free_trial" || (row.generation_source === "legacy" && !paidUserIds.has(row.user_id))).length;
       const paidGenerations = gens.filter((row: any) => row.generation_source === "paid_balance" || (row.generation_source === "legacy" && paidUserIds.has(row.user_id))).length;
       const apiGenerations = gens.filter((row: any) => row.generation_source === "developer_api").length;
+      const mcpClaudeGenerations = gens.filter((row: any) => row.generation_channel === "mcp_claude").length;
+      const mcpChatgptGenerations = gens.filter((row: any) => row.generation_channel === "mcp_chatgpt").length;
+      const mcpOtherGenerations = gens.filter((row: any) => row.generation_channel === "mcp_apikey" || row.generation_channel === "mcp_other").length;
+      const mcpGenerations = mcpClaudeGenerations + mcpChatgptGenerations + mcpOtherGenerations;
       const revenueDzd = filteredTransactions.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
       const paidPointsIssued = filteredTransactions.reduce((sum: number, row: any) => sum + Number(row.points_credited || 0), 0);
       const pointsConsumed = gens.reduce((sum: number, row: any) => sum + Number(row.points_deducted || 0), 0);
@@ -2286,7 +2295,7 @@ async function startServer() {
       });
       const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
-      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, mcp_generations: mcpGenerations, mcp_claude_generations: mcpClaudeGenerations, mcp_chatgpt_generations: mcpChatgptGenerations, mcp_other_generations: mcpOtherGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
@@ -2300,7 +2309,12 @@ async function startServer() {
       if (profileError) return res.status(500).json({ error: "Impossible de lire le profil utilisateur.", detail: profileError.message });
       if (!profile) return res.status(404).json({ error: "Profil utilisateur introuvable.", detail: "Cet identifiant existe peut-être dans Auth mais pas dans public.profiles." });
       const [{ data: generations, error: generationsError }, { data: transactions }, { data: usageLogs }] = await Promise.all([
-        supabaseClient.from("voice_generations").select("id, voice_id, voice_name, text_prompt, char_count, points_deducted, audio_storage_path, audio_duration_seconds, latency_ms, status, generation_source, rating, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+        (async () => {
+          const cols = "id, voice_id, voice_name, text_prompt, char_count, points_deducted, audio_storage_path, audio_duration_seconds, latency_ms, status, generation_source, rating, created_at";
+          const withChannel = await supabaseClient.from("voice_generations").select(cols + ", generation_channel").eq("user_id", userId).order("created_at", { ascending: false }).limit(200);
+          if (!withChannel.error) return withChannel;
+          return await supabaseClient.from("voice_generations").select(cols).eq("user_id", userId).order("created_at", { ascending: false }).limit(200);
+        })(),
         supabaseClient.from("transactions").select("id, amount_dzd, points_credited, status, gateway, gateway_reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
         supabaseClient.from("gemini_usage_logs").select("operation, model, characters, success, metadata, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       ]);

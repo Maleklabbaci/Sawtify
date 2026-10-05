@@ -3,8 +3,16 @@ import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Ph
 import { API_BASE_URL } from '../config/apiBase';
 import { getMyAccessToken } from '../services/supabaseClient';
 
+// Origine d'une génération : plateforme web ou connecteur MCP (Claude, ChatGPT, clé API).
+const CHANNEL_LABELS: Record<string, { label: string; className: string }> = {
+  mcp_claude: { label: 'MCP · Claude', className: 'bg-orange-50 text-orange-700 border-orange-200' },
+  mcp_chatgpt: { label: 'MCP · ChatGPT', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  mcp_apikey: { label: 'MCP · clé API', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+  mcp_other: { label: 'MCP · autre', className: 'bg-slate-50 text-slate-700 border-slate-200' },
+};
+
 type AdminData = {
-  summary: { total_users: number; free_trial_users: number; paid_users: number; active_users_30d: number; generations_total: number; free_generations: number; paid_generations: number; api_generations: number; revenue_dzd: number; points_consumed: number; paid_points_issued: number; point_value_dzd: number; gemini_calls: number; gemini_input_tokens: number; gemini_output_tokens: number; gemini_cost_usd: number; gemini_cost_dzd: number; free_gemini_cost_dzd: number; paid_gemini_cost_dzd: number; text_input_usd_per_1m: number; text_output_usd_per_1m: number; average_cost_per_generation_dzd: number; gross_margin_dzd: number; gross_margin_percent: number; usd_to_dzd: number };
+  summary: { total_users: number; free_trial_users: number; paid_users: number; active_users_30d: number; generations_total: number; free_generations: number; paid_generations: number; api_generations: number; mcp_generations?: number; mcp_claude_generations?: number; mcp_chatgpt_generations?: number; mcp_other_generations?: number; revenue_dzd: number; points_consumed: number; paid_points_issued: number; point_value_dzd: number; gemini_calls: number; gemini_input_tokens: number; gemini_output_tokens: number; gemini_cost_usd: number; gemini_cost_dzd: number; free_gemini_cost_dzd: number; paid_gemini_cost_dzd: number; text_input_usd_per_1m: number; text_output_usd_per_1m: number; average_cost_per_generation_dzd: number; gross_margin_dzd: number; gross_margin_percent: number; usd_to_dzd: number };
   recent_users: Array<{ id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; gemini_calls: number; gemini_characters: number; gemini_cost_usd: number; gemini_cost_dzd: number; avg_rating: number | null; ratings_count: number }>;
   recent_payments: Array<{ amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
   cost_model: Record<string, number>;
@@ -12,7 +20,7 @@ type AdminData = {
 type FunnelData = { counts: Record<string, number>; campaigns: Array<{ name: string; visitors: number; signup_open: number; accounts: number; onboarding: number }> };
 type UserDetail = {
   profile: { id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; updated_at: string; onboarding_completed_at: string | null; acquisition_source: string | null; last_sign_in_at: string | null };
-  generations: Array<{ id: string; voice_id: string; voice_name: string; text_prompt: string; char_count: number; points_deducted: number; audio_storage_path: string | null; audio_duration_seconds: number | null; latency_ms: number | null; status: string; generation_source: string | null; rating: number | null; created_at: string; audio_url: string | null }>;
+  generations: Array<{ id: string; voice_id: string; voice_name: string; text_prompt: string; char_count: number; points_deducted: number; audio_storage_path: string | null; audio_duration_seconds: number | null; latency_ms: number | null; status: string; generation_source: string | null; generation_channel?: string | null; rating: number | null; created_at: string; audio_url: string | null }>;
   transactions: Array<{ id: string; amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
   usage_logs: Array<{ operation: string; model?: string | null; characters: number; success: boolean; metadata?: { cost_usd?: number; input_tokens?: number; output_tokens?: number; total_tokens?: number }; created_at: string }>;
   usage_summary?: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number; cost_dzd: number; model: string };
@@ -186,6 +194,28 @@ export const AdminPage: React.FC = () => {
             <p className="mt-1 text-xs text-slate-400">{detail}</p>
           </div>
         ))}
+      </section>
+
+      <section className="rounded-3xl border border-violet-200 bg-violet-50/60 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Connecteur MCP — générations par assistant IA</h2>
+            <p className="mt-1 text-sm text-slate-600">Voix générées depuis Claude, ChatGPT ou un client MCP (clé API). Nécessite supabase/mcp_generation_channel.sql.</p>
+          </div>
+          <div className="rounded-2xl border border-violet-200 bg-white px-4 py-2 text-right">
+            <p className="text-[11px] font-bold uppercase text-violet-600">Total MCP</p>
+            <p className="text-2xl font-black text-slate-900">{s.mcp_generations ?? 0}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {([['mcp_claude', s.mcp_claude_generations], ['mcp_chatgpt', s.mcp_chatgpt_generations], ['mcp_other', s.mcp_other_generations]] as Array<[string, number | undefined]>).map(([key, count]) => (
+            <div key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${CHANNEL_LABELS[key].className}`}>{key === 'mcp_other' ? 'MCP · clé API / autre' : CHANNEL_LABELS[key].label}</span>
+              <p className="mt-3 text-3xl font-black text-slate-900">{count ?? 0}</p>
+              <p className="mt-1 text-xs text-slate-400">générations</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
@@ -412,7 +442,7 @@ export const AdminPage: React.FC = () => {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-black text-slate-900">{generation.voice_name || generation.voice_id}</p>
-                        <p className="mt-1 text-xs text-slate-500">{dateTime(generation.created_at)} · {generation.status} · {generation.generation_source || 'legacy'}</p>
+                        <p className="mt-1 text-xs text-slate-500">{dateTime(generation.created_at)} · {generation.status} · {generation.generation_source || 'legacy'}{generation.generation_channel && CHANNEL_LABELS[generation.generation_channel] && <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${CHANNEL_LABELS[generation.generation_channel].className}`}>{CHANNEL_LABELS[generation.generation_channel].label}</span>}</p>
                       </div>
                       <div className="shrink-0 text-right text-xs text-slate-500">
                         <p>{Number(generation.audio_duration_seconds || 0).toFixed(2)} s</p>
