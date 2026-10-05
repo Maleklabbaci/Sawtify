@@ -12,7 +12,6 @@ export interface McpDeps {
   supabaseClient: any;
   supabaseUrl: string;
   supabaseAnonKey: string;
-  supabaseJwtSecret: string;
   oauthSecret: string;
   getUserBalance: (userId: string) => Promise<number | null>;
   getUserIdFromBearer: (token: string) => Promise<string | null>;
@@ -30,7 +29,7 @@ const TTS_GUIDE = [
 ].join(" ");
 
 function mintInternalToken(secret: string, userId: string): string {
-  return jwt.sign({ sub: userId, role: "authenticated", aud: "authenticated" }, secret, { algorithm: "HS256", expiresIn: "3m" });
+  return jwt.sign({ typ: "mcp-internal", sub: userId }, secret, { algorithm: "HS256", expiresIn: "3m" });
 }
 
 function buildServer(deps: McpDeps, userId: string): McpServer {
@@ -66,10 +65,10 @@ function buildServer(deps: McpDeps, userId: string): McpServer {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ texte, voix, registre, intensite, vitesse }) => {
     try {
-      const token = mintInternalToken(deps.supabaseJwtSecret, userId);
+      const token = mintInternalToken(deps.oauthSecret, userId);
       const r = await fetch(`${deps.internalUrl}/api/v1/tts/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", "X-Sawtify-MCP-Internal": token },
         body: JSON.stringify({ text: texte, voice_id: voix, register: registre, intensity: intensite, speed: vitesse }),
         signal: AbortSignal.timeout(150000),
       });

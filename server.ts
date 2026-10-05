@@ -225,8 +225,21 @@ function verifySupabaseToken(token: string): string | null {
   }
 }
 
+// Secret du connecteur MCP (>= 32 caractères, sinon le connecteur est désactivé).
+const MCP_OAUTH_SECRET = process.env.MCP_OAUTH_SECRET || "";
+const MCP_ENABLED = MCP_OAUTH_SECRET.length >= 32;
+
 async function getUserIdFromAuthHeader(req: express.Request): Promise<string | null> {
   try {
+    // Appel interne du connecteur MCP (generer_voix) : jeton signé avec MCP_OAUTH_SECRET,
+    // donc indépendant de SUPABASE_JWT_SECRET.
+    const internal = req.get('x-sawtify-mcp-internal');
+    if (internal && MCP_ENABLED) {
+      try {
+        const d = jwt.verify(internal, MCP_OAUTH_SECRET, { algorithms: ['HS256'] }) as any;
+        if (d.typ === 'mcp-internal' && d.sub) return String(d.sub);
+      } catch { /* jeton invalide : on continue avec l'auth classique */ }
+    }
     const authHeader = req.get('authorization') || req.get('Authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!token || !supabaseClient) return null;
@@ -1970,24 +1983,28 @@ async function startServer() {
   app.use(express.json({ limit: "10mb" }));
 
   // Connecteur MCP (Claude / ChatGPT / Gemini CLI) + OAuth — voir docs/MCP-CONNECTEUR.md
-  registerMcp(app, {
-    baseUrl: (process.env.PUBLIC_BASE_URL || PUBLIC_MEDIA_URL).replace(/\/+$/, ""),
-    internalUrl: `http://127.0.0.1:${PORT}`,
-    supabaseClient,
-    supabaseUrl: SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "",
-    supabaseJwtSecret: SUPABASE_JWT_SECRET,
-    oauthSecret: process.env.MCP_OAUTH_SECRET || createHash("sha256").update(`sawtify-mcp:${SUPABASE_JWT_SECRET}`).digest("hex"),
-    getUserBalance,
-    getUserIdFromBearer: async (token: string) => {
-      const local = verifySupabaseToken(token);
-      if (local) return local;
-      if (!supabaseClient) return null;
-      const { data, error } = await supabaseClient.auth.getUser(token);
-      return error || !data?.user ? null : (data.user.id as string);
-    },
-    resolveDeveloperKey: (r) => resolveDeveloperKey(r),
-  });
+  if (MCP_ENABLED) {
+    registerMcp(app, {
+      baseUrl: (process.env.PUBLIC_BASE_URL || PUBLIC_MEDIA_URL).replace(/\/+$/, ""),
+      internalUrl: `http://127.0.0.1:${PORT}`,
+      supabaseClient,
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "",
+      oauthSecret: MCP_OAUTH_SECRET,
+      getUserBalance,
+      getUserIdFromBearer: async (token: string) => {
+        const local = verifySupabaseToken(token);
+        if (local) return local;
+        if (!supabaseClient) return null;
+        const { data, error } = await supabaseClient.auth.getUser(token);
+        return error || !data?.user ? null : (data.user.id as string);
+      },
+      resolveDeveloperKey: (r) => resolveDeveloperKey(r),
+    });
+    console.log("[MCP] Connecteur actif : /mcp (OAuth 2.1) — outils : lister_voix, generer_voix, voir_credits, historique_generations");
+  } else {
+    console.warn("[MCP] Connecteur DÉSACTIVÉ : MCP_OAUTH_SECRET manquante ou trop courte (32 caractères minimum).");
+  }
 
   const allowedOrigins = new Set((FRONTEND_URL || "https://sawtify.space").split(",").map((value) => value.trim().replace(/\/+$/, "")).filter(Boolean));
   app.use((req, res, next) => {
