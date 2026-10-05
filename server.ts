@@ -13,6 +13,7 @@ import ffmpegPath from "ffmpeg-static";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { registerMcp } from "./mcp/mcp";
 
 // ===================================================================
 //  MOTEUR TTS À DOUBLE MODE (Gemini 3.8 / 3.1)
@@ -1967,6 +1968,26 @@ async function startServer() {
 
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
+
+  // Connecteur MCP (Claude / ChatGPT / Gemini CLI) + OAuth — voir docs/MCP-CONNECTEUR.md
+  registerMcp(app, {
+    baseUrl: (process.env.PUBLIC_BASE_URL || PUBLIC_MEDIA_URL).replace(/\/+$/, ""),
+    internalUrl: `http://127.0.0.1:${PORT}`,
+    supabaseClient,
+    supabaseUrl: SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "",
+    supabaseJwtSecret: SUPABASE_JWT_SECRET,
+    oauthSecret: process.env.MCP_OAUTH_SECRET || createHash("sha256").update(`sawtify-mcp:${SUPABASE_JWT_SECRET}`).digest("hex"),
+    getUserBalance,
+    getUserIdFromBearer: async (token: string) => {
+      const local = verifySupabaseToken(token);
+      if (local) return local;
+      if (!supabaseClient) return null;
+      const { data, error } = await supabaseClient.auth.getUser(token);
+      return error || !data?.user ? null : (data.user.id as string);
+    },
+    resolveDeveloperKey: (r) => resolveDeveloperKey(r),
+  });
 
   const allowedOrigins = new Set((FRONTEND_URL || "https://sawtify.space").split(",").map((value) => value.trim().replace(/\/+$/, "")).filter(Boolean));
   app.use((req, res, next) => {
