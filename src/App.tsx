@@ -179,8 +179,7 @@ function AppContent() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
   const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin', replace = false) => {
-    if (tab === 'edit-video') { setToastMessage('Le montage vidéo est fermé pour le moment — Prochainement.'); return; }
-    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : '/studio';
+    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : tab === 'edit-video' ? '/edit-video' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
   }, []);

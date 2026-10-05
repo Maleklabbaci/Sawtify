@@ -187,10 +187,10 @@ export const HistoryList: React.FC<HistoryListProps> = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm"><Clapperboard className="h-5 w-5" /></div>
-            <div><p className="text-sm font-black text-slate-900">Montage vidéo automatique</p><p className="text-xs text-slate-500">Utilise une voix Sawtify et son script pour créer une vidéo en un clic.</p></div>
+            <div><p className="text-sm font-black text-slate-900">Montage vidéo automatique</p><p className="text-xs text-slate-500">Gemini choisit les coupes et les captions, FFmpeg rend ton MP4 9:16.</p></div>
           </div>
-          <button type="button" disabled className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-2.5 text-xs font-extrabold text-slate-500 opacity-70 shadow-sm blur-[0.2px]">
-            <Lock className="h-3.5 w-3.5" /> Prochainement
+          <button type="button" onClick={onNavigateToEditVideo} className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition hover:bg-purple-500">
+            <Clapperboard className="h-3.5 w-3.5" /> Monter une vidéo
           </button>
         </div>
       </div>

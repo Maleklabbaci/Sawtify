@@ -10,9 +10,24 @@ import crypto from "crypto";
 import { createHash, randomBytes } from "node:crypto";
 import * as lamejsModule from "lamejs";
 import ffmpegPath from "ffmpeg-static";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink, readdir } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
+import {
+  VIDEO_CAPTION_FONTS,
+  ARABIC_FALLBACK_FONT,
+  MONTAGE_CAPTION_STYLES,
+  MONTAGE_CAPTION_THEMES,
+  type MontageClip,
+  type MontageAudioMode,
+  probeMediaStreams,
+  planMontageWithGemini,
+  stageFontsForJob,
+  buildCaptionsAss,
+  buildMontageFfmpegArgs,
+  plannedDurationSeconds,
+  runFfmpeg,
+} from "./video/montage";
 
 // ===================================================================
 //  MOTEUR TTS À DOUBLE MODE (Gemini 3.8 / 3.1)
@@ -186,8 +201,32 @@ const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space
 const lamejs: any = (lamejsModule as any).default || lamejsModule;
 const VIDEO_STORAGE_DIR = path.join(process.cwd(), "storage", "video");
 const VIDEO_POINTS_PER_MINUTE = 70;
-type VideoJob = { userId: string; status: "queued" | "processing" | "ready" | "failed"; outputPath?: string; cost?: number; error?: string; createdAt: number };
+const MAX_VIDEO_CLIPS = 12;
+type VideoJob = { userId: string; status: "queued" | "processing" | "ready" | "failed"; stage: "analyzing" | "rendering"; outputPath?: string; cost?: number; error?: string; createdAt: number; plannedDuration?: number; montageSource?: "gemini" | "fallback" };
 const VIDEO_JOBS = new Map<string, VideoJob>();
+// Purge : les MP4 terminés et les tâches mortes ne restent que 2 h sur le disque.
+const VIDEO_JOB_TTL_MS = 2 * 60 * 60 * 1000;
+let lastVideoJobsSweepAt = 0;
+async function sweepOldVideoJobs(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastVideoJobsSweepAt < 10 * 60 * 1000) return;
+  lastVideoJobsSweepAt = now;
+  for (const [jobId, job] of VIDEO_JOBS) {
+    if (now - job.createdAt < VIDEO_JOB_TTL_MS) continue;
+    if (job.status === "processing" || job.status === "queued") continue;
+    VIDEO_JOBS.delete(jobId);
+    if (job.outputPath) await unlink(job.outputPath).catch(() => undefined);
+  }
+  try {
+    const names = await readdir(VIDEO_STORAGE_DIR).catch(() => [] as string[]);
+    for (const name of names) {
+      if (!name.endsWith("-result.mp4")) continue;
+      const filePath = path.join(VIDEO_STORAGE_DIR, name);
+      const stats = await (await import("node:fs/promises")).stat(filePath).catch(() => null);
+      if (stats && now - stats.mtimeMs > VIDEO_JOB_TTL_MS) await unlink(filePath).catch(() => undefined);
+    }
+  } catch { /* purge best-effort */ }
+}
 
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
@@ -648,7 +687,7 @@ async function hasReachedDailyTTSLimit(userId: string): Promise<boolean> {
      (preview, tts, enhance, script) : un seul format de log, une seule table.
    ========================================================================== */
 async function logGeminiCall(params: {
-  userId: string | null; callType: "preview" | "tts" | "enhance" | "script" | "ideas";
+  userId: string | null; callType: "preview" | "tts" | "enhance" | "script" | "ideas" | "video_montage";
   billable: boolean; pointsCost: number; charCount?: number; success: boolean; latencyMs?: number;
   model?: string; inputTokens?: number; outputTokens?: number; totalCostUsd?: number;
 }): Promise<void> {
@@ -1904,54 +1943,52 @@ function countEmotionTags(text: string): number {
   return tones + sounds;
 }
 
-function runVideoFfmpeg(args: string[]) {
-  return new Promise<void>((resolve, reject) => {
-    if (!ffmpegPath) return reject(new Error("FFmpeg indisponible."));
-    const child = spawn(ffmpegPath, args, { stdio: ["ignore", "ignore", "pipe"] });
-    let error = "";
-    child.stderr.on("data", (chunk) => { error = `${error}${chunk}`.slice(-5000); });
-    child.on("error", reject);
-    child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg: ${error}`)));
-  });
+/* ===================================================================
+   MONTAGE VIDÉO — les briques (sondage des médias, plan Gemini, captions
+   ASS bilingues, commande FFmpeg) vivent dans video/montage.ts : le
+   module est testable seul via `npm run test:montage`.
+   =================================================================== */
+
+/** Appel Gemini dédié au plan de montage : réponse forcée en JSON, délai
+ *  large (le montage tourne en tâche de fond) et coût journalisé. */
+async function callGeminiJsonForMontage(promptText: string): Promise<{ text: string; model: string; inputTokens: number; outputTokens: number; costUsd: number }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
+  const response = await appelleGemini(GEMINI_TEXT_MODEL, apiKey, {
+    contents: [{ parts: [{ text: promptText }] }],
+    generationConfig: { temperature: 0.35, maxOutputTokens: 8192, responseMimeType: "application/json" },
+  }, { timeoutMs: 60000 });
+  if (!response.ok) {
+    const errJson = await response.json().catch(() => null);
+    throw new Error(errJson?.error?.message || `Gemini HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text).join("") || "";
+  if (!text) throw new Error("réponse Gemini vide");
+  const usage = data.usageMetadata || {};
+  const inputTokens = Number(usage.promptTokenCount || 0);
+  const outputTokens = Number(usage.candidatesTokenCount || 0) + Number(usage.thoughtsTokenCount || 0);
+  const costUsd = (inputTokens / 1_000_000) * GEMINI_TEXT_INPUT_USD_PER_1M + (outputTokens / 1_000_000) * GEMINI_TEXT_OUTPUT_USD_PER_1M;
+  return { text, model: GEMINI_TEXT_MODEL, inputTokens, outputTokens, costUsd };
 }
 
-function probeVideoDuration(filePath: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    if (!ffmpegPath) return reject(new Error("FFmpeg indisponible."));
-    const child = spawn(ffmpegPath, ["-i", filePath, "-f", "null", "-"], { stdio: ["ignore", "ignore", "pipe"] });
-    let stderr = "";
-    child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-12000); });
-    child.on("error", reject);
-    child.on("close", () => {
-      const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
-      if (!match) return reject(new Error("Durée audio introuvable."));
-      resolve(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]));
-    });
-  });
+/** Journalise le plan de montage dans video_render_jobs (best-effort : si la
+ *  migration supabase/video_montage.sql n'a pas encore été exécutée, la
+ *  fonctionnalité continue de marcher, simplement sans historique SQL). */
+async function persistVideoJobRow(jobId: string, userId: string, patch: Record<string, unknown>): Promise<void> {
+  if (!supabaseClient) return;
+  try {
+    if (patch.__insert) {
+      const { __insert, ...row } = patch as any;
+      await supabaseClient.from("video_render_jobs").insert({ id: jobId, user_id: userId, ...row });
+      return;
+    }
+    await supabaseClient.from("video_render_jobs").update(patch).eq("id", jobId).eq("user_id", userId);
+  } catch (error: any) {
+    console.warn(`[Video] job=${jobId} journalisation Supabase ignorée:`, error?.message || error);
+  }
 }
 
-const CAPTION_THEMES = ["white", "yellow", "cyan", "pink", "lime", "orange", "blue", "red", "purple", "gold", "mint", "sky", "coral", "violet", "cream", "electric", "rose", "aqua", "sun", "mono"];
-const CAPTION_COLORS: Record<string, string> = { white: "&H00FFFFFF", yellow: "&H0000EFFF", cyan: "&H00FFFF00", pink: "&H00FF66FF", lime: "&H0000FF66", orange: "&H000080FF", blue: "&H00FFCC00", red: "&H000000FF", purple: "&H00CC66FF", gold: "&H0000D7FF", mint: "&H00AAFFDD", sky: "&H00FFDD88", coral: "&H005080FF", violet: "&H00EE99FF", cream: "&H00DDFFFF", electric: "&H00FFFF00", rose: "&H007799FF", aqua: "&H00FFFFAA", sun: "&H0000CCFF", mono: "&H00FFFFFF" };
-const CAPTION_STYLES = ["bold", "boxed", "shadow", "outline", "karaoke", "minimal", "neon", "bubble", "lower", "center", "top", "impact", "clean", "marker", "glow", "split", "rounded", "news", "reel", "cinema"];
-function assTime(seconds: number): string { const cs = Math.max(0, Math.round(seconds * 100)); const h = Math.floor(cs / 360000); const m = Math.floor((cs % 360000) / 6000); const s = Math.floor((cs % 6000) / 100); const c = cs % 100; return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(c).padStart(2, "0")}`; }
-function assEscape(value: string): string { return value.replace(/[{}]/g, "").replace(/\\/g, "\\\\").replace(/\n/g, " "); }
-function buildCaptionsAss(script: string, duration: number, fontFamily: string, theme: string, style: string, requestedSize?: number): string {
-  const words = script.replace(/\[[^\]]+\]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-  const chunks: string[] = []; let current = "";
-  for (const word of words) { if (current && `${current} ${word}`.length > 32) { chunks.push(current); current = word; } else current = current ? `${current} ${word}` : word; }
-  if (current) chunks.push(current);
-  const maxChars = Math.max(...chunks.map((chunk) => chunk.length), 0);
-  const autoSize = maxChars > 46 ? 36 : maxChars > 38 ? 42 : maxChars > 30 ? 48 : 54;
-  const fontSize = Math.max(24, Math.min(76, Number(requestedSize) || autoSize));
-  const color = CAPTION_COLORS[CAPTION_THEMES.includes(theme) ? theme : "white"];
-  const bold = CAPTION_STYLES.includes(style) && !["minimal", "cinema"].includes(style) ? 1 : 0;
-  const outline = ["boxed", "outline", "neon", "impact", "news", "reel"].includes(style) ? 4 : 2;
-  const alignment = ["top", "news"].includes(style) ? 8 : ["lower"].includes(style) ? 2 : 5;
-  const marginV = alignment === 8 ? 100 : alignment === 2 ? 180 : 260;
-  const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 720\nPlayResY: 1280\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Sawtify,${fontFamily || "Cairo"},${fontSize},${color},${color},&H00101010,&H99000000,${bold},0,0,0,100,100,0,0,1,${outline},2,${alignment},36,36,${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
-  const step = duration / Math.max(chunks.length, 1);
-  return header + chunks.map((chunk, index) => { const wordsInLine = chunk.split(" "); const midpoint = Math.ceil(wordsInLine.length / 2); const display = wordsInLine.length > 4 ? `${wordsInLine.slice(0, midpoint).join(" ")}\\N${wordsInLine.slice(midpoint).join(" ")}` : chunk; return `Dialogue: 0,${assTime(index * step)},${assTime(Math.min(duration, (index + 1) * step))},Sawtify,,0,0,0,,${assEscape(display)}`; }).join("\n") + "\n";
-}
 
 // ===================================================================
 //  START SERVER
@@ -2026,58 +2063,104 @@ async function startServer() {
     const balance = await getUserBalance(userId);
     if (balance === null) return res.status(503).json({ error: "Impossible de vérifier le solde." });
     if (balance <= API_MIN_BALANCE) return res.status(403).json({ error: "Le montage vidéo nécessite plus de 1000 points.", current_balance: balance });
-    const audioUrl = String(req.body?.audioUrl || "");
-    const script = String(req.body?.script || "");
-    const videos = Array.isArray(req.body?.videos) ? req.body.videos : [];
+    const script = String(req.body?.script || "").slice(0, 30000);
+    const videos = Array.isArray(req.body?.videos) ? req.body.videos.slice(0, MAX_VIDEO_CLIPS) : [];
+    const audioMode: MontageAudioMode = req.body?.audioMode === "original" ? "original" : "voice";
+    const audioUrl = audioMode === "voice" ? String(req.body?.audioUrl || "") : "";
+    const captionFont = (VIDEO_CAPTION_FONTS as readonly string[]).includes(String(req.body?.captionFont)) ? String(req.body.captionFont) : ARABIC_FALLBACK_FONT;
+    const captionSize = Math.max(24, Math.min(76, Number(req.body?.captionSize) || 48));
+    const captionStyle = MONTAGE_CAPTION_STYLES.includes(String(req.body?.captionStyle)) ? String(req.body.captionStyle) : "bold";
+    const captionTheme = MONTAGE_CAPTION_THEMES.includes(String(req.body?.captionTheme)) ? String(req.body.captionTheme) : "white";
     if (script.length > 30000) return res.status(413).json({ error: `Script trop long : ${script.length} caractères. La limite est de 30 000 caractères.` });
-    if (!audioUrl || !videos.length) return res.status(400).json({ error: "Ajoute une voix et au moins une vidéo." });
-    const videoPaths = videos.map((item: any) => path.join(VIDEO_STORAGE_DIR, path.basename(String(item.id || ""))));
-    if (videoPaths.some((filePath: string) => !existsSync(filePath))) return res.status(404).json({ error: "Un fichier vidéo est introuvable. Réuploade les rushs." });
+    if (!videos.length) return res.status(400).json({ error: "Ajoute au moins une vidéo ou une image." });
+    if (audioMode === "voice" && !audioUrl) return res.status(400).json({ error: "Choisis une voix Sawtify ou passe en « audio d'origine »." });
+    await mkdir(VIDEO_STORAGE_DIR, { recursive: true });
+    const clips: MontageClip[] = [];
+    for (const item of videos) {
+      const id = path.basename(String(item?.id || ""));
+      const filePath = path.join(VIDEO_STORAGE_DIR, id);
+      if (!id || !existsSync(filePath)) return res.status(404).json({ error: "Un fichier est introuvable. Réuploade les rushs." });
+      const kind: "video" | "image" = item?.kind === "image" ? "image" : "video";
+      const streams = kind === "image" ? { duration: null, hasAudio: false } : await probeMediaStreams(ffmpegPath, filePath);
+      clips.push({ id, name: String(item?.name || id), kind, path: filePath, duration: streams.duration, hasAudio: streams.hasAudio });
+    }
     const jobId = crypto.randomUUID();
     const audioPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-audio`);
     const outputPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-result.mp4`);
     const captionPath = path.join(VIDEO_STORAGE_DIR, `${jobId}-captions.ass`);
+    let targetDuration: number | null = null;
     try {
-      const remote = await fetch(audioUrl);
-      if (!remote.ok) return res.status(502).json({ error: "Impossible de récupérer la voix Sawtify." });
-      await writeFile(audioPath, Buffer.from(await remote.arrayBuffer()));
-      const durationSeconds = await probeVideoDuration(audioPath);
-      const billedMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
-      const montageCost = billedMinutes * VIDEO_POINTS_PER_MINUTE;
-      if (balance < montageCost) return res.status(402).json({ error: `Solde insuffisant : ce montage coûte ${montageCost} points (${billedMinutes} min).`, required_points: montageCost, current_balance: balance, duration_seconds: durationSeconds });
-      VIDEO_JOBS.set(jobId, { userId, status: "queued", cost: montageCost, createdAt: Date.now() });
+      if (audioMode === "voice") {
+        const remote = await fetch(audioUrl);
+        if (!remote.ok) return res.status(502).json({ error: "Impossible de récupérer la voix Sawtify." });
+        await writeFile(audioPath, Buffer.from(await remote.arrayBuffer()));
+        const streams = await probeMediaStreams(ffmpegPath, audioPath);
+        if (!streams.duration) return res.status(400).json({ error: "Audio de la voix illisible. Régénère la voix ou réessaie." });
+        targetDuration = streams.duration;
+      } else {
+        await unlink(audioPath).catch(() => undefined);
+      }
+      // Pré-vérification tarifaire sur la durée maximale plausible (voix = durée
+      // exacte ; mode original = somme des rushs, l'IA ne peut que raccourcir).
+      const upperBoundSeconds = targetDuration ?? clips.reduce((sum, clip) => sum + Math.min(clip.duration ?? 120, 120), 0);
+      const upperBoundMinutes = Math.max(1, Math.ceil(upperBoundSeconds / 60));
+      const upperBoundCost = upperBoundMinutes * VIDEO_POINTS_PER_MINUTE;
+      if (balance < upperBoundCost) return res.status(402).json({ error: `Solde insuffisant : ce montage peut coûter jusqu'à ${upperBoundCost} points (${upperBoundMinutes} min à ${VIDEO_POINTS_PER_MINUTE} pts/min).`, required_points: upperBoundCost, current_balance: balance });
+      VIDEO_JOBS.set(jobId, { userId, status: "queued", stage: "analyzing", cost: upperBoundCost, createdAt: Date.now() });
+      void persistVideoJobRow(jobId, userId, { __insert: true, status: "queued", stage: "analyzing", audio_mode: audioMode, caption_font: captionFont, caption_size: captionSize, caption_style: captionStyle, caption_theme: captionTheme, clip_count: clips.length, duration_seconds: targetDuration, cost_points: upperBoundCost });
       void (async () => {
         const job = VIDEO_JOBS.get(jobId);
         if (!job) return;
-        job.status = "processing";
         try {
-          const montagePrompt = `Prépare un plan de montage vidéo court et professionnel pour Sawtify. Durée: ${durationSeconds.toFixed(1)} secondes. Script: ${script.slice(0, 5000)}`;
-          const montagePlan = await Promise.race([callGeminiTextAPI(montagePrompt, 0.35).then((result) => result.text), new Promise<string>((resolve) => setTimeout(() => resolve("plan-standard"), 2500))]).catch(() => "plan-standard");
-          console.log(`[Video/Gemini] job=${jobId} ${montagePlan.length > 0 ? "plan prêt" : "plan standard"}, coût=${montageCost}`);
-          await writeFile(captionPath, buildCaptionsAss(script, durationSeconds, String(req.body?.captionFont || "Cairo"), String(req.body?.captionTheme || "white"), String(req.body?.captionStyle || "bold"), Number(req.body?.captionSize)), "utf8");
-          const segmentDuration = durationSeconds / videoPaths.length;
-          const inputArgs: string[] = [];
-          videoPaths.forEach((filePath: string, index: number) => { if (String(videos[index]?.kind) === "image") inputArgs.push("-loop", "1"); else inputArgs.push("-stream_loop", "-1"); inputArgs.push("-i", filePath); });
-          inputArgs.push("-i", audioPath);
-          const videoFilters = videoPaths.map((_filePath: string, index: number) => `[${index}:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p,trim=duration=${segmentDuration.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`).join(";");
-          const concatInputs = videoPaths.map((_filePath: string, index: number) => `[v${index}]`).join("");
-          const filterComplex = `${videoFilters};${concatInputs}concat=n=${videoPaths.length}:v=1:a=0[base];[base]subtitles=${captionPath.replace(/:/g, "\\:")}[vout]`;
-          await runVideoFfmpeg(["-y", ...inputArgs, "-filter_complex", filterComplex, "-map", "[vout]", "-map", `${videoPaths.length}:a:0`, "-t", durationSeconds.toFixed(3), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-threads", "1", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", outputPath]);
+          // 1) Gemini choisit l'ordre des séquences, les coupes et les timings
+          //    de captions. En cas d'échec (quota, timeout, JSON cassé), un plan
+          //    de secours déterministe prend le relais — le montage part quand même.
+          job.status = "processing";
+          job.stage = "analyzing";
+          const { plan, gemini } = await planMontageWithGemini({
+            geminiCall: callGeminiJsonForMontage,
+            script,
+            clips,
+            targetDuration,
+            audioMode,
+          });
+          job.plannedDuration = plannedDurationSeconds(plan.segments);
+          job.montageSource = plan.source;
+          void logGeminiCall({ userId, callType: "video_montage", billable: true, pointsCost: 0, charCount: script.length, success: gemini.success, latencyMs: gemini.latencyMs, model: gemini.model, inputTokens: gemini.inputTokens, outputTokens: gemini.outputTokens, totalCostUsd: gemini.costUsd });
+          // 2) Tarification ferme sur la durée réellement planifiée.
+          const billedMinutes = Math.max(1, Math.ceil(job.plannedDuration / 60));
+          const montageCost = billedMinutes * VIDEO_POINTS_PER_MINUTE;
+          job.cost = montageCost;
+          const liveBalance = (await getUserBalance(userId)) ?? balance;
+          if (liveBalance < montageCost) throw Object.assign(new Error(`Solde insuffisant : ce montage coûte ${montageCost} points (${billedMinutes} min).`), { statusCode: 402 });
+          // 3) Captions ASS (police choisie + secours arabe) et rendu FFmpeg.
+          job.stage = "rendering";
+          void persistVideoJobRow(jobId, userId, { status: "rendering", stage: "rendering", duration_seconds: job.plannedDuration, cost_points: montageCost, montage_source: plan.source, caption_count: plan.captions.length, gemini_model: gemini.model, gemini_cost_usd: gemini.costUsd });
+          const fontsDir = stageFontsForJob(jobId, captionFont, VIDEO_STORAGE_DIR);
+          if (plan.captions.length) await writeFile(captionPath, buildCaptionsAss(plan.captions, captionFont, captionTheme, captionStyle, captionSize, ARABIC_FALLBACK_FONT), "utf8");
+          else await unlink(captionPath).catch(() => undefined);
+          console.log(`[Video/Montage] job=${jobId} plan=${plan.source} segments=${plan.segments.length} captions=${plan.captions.length} durée=${job.plannedDuration.toFixed(1)}s coût=${montageCost} pts police=${captionFont}`);
+          await runFfmpeg(ffmpegPath, buildMontageFfmpegArgs({ clips, segments: plan.segments, audioMode, audioPath: audioMode === "voice" ? audioPath : null, captionsPath: plan.captions.length ? captionPath : null, fontsDir, outputPath, targetDuration }));
+          // 4) Débit uniquement après un rendu réussi.
           const debit = await deductCredits(userId, montageCost);
           if (!debit.success) throw new Error(debit.error || "Points insuffisants.");
           job.status = "ready";
           job.outputPath = outputPath;
+          void persistVideoJobRow(jobId, userId, { status: "ready", output_ready_at: new Date().toISOString(), cost_points: montageCost });
         } catch (error: any) {
           job.status = "failed";
           job.error = error?.message || "Rendu vidéo impossible.";
           console.error(`[Video] job=${jobId} failed`, error);
-          await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(outputPath)).catch(() => undefined)]);
+          void persistVideoJobRow(jobId, userId, { status: "failed", error: job.error });
+          await unlink(outputPath).catch(() => undefined);
         } finally {
-          await Promise.allSettled([import("node:fs/promises").then(({ unlink }) => unlink(audioPath)).catch(() => undefined), import("node:fs/promises").then(({ unlink }) => unlink(captionPath)).catch(() => undefined)]);
+          await Promise.allSettled([unlink(audioPath).catch(() => undefined), unlink(captionPath).catch(() => undefined), (async () => { const fontsDir = path.join(VIDEO_STORAGE_DIR, `${jobId}-fonts`); if (fontsDir.includes(`${jobId}-fonts`)) { const names = await readdir(fontsDir).catch(() => [] as string[]); await Promise.allSettled(names.map((name) => unlink(path.join(fontsDir, name)).catch(() => undefined))); } })()]);
+          void sweepOldVideoJobs();
         }
       })();
-      return res.status(202).json({ jobId, status: "queued", cost: montageCost, duration_seconds: durationSeconds, pollAfterMs: 2000 });
+      return res.status(202).json({ jobId, status: "queued", stage: "analyzing", cost_estimate: upperBoundCost, duration_seconds: targetDuration, audio_mode: audioMode, pollAfterMs: 2000 });
     } catch (error: any) {
+      await Promise.allSettled([unlink(audioPath).catch(() => undefined)]);
       return res.status(500).json({ error: error?.message || "Rendu vidéo impossible." });
     }
   });
@@ -2086,8 +2169,8 @@ async function startServer() {
     const job = VIDEO_JOBS.get(path.basename(req.params.jobId));
     if (!userId || !job || job.userId !== userId) return res.status(404).json({ error: "Tâche introuvable." });
     if (job.status === "failed") { VIDEO_JOBS.delete(req.params.jobId); return res.status(500).json({ status: "failed", error: job.error || "Rendu vidéo impossible." }); }
-    if (job.status !== "ready") return res.json({ status: job.status, cost: job.cost });
-    return res.json({ status: "ready", downloadUrl: `/api/video/render/${encodeURIComponent(req.params.jobId)}/download`, cost: job.cost });
+    if (job.status !== "ready") return res.json({ status: job.status, stage: job.stage, cost: job.cost, plannedDuration: job.plannedDuration, montageSource: job.montageSource });
+    return res.json({ status: "ready", downloadUrl: `/api/video/render/${encodeURIComponent(req.params.jobId)}/download`, cost: job.cost, plannedDuration: job.plannedDuration, montageSource: job.montageSource });
   });
   app.get("/api/video/render/:jobId/download", resolveUserIdMiddleware, async (req, res) => {
     const userId = (req as any).resolvedUserId as string | null;
@@ -3584,6 +3667,9 @@ Le texte de la proposition`;
     setTimeout(() => { void warmMissingVoicePreviews(); }, 3000);
     void cleanupExpiredGenerations();
     setInterval(() => void cleanupExpiredGenerations(), 24 * 60 * 60 * 1000).unref();
+    // Purge des montages vidéo terminés (MP4 + tâches) au démarrage puis toutes les 30 min.
+    void sweepOldVideoJobs(true);
+    setInterval(() => void sweepOldVideoJobs(true), 30 * 60 * 1000).unref();
   });
 }
 
