@@ -28,7 +28,6 @@ import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services
 import { WaveformPlayer } from './WaveformPlayer';
 import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
-import { VoiceTipsModal, shouldShowVoiceTips, markVoiceTipsSeen } from './VoiceTipsModal';
 import { VoiceDesignPage } from './VoiceDesignPage';
 
 // ==========================================================================
@@ -55,20 +54,20 @@ const chargerConvertisseurMp3 = () => import('../utils/audioConverter');
 const POP_BASE =
   'saw-pop-fix fixed z-[300] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
   // mobile : panneau en bas de l'écran
-  'inset-x-3 bottom-3 max-h-[70vh] ' +
+  'inset-x-3 top-20 max-h-[calc(100dvh-6rem)] ' +
   // PC : la position exacte (left/top/bottom/width/maxHeight) vient du style inline, calculé depuis la barre
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
 // Popup de changement de balise (pastille cliquable dans le texte)
 const CHIP_POP_BASE =
   'saw-pop-fix fixed z-[310] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
-  'overflow-y-auto custom-scrollbar inset-x-3 bottom-3 max-h-[60vh] ' +
+  'overflow-y-auto custom-scrollbar inset-x-3 top-20 max-h-[calc(100dvh-6rem)] ' +
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
 // Popup des voix : compact, style menu (liste à hauteur garantie, réglages repliables)
 const VOICES_POP_BASE =
   'saw-pop-fix fixed z-[300] flex flex-col overflow-hidden bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-1.5 ' +
-  'inset-x-3 bottom-3 max-h-[70vh] ' +
+  'inset-x-3 top-20 max-h-[calc(100dvh-6rem)] ' +
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
 // ==========================================================================
@@ -326,18 +325,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
       return () => clearTimeout(id);
     }
   }, []);
-
-  // Astuces « super voix » : s'ouvrent seules à la 1re visite, APRÈS « Nouveautés » si elle s'affiche.
-  const [showVoiceTips, setShowVoiceTips] = useState<boolean>(false);
-  useEffect(() => {
-    if (showWhatsNew || showVoiceTips) return;
-    if (!shouldShowVoiceTips()) return;
-    const id = setTimeout(() => {
-      markVoiceTipsSeen();
-      setShowVoiceTips(true);
-    }, 1000);
-    return () => clearTimeout(id);
-  }, [showWhatsNew, showVoiceTips]);
 
   const [composerMode, setComposerMode] = useState<'voice' | 'script'>('voice');
   // Deux zones de saisie indépendantes : le texte de la voix-off n'est PAS la description du script IA.
@@ -1104,7 +1091,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     if (needsTopUp) { onOpenRecharge(); return; }
     if (!text.trim() || balance < POINTS_COST) { setInsufficientAlert(true); return; }
     if (isGenerating) return;
-    setTtsStep('tone'); setPendingRegister('darija'); setPendingIntensity('normal'); setStylePrompt(stylePromptRef.current || ''); setShowStartToneModal(true);
+    registerRef.current = 'darija'; intensityRef.current = 'normal'; stylePromptRef.current = stylePrompt.trim(); handleGenerate();
   };
 
   if (showVoiceDesignPage) return <VoiceDesignPage balance={balance} language={language} onBack={() => setShowVoiceDesignPage(false)} onBalanceChange={onBalanceChange} onCreated={handleDesignedVoiceCreated} />;
@@ -1185,15 +1172,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 style={{ unicodeBidi: 'plaintext' }} dir="auto"
               />
 
+              {composerMode === 'voice' && (
+                <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/65 p-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2"><label htmlFor="voice-direction" className="text-[11px] font-black uppercase tracking-wider text-[#6d28d9]">{language === 'ar' ? 'كيفاش تحب الصوت يتقال؟' : 'Comment veux-tu que ça sonne ?'}</label><span className="text-[10px] text-violet-400">{stylePrompt.length}/420</span></div>
+                  <textarea id="voice-direction" value={stylePrompt} onChange={(e) => { setStylePrompt(e.target.value); stylePromptRef.current = e.target.value; }} rows={2} maxLength={420} placeholder={language === 'ar' ? 'مثال: صوت دافئ، مبتسم، واثق...' : 'Ex : voix douce, souriante et premium, comme une publicité…'} className="w-full resize-none bg-transparent text-xs leading-5 text-slate-700 outline-none placeholder:text-violet-300" />
+                  <div className="mt-1.5 flex gap-1.5 overflow-x-auto scrollbar-none">{['Voix naturelle', 'Pub premium', 'Dynamique TikTok'].map((preset) => <button key={preset} type="button" onClick={() => { setStylePrompt(preset); stylePromptRef.current = preset; }} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-violet-700 shadow-sm hover:bg-violet-100">{preset}</button>)}</div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-2">
                 {composerMode === 'voice' && (
                   <button onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
                     <Plus className="w-4 h-4" />
-                  </button>
-                )}
-                {composerMode === 'voice' && (
-                  <button onClick={() => setShowVoiceTips(true)} className="order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer text-slate-600" title={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'} aria-label={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'}>
-                    <Info className="w-4 h-4" />
                   </button>
                 )}
 
@@ -1617,7 +1607,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
         </div>
       )}
 
-      {showVoiceTips && ( <VoiceTipsModal onClose={() => setShowVoiceTips(false)} /> )}
       {showWhatsNew && ( <WhatsNewV41 onClose={() => setShowWhatsNew(false)} onStart={() => setShowWhatsNew(false)} onSupport={() => { setShowWhatsNew(false); onOpenRecharge(); }} /> )}
     </div>
   );
