@@ -15,7 +15,7 @@ import { tagsByCategory } from '../../tts/vocalTags';
 import { findStudioVoice } from '../../tts/voices';
 import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
-import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback, type DesignedVoiceResponse } from '../services/api';
+import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   loadTaste, persistTaste, learnFromText, rememberPick, forgetTaste, bestNiche, buildSuggestions,
@@ -29,7 +29,6 @@ import { WaveformPlayer } from './WaveformPlayer';
 import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
 import { VoiceTipsModal, shouldShowVoiceTips, markVoiceTipsSeen } from './VoiceTipsModal';
-import { VoiceDesignModal } from './VoiceDesignModal';
 
 // ==========================================================================
 // BALISES VOCALES `<...>` — catalogue officiel (tts/vocalTags.ts)
@@ -262,7 +261,7 @@ type PopoverId = 'tags' | 'voices' | 'region' | null;
 // ==========================================================================
 export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
   const { t, isRTL, language } = useLanguage();
-  const baseVoices = getVoices(language);
+  const voices = getVoices(language);
   const styleTags = getStyleTags(language);
 
   const defaultStarterText = language === 'ar'
@@ -278,10 +277,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const [aiIdeas, setAiIdeas] = useState<Suggestion[] | null>(null);
   const [isLoadingIdeas, setIsLoadingIdeas] = useState<boolean>(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_amin');
-  const [customVoices, setCustomVoices] = useState<DesignedVoiceResponse[]>(() => {
-    try { return JSON.parse(localStorage.getItem('sawtify_designed_voices') || '[]'); } catch { return []; }
-  });
-  const [showVoiceDesign, setShowVoiceDesign] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [favoriteVoiceIds, setFavoriteVoiceIds] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('sawtify_favorite_voices') || '[]'); } catch { return []; } });
@@ -438,10 +433,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const estimatedSeconds = estimate.seconds;
   const needsTopUp = text.trim().length > 0 && balance < estimatedCost;
 
-  const voices = useMemo(() => [
-    ...customVoices.map((v): Voice => ({ id: v.id, name: v.name, geminiVoice: v.id, locale: 'fr-FR', dialect: 'Sur mesure', gender: 'unknown', icon: 'sparkles', category: 'narrative', sampleText: 'Bienvenue sur Sawtify.', sampleAudioUrl: v.preview_url || undefined, badge: 'Sur mesure', styles: [] })),
-    ...baseVoices,
-  ], [baseVoices, customVoices]);
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const playerVoiceName = generatedVoice?.name || currentVoice.name;
   const filteredVoices = voices
@@ -701,19 +692,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
       return next;
     });
   };
-
-  const handleDesignedVoiceCreated = useCallback((voice: DesignedVoiceResponse) => {
-    setCustomVoices((prev) => {
-      const next = [voice, ...prev.filter((item) => item.id !== voice.id)].slice(0, 20);
-      try { localStorage.setItem('sawtify_designed_voices', JSON.stringify(next)); } catch {}
-      return next;
-    });
-    setSelectedVoiceId(voice.id);
-    setShowVoiceDesign(false);
-    setOpenPop(null);
-    showNotif(language === 'ar' ? 'تم إنشاء صوتك وحفظه' : 'Ta voix est créée et prête à être utilisée');
-    if (voice.preview_url) playNaturalAudio(voice.preview_url, undefined, 1, 1);
-  }, [language, showNotif]);
 
   const handleInsertTag = useCallback((tag: string) => {
     // Gemini 3.8 accepte un style par part : un ton peut changer à la position
@@ -1444,12 +1422,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               style={popStyle}
               className={VOICES_POP_BASE}
             >
-              <button type="button" onClick={() => setShowVoiceDesign(true)} className="mx-1 mb-2 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl bg-[#6d28d9] px-3 py-2.5 text-start text-white shadow-md shadow-violet-200 transition-colors hover:bg-[#7c3aed]">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15"><Sparkles className="h-4 w-4" /></span>
-                <span className="min-w-0 flex-1"><span className="block text-xs font-black">{language === 'ar' ? 'صمّم صوتك' : 'Créer ma voix sur mesure'}</span><span className="block text-[10px] text-white/70">{language === 'ar' ? 'العمر، النبرة، اللهجة والسرعة' : 'Âge · timbre · accent · cadence'}</span></span>
-                <Plus className="h-4 w-4 opacity-80" />
-              </button>
-              {customVoices.length > 0 && <div className="px-2 pb-1 text-[10px] font-black uppercase tracking-wider text-[#6d28d9]">{language === 'ar' ? 'أصواتي' : 'Mes voix sur mesure'}</div>}
               {/* Filtre genre : 3 pastilles texte, bien espacées */}
               <div className="flex items-center gap-1 px-1.5 pt-1 pb-1.5 shrink-0">
                 {([ { id: 'all' as GenderFilter, label: t.allGenders }, { id: 'male' as GenderFilter, label: t.maleGenders }, { id: 'female' as GenderFilter, label: t.femaleGenders } ]).map((g) => (
@@ -1616,7 +1588,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
         </div>
       )}
 
-      {showVoiceDesign && <VoiceDesignModal language={language} onClose={() => setShowVoiceDesign(false)} onCreated={handleDesignedVoiceCreated} />}
       {showVoiceTips && ( <VoiceTipsModal onClose={() => setShowVoiceTips(false)} /> )}
       {showWhatsNew && ( <WhatsNewV41 onClose={() => setShowWhatsNew(false)} onStart={() => setShowWhatsNew(false)} onSupport={() => { setShowWhatsNew(false); onOpenRecharge(); }} /> )}
     </div>
