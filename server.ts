@@ -3510,7 +3510,17 @@ Le texte de la proposition`;
       if (req.method === "GET" || req.method === "HEAD") return res.status(404).json({ error: "Endpoint API introuvable." });
       return res.status(404).json({ error: "Endpoint API ou méthode introuvable." });
     });
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    // Un fichier statique manquant (ex. /assets/index-ANCIEN.js après un déploiement)
+    // doit renvoyer un vrai 404, JAMAIS index.html : sinon le navigateur reçoit du
+    // text/html à la place d'un module JS / CSS (erreur MIME stricte).
+    app.use("/assets", (req, res) => {
+      res.status(404).type("text/plain").set("Cache-Control", "no-store").send("Not found");
+    });
+    app.get("*", (req, res) => {
+      if (path.extname(req.path)) return res.status(404).type("text/plain").set("Cache-Control", "no-store").send("Not found");
+      res.setHeader("Cache-Control", "no-cache, must-revalidate");
+      return res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
   app.use((error: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
