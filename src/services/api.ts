@@ -12,6 +12,8 @@ export interface TTSApiRequest {
   register?: 'darija' | 'fusha' | 'francais';
   /** Intensité émotionnelle choisie dans la popup (défaut "normal" côté serveur). */
   intensity?: 'low' | 'normal' | 'high';
+  /** Direction de jeu vocale propre à cette génération, jamais persistante. */
+  style_prompt?: string;
 }
 
 export interface TTSApiResponse {
@@ -36,6 +38,23 @@ export interface VoicePreviewResponse {
   voice_id: string;
   audio_url: string;
   duration_seconds: number;
+}
+
+export interface DesignedVoiceResponse {
+  id: string;
+  name: string;
+  prompt: string;
+  preview_url: string | null;
+  created_at: string;
+  points_deducted: number;
+  remaining_balance: number;
+}
+
+export async function createDesignedVoice(params: { display_name: string; prompt: string; gender?: 'male' | 'female' | 'unknown'; language_code?: string }): Promise<DesignedVoiceResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tts/voices/design`, { method: 'POST', headers: await getAuthHeaders(), body: JSON.stringify(params) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Création de la voix impossible');
+  return data as DesignedVoiceResponse;
 }
 
 /**

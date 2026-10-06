@@ -15,7 +15,7 @@ import { tagsByCategory } from '../../tts/vocalTags';
 import { findStudioVoice } from '../../tts/voices';
 import type { TagCategory } from '../../tts/vocalTags';
 import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
-import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback } from '../services/api';
+import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback, type DesignedVoiceResponse } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   loadTaste, persistTaste, learnFromText, rememberPick, forgetTaste, bestNiche, buildSuggestions,
@@ -29,6 +29,7 @@ import { WaveformPlayer } from './WaveformPlayer';
 import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
 import { VoiceTipsModal, shouldShowVoiceTips, markVoiceTipsSeen } from './VoiceTipsModal';
+import { VoiceDesignPage } from './VoiceDesignPage';
 
 // ==========================================================================
 // BALISES VOCALES `<...>` — catalogue officiel (tts/vocalTags.ts)
@@ -261,7 +262,7 @@ type PopoverId = 'tags' | 'voices' | 'region' | null;
 // ==========================================================================
 export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
   const { t, isRTL, language } = useLanguage();
-  const voices = getVoices(language);
+  const baseVoices = getVoices(language);
   const styleTags = getStyleTags(language);
 
   const defaultStarterText = language === 'ar'
@@ -277,6 +278,8 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const [aiIdeas, setAiIdeas] = useState<Suggestion[] | null>(null);
   const [isLoadingIdeas, setIsLoadingIdeas] = useState<boolean>(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_amin');
+  const [customVoices, setCustomVoices] = useState<DesignedVoiceResponse[]>(() => { try { return JSON.parse(localStorage.getItem('sawtify_designed_voices') || '[]'); } catch { return []; } });
+  const [showVoiceDesignPage, setShowVoiceDesignPage] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [favoriteVoiceIds, setFavoriteVoiceIds] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('sawtify_favorite_voices') || '[]'); } catch { return []; } });
@@ -310,8 +313,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const [ttsStep, setTtsStep] = useState<'tone' | 'register'>('tone');
   const [pendingRegister, setPendingRegister] = useState<'darija' | 'fusha' | 'francais'>('darija');
   const [pendingIntensity, setPendingIntensity] = useState<'low' | 'normal' | 'high'>('normal');
+  const [stylePrompt, setStylePrompt] = useState<string>('');
   const registerRef = useRef<'darija' | 'fusha' | 'francais'>('darija');
   const intensityRef = useRef<'low' | 'normal' | 'high'>('normal');
+  const stylePromptRef = useRef<string>('');
 
   const [showWhatsNew, setShowWhatsNew] = useState<boolean>(false);
   useEffect(() => {
@@ -433,6 +438,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const estimatedSeconds = estimate.seconds;
   const needsTopUp = text.trim().length > 0 && balance < estimatedCost;
 
+  const voices = useMemo(() => [
+    ...customVoices.map((v): Voice => ({ id: v.id, name: v.name, geminiVoice: v.id, locale: 'fr-FR', dialect: 'Sur mesure', gender: 'unknown', icon: 'sparkles', category: 'narrative', sampleText: 'Bienvenue sur Sawtify.', sampleAudioUrl: v.preview_url || undefined, badge: 'Sur mesure', styles: [] })),
+    ...baseVoices,
+  ], [baseVoices, customVoices]);
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const playerVoiceName = generatedVoice?.name || currentVoice.name;
   const filteredVoices = voices
@@ -693,6 +702,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     });
   };
 
+  const handleDesignedVoiceCreated = useCallback((voice: DesignedVoiceResponse) => {
+    setCustomVoices((prev) => {
+      const next = [voice, ...prev.filter((item) => item.id !== voice.id)].slice(0, 20);
+      try { localStorage.setItem('sawtify_designed_voices', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setSelectedVoiceId(voice.id);
+    setShowVoiceDesignPage(false);
+    showNotif(language === 'ar' ? 'تم إنشاء صوتك وخصم 200 نقطة' : 'Voix créée · 200 points débités');
+    if (voice.preview_url) playNaturalAudio(voice.preview_url, () => {}, 1, 1);
+  }, [language, showNotif]);
+
   const handleInsertTag = useCallback((tag: string) => {
     // Gemini 3.8 accepte un style par part : un ton peut changer à la position
     // du curseur, par exemple [calm] début [excited] suite.
@@ -803,7 +824,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
       const startToneTag = startTone === 'calm' ? '[calm]' : startTone === 'excited' ? '[excited]' : startTone === 'natural' ? '[natural]' : '';
       const textToSend = startToneTag ? `${startToneTag} ${text.trim()}` : text;
 
-      const response = await requestTTSGeneration({ text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags, register: registerRef.current, intensity: intensityRef.current }, balance);
+      const response = await requestTTSGeneration({ text: textToSend, voice_id: currentVoice.id, speed, pitch, emotion_tags: extractedTags, register: registerRef.current, intensity: intensityRef.current, style_prompt: stylePromptRef.current }, balance);
       // Le serveur renvoie le solde après le débit atomique : on l'affiche sans attendre l'upload audio.
       if (!response.degraded && Number.isFinite(response.remaining_balance)) onBalanceChange(response.remaining_balance);
       const audioBlob = response.blob || new Blob([], { type: 'audio/wav' });
@@ -858,8 +879,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     }
   }
 
-  const confirmStartTone = (tone: 'calm' | 'natural' | 'excited') => { startToneRef.current = tone; setTtsStep('register'); };
-  const confirmRegisterAndIntensity = () => { registerRef.current = pendingRegister; intensityRef.current = pendingIntensity; setShowStartToneModal(false); handleGenerate(); };
+  const confirmStartTone = (tone: 'calm' | 'natural' | 'excited') => {
+    const preset = tone === 'calm' ? 'voix douce, calme et rassurante, débit posé' : tone === 'excited' ? 'voix énergique, souriante et enthousiaste, débit dynamique' : 'voix naturelle, chaleureuse et conversationnelle';
+    startToneRef.current = tone; setStylePrompt(preset); stylePromptRef.current = preset; setTtsStep('register');
+  };
+  const confirmRegisterAndIntensity = () => { registerRef.current = pendingRegister; intensityRef.current = pendingIntensity; stylePromptRef.current = stylePrompt.trim(); setShowStartToneModal(false); handleGenerate(); };
 
   const SCRIPT_DESCRIPTION_MAX = 200; // aligné sur server.ts (product.length > 200)
 
@@ -1080,9 +1104,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     if (needsTopUp) { onOpenRecharge(); return; }
     if (!text.trim() || balance < POINTS_COST) { setInsufficientAlert(true); return; }
     if (isGenerating) return;
-    setTtsStep('tone'); setPendingRegister('darija'); setPendingIntensity('normal'); setShowStartToneModal(true);
+    setTtsStep('tone'); setPendingRegister('darija'); setPendingIntensity('normal'); setStylePrompt(stylePromptRef.current || ''); setShowStartToneModal(true);
   };
 
+  if (showVoiceDesignPage) return <VoiceDesignPage balance={balance} language={language} onBack={() => setShowVoiceDesignPage(false)} onBalanceChange={onBalanceChange} onCreated={handleDesignedVoiceCreated} />;
   // ------------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------------
@@ -1422,6 +1447,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               style={popStyle}
               className={VOICES_POP_BASE}
             >
+              <button type="button" onClick={() => { setShowVoiceDesignPage(true); setOpenPop(null); }} className="mx-1 mb-2 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl bg-[#6d28d9] px-3 py-2.5 text-start text-white shadow-md shadow-violet-200 hover:bg-[#7c3aed]"><Sparkles className="h-4 w-4" /><span className="flex-1 text-xs font-black">{language === 'ar' ? 'صمّم صوت دائم · 200 نقطة' : 'Créer une voix permanente · 200 pts'}</span><Plus className="h-4 w-4" /></button>
               {/* Filtre genre : 3 pastilles texte, bien espacées */}
               <div className="flex items-center gap-1 px-1.5 pt-1 pb-1.5 shrink-0">
                 {([ { id: 'all' as GenderFilter, label: t.allGenders }, { id: 'male' as GenderFilter, label: t.maleGenders }, { id: 'female' as GenderFilter, label: t.femaleGenders } ]).map((g) => (
@@ -1556,7 +1582,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
             </div>
             {ttsStep === 'tone' ? (
               <>
-                <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'أحيانًا يبدأ الصوت بحماس مباشرة وأحيانًا لا. اختر النبرة المطلوبة في أول كلمة.' : 'La voix démarre parfois direct excitée, parfois non. Choisis le ton pour le tout premier mot.'}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{language === 'ar' ? 'اكتب كيفاش حاب الصوت يتقال في هذا التسجيل فقط.' : 'Décris comment cette voix doit jouer ce texte. Cette direction s’applique uniquement à cet audio.'}</p>
+                <textarea value={stylePrompt} onChange={(e) => setStylePrompt(e.target.value)} maxLength={420} rows={3} placeholder={language === 'ar' ? 'مثال: صوت دافئ، مبتسم، واثق، بإيقاع سريع...' : 'Ex : voix féminine douce, grave, souriante, comme une pub premium…'} className="mt-3 w-full resize-none rounded-2xl border border-violet-100 bg-violet-50/50 px-3 py-2.5 text-xs leading-5 text-slate-700 outline-none focus:border-violet-400" />
+                <button onClick={() => { stylePromptRef.current = stylePrompt.trim(); setTtsStep('register'); }} disabled={!stylePrompt.trim()} className="mt-2 w-full rounded-2xl bg-[#ede9fe] px-3 py-2.5 text-xs font-black text-[#6d28d9] disabled:opacity-40">{language === 'ar' ? 'التالي' : 'Continuer avec cette direction'}</button>
+                <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">{language === 'ar' ? 'أو اختر اقتراحاً سريعاً' : 'Ou choisir une direction rapide'}</p>
                 <div className="mt-4 grid gap-2">
                   <button onClick={() => confirmStartTone('calm')} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition-colors hover:border-purple-300 hover:bg-purple-50"><span className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#6d28d9]"><Cloud className="w-4.5 h-4.5" /></span><span className="min-w-0"><span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'هادئ' : 'Calme'}</span><span className="block text-[11px] text-slate-500">{language === 'ar' ? 'بداية هادئة ومريحة' : 'Démarrage posé et apaisé'}</span></span></button>
                   <button onClick={() => confirmStartTone('natural')} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-start transition-colors hover:border-purple-300 hover:bg-purple-50"><span className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#6d28d9]"><Smile className="w-4.5 h-4.5" /></span><span className="min-w-0"><span className="block text-sm font-bold text-slate-900">{language === 'ar' ? 'عادي' : 'Simple'}</span><span className="block text-[11px] text-slate-500">{language === 'ar' ? 'نبرة طبيعية وعفوية' : 'Ton neutre et spontané'}</span></span></button>

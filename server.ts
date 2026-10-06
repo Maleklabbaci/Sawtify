@@ -914,6 +914,7 @@ for (const [legacyId, studioVoice] of Object.entries(LEGACY_VOICE_MIGRATION)) {
 function resolveRequestedVoice(requested: unknown): string {
   const builtin = GEMINI_VOICE_MAP[String(requested)] || LEGACY_VOICE_MIGRATION[String(requested)];
   if (builtin) return builtin;
+  if (/^voice_[A-Za-z0-9_-]{6,120}$/.test(String(requested || ""))) return String(requested);
   return resolveVoiceName(String(requested || "")) || "Puck";
 }
 
@@ -1374,7 +1375,8 @@ async function synthesizeWithRetry(
   originalVoiceId: string = "",
   emotionTags: string[] = [],
   register: "darija" | "fusha" | "francais" = "darija",
-  intensity: "low" | "normal" | "high" = "normal"
+  intensity: "low" | "normal" | "high" = "normal",
+  stylePrompt: string = ""
 ): Promise<{ pcmBuffer: Buffer | null; error: string | null; usedStreaming: boolean; chunkCount: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée", usedStreaming: false, chunkCount: 0 };
@@ -1410,6 +1412,7 @@ async function synthesizeWithRetry(
   else if (speed <= 0.88) modernStyleParts.push("speaking slowly");
   if (pitch >= 1.1) modernStyleParts.push("higher pitch, lively");
   else if (pitch <= 0.9) modernStyleParts.push("lower pitch, grounded");
+  if (stylePrompt.trim()) modernStyleParts.push(stylePrompt.trim().slice(0, 420));
   const modernStyle = modernStyleParts.length > 0 ? modernStyleParts.join(", ") : null;
 
   // FIX TTS-C : on découpe le texte complet AVANT toute génération.
@@ -1464,11 +1467,12 @@ async function synthesizeWithRetry(
       character: TTS_ENGINE_MODE === "modern" ? character : null,
       autoStyle: TTS_AUTO_STYLE,
       legacyPersona: persona,
-      legacyNotes: [
-        `Pace: ${pace}`,
-        pitchNote ? `Pitch: ${pitchNote}` : "",
-        emotionNote ? `Tone: ${emotionNote}` : "",
-      ],
+          legacyNotes: [
+            `Pace: ${pace}`,
+            pitchNote ? `Pitch: ${pitchNote}` : "",
+            emotionNote ? `Tone: ${emotionNote}` : "",
+            stylePrompt ? `Direction: ${stylePrompt}` : "",
+          ],
       // « Lis exactement ce qui est écrit » — voir VERBATIM_INSTRUCTION.
       verbatimInstruction: VERBATIM_INSTRUCTION,
       output: "pcm",
@@ -2036,6 +2040,7 @@ async function startServer() {
   };
   const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de previews." }) });
   const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
+  const voiceDesignLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de créations de voix. Réessaie dans une heure." }) });
   const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes LLM." }) });
 
   app.use((req, res, next) => { res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups"); next(); });
@@ -2605,6 +2610,34 @@ async function startServer() {
   app.get("/api/v1/tts/preview-status", handlePreviewStatus);
   app.get("/api/tts/preview-status", handlePreviewStatus);
 
+  app.post("/api/v1/tts/voices/design", resolveUserIdMiddleware, voiceDesignLimiter, async (req, res) => {
+    const userId = (req as any).resolvedUserId as string | null;
+    if (!userId) return res.status(401).json({ error: "Authentification requise pour créer une voix." });
+    const body = req.body || {};
+    const displayName = String(body.display_name || "Ma voix sur mesure").trim().slice(0, 64);
+    const prompt = String(body.prompt || "").trim().slice(0, 700);
+    const gender = ["male", "female", "unknown"].includes(body.gender) ? body.gender : "unknown";
+    const languageCode = String(body.language_code || "fr-FR").trim().slice(0, 20);
+    if (prompt.length < 20) return res.status(400).json({ error: "Décris davantage la voix (20 caractères minimum)." });
+    const currentBalance = await getUserBalance(userId);
+    if (currentBalance !== null && currentBalance < 200) return res.status(402).json({ error: "Solde insuffisant : 200 points sont requis pour créer une voix.", current_balance: currentBalance });
+    if (!GEMINI_API_KEY) return res.status(503).json({ error: "Le service Voice Design est temporairement indisponible." });
+    try {
+      const voicePayload: any = { model: "gemini-3.8-flash-tts", type: "prompted", display_name: displayName, language_code: languageCode, prompted: { input: prompt } };
+      if (gender !== "unknown") voicePayload.gender = gender;
+      const googleResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/voices", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY }, body: JSON.stringify({ store: true, voice: voicePayload }) });
+      const googleData: any = await googleResponse.json().catch(() => ({}));
+      if (!googleResponse.ok || !googleData.id) return res.status(502).json({ error: googleData?.error?.message || "Google n’a pas pu créer cette voix." });
+      const debit = await deductCredits(userId, 200);
+      if (!debit.success) return res.status(402).json({ error: "Solde insuffisant : 200 points sont requis pour créer une voix." });
+      const sample = googleData.sample_audio?.data;
+      return res.json({ id: googleData.id, name: displayName, prompt, preview_url: sample ? `data:${googleData.sample_audio.mime_type || "audio/wav"};base64,${sample}` : null, created_at: new Date().toISOString(), points_deducted: 200, remaining_balance: debit.remaining });
+    } catch (error: any) {
+      console.error("[Voice Design]", error?.message || error);
+      return res.status(502).json({ error: "Erreur de connexion au service Voice Design." });
+    }
+  });
+
   /* ===================================================================
      LISTE DES 30 VOIX (API)
      -------------------------------------------------------------------
@@ -2684,9 +2717,10 @@ async function startServer() {
     await TTS_CONCURRENCY(async () => {
       const startTime = Date.now();
       const userId = (req as any).resolvedUserId ?? await getUserIdFromAuthHeader(req);
-      const { text, voice, voice_id, speed = 1.0, pitch = 1.0, register = "darija", intensity = "normal" } = req.body;
+      const { text, voice, voice_id, speed = 1.0, pitch = 1.0, register = "darija", intensity = "normal", style_prompt = "" } = req.body;
       const safeRegister = ["darija", "fusha", "francais"].includes(register) ? register : "darija";
       const safeIntensity = ["low", "normal", "high"].includes(intensity) ? intensity : "normal";
+      const safeStylePrompt = typeof style_prompt === "string" ? style_prompt.trim().slice(0, 420) : "";
       const requestedVoice = voice_id || voice || "voice_amin";
       const numSpeed = typeof speed === "number" ? speed : parseFloat(speed) || 1.0;
       const numPitch = typeof pitch === "number" ? pitch : parseFloat(pitch) || 1.0;
@@ -2777,7 +2811,7 @@ async function startServer() {
       // retenter : on insiste plus fort (5 tentatives par morceau au lieu de
       // 3) pour viser un résultat quasi garanti sur ce format très demandé.
       const maxRetriesForThisCall = textForSpeech.trim().length < 100 ? 5 : 3;
-      const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, maxRetriesForThisCall, numSpeed, numPitch, requestedVoice, emotionTags, safeRegister, safeIntensity);
+      const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, maxRetriesForThisCall, numSpeed, numPitch, requestedVoice, emotionTags, safeRegister, safeIntensity, safeStylePrompt);
       // FIX COST-3 : génération payante → billable=true, séparée des previews gratuites (billable=false).
       logGeminiCall({ userId, callType: "tts", billable: true, pointsCost: BASE_POINTS_COST, charCount: text.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - startTime });
       const geminiUsageCount = await recordGeminiUsage({ userId, operation: "tts", characters: text.length, success: Boolean(pcmBuffer), model: TTS_MODEL, metadata: { voice: requestedVoice, chunks: chunkCount } });
