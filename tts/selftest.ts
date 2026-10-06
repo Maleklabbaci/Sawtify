@@ -2,7 +2,7 @@
  * Test de validation du double moteur TTS (3.1 legacy / 3.8 modern).
  * Vérifie que le pipeline audio reste compatible dans les deux modes.
  */
-import { VOCAL_TAGS, parseTranscript, validateTagsOnly, tagsByCategory, allAcceptedTagStrings, officialTagStrings, aliasCounts, LEGACY_SQUARE_TAGS } from "./vocalTags";
+import { VOCAL_TAGS, parseTranscript, splitTranscriptByTone, validateTagsOnly, tagsByCategory, allAcceptedTagStrings, officialTagStrings, aliasCounts, LEGACY_SQUARE_TAGS } from "./vocalTags";
 import {
   resolveEngineMode, buildTtsRequest, stripWavHeader, extractAudioFromResponse,
   toLegacyTranscript, describeEngine, pcmDurationSeconds, legacyFidelityReport,
@@ -544,17 +544,18 @@ const force = buildTtsRequest({
   const naturel = parseTranscript("[natural] [articulated] Bonjour à tous");
   ok(naturel.requestedStyle !== null && /articulation/i.test(naturel.requestedStyle), "[natural] seul n'ajoute rien, mais n'annule pas [articulated]");
 
-  // TON CONTRADICTOIRE (l'exemple « Excité … Calme » livré avec l'app) :
-  // en 3.1 on changeait de ton en plein milieu du texte, en 3.8 c'est impossible.
-  // Le 1er ton gagne, et l'autre est SIGNALÉ — jamais ignoré en silence.
+  // CHANGEMENT DE TON EN 3.8 : chaque marqueur devient une part Google.
   const deuxTons = parseTranscript("[excited] [articulated] عرض اليوم [calm] والتوصيل مجاني");
-  ok(/excited/i.test(deuxTons.requestedStyle || ""), "★ ton contradictoire : le 1er ton choisi gagne");
-  ok(!/calm/i.test(deuxTons.requestedStyle || ""), "★ ton contradictoire : « calme » n'est PAS envoyé en même temps");
+  ok(/excited/i.test(deuxTons.requestedStyle || ""), "★ ton initial détecté par le parseur");
   ok(/articulation/i.test(deuxTons.requestedStyle || ""), "★ la diction nette reste transmise (elle est cumulable)");
-  ok(deuxTons.droppedTones.includes("calm"), "★ l'utilisateur est prévenu que [calm] a été ignoré");
+  const segments = splitTranscriptByTone("[excited] عرض اليوم [calm] والتوصيل مجاني");
+  ok(segments.length === 2, "★ deux tons explicites créent deux segments");
+  ok(/excited/i.test(segments[0].toneStyle || "") && /calm/i.test(segments[1].toneStyle || ""), "★ chaque segment conserve son ton");
   { 
     const w = buildTtsRequest({ model: "gemini-3.8-flash-tts", rawText: "[excited] عرض [calm] توصيل", voiceName: "Puck", style: null });
-    ok(w.warnings.some((x) => /un seul ton/i.test(x)), `avertissement remonté au client : "${(w.warnings.find((x) => /un seul ton/i.test(x)) || "").slice(0, 70)}…"`);
+    const parts: any[] = (w.body as any).contents[0].parts;
+    ok(parts.length === 2, "★ requête moderne : deux parts envoyées à Google");
+    ok(/excited/i.test(parts[0].speech_metadata?.style || "") && /calm/i.test(parts[1].speech_metadata?.style || ""), "★ requête moderne : styles distincts par part");
   }
   // Un même ton répété n'est pas une contradiction : c'est juste un doublon.
   const doublon = parseTranscript("[calm] البداية [calm] والنهاية");

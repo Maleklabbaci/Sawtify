@@ -1854,7 +1854,7 @@ function validateLatinPreservation(original: string, enhanced: string): boolean 
 const AI_SOUND_LIST = "<laugh>, <chuckle>, <giggle>, <cheer>, <gasp>, <sigh>, <breath>, <whispers>, <short pause>, <long pause>";
 
 const EXPRESSION_GUIDE = `🎭 EXPRESSION VOCALE — 4 outils, à utiliser avec parcimonie :
-A. TON : UNE SEULE balise de ton, tout au DÉBUT du texte, parmi [excited], [natural], [calm], [dramatic]. Le ton dure toute la lecture : JAMAIS une 2e balise de ton plus loin. Écris-la en anglais, alphabet latin, crochets carrés, JAMAIS traduite en arabe.
+A. TON : utilise [excited], [natural], [calm], [dramatic] ou [serious] exactement là où le ton doit commencer. Tu peux changer de ton plusieurs fois dans une même lecture : [calm] début [excited] phrase forte [natural] conclusion. Chaque ton doit couvrir au moins quelques mots. Écris les balises en anglais, alphabet latin, crochets carrés, JAMAIS traduites en arabe.
 B. SONS HUMAINS (chevrons, en anglais) : ${AI_SOUND_LIST}. Place-les ENTRE deux phrases, jamais au milieu d'un mot, et seulement quand le contexte les justifie (un <laugh> après une blague, un <gasp> sur une surprise, un <short pause> juste avant un prix ou un chiffre choc). N'invente JAMAIS d'autre balise ; aucun bruitage (applaudissements, musique, porte…).
 C. PONCTUATION : "..." = hésitation ou suspense, "--" = coupure franche, "!" = énergie, "?" = vraie question. Phrases courtes, rythme varié.
 D. MAJUSCULES = insistance : mets 1 à 3 mots-clés LATINS (français) en MAJUSCULES (ex : "livraison GRATUITE"). Jamais une phrase entière en majuscules. L'arabe n'a pas de majuscules : pour insister sur un mot arabe, utilise "!" ou "..." devant lui.`;
@@ -1873,7 +1873,8 @@ const ACCEPTED_SOUND_KEYS: Set<string> = new Set(
 
 /**
  * Nettoie un texte écrit par l'IA pour qu'il soit lu tel quel par le moteur :
- *  • UN SEUL ton, placé au début (les suivants sont retirés — en 3.8 ils seraient ignorés) ;
+ *  • les tons `[calm]`, `[excited]`… sont conservés à leur position : chacun
+ *    démarre un nouveau segment Gemini 3.8 ;
  *  • sons `<...>` : seules les balises du catalogue sont gardées (une balise inconnue serait lue à voix haute) ;
  *  • au plus `maxSounds` sons ; espaces propres autour des balises.
  * La ponctuation (..., --, !, ?) et les MAJUSCULES ne sont JAMAIS modifiées.
@@ -1890,16 +1891,20 @@ function sanitizeAiExpressionText(raw: string, opts: { maxSounds?: number; defau
     return sounds <= maxSounds ? `<${inner.trim()}>` : " ";
   });
 
-  // 2) Tons [..] : le premier ton gagne et passe en tête ; les autres sont retirés.
-  let tone: string | null = null;
+  // 2) Tons [..] : on conserve chaque ton à sa position. Le moteur TTS les
+  //    transforme ensuite en parts séparées avec un style propre à chacune.
+  let hasTone = false;
   const deliveries: string[] = [];
   t = t.replace(/\[\s*([^\[\]\n]{1,30}?)\s*\]/g, (full, inner: string) => {
     const key = AI_ARABIC_TONE_MAP[inner.trim()] || inner.trim().toLowerCase();
-    if (AI_TONE_WORDS.has(key)) { if (!tone) tone = key; return " "; }
+    if (AI_TONE_WORDS.has(key)) { hasTone = true; return `[${key}]`; }
     if (AI_DELIVERY_WORDS.has(key)) { if (!deliveries.includes(key)) deliveries.push(key); return " "; }
     return full; // ex. « [promo] » : mot à prononcer, on n'y touche pas
   });
-  const head = [`[${tone || opts.defaultTone || "natural"}]`, ...deliveries.map((d) => `[${d}]`)].join(" ");
+  const head = [
+    ...(hasTone ? [] : [`[${opts.defaultTone || "natural"}]`]),
+    ...deliveries.map((d) => `[${d}]`),
+  ].join(" ");
 
   // 3) Espaces : jamais une balise collée à une lettre ; on ne touche pas à la ponctuation.
   t = t
@@ -2755,7 +2760,10 @@ async function startServer() {
       // des balises officielles.
       const analysed = parseTranscript(text);
       const emotionTags = analysed.tags.map((t) => t.tag);
-      const textForSpeech = analysed.text;
+      // Garder le texte original jusqu'au moteur : `parseTranscript` retire les
+      // marqueurs `[calm]`/`[excited]` pour son analyse historique, tandis que
+      // le moteur 3.8 en a besoin pour créer les parts multi-ton.
+      const textForSpeech = text;
       if (analysed.unknownTags.length || analysed.forbiddenSfx.length) {
         console.warn(`[TTS] Balises nettoyées du transcript : ${[
           ...analysed.unknownTags,

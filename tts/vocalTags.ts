@@ -211,6 +211,37 @@ export const LEGACY_SQUARE_TAGS: Record<string, LegacySquareMapping> = {
   natural: { kind: "none" },
 };
 
+/** Segment de transcript séparé par un marqueur de ton explicite. */
+export type ToneTranscriptSegment = {
+  /** Texte brut du segment, sans le marqueur qui l'a déclenché. */
+  rawText: string;
+  /** Ton actif pour ce segment, ou null pour le ton naturel. */
+  toneStyle: string | null;
+};
+
+/** Découpe `[calm] ... [excited] ...` pour l'envoyer en plusieurs parts. */
+export function splitTranscriptByTone(raw: string): ToneTranscriptSegment[] {
+  const source = String(raw || "");
+  const re = /\[\s*(calm|excited|dramatic|serious|natural)\s*\]/gi;
+  const segments: ToneTranscriptSegment[] = [];
+  let cursor = 0;
+  let toneStyle: string | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(source))) {
+    const before = source.slice(cursor, match.index);
+    if (before.trim()) segments.push({ rawText: before, toneStyle });
+    const key = match[1].toLowerCase();
+    const mapping = LEGACY_SQUARE_TAGS[key];
+    toneStyle = mapping && mapping.kind === "tone" ? mapping.style : null;
+    cursor = match.index + match[0].length;
+  }
+
+  const tail = source.slice(cursor);
+  if (tail.trim() || segments.length === 0) segments.push({ rawText: tail, toneStyle });
+  return segments;
+}
+
 /**
  * Bruitages NON HUMAINS — explicitement déconseillés par Google
  * (« Avoid non-vocal sound-effect tags such as applause or thuds »).

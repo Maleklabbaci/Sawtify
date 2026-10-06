@@ -63,7 +63,7 @@
  * ============================================================================
  */
 
-import { VOCAL_TAGS, parseTranscript, type VocalTag } from "./vocalTags";
+import { VOCAL_TAGS, parseTranscript, splitTranscriptByTone, type VocalTag } from "./vocalTags";
 
 export type EngineMode = "legacy" | "modern";
 
@@ -409,6 +409,8 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   //    car c'est lui qui connaît les 33 sons et détecte les erreurs.
   //    ⚠️ Ceci NE raccourcit PAS le texte, ça détecte juste les balises.
   const parsed = parseTranscript(opts.rawText);
+  const toneSegments = splitTranscriptByTone(opts.rawText);
+  const hasToneSwitch = mode === "modern" && toneSegments.length > 1;
 
   if (parsed.unknownTags.length) {
     warnings.push(`Balises inconnues retirées : ${parsed.unknownTags.join(", ")}`);
@@ -418,14 +420,15 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
       `Sons non humains retirés (déconseillés par Google) : ${parsed.forbiddenSfx.join(", ")}`
     );
   }
-  if (parsed.legacyTagsFound.length && mode === "modern") {
+  if (parsed.legacyTagsFound.length && mode === "modern" && !hasToneSwitch) {
     warnings.push(
       `Anciennes balises converties : ${parsed.legacyTagsFound.map((t) => `[${t}]`).join(", ")}`
     );
   }
-  // Un ton dure toute la réplique : impossible d'en changer en plein milieu
-  // comme le permettait la syntaxe 3.1. On le dit au lieu de l'ignorer en silence.
-  if (parsed.droppedTones.length) {
+  // En 3.8, plusieurs tons sont désormais valides : chaque marqueur crée une
+  // part avec son propre `speech_metadata.style`. Le mode 3.1 conserve son
+  // ancien comportement (un seul ton au début).
+  if (parsed.droppedTones.length && !hasToneSwitch) {
     warnings.push(
       `Un seul ton par lecture : ${parsed.droppedTones.map((t) => `[${t}]`).join(", ")} ignoré(s). ` +
       `Le ton de toute la lecture reste « ${(parsed.requestedStyle || "").split(",")[0]} ».`
@@ -453,16 +456,16 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
   const styleDeduit = opts.autoStyle ? parsed.suggestedStyle || "" : "";
   // Le caractère de la voix est ÉCARTÉ dès que l'utilisateur a demandé un ton
   // explicite : deux ordres contradictoires feraient dériver la voix.
-  const caractere = styleDemande ? "" : (opts.character || "").trim();
+  const caractere = styleDemande || hasToneSwitch ? "" : (opts.character || "").trim();
   // LECTURE CONFORME — toujours EN PREMIER.
   const verbatim = (opts.verbatimInstruction || "").trim();
 
-  const effectiveStyle = [
+  const commonStyle = [
     verbatim,
     antiRoboticInstruction(),
     languageInstruction(parsed.text, opts.register),
     intensityInstruction(opts.intensity),
-    styleDemande || caractere,
+    caractere,
     styleExplicite,
     styleDeduit,
   ]
@@ -479,14 +482,28 @@ export function buildTtsRequest(opts: BuildTtsRequestOptions): BuildTtsRequestRe
     //  Aucune instruction de jeu n'est écrite dans le texte (règle Google :
     //  sinon la voix dérive).
     // ======================================================================
-    const texteFinal = amorce + parsed.text;
-    const part: Record<string, unknown> = { text: texteFinal };
-    if (effectiveStyle) {
-      part.speech_metadata = { style: effectiveStyle };
-    }
+    const parsedSegments = toneSegments
+      .map((segment, index) => {
+        const segmentParsed = parseTranscript(segment.rawText);
+        const segmentTone = [
+          segment.toneStyle,
+          segmentParsed.requestedStyle,
+        ].filter(Boolean).join(", ").trim();
+        const segmentStyle = [
+          commonStyle,
+          segmentTone,
+        ].filter(Boolean).join(", ");
+        const segmentText = (index === 0 ? amorce : "") + segmentParsed.text;
+        const part: Record<string, unknown> = { text: segmentText };
+        if (segmentStyle) part.speech_metadata = { style: segmentStyle };
+        return part;
+      })
+      .filter((part) => String(part.text || "").trim());
+    const parts = parsedSegments.length ? parsedSegments : [{ text: amorce + parsed.text }];
+    const texteFinal = parts.map((part) => String(part.text || "")).join(" ").trim();
 
     const body: Record<string, unknown> = {
-      contents: [{ role: "user", parts: [part] }],
+      contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["AUDIO"],
         // Légère hausse de température pour casser l'uniformité de
@@ -901,9 +918,16 @@ export function splitIntoChunksForTTS(text: string, maxChars = CHUNK_MAX_CHARS_D
   if (current.trim()) chunks.push(current.trim());
 
   // ⑤ On remet les vraies balises, puis on jette tout morceau déséquilibré.
+  let activeTone: string | null = null;
   return chunks
     .filter((c) => c.length > 0)
     .map(restitue)
+    .map((c) => {
+      const markers = [...c.matchAll(/\[\s*(calm|excited|dramatic|serious|natural)\s*\]/gi)];
+      if (markers.length) activeTone = markers[markers.length - 1][1].toLowerCase();
+      else if (activeTone) c = `[${activeTone}] ${c}`;
+      return c;
+    })
     .filter((c) => estEquilibre(c));
 }
 

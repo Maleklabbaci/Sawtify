@@ -694,11 +694,25 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   };
 
   const handleInsertTag = useCallback((tag: string) => {
-    // Gemini 3.8 : le TON dure toute la lecture (speech_metadata.style), il ne se change pas en plein texte.
-    // → un ton/une façon de dire se place TOUJOURS au début et remplace le précédent (un seul ton).
+    // Gemini 3.8 accepte un style par part : un ton peut changer à la position
+    // du curseur, par exemple [calm] début [excited] suite.
     const TONES = ['[natural]', '[calm]', '[excited]', '[dramatic]', '[serious]'];
     const DELIVERIES = ['[articulated]', '[fast]'];
-    if (TONES.includes(tag) || DELIVERIES.includes(tag)) {
+    if (TONES.includes(tag)) {
+      const sel0 = lastSelRef.current || { start: text.length, end: text.length };
+      const start = Math.min(sel0.start, text.length);
+      const end = Math.min(Math.max(sel0.end, start), text.length);
+      const before = start > 0 && !/\s$/.test(text.slice(0, start)) ? ' ' : '';
+      const after = end < text.length && !/^\s/.test(text.slice(end)) ? ' ' : '';
+      const ins = before + tag + after;
+      const next = text.slice(0, start) + ins + text.slice(end);
+      setOpenPop(null);
+      if (next.length > maxChars) { showNotif(language === 'ar' ? 'تجاوزت الحد الأقصى للأحرف' : 'Limite de caractères atteinte'); return; }
+      pendingCaretRef.current = start + ins.length;
+      setText(next);
+      return;
+    }
+    if (DELIVERIES.includes(tag)) {
       const group = TONES.includes(tag) ? TONES : [tag];
       let cleaned = text;
       group.forEach((g) => { cleaned = cleaned.split(g).join(''); });
