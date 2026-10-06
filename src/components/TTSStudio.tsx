@@ -373,36 +373,41 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const popAnchorRef = useRef<HTMLDivElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
+  // Boutons qui ouvrent les popups : le popup se colle au bouton, pas à toute la barre
+  const tagsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const voicesBtnRef = useRef<HTMLButtonElement | null>(null);
+  const regionBtnRef = useRef<HTMLButtonElement | null>(null);
   const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
 
-  // PC : colle le popup à la barre (au-dessus si la place suffit, sinon en dessous)
+  // PC : colle le popup au BOUTON qui l'ouvre (au-dessus si la place suffit, sinon en dessous)
   useLayoutEffect(() => {
     if (!openPop) return;
     const update = () => {
-      const bar = barRef.current;
-      if (!bar || window.innerWidth < 1024) { setPopStyle({}); return; }
-      const r = bar.getBoundingClientRect();
+      const anchor =
+        (openPop === 'tags' ? tagsBtnRef.current : openPop === 'voices' ? voicesBtnRef.current : regionBtnRef.current)
+        || barRef.current;
+      if (!anchor || window.innerWidth < 1024) { setPopStyle({}); return; }
+      const r = anchor.getBoundingClientRect();
       const w = openPop === 'tags' ? 352 : openPop === 'voices' ? 280 : 320;
       const atStart = openPop === 'tags'; // le "+" est au début, voix/région à la fin
       const alignLeft = atStart !== isRTL;
       const rawLeft = alignLeft ? r.left : r.right - w;
       const left = Math.max(12, Math.min(rawLeft, window.innerWidth - w - 12));
-      const spaceAbove = r.top - 80;
+      const spaceAbove = r.top - 80;                         // 64px de navbar + marge
       const spaceBelow = window.innerHeight - r.bottom - 16;
-      // Voix : on veut toujours ~400px de haut ; on prend le côté qui a le plus de place
-      const need = openPop === 'voices' ? 400 : 260;
-      const goAbove = openPop === 'voices' ? spaceAbove > spaceBelow : (spaceAbove >= need || spaceAbove >= spaceBelow);
+      const need = openPop === 'voices' ? (showVoiceSettings ? 560 : 420) : openPop === 'tags' ? 480 : 260;
+      const goAbove = spaceAbove >= Math.min(need, 320) || spaceAbove >= spaceBelow;
       if (goAbove) {
-        setPopStyle({ left, width: w, bottom: window.innerHeight - r.top + 8, maxHeight: Math.min(openPop === 'voices' ? need : 480, spaceAbove) });
+        setPopStyle({ left, width: w, bottom: window.innerHeight - r.top + 8, maxHeight: Math.min(need, spaceAbove) });
       } else {
-        setPopStyle({ left, width: w, top: r.bottom + 8, maxHeight: Math.min(openPop === 'voices' ? need : 480, spaceBelow) });
+        setPopStyle({ left, width: w, top: r.bottom + 8, maxHeight: Math.min(need, spaceBelow) });
       }
     };
     update();
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
-  }, [openPop, isRTL]);
+  }, [openPop, isRTL, showVoiceSettings]);
 
   const switchComposerModeRef = useRef<(m: 'voice' | 'script', t?: string) => void>(() => {});
   switchComposerModeRef.current = (m, t) => switchComposerMode(m, t);
@@ -1212,7 +1217,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
 
               <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-2">
                 {composerMode === 'voice' && (
-                  <button onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
+                  <button ref={tagsBtnRef} onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
                     <Plus className="w-4 h-4" />
                   </button>
                 )}
@@ -1240,13 +1245,13 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 </button>
 
                 {composerMode === 'voice' ? (
-                  <button onClick={() => setOpenPop(openPop === 'voices' ? null : 'voices')} className={`order-6 sm:order-none flex-1 min-w-0 sm:flex-none flex items-center gap-2 rounded-full ps-1.5 pe-2.5 py-1.5 cursor-pointer transition-colors ${openPop === 'voices' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={t.catalogHeader}>
+                  <button ref={voicesBtnRef} onClick={() => setOpenPop(openPop === 'voices' ? null : 'voices')} className={`order-6 sm:order-none flex-1 min-w-0 sm:flex-none flex items-center gap-2 rounded-full ps-1.5 pe-2.5 py-1.5 cursor-pointer transition-colors ${openPop === 'voices' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={t.catalogHeader}>
                     <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${openPop === 'voices' ? 'bg-white/20 text-white' : 'bg-[#ede9fe] text-[#6d28d9]'}`}><VoiceGlyph icon={currentVoice.icon} gender={currentVoice.gender} className="w-3.5 h-3.5" /></span>
                     <span className="text-xs font-bold flex-1 sm:flex-none text-start sm:max-w-[80px] truncate">{currentVoice.name}</span>
                     <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${openPop === 'voices' ? 'rotate-180' : ''}`} />
                   </button>
                 ) : (
-                  <button onClick={() => setOpenPop(openPop === 'region' ? null : 'region')} className={`order-6 sm:order-none flex-1 sm:flex-none justify-center flex items-center gap-2 rounded-full px-3 py-2 cursor-pointer transition-colors ${openPop === 'region' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={language === 'ar' ? 'إعدادات النص' : 'Réglages du script'}>
+                  <button ref={regionBtnRef} onClick={() => setOpenPop(openPop === 'region' ? null : 'region')} className={`order-6 sm:order-none flex-1 sm:flex-none justify-center flex items-center gap-2 rounded-full px-3 py-2 cursor-pointer transition-colors ${openPop === 'region' ? 'saw-chip-active' : 'saw-flat text-slate-700'}`} title={language === 'ar' ? 'إعدادات النص' : 'Réglages du script'}>
                     <Sparkles className="w-3.5 h-3.5" /><span className="text-xs font-bold">{language === 'ar' ? currentRegion.ar : currentRegion.fr}</span><ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${openPop === 'region' ? 'rotate-180' : ''}`} />
                   </button>
                 )}
