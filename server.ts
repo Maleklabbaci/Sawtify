@@ -914,6 +914,9 @@ for (const [legacyId, studioVoice] of Object.entries(LEGACY_VOICE_MIGRATION)) {
 function resolveRequestedVoice(requested: unknown): string {
   const builtin = GEMINI_VOICE_MAP[String(requested)] || LEGACY_VOICE_MIGRATION[String(requested)];
   if (builtin) return builtin;
+  // Les identifiants Voice Design Google sont déjà des voice IDs persistants.
+  // Ne jamais les faire tomber sur Puck via resolveVoiceName().
+  if (/^voice_[A-Za-z0-9_-]{6,120}$/.test(String(requested || ""))) return String(requested);
   return resolveVoiceName(String(requested || "")) || "Puck";
 }
 
@@ -2036,6 +2039,7 @@ async function startServer() {
   };
   const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de previews." }) });
   const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de générations." }) });
+  const voiceDesignLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de créations de voix. Réessaie dans une heure." }) });
   const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: perUserKey, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes LLM." }) });
 
   app.use((req, res, next) => { res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups"); next(); });
@@ -2604,6 +2608,40 @@ async function startServer() {
   };
   app.get("/api/v1/tts/preview-status", handlePreviewStatus);
   app.get("/api/tts/preview-status", handlePreviewStatus);
+
+  // ── VOICE DESIGN GEMINI 3.8 ─────────────────────────────────────────────
+  // La clé Gemini ne quitte jamais le serveur. Google stocke la voix dans le
+  // projet et renvoie un voice_... persistant ainsi qu’un sample_audio WAV.
+  app.post("/api/v1/tts/voices/design", resolveUserIdMiddleware, voiceDesignLimiter, async (req, res) => {
+    const userId = (req as any).resolvedUserId as string | null;
+    if (!userId) return res.status(401).json({ error: "Authentification requise pour créer une voix." });
+    const body = req.body || {};
+    const displayName = String(body.display_name || "Ma voix sur mesure").trim().slice(0, 64);
+    const prompt = String(body.prompt || "").trim().slice(0, 700);
+    const gender = ["male", "female", "unknown"].includes(body.gender) ? body.gender : "unknown";
+    const languageCode = String(body.language_code || "fr-FR").trim().slice(0, 20);
+    if (prompt.length < 20) return res.status(400).json({ error: "Décris davantage la voix (20 caractères minimum)." });
+    if (!GEMINI_API_KEY) return res.status(503).json({ error: "Le service Voice Design est temporairement indisponible." });
+    try {
+      const voicePayload: any = { model: "gemini-3.8-flash-tts", type: "prompted", display_name: displayName, language_code: languageCode, prompted: { input: prompt } };
+      if (gender !== "unknown") voicePayload.gender = gender;
+      const googleResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/voices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify({ store: true, voice: voicePayload }),
+      });
+      const googleData: any = await googleResponse.json().catch(() => ({}));
+      if (!googleResponse.ok || !googleData.id) {
+        console.error("[Voice Design Google]", googleResponse.status, googleData);
+        return res.status(502).json({ error: googleData?.error?.message || "Google n’a pas pu créer cette voix." });
+      }
+      const sample = googleData.sample_audio?.data;
+      return res.json({ id: googleData.id, name: displayName, prompt, preview_url: sample ? `data:${googleData.sample_audio.mime_type || "audio/wav"};base64,${sample}` : null, created_at: new Date().toISOString() });
+    } catch (error: any) {
+      console.error("[Voice Design]", error?.message || error);
+      return res.status(502).json({ error: "Erreur de connexion au service Voice Design." });
+    }
+  });
 
   /* ===================================================================
      LISTE DES 30 VOIX (API)
