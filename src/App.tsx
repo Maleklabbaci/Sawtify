@@ -224,8 +224,11 @@ function AppContent() {
     if (!isLoggedIn) return;
     let active = true;
     let stopChannel: (() => void) | null = null;
+    let starting = false;
 
-    void (async () => {
+    const start = async () => {
+      if (starting || stopChannel) return;
+      starting = true;
       try {
         const { supabase, fetchMyBalance } = await import('./services/supabaseClient');
         const { data: { user } } = await supabase.auth.getUser();
@@ -245,16 +248,28 @@ function AppContent() {
             event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}`,
           }, refreshLatestBalance)
           .subscribe();
-        stopChannel = () => { void supabase.removeChannel(channel); };
+        stopChannel = () => { void supabase.removeChannel(channel); stopChannel = null; };
         refreshLatestBalance();
         if (!active) stopChannel();
       } catch (error) {
         console.warn('[Sawtify] Impossible d’activer la synchronisation Realtime du solde:', error);
+      } finally {
+        starting = false;
       }
-    })();
+    };
+
+    // bfcache : on ferme le WebSocket avant la mise en cache et on le rouvre au retour.
+    const onPageHide = () => { stopChannel?.(); };
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) void start(); };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+
+    void start();
 
     return () => {
       active = false;
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
       stopChannel?.();
     };
   }, [isLoggedIn]);
