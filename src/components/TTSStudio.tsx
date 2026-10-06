@@ -28,7 +28,26 @@ import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services
 import { WaveformPlayer } from './WaveformPlayer';
 import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
+import { VoiceTipsPanel, shouldShowVoiceTips, markVoiceTipsSeen } from './VoiceTipsPanel';
 import { VoiceDesignPage } from './VoiceDesignPage';
+
+
+// Styles de voix prêts à l'emploi : chaque bouton remplit la zone « Comment veux-tu que ça sonne ? »
+// avec une consigne précise (timbre, débit, émotion, usage).
+const STYLE_PRESETS = [
+  { fr: 'Pub radio', ar: 'إعلان راديو',
+    promptFr: 'Voix chaleureuse et souriante, débit soutenu, ton enthousiaste et convaincant, comme une publicité radio. Insiste sur le nom du produit et termine par un appel à l’action clair.',
+    promptAr: 'صوت دافئ ومبتسم، إيقاع سريع، نبرة حماسية ومقنعة كإعلان راديو. شدّد على اسم المنتج واختم بدعوة واضحة للشراء.' },
+  { fr: 'Accroche TikTok', ar: 'مقدمة تيك توك',
+    promptFr: 'Voix énergique et rythmée, débit rapide, forte accroche dès la première phrase, ton complice comme si tu parlais à un ami face caméra.',
+    promptAr: 'صوت نشيط وسريع الإيقاع، بداية قوية تشد الانتباه من أول جملة، نبرة قريبة كأنك تحكي لصديق أمام الكاميرا.' },
+  { fr: 'Narration posée', ar: 'سرد هادئ',
+    promptFr: 'Voix posée, grave et rassurante, débit lent avec des pauses naturelles entre les phrases, ton calme de narrateur de documentaire.',
+    promptAr: 'صوت هادئ ورزين، إيقاع بطيء مع وقفات طبيعية بين الجمل، نبرة مطمئنة كراوي وثائقي.' },
+  { fr: 'Premium luxe', ar: 'فخم وراقٍ',
+    promptFr: 'Voix élégante, douce et confiante, articulation précise, débit mesuré, ton haut de gamme et sobre, sans exagération.',
+    promptAr: 'صوت أنيق وناعم وواثق، مخارج حروف دقيقة، إيقاع متزن، نبرة راقية وهادئة دون مبالغة.' },
+] as const;
 
 // ==========================================================================
 // BALISES VOCALES `<...>` — catalogue officiel (tts/vocalTags.ts)
@@ -322,6 +341,17 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     if (shouldShowWhatsNew()) {
       markWhatsNewSeen();
       const id = setTimeout(() => setShowWhatsNew(true), 550);
+      return () => clearTimeout(id);
+    }
+  }, []);
+
+  // Astuces « super voix » : panneau intégré à la page (jamais une pop-up).
+  // S'ouvre seul à la première visite, puis via le bouton « i » à côté du « + ».
+  const [showVoiceTips, setShowVoiceTips] = useState<boolean>(false);
+  useEffect(() => {
+    if (shouldShowVoiceTips()) {
+      markVoiceTipsSeen();
+      const id = setTimeout(() => setShowVoiceTips(true), 900);
       return () => clearTimeout(id);
     }
   }, []);
@@ -1176,7 +1206,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/65 p-3">
                   <div className="mb-1.5 flex items-center justify-between gap-2"><label htmlFor="voice-direction" className="text-[11px] font-black uppercase tracking-wider text-[#6d28d9]">{language === 'ar' ? 'كيفاش تحب الصوت يتقال؟' : 'Comment veux-tu que ça sonne ?'}</label><span className="text-[10px] text-violet-400">{stylePrompt.length}/420</span></div>
                   <textarea id="voice-direction" value={stylePrompt} onChange={(e) => { setStylePrompt(e.target.value); stylePromptRef.current = e.target.value; }} rows={2} maxLength={420} placeholder={language === 'ar' ? 'مثال: صوت دافئ، مبتسم، واثق...' : 'Ex : voix douce, souriante et premium, comme une publicité…'} className="w-full resize-none bg-transparent text-xs leading-5 text-slate-700 outline-none placeholder:text-violet-300" />
-                  <div className="mt-1.5 flex gap-1.5 overflow-x-auto scrollbar-none">{['Voix naturelle', 'Pub premium', 'Dynamique TikTok'].map((preset) => <button key={preset} type="button" onClick={() => { setStylePrompt(preset); stylePromptRef.current = preset; }} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-violet-700 shadow-sm hover:bg-violet-100">{preset}</button>)}</div>
+                  <div className="mt-1.5 flex gap-1.5 overflow-x-auto scrollbar-none">{STYLE_PRESETS.map((preset) => { const label = language === 'ar' ? preset.ar : preset.fr; const prompt = language === 'ar' ? preset.promptAr : preset.promptFr; return <button key={preset.fr} type="button" title={prompt} onClick={() => { setStylePrompt(prompt); stylePromptRef.current = prompt; }} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-violet-700 shadow-sm hover:bg-violet-100">{label}</button>; })}</div>
                 </div>
               )}
 
@@ -1184,6 +1214,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 {composerMode === 'voice' && (
                   <button onClick={() => setOpenPop(openPop === 'tags' ? null : 'tags')} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${openPop === 'tags' ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'إدراج تأثير' : 'Insérer une balise'}>
                     <Plus className="w-4 h-4" />
+                  </button>
+                )}
+                {composerMode === 'voice' && (
+                  <button type="button" onClick={() => setShowVoiceTips((v) => !v)} aria-expanded={showVoiceTips} className={`order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${showVoiceTips ? 'saw-chip-active' : 'text-slate-600'}`} title={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'} aria-label={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'}>
+                    <Info className="w-4 h-4" />
                   </button>
                 )}
 
@@ -1224,53 +1259,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               {/* Les popups (balises / voix / région) sont rendus dans <body> via un portail — voir plus bas */}
             </div>
 
-            <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none justify-start sm:justify-center items-center gap-2 mt-4 sm:mt-5 -mx-1 px-1">
-              {aiIdeas?.map((idea) => (
-                <button
-                  key={idea.label}
-                  onClick={() => handleSuggestionClick(idea)}
-                  className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5 bg-[#f5f3ff] text-[#5b21b6] border border-[#ddd6fe] hover:bg-[#ede9fe] transition-colors"
-                  title={`${idea.starter}\n\n${language === 'ar' ? 'فكرة مولّدة بالذكاء الاصطناعي' : 'Idée générée par l’IA'}`}
-                >
-                  <span className="text-[#6d28d9]">{SUGGESTION_ICONS[idea.icon]}</span>{idea.label}
-                </button>
-              ))}
-              {personalized && nicheMatch && (
-                <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-slate-400 me-0.5" title={language === 'ar' ? 'اقتراحات مبنية على نصوصك' : 'Suggestions déduites de vos textes'}>
-                  {language === 'ar' ? <>حسب نصوصك · {nicheName(nicheMatch.niche, language)}:</> : <>D’après vos textes · {nicheName(nicheMatch.niche, language)} :</>}
-                </span>
-              )}
-              {suggestions.map((s) => (
-                <button key={s.label} onClick={() => handleSuggestionClick(s)} className="shrink-0 whitespace-nowrap saw-flat rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-1.5 hover:text-[#6d28d9]" title={s.starter}><span className="text-[#6d28d9]">{SUGGESTION_ICONS[s.icon]}</span>{s.label}</button>
-              ))}
-              <button
-                type="button"
-                onClick={handleLoadIdeas}
-                disabled={isLoadingIdeas}
-                className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold cursor-pointer flex items-center gap-1.5 bg-white text-[#6d28d9] border border-[#ddd6fe] hover:bg-[#f5f3ff] transition-colors disabled:opacity-50"
-                title={language === 'ar'
-                  ? 'ثلاث أفكار جديدة في مجالك، مكتوبة بالذكاء الاصطناعي (2 نقاط)'
-                  : 'Trois idées neuves dans votre domaine, écrites par l’IA (2 points)'}
-              >
-                {isLoadingIdeas ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                {isLoadingIdeas
-                  ? (language === 'ar' ? 'جاري التوليد…' : 'Génération…')
-                  : aiIdeas
-                    ? (language === 'ar' ? 'أفكار جديدة · 2 نقاط' : 'Nouvelles idées · 2 pts')
-                    : (language === 'ar' ? 'أفكار بالذكاء الاصطناعي · 2 نقاط' : 'Idées IA · 2 pts')}
-              </button>
-
-              {personalized && (
-                <button
-                  type="button"
-                  onClick={() => { setTaste(forgetTaste()); setAiIdeas(null); showNotif(language === 'ar' ? 'تم محو ما تعلمه الاستوديو عنك' : 'Le studio a oublié vos habitudes'); }}
-                  className="shrink-0 whitespace-nowrap text-[10px] text-slate-400 hover:text-[#6d28d9] underline decoration-dotted cursor-pointer"
-                  title={language === 'ar' ? 'امسح ما تعلّمه الاستوديو عنك (محلي فقط)' : 'Effacer ce que le studio a appris de vous (local uniquement)'}
-                >
-                  {language === 'ar' ? 'امسح' : 'Oublier'}
-                </button>
-              )}
-            </div>
+            {composerMode === 'voice' && showVoiceTips && <VoiceTipsPanel onClose={() => setShowVoiceTips(false)} />}
 
             {composerMode === 'script' ? (
               <div key="script-info" className="saw-mode-swap w-full flex flex-wrap items-center justify-between gap-2 mt-3 px-3 py-2.5 rounded-xl border border-[#ddd6fe] bg-[#f5f3ff]/80 text-[#5b21b6] shadow-sm">
@@ -1282,15 +1271,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               </div>
             ) : (
               <div key="voice-info" className="saw-mode-swap">
-            {recentGenerations.length > 0 && (
-              <div className="flex flex-wrap justify-center items-center gap-2 mt-3">
-                <History className="w-3 h-3 text-slate-400" />
-                {recentGenerations.slice(0, 3).map((gen) => (
-                  <button key={gen.id} onClick={() => { switchComposerMode('voice', gen.text); requestAnimationFrame(() => { growTextarea(); focusEditorEnd(); }); }} className="text-[10px] text-slate-500 hover:text-[#6d28d9] cursor-pointer transition-colors max-w-[220px] truncate" title={gen.text}>{gen.text.substring(0, 28)}…</button>
-                ))}
-              </div>
-            )}
-
             <div className={`w-full flex flex-wrap items-center justify-between gap-2 mt-3 px-3 py-2.5 rounded-xl border ${needsTopUp ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-violet-100 bg-white/75 text-slate-700'} shadow-sm`}>
               <div className="flex items-center gap-2 min-w-0">
                 <span className={`text-xs font-medium ${needsTopUp ? 'font-semibold text-rose-700' : 'text-slate-700'}`} title={language === 'ar' ? 'تقدير مبني على طول النص — التكلفة النهائية حسب المدة الفعلية للتسجيل.' : 'Estimation basée sur la longueur du texte — coût final selon la durée réelle de l’audio.'}>
@@ -1381,7 +1361,6 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
             >
               <div className="flex items-center justify-between px-1 pb-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
-                <span className="text-[10px] text-slate-400">{language === 'ar' ? 'الصوت يتبع النبرة' : 'la voix suit la tonalité'}</span>
               </div>
 
               <div className="flex items-center gap-1.5 px-1 pt-1 pb-1.5"><SlidersHorizontal className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'نبرة الأداء (كامل النص)' : 'Ton (toute la lecture)'}</span></div>
