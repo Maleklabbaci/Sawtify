@@ -7,7 +7,7 @@ import {
   ChevronDown, Star, Plus, ArrowUp, Cloud, Smile,
   MessageCircle, BookOpen, Languages, ShoppingBag, UtensilsCrossed, House,
   CalendarDays, SlidersHorizontal, History,
-  GraduationCap, HeartPulse, Shirt, Briefcase, Plane, Type
+  GraduationCap, HeartPulse, Shirt, Briefcase, Plane, Type, Info
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
 import { getVoices, getStyleTags } from '../data/voices';
@@ -28,6 +28,7 @@ import { supabase, uploadGenerationAudio, fetchMyGenerations } from '../services
 import { WaveformPlayer } from './WaveformPlayer';
 import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
+import { VoiceTipsModal, shouldShowVoiceTips, markVoiceTipsSeen } from './VoiceTipsModal';
 
 // ==========================================================================
 // BALISES VOCALES `<...>` — catalogue officiel (tts/vocalTags.ts)
@@ -75,7 +76,7 @@ const VOICES_POP_BASE =
 // ==========================================================================
 type TagKind = 'style' | 'vocal';
 interface TagMeta { kind: TagKind; category?: string; label: string }
-const TAG_RE_SOURCE = '(<[^<>\\s]+>|\\[[^\\[\\]\\n]+\\])';
+const TAG_RE_SOURCE = '(<[^<>\\n]+>|\\[[^\\[\\]\\n]+\\])';
 
 function serializeNode(node: Node): string {
   let out = '';
@@ -320,6 +321,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
       return () => clearTimeout(id);
     }
   }, []);
+
+  // Astuces « super voix » : s'ouvrent seules à la 1re visite, APRÈS « Nouveautés » si elle s'affiche.
+  const [showVoiceTips, setShowVoiceTips] = useState<boolean>(false);
+  useEffect(() => {
+    if (showWhatsNew || showVoiceTips) return;
+    if (!shouldShowVoiceTips()) return;
+    const id = setTimeout(() => {
+      markVoiceTipsSeen();
+      setShowVoiceTips(true);
+    }, 1000);
+    return () => clearTimeout(id);
+  }, [showWhatsNew, showVoiceTips]);
 
   const [composerMode, setComposerMode] = useState<'voice' | 'script'>('voice');
   // Deux zones de saisie indépendantes : le texte de la voix-off n'est PAS la description du script IA.
@@ -1139,6 +1152,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                     <Plus className="w-4 h-4" />
                   </button>
                 )}
+                {composerMode === 'voice' && (
+                  <button onClick={() => setShowVoiceTips(true)} className="order-1 sm:order-none shrink-0 saw-flat w-9 h-9 rounded-full flex items-center justify-center cursor-pointer text-slate-600" title={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'} aria-label={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'}>
+                    <Info className="w-4 h-4" />
+                  </button>
+                )}
 
                 <button onClick={() => switchComposerMode('voice')} className={`order-2 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'voice' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'تعليق صوتي' : 'Voix-off'}</button>
                 <button onClick={() => switchComposerMode('script')} className={`order-3 sm:order-none whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${composerMode === 'script' ? 'saw-chip-active' : 'saw-flat text-slate-600'}`}>{language === 'ar' ? 'نص ذكي' : 'Script IA'}<span className="ms-1.5 font-num opacity-70 text-[10px] font-bold">{language === 'ar' ? '5 نقاط' : '5 pts'}</span></button>
@@ -1556,6 +1574,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
         </div>
       )}
 
+      {showVoiceTips && ( <VoiceTipsModal onClose={() => setShowVoiceTips(false)} /> )}
       {showWhatsNew && ( <WhatsNewV41 onClose={() => setShowWhatsNew(false)} onStart={() => setShowWhatsNew(false)} onSupport={() => { setShowWhatsNew(false); onOpenRecharge(); }} /> )}
     </div>
   );
