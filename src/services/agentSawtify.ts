@@ -1,4 +1,6 @@
 export type AgentLanguage = 'fr' | 'ar' | 'both';
+export type AgentSector = 'commerce' | 'health' | 'services' | 'restaurant' | 'hospitality';
+export type AgentRequestType = 'order' | 'appointment' | 'quote' | 'reservation' | 'room_service';
 export type AgentOrderStatus = 'new' | 'confirmed' | 'delivered';
 
 export interface AgentProduct {
@@ -31,12 +33,17 @@ export interface AgentOrder {
   quantity: number;
   amountDzd: number;
   status: AgentOrderStatus;
+  requestType?: AgentRequestType;
+  details?: string;
+  preferredAt?: string | null;
+  preferredUntil?: string | null;
 }
 
 export interface AgentStore {
   name: string;
   slug: string;
   category: string;
+  sector: AgentSector;
   phone: string;
   location: string;
   greeting: string;
@@ -54,6 +61,7 @@ export const DEMO_AGENT_STORE: AgentStore = {
   name: 'Atelier Amine',
   slug: 'atelier-amine',
   category: 'Mode & sneakers',
+  sector: 'commerce',
   phone: '0550 00 00 00',
   location: 'Alger',
   greeting: 'Salam ! Bienvenue chez Atelier Amine. Je peux vous aider pour les modèles, les tailles, les prix ou la livraison. Vous préférez parler en français ou en darija ?',
@@ -61,8 +69,8 @@ export const DEMO_AGENT_STORE: AgentStore = {
   agentVoiceId: 'voice_amin',
   isActive: true,
   products: [
-    { id: 'p-sneakers-atlas', name: 'Sneakers Atlas', category: 'Chaussures', description: 'Sneakers légères, confortables au quotidien.', priceDzd: 8500, stock: 12, sizes: ['39', '40', '41', '42', '43'], active: true },
-    { id: 'p-sac-riva', name: 'Sac Riva', category: 'Accessoires', description: 'Sac compact avec bandoulière réglable.', priceDzd: 4200, stock: 8, sizes: ['Unique'], active: true },
+    { id: 'p-sneakers-atlas', name: 'Sneakers Atlas', category: 'Chaussures', description: 'Sneakers légères, confortables au quotidien.', priceDzd: 8500, stock: 10, sizes: ['39', '40', '41', '42', '43'], active: true },
+    { id: 'p-sac-riva', name: 'Sac Riva', category: 'Accessoires', description: 'Sac compact avec bandoulière réglable.', priceDzd: 4200, stock: 7, sizes: ['Unique'], active: true },
     { id: 'p-casquette-north', name: 'Casquette North', category: 'Accessoires', description: 'Casquette légère, plusieurs coloris disponibles.', priceDzd: 1800, stock: 0, sizes: ['Unique'], active: true },
   ],
   faqs: [
@@ -81,7 +89,7 @@ export function createDemoAgentStore(): AgentStore {
   return JSON.parse(JSON.stringify(DEMO_AGENT_STORE)) as AgentStore;
 }
 
-type PersistedAgentStore = Omit<AgentStore, 'agentVoiceId'> & Partial<Pick<AgentStore, 'agentVoiceId'>>;
+type PersistedAgentStore = Omit<AgentStore, 'agentVoiceId' | 'sector'> & Partial<Pick<AgentStore, 'agentVoiceId' | 'sector'>>;
 
 function isAgentStore(value: unknown): value is PersistedAgentStore {
   if (!value || typeof value !== 'object') return false;
@@ -108,6 +116,7 @@ export function readAgentStore(): AgentStore {
         return {
           ...createDemoAgentStore(),
           ...parsed,
+          sector: ['commerce', 'health', 'services', 'restaurant', 'hospitality'].includes(String(parsed.sector)) ? parsed.sector as AgentSector : DEMO_AGENT_STORE.sector,
           agentVoiceId: parsed.agentVoiceId?.trim() || DEMO_AGENT_STORE.agentVoiceId,
         };
       }

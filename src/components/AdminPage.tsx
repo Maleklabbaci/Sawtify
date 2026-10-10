@@ -42,12 +42,23 @@ type AdminData = {
     remaining_plan_seconds?: number;
     remaining_topup_seconds?: number;
     remaining_seconds?: number;
+    stores_total?: number;
+    active_stores?: number;
+    orders_total?: number;
+    open_orders?: number;
+    usage_events?: number;
+    consumed_seconds?: number;
+    estimated_usage_cost_dzd?: number;
+    estimated_margin_after_usage_dzd?: number;
     estimated_cost_per_minute_dzd: number;
     estimated_cost_dzd: number;
     gross_margin_dzd: number;
     gross_margin_percent: number;
     payments?: Array<{ invoice_id: string | null; user_id: string; user_email: string | null; offer_id: string; offer_kind: 'subscription' | 'topup'; offer_name: string; minutes: number; amount_dzd: number; status: string; created_at: string; paid_at: string | null }>;
     wallets?: Array<{ user_id: string; user_email: string | null; plan_id: string | null; plan_active: boolean; plan_expires_at: string | null; plan_seconds_remaining: number; topup_seconds_remaining: number; remaining_seconds: number; updated_at: string }>;
+    usage_history?: Array<{ id: string; owner_user_id: string; user_email: string | null; store_slug: string; input_characters: number; output_characters: number; billable_seconds: number; plan_seconds_used: number; topup_seconds_used: number; remaining_seconds_after: number; created_at: string }>;
+    stores?: Array<{ id: string; owner_user_id: string; user_email: string | null; slug: string; is_active: boolean; updated_at: string }>;
+    orders?: Array<{ id: string; owner_user_id: string; user_email: string | null; store_id: string; store_slug: string | null; customer_name: string; phone: string; wilaya: string; product_name: string; size: string; quantity: number; amount_dzd: number | string; status: 'new' | 'confirmed' | 'delivered'; request_type?: 'order' | 'appointment' | 'quote' | 'reservation' | 'room_service'; details?: string; preferred_at?: string | null; preferred_until?: string | null; created_at: string }>;
   };
 };
 type FunnelData = { counts: Record<string, number>; campaigns: Array<{ name: string; visitors: number; signup_open: number; accounts: number; onboarding: number }> };
@@ -60,7 +71,7 @@ type UserDetail = {
 };
 
 const money = (n: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 2 }).format(n)} DZD`;
-const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const dateTime = (value?: string | null, dateOnly = false) => value ? new Date(value).toLocaleString('fr-FR', dateOnly ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 const usd = (n: number) => `$${Number(n || 0).toFixed(6)}`;
 const integer = (n: number) => Number(n || 0).toLocaleString('fr-FR');
 const agentMinutesFromSeconds = (seconds: number) => `${new Intl.NumberFormat('fr-DZ', { maximumFractionDigits: 1 }).format(Math.max(0, Number(seconds) || 0) / 60)} min`;
@@ -123,6 +134,9 @@ export const AdminPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [agentPaymentsPage, setAgentPaymentsPage] = useState(1);
   const [agentWalletsPage, setAgentWalletsPage] = useState(1);
+  const [agentUsagePage, setAgentUsagePage] = useState(1);
+  const [agentStoresPage, setAgentStoresPage] = useState(1);
+  const [agentOrdersPage, setAgentOrdersPage] = useState(1);
   const PAGE_SIZE = 20;
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -223,13 +237,25 @@ export const AdminPage: React.FC = () => {
   };
   const agentPayments = agent.payments || [];
   const agentWallets = agent.wallets || [];
+  const agentUsageHistory = agent.usage_history || [];
+  const agentStores = agent.stores || [];
+  const agentOrders = agent.orders || [];
   const AGENT_PAGE_SIZE = 20;
   const agentPaymentsTotalPages = Math.max(1, Math.ceil(agentPayments.length / AGENT_PAGE_SIZE));
   const agentWalletsTotalPages = Math.max(1, Math.ceil(agentWallets.length / AGENT_PAGE_SIZE));
+  const agentUsageTotalPages = Math.max(1, Math.ceil(agentUsageHistory.length / AGENT_PAGE_SIZE));
+  const agentStoresTotalPages = Math.max(1, Math.ceil(agentStores.length / AGENT_PAGE_SIZE));
+  const agentOrdersTotalPages = Math.max(1, Math.ceil(agentOrders.length / AGENT_PAGE_SIZE));
   const safeAgentPaymentsPage = Math.min(agentPaymentsPage, agentPaymentsTotalPages);
   const safeAgentWalletsPage = Math.min(agentWalletsPage, agentWalletsTotalPages);
+  const safeAgentUsagePage = Math.min(agentUsagePage, agentUsageTotalPages);
+  const safeAgentStoresPage = Math.min(agentStoresPage, agentStoresTotalPages);
+  const safeAgentOrdersPage = Math.min(agentOrdersPage, agentOrdersTotalPages);
   const pagedAgentPayments = agentPayments.slice((safeAgentPaymentsPage - 1) * AGENT_PAGE_SIZE, safeAgentPaymentsPage * AGENT_PAGE_SIZE);
   const pagedAgentWallets = agentWallets.slice((safeAgentWalletsPage - 1) * AGENT_PAGE_SIZE, safeAgentWalletsPage * AGENT_PAGE_SIZE);
+  const pagedAgentUsage = agentUsageHistory.slice((safeAgentUsagePage - 1) * AGENT_PAGE_SIZE, safeAgentUsagePage * AGENT_PAGE_SIZE);
+  const pagedAgentStores = agentStores.slice((safeAgentStoresPage - 1) * AGENT_PAGE_SIZE, safeAgentStoresPage * AGENT_PAGE_SIZE);
+  const pagedAgentOrders = agentOrders.slice((safeAgentOrdersPage - 1) * AGENT_PAGE_SIZE, safeAgentOrdersPage * AGENT_PAGE_SIZE);
   const flagshipOffer = AGENT_PRICING_OFFERS.find((offer) => offer.id === 'agent_plan_300')!;
   const tenCustomerRevenue = flagshipOffer.priceDzd * 10;
   const tenCustomerMaxCost = flagshipOffer.minutes * AGENT_ESTIMATED_COST_PER_MINUTE_DZD * 10;
@@ -335,7 +361,7 @@ export const AdminPage: React.FC = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-black text-slate-900">Dashboard Agent · suivi complet</h2>
-            <p className="mt-1 text-sm text-slate-600">Paiements, offres vendues, portefeuilles de minutes, soldes et marges estimées.</p>
+            <p className="mt-1 text-sm text-slate-600">Paiements, boutiques persistantes, demandes, secondes estimées débitées, portefeuilles et marges.</p>
             <p className="mt-1 text-xs text-slate-500">Coût prudent estimé : {money(agent.estimated_cost_per_minute_dzd || AGENT_ESTIMATED_COST_PER_MINUTE_DZD)} par minute vendue.</p>
           </div>
           <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-800">{integer(agent.active_subscribers)} forfaits actifs</span>
@@ -348,9 +374,13 @@ export const AdminPage: React.FC = () => {
             ['Minutes vendues', integer(agent.minutes_sold), `${integer(agent.subscription_minutes_sold || 0)} forfaits · ${integer(agent.topup_minutes_sold || 0)} recharges`],
             ['Minutes restantes en soldes', agentMinutesFromSeconds(agent.remaining_seconds || 0), `${integer(agent.wallets_with_balance || 0)} portefeuilles avec solde`],
             ['Portefeuilles Agent', integer(agent.wallets_total || 0), `${integer(agent.active_subscribers)} forfaits encore actifs`],
+            ['Boutiques persistantes', integer(agent.stores_total || 0), `${integer(agent.active_stores || 0)} actives · ${integer(agent.orders_total || 0)} demandes enregistrées`],
             ['Paiements en attente', money(agent.pending_amount_dzd || 0), `${integer(agent.pending_transactions || 0)} à vérifier · ${money(agent.failed_amount_dzd || 0)} échoués (${integer(agent.failed_transactions || 0)})`],
+            ['Secondes estimées débitées', agentMinutesFromSeconds(agent.consumed_seconds || 0), `${integer(agent.usage_events || 0)} échanges suivis`],
+            ['Coût estimé des usages suivis', money(agent.estimated_usage_cost_dzd || 0), `coût estimé au tarif ${money(agent.estimated_cost_per_minute_dzd || AGENT_ESTIMATED_COST_PER_MINUTE_DZD)}/min`],
             ['Coût maximum estimé', money(agent.estimated_cost_dzd), 'hypothèse : toutes les minutes vendues sont consommées'],
             ['Marge brute estimée', money(agent.gross_margin_dzd), `${Number(agent.gross_margin_percent || 0).toFixed(2)} % des revenus encaissés`],
+            ['Marge après usages suivis', money(agent.estimated_margin_after_usage_dzd || 0), 'revenus encaissés moins coût estimé des usages enregistrés'],
           ].map(([label, value, detail]) => (
             <div key={label} className="rounded-2xl border border-violet-100 bg-white p-4">
               <p className="text-[11px] font-bold text-slate-500">{label}</p>
@@ -416,9 +446,69 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
 
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-violet-100 bg-white">
+          <div className="border-b border-violet-100 px-4 py-3"><h3 className="text-sm font-black text-slate-900">Boutiques persistantes</h3><p className="mt-1 text-[10px] text-slate-500">{integer(agentStores.length)} boutiques associées à un compte propriétaire.</p></div>
+          {agentStores.length ? (
+            <table className="w-full min-w-[620px] text-left text-xs">
+              <thead><tr className="border-b border-slate-100 text-[10px] text-slate-500"><th className="p-3">Propriétaire</th><th className="p-3">Lien public</th><th className="p-3">État</th><th className="p-3">Mise à jour</th></tr></thead>
+              <tbody>{pagedAgentStores.map((store) => <tr key={store.id} className="border-b border-slate-100 last:border-0"><td className="p-3 font-semibold text-slate-700">{store.user_email || store.owner_user_id.slice(0, 8)}</td><td className="p-3 font-bold text-violet-800">/call/{store.slug}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${store.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{store.is_active ? 'Active' : 'En pause'}</span></td><td className="p-3 text-slate-500">{dateTime(store.updated_at)}</td></tr>)}</tbody>
+            </table>
+          ) : <p className="px-4 py-6 text-center text-xs text-slate-500">Aucune boutique enregistrée pour le moment.</p>}
+        </div>
+        {agentStores.length > AGENT_PAGE_SIZE && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">{(safeAgentStoresPage - 1) * AGENT_PAGE_SIZE + 1}–{Math.min(safeAgentStoresPage * AGENT_PAGE_SIZE, agentStores.length)} sur {integer(agentStores.length)} boutiques</p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setAgentStoresPage((value) => Math.max(1, value - 1))} disabled={safeAgentStoresPage <= 1} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40"><ChevronLeft className="h-3.5 w-3.5" /> Précédent</button>
+              <span className="text-xs font-bold text-slate-500">{safeAgentStoresPage}/{agentStoresTotalPages}</span>
+              <button type="button" onClick={() => setAgentStoresPage((value) => Math.min(agentStoresTotalPages, value + 1))} disabled={safeAgentStoresPage >= agentStoresTotalPages} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40">Suivant <ChevronRight className="h-3.5 w-3.5" /></button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-violet-100 bg-white">
+          <div className="border-b border-violet-100 px-4 py-3"><h3 className="text-sm font-black text-slate-900">Demandes Agent</h3><p className="mt-1 text-[10px] text-slate-500">{integer(agentOrders.length)} demandes · {integer(agent.open_orders || 0)} nouvelles. Les coordonnées sont visibles dans cet espace Admin sécurisé.</p></div>
+          {agentOrders.length ? (
+            <table className="w-full min-w-[1180px] text-left text-xs">
+              <thead><tr className="border-b border-slate-100 text-[10px] text-slate-500"><th className="p-3">Date</th><th className="p-3">Propriétaire</th><th className="p-3">Boutique</th><th className="p-3">Client</th><th className="p-3">Téléphone / wilaya</th><th className="p-3">Type</th><th className="p-3">Article / prestation</th><th className="p-3">Détails / créneau</th><th className="p-3">Qté</th><th className="p-3">Montant</th><th className="p-3">Statut</th></tr></thead>
+              <tbody>{pagedAgentOrders.map((order) => <tr key={order.id} className="border-b border-slate-100 last:border-0"><td className="whitespace-nowrap p-3 text-slate-500">{dateTime(order.created_at)}</td><td className="p-3 font-semibold text-slate-700">{order.user_email || order.owner_user_id.slice(0, 8)}</td><td className="p-3 font-bold text-violet-800">{order.store_slug ? `/call/${order.store_slug}` : order.store_id.slice(0, 8)}</td><td className="p-3 font-semibold text-slate-800">{order.customer_name}</td><td className="p-3"><div className="font-semibold text-slate-700">{order.phone}</div><div className="mt-0.5 text-[10px] text-slate-500">{order.wilaya}</div></td><td className="p-3 text-slate-700">{order.request_type === 'appointment' ? 'Rendez-vous' : order.request_type === 'quote' ? 'Devis' : order.request_type === 'reservation' ? 'Réservation' : order.request_type === 'room_service' ? 'Room service' : 'Commande'}</td><td className="p-3"><div className="font-semibold text-slate-800">{order.product_name}</div><div className="mt-0.5 text-[10px] text-slate-500">{order.size || '—'}</div></td><td className="p-3"><div className="max-w-48 whitespace-pre-wrap text-slate-600">{order.details || '—'}</div><div className="mt-0.5 text-[10px] text-slate-500">{order.preferred_at ? dateTime(order.preferred_at, Boolean(order.preferred_until)) : '—'}</div>{order.preferred_until && <div className="mt-0.5 text-[10px] text-slate-500">Départ : {dateTime(order.preferred_until, true)}</div>}</td><td className="p-3">{integer(order.quantity)}</td><td className="whitespace-nowrap p-3 font-bold">{money(Number(order.amount_dzd) || 0)}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${order.status === 'new' ? 'bg-amber-50 text-amber-700' : order.status === 'confirmed' ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700'}`}>{order.status === 'new' ? 'Nouvelle' : order.status === 'confirmed' ? 'Confirmée' : order.request_type && order.request_type !== 'order' ? 'Terminée' : 'Livrée'}</span></td></tr>)}</tbody>
+            </table>
+          ) : <p className="px-4 py-6 text-center text-xs text-slate-500">Aucune demande enregistrée pour le moment.</p>}
+        </div>
+        {agentOrders.length > AGENT_PAGE_SIZE && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">{(safeAgentOrdersPage - 1) * AGENT_PAGE_SIZE + 1}–{Math.min(safeAgentOrdersPage * AGENT_PAGE_SIZE, agentOrders.length)} sur {integer(agentOrders.length)} demandes</p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setAgentOrdersPage((value) => Math.max(1, value - 1))} disabled={safeAgentOrdersPage <= 1} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40"><ChevronLeft className="h-3.5 w-3.5" /> Précédent</button>
+              <span className="text-xs font-bold text-slate-500">{safeAgentOrdersPage}/{agentOrdersTotalPages}</span>
+              <button type="button" onClick={() => setAgentOrdersPage((value) => Math.min(agentOrdersTotalPages, value + 1))} disabled={safeAgentOrdersPage >= agentOrdersTotalPages} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40">Suivant <ChevronRight className="h-3.5 w-3.5" /></button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-violet-100 bg-white">
+          <div className="border-b border-violet-100 px-4 py-3"><h3 className="text-sm font-black text-slate-900">Historique des usages estimés</h3><p className="mt-1 text-[10px] text-slate-500">{integer(agentUsageHistory.length)} réponses débitées · aucun texte de conversation n’est conservé.</p></div>
+          {agentUsageHistory.length ? (
+            <table className="w-full min-w-[840px] text-left text-xs">
+              <thead><tr className="border-b border-slate-100 text-[10px] text-slate-500"><th className="p-3">Propriétaire</th><th className="p-3">Boutique</th><th className="p-3">Caractères entrée / sortie</th><th className="p-3">Secondes estimées</th><th className="p-3">Forfait / recharge</th><th className="p-3">Date</th></tr></thead>
+              <tbody>{pagedAgentUsage.map((event) => <tr key={event.id} className="border-b border-slate-100 last:border-0"><td className="p-3 font-semibold text-slate-700">{event.user_email || event.owner_user_id.slice(0, 8)}</td><td className="p-3 font-bold text-violet-800">{event.store_slug}</td><td className="p-3">{integer(event.input_characters)} / {integer(event.output_characters)}</td><td className="p-3 font-black">{integer(event.billable_seconds)} s</td><td className="p-3">{integer(event.plan_seconds_used)} s / {integer(event.topup_seconds_used)} s</td><td className="p-3 text-slate-500">{dateTime(event.created_at)}</td></tr>)}</tbody>
+            </table>
+          ) : <p className="px-4 py-6 text-center text-xs text-slate-500">Aucune consommation enregistrée pour le moment.</p>}
+        </div>
+        {agentUsageHistory.length > AGENT_PAGE_SIZE && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">{(safeAgentUsagePage - 1) * AGENT_PAGE_SIZE + 1}–{Math.min(safeAgentUsagePage * AGENT_PAGE_SIZE, agentUsageHistory.length)} sur {integer(agentUsageHistory.length)} usages</p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setAgentUsagePage((value) => Math.max(1, value - 1))} disabled={safeAgentUsagePage <= 1} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40"><ChevronLeft className="h-3.5 w-3.5" /> Précédent</button>
+              <span className="text-xs font-bold text-slate-500">{safeAgentUsagePage}/{agentUsageTotalPages}</span>
+              <button type="button" onClick={() => setAgentUsagePage((value) => Math.min(agentUsageTotalPages, value + 1))} disabled={safeAgentUsagePage >= agentUsageTotalPages} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40">Suivant <ChevronRight className="h-3.5 w-3.5" /></button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <h3 className="text-sm font-black text-amber-950">Suivi de la consommation réelle</h3>
-          <p className="mt-1 text-xs leading-5 text-amber-900">Les achats et soldes sont suivis ici. La démo d’appel actuelle ne transmet pas encore la durée réellement consommée au serveur; les minutes utilisées ne peuvent donc pas être comptabilisées de façon fiable pour le moment.</p>
+          <h3 className="text-sm font-black text-amber-950">Limite du suivi de consommation</h3>
+          <p className="mt-1 text-xs leading-5 text-amber-900">Les secondes débitées sont estimées côté serveur à partir du nombre de caractères échangés. La synthèse vocale de cette démonstration reste dans le navigateur : sa durée réelle n’est pas mesurée. Ces chiffres ne doivent donc pas être interprétés comme la durée réelle d’un appel. Les messages eux-mêmes ne sont pas conservés.</p>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-white/80 p-4">

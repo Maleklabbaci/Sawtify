@@ -1,6 +1,5 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { Header } from './components/Header';
-import { LandingPage } from './components/LandingPage';
 import { AgentAccessGate } from './components/AgentAccessGate';
 import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
 import type { AppTab } from './types';
@@ -22,7 +21,7 @@ import { ReferralInviteBanner } from './components/growth/ReferralInviteBanner';
 // Lazy seulement pour les pages secondaires (pas le Studio qui est la page principale)
 // Le Studio est importé directement en bas pour éviter un Suspense bloquant.
 const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
-const EditVideoPage = lazy(() => import('./components/EditVideoPage').then(m => ({ default: m.EditVideoPage })));
+const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
 const DeveloperPage = lazy(() => import('./components/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
 const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -99,7 +98,6 @@ function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
   const routeToTab = React.useCallback((path: string): AppTab => {
     if (path === '/historique' || path === '/history') return 'history';
-    if (path === '/edit-video') return 'studio';
     if (path === '/pricing' || path === '/recharge') return 'pricing';
     if (path === '/developer') return 'developer';
     if (path === '/admin') return 'admin';
@@ -188,7 +186,6 @@ function AppContent() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
   const navigateTo = React.useCallback((tab: AppTab, replace = false) => {
-    if (tab === 'edit-video') { setToastMessage('Le montage vidéo est fermé pour le moment — Prochainement.'); return; }
     const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : tab === 'agent-sawtify' ? '/agent-sawtify' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
@@ -198,6 +195,17 @@ function AppContent() {
     if (window.location.pathname !== '/agent-ai') window.history.pushState({}, '', '/agent-ai');
     setActiveTab('studio');
   }, []);
+
+  // The owner workspace is private even when a visitor enters its URL directly.
+  // Keep the public product page as the return destination and never render its UI
+  // until Supabase has confirmed a session.
+  React.useEffect(() => {
+    if (isCheckingSession || isLoggedIn || activeTab !== 'agent-sawtify') return;
+    requestedTabRef.current = 'agent-sawtify';
+    if (window.location.pathname === '/agent-sawtify') window.history.replaceState({}, '', '/agent-ai');
+    setActiveTab('studio');
+    setAuthModalMode('login');
+  }, [isCheckingSession, isLoggedIn, activeTab]);
 
   React.useEffect(() => {
     const onPopState = () => {
@@ -637,8 +645,11 @@ function AppContent() {
     const callRouteMatch = window.location.pathname.match(/^\/call\/([^/]+)/);
     if (callRouteMatch) {
       const slug = decodeURIComponent(callRouteMatch[1]);
-      return <Suspense fallback={<MinimalLoader page="agent-sawtify" />}><AgentAccessGate onBack={() => navigateTo('studio')}><AgentCallPage slug={slug} /></AgentAccessGate></Suspense>;
+      return <Suspense fallback={<MinimalLoader page="agent-sawtify" />}><AgentCallPage slug={slug} /></Suspense>;
     }
+
+    // The Agent product information page remains public, whether signed in or not.
+    if (window.location.pathname === '/agent-ai') return agentInfoPage;
 
     // La landing reste visible pendant la vérification de session : aucun écran d'attente vide.
     if (!isLoggedIn) {
@@ -646,7 +657,7 @@ function AppContent() {
         return (
           <Suspense fallback={<MinimalLoader page="account" />}>
             <LoginModal
-              onClose={() => setAuthModalMode('none')}
+              onClose={() => { setAuthModalMode('none'); requestedTabRef.current = null; }}
               onLoginSuccess={() => {
                 setAuthModalMode('none');
                 setIsLoggedIn(true);
@@ -666,7 +677,7 @@ function AppContent() {
         return (
           <Suspense fallback={<MinimalLoader page="account" />}>
             <SigninModal
-              onClose={() => setAuthModalMode('none')}
+              onClose={() => { setAuthModalMode('none'); requestedTabRef.current = null; }}
               onSigninSuccess={() => {
                 setAuthModalMode('none');
                 setIsLoggedIn(true);
@@ -682,37 +693,19 @@ function AppContent() {
         );
       }
 
-      if (window.location.pathname === '/agent-ai') return agentInfoPage;
-
-      if (activeTab === 'agent-sawtify') {
-        return (
-          <div className="saw-app-background min-h-screen">
-            <Suspense fallback={<MinimalLoader page="agent-sawtify" />}>
-              <AgentAccessGate onBack={() => navigateTo('studio')}>
-                <AgentSawtifyPage
-                  previewMode
-                  onBack={() => navigateTo('studio')}
-                  onSignIn={() => {
-                    requestedTabRef.current = 'agent-sawtify';
-                    trackMarketingEvent('signup_open', { intent: 'agent_sawtify' });
-                    setAuthModalMode('signin');
-                  }}
-                />
-              </AgentAccessGate>
-            </Suspense>
-          </div>
-        );
-      }
+      if (activeTab === 'agent-sawtify') return <MinimalLoader page="account" />;
 
       return (
         <>
-          <LandingPage
-            onLoginClick={() => { requestedTabRef.current = null; trackMarketingEvent('signup_open', { intent: 'login' }); setAuthModalMode('login'); }}
-            onSigninClick={() => { requestedTabRef.current = null; trackMarketingEvent('signup_open'); setAuthModalMode('signin'); }}
-            onAgentClick={navigateToAgentInfo}
-            language={language}
-            setLanguage={setLanguage}
-          />
+          <Suspense fallback={<MinimalLoader page="studio" />}>
+            <LandingPage
+              onLoginClick={() => { requestedTabRef.current = null; trackMarketingEvent('signup_open', { intent: 'login' }); setAuthModalMode('login'); }}
+              onSigninClick={() => { requestedTabRef.current = null; trackMarketingEvent('signup_open'); setAuthModalMode('signin'); }}
+              onAgentClick={navigateToAgentInfo}
+              language={language}
+              setLanguage={setLanguage}
+            />
+          </Suspense>
           {pendingReferral && (
             <ReferralInviteBanner
               language={language}
@@ -729,8 +722,6 @@ function AppContent() {
         </>
       );
     }
-
-    if (window.location.pathname === '/agent-ai') return agentInfoPage;
 
     // Utilisateur connecté : Afficher l'interface principale
     // Même si isBootstrapping est true, on affiche le contenu (le solde arrivera après)
@@ -785,6 +776,7 @@ function AppContent() {
                 onBalanceChange={syncDisplayedBalance}
                 onDeductPoints={handleDeductPoints}
                 onOpenRecharge={() => navigateTo('pricing')}
+                onOpenAgent={() => navigateTo('agent-sawtify')}
                 recentGenerations={generations}
                 prefillText={studioPrefill}
                 onPrefillConsumed={() => setStudioPrefill(null)}
@@ -798,14 +790,10 @@ function AppContent() {
               <HistoryList
                 generations={generations}
                 purchases={purchases}
-                balance={balance}
                 onNavigateToStudio={() => navigateTo('studio')}
-                onNavigateToEditVideo={() => navigateTo('edit-video')}
                 onReuseText={(text) => { setStudioPrefill(text); navigateTo('studio'); }}
               />
             )}
-            
-            {activeTab === 'edit-video' && <EditVideoPage balance={balance} recentGenerations={generations} onOpenRecharge={() => navigateTo('pricing')} />}
             
             {activeTab === 'pricing' && (
               <PricingPage
@@ -826,10 +814,9 @@ function AppContent() {
 
         {/* Bottom Nav Mobile */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-[70] border-t border-slate-200/80 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl" aria-label={language === 'ar' ? 'التنقل الرئيسي' : 'Navigation principale'}>
-          <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+          <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
             {[
               { id: 'studio' as const, label: language === 'ar' ? 'استوديو' : 'Studio', icon: Mic },
-              { id: 'agent-sawtify' as const, label: language === 'ar' ? 'المساعد الذكي' : 'Agent IA', icon: Bot },
               { id: 'history' as const, label: language === 'ar' ? 'السجل' : 'Historique', icon: History },
               { id: 'pricing' as const, label: language === 'ar' ? 'النقاط' : 'Points', icon: CreditCard },
               { id: 'developer' as const, label: 'API', icon: balance > 1000 ? Code2 : Lock },

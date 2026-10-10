@@ -6,7 +6,7 @@ import {
   AudioLines, Megaphone, X, Wand2, ThumbsUp, ThumbsDown,
   ChevronDown, Star, Plus, ArrowUp, Cloud, Smile,
   MessageCircle, BookOpen, Languages, ShoppingBag, UtensilsCrossed, House,
-  CalendarDays, SlidersHorizontal, History,
+  CalendarDays, SlidersHorizontal, History, Bot, ArrowRight,
   GraduationCap, HeartPulse, Shirt, Briefcase, Plane, Type, Info
 } from 'lucide-react';
 import { Voice, GenerationRecord } from '../types';
@@ -229,6 +229,7 @@ interface TTSStudioProps {
   onBalanceChange: (remainingBalance: number) => void;
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
   onOpenRecharge: () => void;
+  onOpenAgent: () => void;
   recentGenerations?: GenerationRecord[];
   prefillText?: string | null;
   onPrefillConsumed?: () => void;
@@ -278,7 +279,7 @@ type PopoverId = 'tags' | 'voices' | 'region' | null;
 // ==========================================================================
 // COMPOSANT PRINCIPAL
 // ==========================================================================
-export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
+export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, onOpenAgent, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
   const { t, isRTL, language } = useLanguage();
   const baseVoices = getVoices(language);
   const styleTags = getStyleTags(language);
@@ -1185,6 +1186,12 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               </span>
             </h1>
           </div>
+
+          <button type="button" onClick={onOpenAgent} className="saw-glass mb-7 flex w-full items-center gap-4 rounded-[24px] border border-violet-100 bg-white/65 p-4 text-start transition hover:border-violet-200 hover:bg-white/90 sm:mb-9 sm:p-5" aria-label={language === 'ar' ? 'افتح مساحة Agent Sawtify' : 'Ouvrir l’espace Agent Sawtify'}>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-700 text-white"><Bot className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-[#2e1065]">{language === 'ar' ? 'Agent Sawtify · مساعد صوتي لنشاطك' : 'Agent Sawtify · un assistant vocal pour votre activité'}</span><span className="mt-1 block text-[11px] leading-5 text-slate-600">{language === 'ar' ? 'استقبل الزبائن، أجب عن الأسئلة وتابع الطلبات أو المواعيد.' : 'Accueillez vos clients, répondez aux questions et suivez commandes ou rendez-vous.'}</span></span>
+            <ArrowRight className={`h-4 w-4 shrink-0 text-violet-700 ${isRTL ? 'rotate-180' : ''}`} />
+          </button>
 
           {/* ════════ LA BARRE ════════ */}
           <div ref={popAnchorRef} className="w-full relative">

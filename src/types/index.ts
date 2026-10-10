@@ -68,4 +68,4 @@ export interface UserCredits {
   lastUpdated: string;
 }
 
-export type AppTab = 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin' | 'agent-sawtify';
+export type AppTab = 'studio' | 'history' | 'pricing' | 'developer' | 'admin' | 'agent-sawtify';
