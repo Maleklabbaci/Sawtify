@@ -308,8 +308,10 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)}(window, document,'script',
       'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '27996806400021454');
-      fbq('track', 'PageView');
+      if (!/^\/widget\//.test(location.pathname)) {
+        fbq('init', '27996806400021454');
+        fbq('track', 'PageView');
+      }
     </script>
   </head>
   <body class="bg-[#F8FAFC] antialiased">

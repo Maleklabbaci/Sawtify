@@ -27,6 +27,7 @@ const DeveloperPage = lazy(() => import('./components/DeveloperPage').then(m => 
 const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
 const AgentSawtifyPage = lazy(() => import('./components/AgentSawtifyPage').then(m => ({ default: m.AgentSawtifyPage })));
 const AgentInfoPage = lazy(() => import('./components/AgentInfoPage').then(m => ({ default: m.AgentInfoPage })));
+const AgentWidgetPage = lazy(() => import('./components/AgentWidgetPage').then(m => ({ default: m.AgentWidgetPage })));
 const AgentCallPage = lazy(() => import('./components/AgentCallPage').then(m => ({ default: m.AgentCallPage })));
 const LoginModal = lazy(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })));
 const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ default: m.SigninModal })));
@@ -95,7 +96,7 @@ const MinimalLoader: React.FC<{ page?: AppTab | 'account' }> = ({ page = 'studio
 };
 
 // Public pages (customer call page, Agent product page) must keep their URL even when a session exists.
-const isPublicPath = () => /^\/call\//.test(window.location.pathname) || window.location.pathname === '/agent-ai';
+const isPublicPath = () => /^\/(call|widget)\//.test(window.location.pathname) || window.location.pathname === '/agent-ai';
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
@@ -387,7 +388,7 @@ function AppContent() {
   }, [growth.status, growth.nowMs]);
 
   React.useEffect(() => {
-    if (!isCheckingSession && !isLoggedIn && !authModalMode) trackMarketingEvent('landing_view');
+    if (!isCheckingSession && !isLoggedIn && !authModalMode && !isPublicPath()) trackMarketingEvent('landing_view');
   }, [isCheckingSession, isLoggedIn, authModalMode]);
 
   // Détecte la session Supabase avec timeout intégré
@@ -621,6 +622,12 @@ function AppContent() {
 
   // Etat de connexion forcé si timeout
   const displayContent = (() => {
+    // Embeddable assistant (iframe on a merchant's website): always public, never the studio.
+    const widgetRouteMatch = window.location.pathname.match(/^\/widget\/([^/]+)/);
+    if (widgetRouteMatch) {
+      return <Suspense fallback={null}><AgentWidgetPage slug={decodeURIComponent(widgetRouteMatch[1])} /></Suspense>;
+    }
+
     // Si on a un utilisateur à accueillir (onboarding), on le montre toujours
     if (welcomeUser) {
       return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={() => { trackMarketingEvent('onboarding_completed'); return finishWelcome(); }} />;
