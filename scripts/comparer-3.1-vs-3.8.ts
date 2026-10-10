@@ -51,7 +51,7 @@ const PRIX: Record<string, { in: number; out: number }> = {
   "gemini-3.8-flash-lite-tts": { in: 0.5, out: 6.0 },
 };
 const TOKENS_AUDIO_PAR_SECONDE = 25;
-const USD_TO_DZD = 260;
+const USD_TO_DZD = 270;
 
 // ── Appel API ───────────────────────────────────────────────────────────────
 async function generer(model: string, body: unknown): Promise<{ pcm: Buffer; usage: any } | { erreur: string }> {

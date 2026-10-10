@@ -344,7 +344,7 @@ const DAILY_GEMINI_LIMIT = Number(process.env.DAILY_GEMINI_LIMIT) || 30;
 const API_MIN_BALANCE = 1000;
 const GENERATION_RETENTION_DAYS = 7;
 const API_KEY_PREFIX = "swt_beta_";
-const USD_TO_DZD = 260;
+const USD_TO_DZD = 270;
 const ADMIN_USER_IDS = new Set((process.env.ADMIN_USER_IDS || "").split(",").map((id) => id.trim()).filter(Boolean));
 const ADMIN_EMAILS = new Set([
   "abdelmaleklabbaci01@gmail.com",
@@ -356,6 +356,17 @@ const GEMINI_TTS_AUDIO_USD_PER_1M = 20;
 // pas 25. Sert uniquement au calcul de coût/marge admin (analytics) — n'affecte
 // PAS computePointsCost, qui reste un barème points indépendant du coût réel.
 const GEMINI_AUDIO_TOKENS_PER_SECOND = Number(process.env.GEMINI_AUDIO_TOKENS_PER_SECOND) || 32;
+
+function estimateVoiceUsageCostUsd(operation: string, characters: number, metadata: any): number {
+  if (operation !== "tts" && operation !== "preview") return 0;
+  const recordedCost = Number(metadata?.cost_usd);
+  if (Number.isFinite(recordedCost) && recordedCost >= 0) return recordedCost;
+  const safeCharacters = Math.max(0, Number(characters) || 0);
+  const estimatedInputTokens = safeCharacters / 4;
+  const seconds = operation === "preview" ? 2.5 : safeCharacters / TTS_CHARS_PER_SECOND_ESTIMATE;
+  return (estimatedInputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M
+    + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
+}
 
 // FIX COST-5 : plafond de caractères par génération. Par défaut 1200 (au lieu de
 // 5000) pour couper le coût max d'une génération — un compte peut débloquer
@@ -768,18 +779,9 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 }
 
 function getClientIp(req: express.Request): string {
-  // req.ip (calculé par Express via "trust proxy") renvoyait une adresse
-  // interne au réseau Render (plage 10.x.x.x) au lieu de la vraie IP
-  // publique du visiteur — ce qui cassait silencieusement l'anti-abus par
-  // IP (bonus de bienvenue). Le header X-Forwarded-For contient la vraie
-  // chaîne de proxys ; la toute première valeur est systématiquement l'IP
-  // d'origine du visiteur, quel que soit le nombre de sauts internes.
-  const xff = req.headers["x-forwarded-for"];
-  const first = Array.isArray(xff) ? xff[0] : xff;
-  if (first) {
-    const ip = first.split(",")[0].trim();
-    if (ip) return ip;
-  }
+  // Express calcule req.ip selon le nombre de proxys de confiance configuré
+  // au démarrage. Ne lis pas directement X-Forwarded-For : un client pourrait
+  // forger sa valeur pour contourner les limites et les contrôles par adresse.
   return req.ip || req.socket.remoteAddress || "unknown";
 }
 
@@ -2048,10 +2050,12 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // "true" fait confiance à toute la chaîne de proxys de Render pour lire la
-  // vraie IP d'origine (X-Forwarded-For) — avec juste "1", req.ip résolvait
-  // une adresse interne (10.x.x.x), ce qui cassait le rate-limiting par IP.
-  app.set("trust proxy", true);
+  // Indique le nombre exact de reverse proxies de confiance. Évite `true` :
+  // cela permettrait à un client de forger X-Forwarded-For pour contourner
+  // les limites d'essais et les protections basées sur l'adresse IP.
+  const configuredProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? "1");
+  const trustProxyHops = Number.isInteger(configuredProxyHops) && configuredProxyHops >= 0 ? configuredProxyHops : 1;
+  app.set("trust proxy", trustProxyHops);
 
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
@@ -2311,7 +2315,7 @@ async function startServer() {
           if (!withChannel.error) return withChannel;
           return await supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, rating, created_at").limit(20000);
         })(),
-        supabaseClient.from("gemini_usage_logs").select("user_id, operation, model, characters, success, metadata, created_at").limit(20000),
+        supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, metadata, created_at").limit(20000),
       ]);
       const { data: authUsersData, error: authUsersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const realAuthIds = authUsersError ? null : new Set((authUsersData?.users || []).map((user: any) => user.id));
@@ -2343,55 +2347,66 @@ async function startServer() {
       const paidPointsIssued = filteredTransactions.reduce((sum: number, row: any) => sum + Number(row.points_credited || 0), 0);
       const pointsConsumed = gens.reduce((sum: number, row: any) => sum + Number(row.points_deducted || 0), 0);
       const pointValueDzd = paidPointsIssued > 0 ? revenueDzd / paidPointsIssued : 0;
-      const logs = usageLogs || [];
-      let geminiUsd = 0;
-      let geminiInputTokens = 0;
-      let geminiOutputTokens = 0;
-      const geminiByUser = new Map<string, { costUsd: number; calls: number; characters: number; inputTokens: number; outputTokens: number }>();
-      let freeGeminiUsd = 0;
-      let paidGeminiUsd = 0;
-      for (const log of logs) {
-        const chars = Number(log.characters || 0);
+      const voiceLogs = (usageLogs || []).filter((log: any) => log.operation === "tts" || log.operation === "preview");
+      let voiceCostUsd = 0;
+      let voiceCalls = 0;
+      let voiceCharacters = 0;
+      const voiceCostsByUser = new Map<string, { costUsd: number; calls: number; characters: number }>();
+      for (const log of voiceLogs) {
+        const characters = Math.max(0, Number(log.characters || 0));
         const metadata = log.metadata && typeof log.metadata === "object" ? log.metadata : {};
-        const metadataCost = Number((metadata as any).cost_usd);
-        const inputTokens = Number((metadata as any).input_tokens || 0);
-        const outputTokens = Number((metadata as any).output_tokens || 0);
-        geminiInputTokens += inputTokens;
-        geminiOutputTokens += outputTokens;
-        const estimatedInputTokens = chars / 4;
-        let logCost = 0;
-        if (Number.isFinite(metadataCost) && metadataCost >= 0) {
-          logCost = metadataCost;
-        } else if (log.operation === "tts" || log.operation === "preview") {
-          const seconds = log.operation === "preview" ? 2.5 : chars / TTS_CHARS_PER_SECOND_ESTIMATE;
-          logCost = (estimatedInputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
-        } else {
-          // Conservative estimate for text features; exact billing remains visible in Google Cloud.
-          logCost = (estimatedInputTokens / 1_000_000) * 0.30 + (Math.max(estimatedInputTokens, 1) / 1_000_000) * 1.50;
-        }
-        geminiUsd += logCost;
+        const logCost = estimateVoiceUsageCostUsd(log.operation, characters, metadata);
+        voiceCostUsd += logCost;
+        voiceCalls += 1;
+        voiceCharacters += characters;
         const userKey = String(log.user_id || "unknown");
-        const userCost = geminiByUser.get(userKey) || { costUsd: 0, calls: 0, characters: 0, inputTokens: 0, outputTokens: 0 };
+        const userCost = voiceCostsByUser.get(userKey) || { costUsd: 0, calls: 0, characters: 0 };
         userCost.costUsd += logCost;
         userCost.calls += 1;
-        userCost.characters += chars;
-        userCost.inputTokens += inputTokens;
-        userCost.outputTokens += outputTokens;
-        geminiByUser.set(userKey, userCost);
-        if (paidUserIds.has(log.user_id)) paidGeminiUsd += logCost; else freeGeminiUsd += logCost;
+        userCost.characters += characters;
+        voiceCostsByUser.set(userKey, userCost);
       }
-      const geminiCostDzd = geminiUsd * USD_TO_DZD;
-      const grossMarginDzd = revenueDzd - geminiCostDzd;
-      const [{ data: agentPaymentRows }, { data: agentWalletRows }] = await Promise.all([
+      const voiceCostDzd = voiceCostUsd * USD_TO_DZD;
+      const voiceGrossMarginDzd = revenueDzd - voiceCostDzd;
+      const [agentPaymentsQuery, agentWalletsQuery] = await Promise.all([
         supabaseClient.from("agent_sawtify_payments").select("invoice_id, user_id, offer_id, offer_kind, offer_name, minutes, amount_dzd, status, created_at, paid_at").order("created_at", { ascending: false }).limit(10000),
-        supabaseClient.from("agent_sawtify_wallets").select("user_id, plan_expires_at").limit(10000),
+        supabaseClient.from("agent_sawtify_wallets").select("user_id, plan_id, plan_minutes_remaining, topup_minutes_remaining, plan_seconds_remaining, topup_seconds_remaining, plan_seconds_purchased, topup_seconds_purchased, plan_expires_at, updated_at").order("updated_at", { ascending: false }).limit(10000),
       ]);
-      const paidAgentPayments = (agentPaymentRows || []).filter((row: any) => row.status === "completed");
+      const agentPaymentRows = agentPaymentsQuery.data || [];
+      const agentWalletRows = agentWalletsQuery.data || [];
+      const agentDataAvailable = !agentPaymentsQuery.error && !agentWalletsQuery.error;
+      const paidAgentPayments = agentPaymentRows.filter((row: any) => row.status === "completed");
+      const pendingAgentPayments = agentPaymentRows.filter((row: any) => row.status === "pending");
+      const failedAgentPayments = agentPaymentRows.filter((row: any) => row.status === "failed");
+      const subscriptionAgentPayments = paidAgentPayments.filter((row: any) => row.offer_kind === "subscription");
+      const topupAgentPayments = paidAgentPayments.filter((row: any) => row.offer_kind === "topup");
       const agentRevenueDzd = paidAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentSubscriptionRevenueDzd = subscriptionAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentTopupRevenueDzd = topupAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentPendingAmountDzd = pendingAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentFailedAmountDzd = failedAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
       const agentMinutesSold = paidAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const agentSubscriptionMinutesSold = subscriptionAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const agentTopupMinutesSold = topupAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const nowMs = Date.now();
+      const agentWalletBalances = agentWalletRows.map((row: any) => {
+        const planActive = Boolean(row.plan_expires_at && Date.parse(row.plan_expires_at) > nowMs);
+        const planSecondsRemaining = planActive ? Math.max(0, Number(row.plan_seconds_remaining || 0)) : 0;
+        const topupSecondsRemaining = Math.max(0, Number(row.topup_seconds_remaining || 0));
+        return {
+          ...row,
+          plan_active: planActive,
+          plan_seconds_remaining_current: planSecondsRemaining,
+          topup_seconds_remaining_current: topupSecondsRemaining,
+          remaining_seconds: planSecondsRemaining + topupSecondsRemaining,
+        };
+      });
+      const activeAgentSubscribers = agentWalletBalances.filter((row: any) => row.plan_active).length;
+      const agentRemainingPlanSeconds = agentWalletBalances.reduce((sum: number, row: any) => sum + Number(row.plan_seconds_remaining_current || 0), 0);
+      const agentRemainingTopupSeconds = agentWalletBalances.reduce((sum: number, row: any) => sum + Number(row.topup_seconds_remaining_current || 0), 0);
+      const agentWalletsWithBalance = agentWalletBalances.filter((row: any) => Number(row.remaining_seconds || 0) > 0).length;
       const agentEstimatedCostDzd = agentMinutesSold * AGENT_ESTIMATED_COST_PER_MINUTE_DZD;
       const agentGrossMarginDzd = agentRevenueDzd - agentEstimatedCostDzd;
-      const activeAgentSubscribers = (agentWalletRows || []).filter((row: any) => row.plan_expires_at && Date.parse(row.plan_expires_at) > Date.now()).length;
       const agentMarginPercent = agentRevenueDzd > 0 ? (agentGrossMarginDzd / agentRevenueDzd) * 100 : 0;
       const activeUsers30d = users.filter((row: any) => String(row.updated_at || row.created_at) >= since30).length;
       // FIX ADMIN-PAGINATION : on renvoie tous les comptes (jusqu'à la limite déjà
@@ -2401,23 +2416,89 @@ async function startServer() {
         const ratingAgg = ratingsByUser.get(user.id);
         return {
           ...user,
-          gemini_calls: geminiByUser.get(user.id)?.calls || 0,
-          gemini_characters: geminiByUser.get(user.id)?.characters || 0,
-          gemini_cost_usd: geminiByUser.get(user.id)?.costUsd || 0,
-          gemini_cost_dzd: (geminiByUser.get(user.id)?.costUsd || 0) * USD_TO_DZD,
+          voice_calls: voiceCostsByUser.get(user.id)?.calls || 0,
+          voice_characters: voiceCostsByUser.get(user.id)?.characters || 0,
+          voice_cost_usd: voiceCostsByUser.get(user.id)?.costUsd || 0,
+          voice_cost_dzd: (voiceCostsByUser.get(user.id)?.costUsd || 0) * USD_TO_DZD,
           avg_rating: ratingAgg ? ratingAgg.sum / ratingAgg.count : null,
           ratings_count: ratingAgg?.count || 0,
         };
       });
       const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
       const emailByUserId = new Map<string, string | null>(users.map((user: any) => [String(user.id), user.email || null]));
-      const recentAgentPayments = (agentPaymentRows || [])
+      const agentPaymentsForAdmin = agentPaymentRows
         .slice()
         .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))
-        .slice(0, 20)
         .map((payment: any) => ({ ...payment, user_email: emailByUserId.get(String(payment.user_id)) || null }));
+      const agentWalletsForAdmin = agentWalletBalances
+        .map((wallet: any) => ({
+          user_id: wallet.user_id,
+          user_email: emailByUserId.get(String(wallet.user_id)) || null,
+          plan_id: wallet.plan_id || null,
+          plan_active: wallet.plan_active,
+          plan_expires_at: wallet.plan_expires_at || null,
+          plan_seconds_remaining: wallet.plan_seconds_remaining_current,
+          topup_seconds_remaining: wallet.topup_seconds_remaining_current,
+          remaining_seconds: wallet.remaining_seconds,
+          updated_at: wallet.updated_at,
+        }));
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
-      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, mcp_generations: mcpGenerations, mcp_claude_generations: mcpClaudeGenerations, mcp_chatgpt_generations: mcpChatgptGenerations, mcp_other_generations: mcpOtherGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, agent_sawtify: { paid_transactions: paidAgentPayments.length, active_subscribers: activeAgentSubscribers, revenue_dzd: agentRevenueDzd, minutes_sold: agentMinutesSold, estimated_cost_per_minute_dzd: AGENT_ESTIMATED_COST_PER_MINUTE_DZD, estimated_cost_dzd: agentEstimatedCostDzd, gross_margin_dzd: agentGrossMarginDzd, gross_margin_percent: agentMarginPercent, recent_payments: recentAgentPayments }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+      return res.json({
+        summary: {
+          total_users: users.length,
+          free_trial_users: users.filter((user: any) => !paidUserIds.has(user.id)).length,
+          paid_users: paidUserIds.size,
+          active_users_30d: activeUsers30d,
+          generations_total: gens.length,
+          free_generations: freeGenerations,
+          paid_generations: paidGenerations,
+          api_generations: apiGenerations,
+          mcp_generations: mcpGenerations,
+          mcp_claude_generations: mcpClaudeGenerations,
+          mcp_chatgpt_generations: mcpChatgptGenerations,
+          mcp_other_generations: mcpOtherGenerations,
+          revenue_dzd: revenueDzd,
+          points_consumed: pointsConsumed,
+          paid_points_issued: paidPointsIssued,
+          point_value_dzd: pointValueDzd,
+          voice_calls: voiceCalls,
+          voice_characters: voiceCharacters,
+          voice_cost_usd: voiceCostUsd,
+          voice_cost_dzd: voiceCostDzd,
+          average_voice_cost_per_call_dzd: voiceCalls > 0 ? voiceCostDzd / voiceCalls : 0,
+          voice_gross_margin_dzd: voiceGrossMarginDzd,
+          voice_gross_margin_percent: revenueDzd > 0 ? (voiceGrossMarginDzd / revenueDzd) * 100 : 0,
+          usd_to_dzd: USD_TO_DZD,
+        },
+        agent_sawtify: {
+          data_available: agentDataAvailable,
+          paid_transactions: paidAgentPayments.length,
+          pending_transactions: pendingAgentPayments.length,
+          failed_transactions: failedAgentPayments.length,
+          pending_amount_dzd: agentPendingAmountDzd,
+          failed_amount_dzd: agentFailedAmountDzd,
+          active_subscribers: activeAgentSubscribers,
+          wallets_total: agentWalletRows.length,
+          wallets_with_balance: agentWalletsWithBalance,
+          revenue_dzd: agentRevenueDzd,
+          subscription_revenue_dzd: agentSubscriptionRevenueDzd,
+          topup_revenue_dzd: agentTopupRevenueDzd,
+          minutes_sold: agentMinutesSold,
+          subscription_minutes_sold: agentSubscriptionMinutesSold,
+          topup_minutes_sold: agentTopupMinutesSold,
+          remaining_plan_seconds: agentRemainingPlanSeconds,
+          remaining_topup_seconds: agentRemainingTopupSeconds,
+          remaining_seconds: agentRemainingPlanSeconds + agentRemainingTopupSeconds,
+          estimated_cost_per_minute_dzd: AGENT_ESTIMATED_COST_PER_MINUTE_DZD,
+          estimated_cost_dzd: agentEstimatedCostDzd,
+          gross_margin_dzd: agentGrossMarginDzd,
+          gross_margin_percent: agentMarginPercent,
+          payments: agentPaymentsForAdmin,
+          wallets: agentWalletsForAdmin,
+        },
+        recent_users: recentUsers,
+        recent_payments: recentPayments,
+      });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
@@ -2438,7 +2519,7 @@ async function startServer() {
           return await supabaseClient.from("voice_generations").select(cols).eq("user_id", userId).order("created_at", { ascending: false }).limit(200);
         })(),
         supabaseClient.from("transactions").select("id, amount_dzd, points_credited, status, gateway, gateway_reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-        supabaseClient.from("gemini_usage_logs").select("operation, model, characters, success, metadata, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+        supabaseClient.from("gemini_usage_logs").select("operation, characters, success, metadata, created_at").eq("user_id", userId).in("operation", ["tts", "preview"]).order("created_at", { ascending: false }).limit(200),
       ]);
       if (generationsError) return res.status(500).json({ error: "Impossible de lire les générations de cet utilisateur.", detail: generationsError.message });
       const signedGenerations = await Promise.all((generations || []).map(async (generation: any) => {
@@ -2449,13 +2530,29 @@ async function startServer() {
         }
         return { ...generation, audio_url: audioUrl };
       }));
-      const userUsageLogs = usageLogs || [];
-      const userGeminiCostUsd = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.cost_usd || 0)), 0);
-      const userInputTokens = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.input_tokens || 0)), 0);
-      const userOutputTokens = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.output_tokens || 0)), 0);
+      const userVoiceUsageLogs = usageLogs || [];
+      const userVoiceCostUsd = userVoiceUsageLogs.reduce((sum: number, log: any) => sum + estimateVoiceUsageCostUsd(log.operation, log.characters, log.metadata), 0);
+      const userVoiceCharacters = userVoiceUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.characters || 0)), 0);
       const { data: authUser } = await supabaseClient.auth.admin.getUserById(userId);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_user_detail", metadata: { viewed_user_id: userId, role: admin.role } });
-      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null, onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null, acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: userUsageLogs, usage_summary: { calls: userUsageLogs.length, input_tokens: userInputTokens, output_tokens: userOutputTokens, cost_usd: userGeminiCostUsd, cost_dzd: userGeminiCostUsd * USD_TO_DZD, model: GEMINI_TEXT_MODEL } });
+      return res.json({
+        profile: {
+          ...profile,
+          phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null,
+          last_sign_in_at: authUser?.user?.last_sign_in_at || null,
+          onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null,
+          acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null,
+        },
+        generations: signedGenerations,
+        transactions: transactions || [],
+        usage_logs: userVoiceUsageLogs,
+        usage_summary: {
+          calls: userVoiceUsageLogs.length,
+          characters: userVoiceCharacters,
+          cost_usd: userVoiceCostUsd,
+          cost_dzd: userVoiceCostUsd * USD_TO_DZD,
+        },
+      });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le détail utilisateur.", detail: error?.message }); }
   });
 

@@ -3,7 +3,7 @@
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   Chunking : 800 car/morceau  |  Débit utilisé : 14 car/s  |  Gap entre morceaux : 200 ms
   Audio facturé par Google : 25 tokens/seconde d'audio produit  (footnote officielle pricing)
-  Taux USD→DZD : 260 (taux parallèle, constante USD_TO_DZD de server.ts)  |  Pertes/retries simulées : 6%
+  Taux USD→DZD : 270 (taux parallèle, constante USD_TO_DZD de server.ts)  |  Pertes/retries simulées : 6%
 
   ▸ LE SEUL CHIFFRE QUI COMPTE, EXACT AU TOKEN PRÈS :
       1 seconde d'audio = 25 tokens  →  25 × $9,00/1M = $0,000225/s  =  $0,013500 / minute   (3.8 Flash TTS)
@@ -16,13 +16,13 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   Audio   Morc.  Tok.in  Tok.audio | Coût entrée  Coût audio | COÛT TOTAL  DZD/clip  Points  Revenu pack Business
   ------------------------------------------------------------------------------------------------
-    13s      1     248        336 |   $0.000124    $0.003024 |   $0.00334  0.87 DZD     20  74.07 DZD
-    29s      1     356        722 |   $0.000178    $0.006498 |   $0.00708  1.84 DZD     20  74.07 DZD
-    44s      1     464       1108 |   $0.000232    $0.009972 |   $0.01082  2.81 DZD     20  74.07 DZD
-    60s      2     723       1488 |   $0.000362    $0.013392 |   $0.01458  3.79 DZD     20  74.07 DZD
-    90s      2     934       2244 |   $0.000467    $0.020196 |   $0.02190  5.69 DZD     30  111.11 DZD
-   119s      3    1291       2973 |   $0.000646    $0.026757 |   $0.02905  7.55 DZD     30  111.11 DZD
-   299s      6    3001       7447 |   $0.001501    $0.067023 |   $0.07263 18.89 DZD     60  222.22 DZD
+    13s      1     248        336 |   $0.000124    $0.003024 |   $0.00334  0.90 DZD     20  74.07 DZD
+    29s      1     356        722 |   $0.000178    $0.006498 |   $0.00708  1.91 DZD     20  74.07 DZD
+    44s      1     464       1108 |   $0.000232    $0.009972 |   $0.01082  2.92 DZD     20  74.07 DZD
+    60s      2     723       1488 |   $0.000362    $0.013392 |   $0.01458  3.94 DZD     20  74.07 DZD
+    90s      2     934       2244 |   $0.000467    $0.020196 |   $0.02190  5.91 DZD     30  111.11 DZD
+   119s      3    1291       2973 |   $0.000646    $0.026757 |   $0.02905  7.84 DZD     30  111.11 DZD
+   299s      6    3001       7447 |   $0.001501    $0.067023 |   $0.07263 19.61 DZD     60  222.22 DZD
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   3.8 Flash-Lite TTS (volume)   [gemini-3.8-flash-lite-tts]
@@ -30,13 +30,13 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   Audio   Morc.  Tok.in  Tok.audio | Coût entrée  Coût audio | COÛT TOTAL  DZD/clip  Points  Revenu pack Business
   ------------------------------------------------------------------------------------------------
-    13s      1     248        336 |   $0.000124    $0.002016 |   $0.00227  0.59 DZD     20  74.07 DZD
-    29s      1     356        722 |   $0.000178    $0.004332 |   $0.00478  1.24 DZD     20  74.07 DZD
-    44s      1     464       1108 |   $0.000232    $0.006648 |   $0.00729  1.90 DZD     20  74.07 DZD
-    60s      2     723       1488 |   $0.000362    $0.008928 |   $0.00985  2.56 DZD     20  74.07 DZD
-    90s      2     934       2244 |   $0.000467    $0.013464 |   $0.01477  3.84 DZD     30  111.11 DZD
-   119s      3    1291       2973 |   $0.000646    $0.017838 |   $0.01959  5.09 DZD     30  111.11 DZD
-   299s      6    3001       7447 |   $0.001501    $0.044682 |   $0.04895 12.73 DZD     60  222.22 DZD
+    13s      1     248        336 |   $0.000124    $0.002016 |   $0.00227  0.61 DZD     20  74.07 DZD
+    29s      1     356        722 |   $0.000178    $0.004332 |   $0.00478  1.29 DZD     20  74.07 DZD
+    44s      1     464       1108 |   $0.000232    $0.006648 |   $0.00729  1.97 DZD     20  74.07 DZD
+    60s      2     723       1488 |   $0.000362    $0.008928 |   $0.00985  2.66 DZD     20  74.07 DZD
+    90s      2     934       2244 |   $0.000467    $0.013464 |   $0.01477  3.99 DZD     30  111.11 DZD
+   119s      3    1291       2973 |   $0.000646    $0.017838 |   $0.01959  5.29 DZD     30  111.11 DZD
+   299s      6    3001       7447 |   $0.001501    $0.044682 |   $0.04895 13.22 DZD     60  222.22 DZD
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   3.1 Flash TTS (ACTUEL Sawtify)   [gemini-3.1-flash-tts-preview]
@@ -44,13 +44,13 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   Audio   Morc.  Tok.in  Tok.audio | Coût entrée  Coût audio | COÛT TOTAL  DZD/clip  Points  Revenu pack Business
   ------------------------------------------------------------------------------------------------
-    13s      1     248        336 |   $0.000248    $0.006720 |   $0.00739  1.92 DZD     20  74.07 DZD
-    29s      1     356        722 |   $0.000356    $0.014440 |   $0.01568  4.08 DZD     20  74.07 DZD
-    44s      1     464       1108 |   $0.000464    $0.022160 |   $0.02398  6.24 DZD     20  74.07 DZD
-    60s      2     723       1488 |   $0.000723    $0.029760 |   $0.03231  8.40 DZD     20  74.07 DZD
-    90s      2     934       2244 |   $0.000934    $0.044880 |   $0.04856 12.63 DZD     30  111.11 DZD
-   119s      3    1291       2973 |   $0.001291    $0.059460 |   $0.06440 16.74 DZD     30  111.11 DZD
-   299s      6    3001       7447 |   $0.003001    $0.148940 |   $0.16106 41.87 DZD     60  222.22 DZD
+    13s      1     248        336 |   $0.000248    $0.006720 |   $0.00739  1.99 DZD     20  74.07 DZD
+    29s      1     356        722 |   $0.000356    $0.014440 |   $0.01568  4.23 DZD     20  74.07 DZD
+    44s      1     464       1108 |   $0.000464    $0.022160 |   $0.02398  6.47 DZD     20  74.07 DZD
+    60s      2     723       1488 |   $0.000723    $0.029760 |   $0.03231  8.72 DZD     20  74.07 DZD
+    90s      2     934       2244 |   $0.000934    $0.044880 |   $0.04856 13.11 DZD     30  111.11 DZD
+   119s      3    1291       2973 |   $0.001291    $0.059460 |   $0.06440 17.39 DZD     30  111.11 DZD
+   299s      6    3001       7447 |   $0.003001    $0.148940 |   $0.16106 43.49 DZD     60  222.22 DZD
 
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   ★ DÉTAIL COMPLET : 1 MINUTE DE VOIX OFF (darija, voix Amine, tag [excited], prompt réel de production)
@@ -66,18 +66,18 @@
   pertes retries : $0.000825  (6% : tentative facturée puis rejetée par le garde-fou finishReason)
 
   ╔════════════════════════════════════════════════════════════════════════════════════════════════╗
-  ║  COÛT RÉEL D'UNE VOIX OFF DE 1 MINUTE = $0.01458   ≈   3.79 DZD                               ║
+  ║  COÛT RÉEL D'UNE VOIX OFF DE 1 MINUTE = $0.01458   ≈   3.94 DZD                               ║
   ╚════════════════════════════════════════════════════════════════════════════════════════════════╝
-    dont coût strict Google (sans pertes) : $0.013754 = 3.58 DZD
-    avec 3.8 Flash-Lite TTS (moins cher)  : $0.00985 = 2.56 DZD
-    avec 3.1 Flash TTS (ce que tu paies AUJOURD'HUI) : $0.03231 = 8.40 DZD
+    dont coût strict Google (sans pertes) : $0.013754 = 3.71 DZD
+    avec 3.8 Flash-Lite TTS (moins cher)  : $0.00985 = 2.66 DZD
+    avec 3.1 Flash TTS (ce que tu paies AUJOURD'HUI) : $0.03231 = 8.72 DZD
     → ÉCONOMIE IMMÉDIATE EN PASSANT À 3.8 : 55%
 
   Ce que TU factures au client (20 points pour 1 minute) :
-    · pack_starter     100 pts =  500 DZD  →  20 pts = 100.00 DZD  |  marge brute 96.2%
-    · pack_pro         220 pts = 1000 DZD  →  20 pts =  90.91 DZD  |  marge brute 95.8%
-    · pack_studio      600 pts = 2500 DZD  →  20 pts =  83.33 DZD  |  marge brute 95.5%
-    · pack_business   1350 pts = 5000 DZD  →  20 pts =  74.07 DZD  |  marge brute 94.9%
+    · pack_starter     100 pts =  500 DZD  →  20 pts = 100.00 DZD  |  marge brute 96.1%
+    · pack_pro         220 pts = 1000 DZD  →  20 pts =  90.91 DZD  |  marge brute 95.7%
+    · pack_studio      600 pts = 2500 DZD  →  20 pts =  83.33 DZD  |  marge brute 95.3%
+    · pack_business   1350 pts = 5000 DZD  →  20 pts =  74.07 DZD  |  marge brute 94.7%
 
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   ⚠ PIRE CAS ÉCONOMIQUE (l'utilisateur qui optimise son audio par point)
@@ -87,15 +87,15 @@
 
   Points  Audio max  Morceaux  Coût réel    DZD      DZD/point   Marge (pack Business)
   --------------------------------------------------------------------------------------
-     20       60s         2    $0.01465   3.81 DZD     0.1904   94.9%
-     30      120s         3    $0.02921   7.60 DZD     0.2532   93.2%
-     40      180s         4    $0.04378  11.38 DZD     0.2846   92.3%
-     60      300s         6    $0.07291  18.96 DZD     0.3159   91.5%
-     80      420s         8    $0.10204  26.53 DZD     0.3316   91.0%
-    120      660s        13    $0.16034  41.69 DZD     0.3474   90.6%
-    200     1140s        22    $0.27690  71.99 DZD     0.3600   90.3%
+     20       60s         2    $0.01465   3.95 DZD     0.1977   94.7%
+     30      120s         3    $0.02921   7.89 DZD     0.2629   92.9%
+     40      180s         4    $0.04378  11.82 DZD     0.2955   92.0%
+     60      300s         6    $0.07291  19.69 DZD     0.3281   91.1%
+     80      420s         8    $0.10204  27.55 DZD     0.3444   90.7%
+    120      660s        13    $0.16034  43.29 DZD     0.3608   90.3%
+    200     1140s        22    $0.27690  74.76 DZD     0.3738   89.9%
 
-  ▸ MÊME DANS LE PIRE CAS, ton coût est de 0.253 DZD par point,
+  ▸ MÊME DANS LE PIRE CAS, ton coût est de 0.263 DZD par point,
     alors que tu vends le point entre 3.70 et 5.00 DZD.
     → Marge brute garantie minimum ≈ 93% (pack Business) à 95% (pack Starter).
 
@@ -124,20 +124,20 @@
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   Modèle                       1 min en 2026   1 min en 2027    Δ      Marge 2027 (pack Business)
   --------------------------------------------------------------------------------------------
-  3.8 Flash TTS (studio)           3.79 DZD       7.58 DZD   +100%   93.2%
-  3.8 Flash-Lite TTS (volume)      2.56 DZD       5.12 DZD   +100%   95.4%
+  3.8 Flash TTS (studio)           3.94 DZD       7.87 DZD   +100%   92.9%
+  3.8 Flash-Lite TTS (volume)      2.66 DZD       5.32 DZD   +100%   95.2%
   ▸ La marge reste > 89% : pas d'urgence tarifaire, mais anticiper le réglage de prix 2027 est sain.
 
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   AUTRES POSTES DE COÛT DE LA PLATEFORME
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   · Inscription gratuite (50 pts offerts, cap 45s) :
-      - 1 génération de 45s = $0.010816 = 2.81 DZD
-      - 50 pts = 2 générations de 20 pts → coût max réel d'un inscrit gratuit ≈ 5.62 DZD
-      - 100 inscriptions gratuites/jour ≈ 562.44 DZD/jour  ≈  16873.33 DZD/mois
+      - 1 génération de 45s = $0.010816 = 2.92 DZD
+      - 50 pts = 2 générations de 20 pts → coût max réel d'un inscrit gratuit ≈ 5.84 DZD
+      - 100 inscriptions gratuites/jour ≈ 584.08 DZD/jour  ≈  17522.31 DZD/mois
   · Bonus palier (tous les 10 générations → +30 pts) :
       - c'est une remise réelle de 15% (200 pts payés + 30 offerts)
-      - COGS de ce cadeau : 5.69 DZD  (valeur catalogue : 150.00 DZD au pack Starter)
+      - COGS de ce cadeau : 5.90 DZD  (valeur catalogue : 150.00 DZD au pack Starter)
   · Stockage : la génération web renvoie le WAV en base64 et ne stocke RIEN → 0 DZD
       (seuls l'API développeur et les previews utilisent Supabase Storage, purgés à 7 jours)
   · Encodage MP3 (lamejs) & conversion ffmpeg.wasm : 100% local, aucune API payante → 0 DZD
@@ -147,17 +147,17 @@
   SENSIBILITÉS (ce qui peut faire bouger le chiffre)
 ════════════════════════════════════════════════════════════════════════════════════════════════════
   1) Tokenisation du texte — incertitude réelle, mais elle ne pèse que ~3% du coût :
-       pessimiste (AR 1,6 car/token)          $0.01466  =  3.81 DZD
-       typique (EN 4,0 / AR 2,0 car/token)    $0.01458  =  3.79 DZD
-       optimiste (AR 2,5 car/token)           $0.01452  =  3.77 DZD
+       pessimiste (AR 1,6 car/token)          $0.01466  =  3.96 DZD
+       typique (EN 4,0 / AR 2,0 car/token)    $0.01458  =  3.94 DZD
+       optimiste (AR 2,5 car/token)           $0.01452  =  3.92 DZD
 
   2) 25 tokens/s (doc officielle) vs 32 tokens/s (constante GEMINI_AUDIO_TOKENS_PER_SECOND observée dans ton code) :
-       25 tok/s → $0.01458 = 3.79 DZD   |   32 tok/s → $0.01856 = 4.82 DZD   (+27%)
+       25 tok/s → $0.01458 = 3.94 DZD   |   32 tok/s → $0.01856 = 5.01 DZD   (+27%)
 
   3) Taux de change USD→DZD (sensible sur le marché parallèle) :
        1 USD = 240 DZD  →  1 minute = 3.50 DZD
-       1 USD = 260 DZD  →  1 minute = 3.79 DZD
-       1 USD = 280 DZD  →  1 minute = 4.08 DZD
+       1 USD = 270 DZD  →  1 minute = 3.94 DZD
+       1 USD = 300 DZD  →  1 minute = 4.37 DZD
 
   4) Ce que Google facture VRAIMENT : la durée AUDIO produite, pas ton texte.
        → $0,000225 par seconde d'audio. Si la voix parle plus vite que 14 car/s, tu produis

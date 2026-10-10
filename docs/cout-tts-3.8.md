@@ -132,7 +132,7 @@ Le pire cas = générer **pile en haut de chaque tranche** de points.
 |---|---|
 | Tokenisation du texte (EN ~4,0 car/token, AR ~2,0 car/token) | **±0,02 DZD (0,5 %)** — 3,77 à 3,81 DZD |
 | 25 tokens/s (doc) vs 32 tokens/s (ta constante observée) | **+27 %** si 32 → 4,82 DZD |
-| Taux de change USD→DZD (240 / 260 / 280) | 3,50 / 3,79 / 4,08 DZD |
+| Taux de change USD→DZD (240 / 270 / 300) | 3,50 / 3,94 / 4,38 DZD |
 | Taux de retries facturés (simulé à 6 %) | ±0,03 DZD |
 | Débit réel de la voix (14 car/s dans ton code) | Si la voix parle plus vite, tu produis moins de secondes → **ton coût baisse** |
 
