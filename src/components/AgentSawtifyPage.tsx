@@ -38,19 +38,122 @@ export const AgentSawtifyPage: React.FC<{
   const isArabic = language === 'ar';
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
   const [store, setStore] = useState<AgentStore>(() => readAgentStore());
+  const [storeLoading, setStoreLoading] = useState(!previewMode);
+  const [storeReady, setStoreReady] = useState(previewMode);
+  const [storeError, setStoreError] = useState('');
+  const [storeSaving, setStoreSaving] = useState(false);
+  const [saveTrigger, setSaveTrigger] = useState(0);
   const [section, setSection] = useState<DashboardSection>('overview');
   const [qrImage, setQrImage] = useState('');
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
   const [orderFilter, setOrderFilter] = useState<'all' | AgentOrderStatus>('all');
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<AgentProduct | null | 'new'>(null);
   const [editingFaq, setEditingFaq] = useState<AgentFAQ | null | 'new'>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const link = useMemo(() => getCallLink(store.slug), [store.slug]);
+  const lastSavedStoreKeyRef = useRef('');
+  const storeRevisionRef = useRef('');
+  const link = useMemo(() => {
+    const callLink = getCallLink(store.slug);
+    return previewMode ? `${callLink}?demo=1` : callLink;
+  }, [store.slug, previewMode]);
+
+  const storeConfigKey = JSON.stringify({ ...store, orders: [] });
+  const storeDirty = !previewMode && storeReady && storeConfigKey !== lastSavedStoreKeyRef.current;
+  const agentHeaders = async () => {
+    const token = await getMyAccessToken();
+    if (!token) throw new Error(bi('Connectez-vous à votre compte pour enregistrer une boutique.', 'سجّل الدخول لحسابك باش تحفظ المتجر.'));
+    return { Authorization: `Bearer ${token}`, 'X-Agent-Access-Token': getAgentAccessToken() || '' };
+  };
 
   useEffect(() => {
-    saveAgentStore(store);
-  }, [store]);
+    if (previewMode) {
+      setStoreReady(true);
+      setStoreLoading(false);
+      return;
+    }
+    let active = true;
+    const loadOwnerStore = async () => {
+      try {
+        const headers = await agentHeaders();
+        const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/store`, { headers });
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || bi('Impossible de charger votre boutique.', 'ما قدرناش نحملو متجرك.'));
+        let savedStore = body.store as AgentStore | null;
+        if (!savedStore) {
+          const legacyStore = readAgentStore();
+          const createResponse = await fetch(`${API_BASE_URL}/api/agent/sawtify/store`, {
+            method: 'PUT',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ store: legacyStore }),
+          });
+          const createBody = await createResponse.json();
+          if (!createResponse.ok || !createBody.success || !createBody.store) throw new Error(createBody.error || bi('Impossible d’initialiser votre boutique.', 'ما قدرناش نجهزو متجرك.'));
+          savedStore = createBody.store as AgentStore;
+          storeRevisionRef.current = String(createBody.updated_at || '');
+        } else {
+          storeRevisionRef.current = String(body.updated_at || '');
+        }
+        if (!active || !savedStore) return;
+        const loadedStore = { ...savedStore, orders: body.orders || savedStore.orders || [] } as AgentStore;
+        lastSavedStoreKeyRef.current = JSON.stringify({ ...loadedStore, orders: [] });
+        setStore(loadedStore);
+        setStoreReady(true);
+        setStoreError('');
+      } catch (error: any) {
+        if (active) setStoreError(error?.message || bi('Impossible de charger votre boutique.', 'ما قدرناش نحملو متجرك.'));
+      } finally {
+        if (active) setStoreLoading(false);
+      }
+    };
+    void loadOwnerStore();
+    return () => { active = false; };
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) saveAgentStore(store);
+  }, [store, previewMode]);
+
+  useEffect(() => {
+    const refresh = (event: StorageEvent) => {
+      if (previewMode && event.key === 'sawtify-agent-sawtify-demo-v1') setStore(readAgentStore());
+    };
+    window.addEventListener('storage', refresh);
+    return () => window.removeEventListener('storage', refresh);
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode || !storeReady || storeConfigKey === lastSavedStoreKeyRef.current) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setStoreSaving(true);
+        try {
+          const headers = await agentHeaders();
+          const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/store`, {
+            method: 'PUT',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ store, revision: storeRevisionRef.current }),
+          });
+          const body = await response.json();
+          if (response.status === 409) {
+            setStoreError(body.error || bi('La boutique a été modifiée ailleurs. Recharge la page.', 'تبدل المتجر في مكان آخر. عاود حمّل الصفحة.'));
+            return;
+          }
+          if (!response.ok || !body.success || !body.store) throw new Error(body.error || bi('Impossible d’enregistrer les modifications.', 'ما قدرناش نحفظو التغييرات.'));
+          const persisted = body.store as AgentStore;
+          storeRevisionRef.current = String(body.updated_at || storeRevisionRef.current);
+          lastSavedStoreKeyRef.current = JSON.stringify({ ...persisted, orders: [] });
+          setStore((current) => current.slug === store.slug ? { ...current, slug: persisted.slug } : current);
+        } catch (error: any) {
+          setNotice(error?.message || bi('La sauvegarde serveur a échoué.', 'فشل الحفظ على الخادم.'));
+        } finally {
+          setStoreSaving(false);
+        }
+      })();
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [previewMode, storeReady, storeConfigKey, saveTrigger]);
 
   useEffect(() => {
     let active = true;
@@ -64,20 +167,16 @@ export const AgentSawtifyPage: React.FC<{
   }, [link]);
 
   useEffect(() => {
-    const refresh = (event: StorageEvent) => {
-      if (event.key === 'sawtify-agent-sawtify-demo-v1') setStore(readAgentStore());
-    };
-    window.addEventListener('storage', refresh);
-    return () => window.removeEventListener('storage', refresh);
-  }, []);
-
-  useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(''), 3000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  if (!previewMode && storeLoading) return <div className="saw-app-background flex min-h-[55vh] items-center justify-center p-6 text-sm font-semibold text-slate-600" role="status">{bi('Chargement de votre boutique sécurisée…', 'جاري تحميل متجرك المحفوظ…')}</div>;
+  if (!previewMode && storeError) return <div className="saw-app-background flex min-h-[55vh] items-center justify-center p-6"><section className="max-w-lg rounded-3xl border border-amber-200 bg-white p-7 text-center shadow-lg"><Store className="mx-auto h-8 w-8 text-violet-700" /><h1 className="mt-3 text-lg font-black text-slate-900">{bi('Boutique indisponible', 'المتجر غير متاح')}</h1><p role="status" className="mt-2 text-sm leading-6 text-slate-600">{storeError}</p><button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-bold text-white">{bi('Réessayer', 'عاود المحاولة')}</button></section></div>;
+
   const activeProducts = store.products.filter((product) => product.active);
+  const isCommerce = store.sector === 'commerce';
   const newOrders = store.orders.filter((order) => order.status === 'new').length;
   const filteredProducts = store.products.filter((product) => {
     const needle = query.trim().toLocaleLowerCase();
@@ -89,6 +188,14 @@ export const AgentSawtifyPage: React.FC<{
 
   const updateStore = (patch: Partial<AgentStore>) => setStore((current) => ({ ...current, ...patch }));
   const showNotice = (message: string) => setNotice(message);
+  const triggerStoreSave = () => {
+    if (previewMode) {
+      saveAgentStore(store);
+      showNotice(bi('Aperçu enregistré dans ce navigateur.', 'تم حفظ المعاينة في هذا المتصفح.'));
+      return;
+    }
+    setSaveTrigger((value) => value + 1);
+  };
 
   const copyLink = async () => {
     try {
@@ -175,16 +282,71 @@ export const AgentSawtifyPage: React.FC<{
     showNotice(bi('Question supprimée.', 'تم حذف السؤال.'));
   };
 
-  const changeOrderStatus = (id: string, status: AgentOrderStatus) => {
-    setStore((current) => ({
-      ...current,
-      orders: current.orders.map((order) => order.id === id ? { ...order, status } : order),
-    }));
+  const changeOrderStatus = async (id: string, status: AgentOrderStatus) => {
+    if (previewMode) {
+      setStore((current) => ({ ...current, orders: current.orders.map((order) => order.id === id ? { ...order, status } : order) }));
+      return;
+    }
+    try {
+      const headers = await agentHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/orders/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success || !body.order) throw new Error(body.error || bi('Impossible de modifier cette demande.', 'ما قدرناش نبدلو حالة الطلب.'));
+      setStore((current) => ({ ...current, orders: current.orders.map((order) => order.id === id ? body.order : order) }));
+    } catch (error: any) {
+      showNotice(error?.message || bi('Impossible de modifier cette demande.', 'ما قدرناش نبدلو حالة الطلب.'));
+    }
+  };
+
+  const deleteOrder = async (id: string) => {
+    const order = store.orders.find((item) => item.id === id);
+    if (!order || deletingOrderId) return;
+    const restoresStock = (order.requestType || 'order') === 'order' && order.status !== 'delivered';
+    const confirmation = restoresStock
+      ? bi('Supprimer cette commande ? Les unités réservées seront remises en stock.', 'تحذف هذا الطلب؟ الكمية المحجوزة ترجع للمخزون.')
+      : bi('Supprimer cette demande définitivement ?', 'تحذف هذا الطلب نهائياً؟');
+    if (!window.confirm(confirmation)) return;
+
+    setDeletingOrderId(id);
+    try {
+      if (previewMode) {
+        setStore((current) => ({
+          ...current,
+          orders: current.orders.filter((item) => item.id !== id),
+          products: restoresStock ? current.products.map((product) => product.id === order.productId ? { ...product, stock: product.stock + order.quantity } : product) : current.products,
+        }));
+        showNotice(restoresStock ? bi('Commande supprimée et stock restauré.', 'تم حذف الطلب واسترجاع المخزون.') : bi('Demande supprimée.', 'تم حذف الطلب.'));
+        return;
+      }
+      const headers = await agentHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/orders/${encodeURIComponent(id)}`, { method: 'DELETE', headers });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || bi('Impossible de supprimer cette demande.', 'ما قدرناش نحذفو الطلب.'));
+      if (body.updated_at) storeRevisionRef.current = String(body.updated_at);
+      setStore((current) => ({
+        ...current,
+        orders: current.orders.filter((item) => item.id !== id),
+        products: body.stock_restored && body.product_id && Number.isFinite(Number(body.product_stock_remaining))
+          ? current.products.map((product) => product.id === body.product_id ? { ...product, stock: Number(body.product_stock_remaining) } : product)
+          : current.products,
+      }));
+      showNotice(body.stock_restored
+        ? bi('Commande supprimée et stock restauré.', 'تم حذف الطلب واسترجاع المخزون.')
+        : bi('Demande supprimée.', 'تم حذف الطلب.'));
+    } catch (error: any) {
+      showNotice(error?.message || bi('Impossible de supprimer cette demande.', 'ما قدرناش نحذفو الطلب.'));
+    } finally {
+      setDeletingOrderId(null);
+    }
   };
 
   const exportOrders = () => {
-    const header = ['date', 'client', 'telephone', 'wilaya', 'produit', 'taille', 'quantite', 'total_dzd', 'statut'];
-    const rows = store.orders.map((order) => [order.createdAt, order.customerName, order.phone, order.wilaya, order.productName, order.size, order.quantity, order.amountDzd, order.status]);
+    const header = ['date', 'type', 'client', 'telephone', 'wilaya', 'article_prestation', 'details', 'date_souhaitee', 'date_depart', 'variante', 'quantite', 'total_dzd', 'statut'];
+    const rows = store.orders.map((order) => [order.createdAt, order.requestType || 'order', order.customerName, order.phone, order.wilaya, order.productName, order.details || '', order.preferredAt || '', order.preferredUntil || '', order.size, order.quantity, order.amountDzd, order.status]);
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
@@ -199,7 +361,7 @@ export const AgentSawtifyPage: React.FC<{
     { id: 'assistant', label: bi('Mon assistant', 'مساعدي'), icon: Bot },
     { id: 'catalog', label: bi('Catalogue', 'الكتالوج'), icon: Package },
     { id: 'faq', label: 'FAQ', icon: CircleHelp },
-    { id: 'orders', label: bi('Commandes', 'الطلبات'), icon: ClipboardList, badge: newOrders },
+    { id: 'orders', label: bi('Demandes', 'الطلبات'), icon: ClipboardList, badge: newOrders },
     { id: 'pricing', label: bi('Forfaits', 'الأسعار'), icon: CreditCard },
     { id: 'link', label: bi('Lien & QR', 'الرابط و QR'), icon: QrCode },
   ];
@@ -224,7 +386,7 @@ export const AgentSawtifyPage: React.FC<{
             </button>
           )}
           <span className="hidden h-1 w-1 rounded-full bg-violet-300 sm:block" />
-          <span className="truncate">{bi('Espace commerçant', 'مساحة التاجر')}</span>
+          <span className="truncate">{bi('Espace activité', 'مساحة النشاط')}</span>
           <span className="font-black text-violet-500">/</span>
           <span className="truncate text-slate-900">Agent Sawtify</span>
         </div>
@@ -244,11 +406,11 @@ export const AgentSawtifyPage: React.FC<{
       <header className="mx-auto mb-7 flex max-w-3xl flex-col items-center text-center">
         <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/75 px-3.5 py-2 text-[10px] font-extrabold uppercase tracking-[.16em] text-violet-700 shadow-sm shadow-violet-900/[.03]">
           <AudioLines className="h-4 w-4" />
-          {bi('Votre boutique, à l’écoute', 'متجرك ديما قريب من زبائنك')}
+          {bi('Votre activité, à l’écoute', 'نشاطك ديما قريب من زبائنك')}
         </span>
         <h1 className="text-4xl font-semibold tracking-[-.045em] text-[#2e1065] sm:text-5xl">Agent Sawtify</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-          {bi('Un lien à partager. Un assistant qui répond en français ou en darija, présente vos produits et recueille les demandes de vos clients.', 'رابط واحد تشاركه، ومساعد يجاوب زبائنك بالدارجة ولا بالفرنسية، يعرّف بمنتجاتك ويسجّل طلباتهم.')}
+          {bi('Un lien à partager. Un assistant en français ou en darija qui présente votre activité et facilite commandes, rendez-vous, devis ou réservations.', 'رابط واحد تشاركه، ومساعد بالدارجة ولا بالفرنسية يعرّف بنشاطك ويسهّل الطلبات والمواعيد وعروض الأسعار والحجوزات.')}
         </p>
         <button type="button" onClick={openCallPage} className="group mt-5 inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#6d28d9] px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(109,40,217,.22)] transition hover:bg-violet-600">
           <Eye className="h-4 w-4" /> {bi('Voir la page client', 'شوف صفحة الزبون')}
@@ -257,17 +419,19 @@ export const AgentSawtifyPage: React.FC<{
       </header>
 
       <div className="mb-5 flex items-start gap-3 rounded-2xl border border-violet-100/90 bg-white/65 px-4 py-3 text-violet-950 shadow-sm shadow-violet-900/[0.03] backdrop-blur-xl">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
         <p className="text-xs leading-5 sm:text-[13px]">
-          <strong>{bi('Aperçu interactif.', 'معاينة تفاعلية.')}</strong>{' '}
-          {bi('Les exemples et modifications restent enregistrés sur cet appareil. La page client et les formulaires sont prêts à être testés.', 'الأمثلة والتعديلات يبقاو محفوظين في هذا الجهاز. جرّب صفحة الزبون والنماذج.')}
+          <strong>{previewMode ? bi('Aperçu local.', 'معاينة محلية.') : bi('Configuration sécurisée.', 'إعدادات محمية.')}</strong>{' '}
+          {previewMode
+            ? bi('Les modifications restent sur cet appareil et ne déclenchent aucun débit. Les formulaires peuvent être testés localement.', 'التعديلات تبقى في هذا الجهاز وما تخصم حتى رصيد. تقدر تجرب الاستمارات محلياً.')
+            : bi('Vos réglages sont associés à votre compte. Les conversations ne sont pas conservées ; seules les demandes clients et l’usage estimé sont suivis.', 'إعداداتك مربوطة بحسابك. المحادثات ما تتسجلش؛ نتابعو غير طلبات الزبائن والاستهلاك التقديري.')}
         </p>
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        <StatCard icon={Store} label={bi('Ma boutique', 'متجري')} value={store.name || bi('Ma boutique', 'متجري')} detail={store.location || bi('Algerie', 'الجزائر')} tone="violet" />
-        <StatCard icon={Package} label={bi('Produits en ligne', 'المنتجات المعروضة')} value={String(activeProducts.length)} detail={bi('prêts à présenter', 'جاهزة للعرض')} tone="blue" />
-        <StatCard icon={CircleHelp} label={bi('Réponses prêtes', 'أجوبة جاهزة')} value={String(store.faqs.filter((item) => item.active).length)} detail={bi('livraison, tailles…', 'التوصيل، المقاسات…')} tone="amber" />
+        <StatCard icon={Store} label={bi('Mon activité', 'نشاطي')} value={store.name || bi('Mon activité', 'نشاطي')} detail={store.location || bi('Algérie', 'الجزائر')} tone="violet" />
+        <StatCard icon={Package} label={isCommerce ? bi('Produits en ligne', 'المنتجات المعروضة') : bi('Offres en ligne', 'العروض المعروضة')} value={String(activeProducts.length)} detail={bi('prêts à présenter', 'جاهزة للعرض')} tone="blue" />
+        <StatCard icon={CircleHelp} label={bi('Réponses prêtes', 'أجوبة جاهزة')} value={String(store.faqs.filter((item) => item.active).length)} detail={isCommerce ? bi('livraison, tailles…', 'التوصيل، المقاسات…') : bi('infos et services', 'معلومات وخدمات')} tone="amber" />
         <StatCard icon={ClipboardList} label={bi('À confirmer', 'بانتظار التأكيد')} value={String(newOrders)} detail={bi('demandes reçues', 'طلبات جديدة')} tone="rose" />
       </div>
 
@@ -310,26 +474,26 @@ export const AgentSawtifyPage: React.FC<{
         <section className="saw-glass rounded-[26px] p-4 sm:p-6">
           <SectionHeading
             icon={Package}
-            title={bi('Votre catalogue', 'كتالوج المنتجات')}
-            subtitle={bi('L’assistant s’appuie sur ces informations pour présenter les bons articles, leurs prix et leurs disponibilités.', 'المساعد يستعمل هاذ المعلومات باش يعرّف بالمنتجات، الأسعار والمخزون.')}
-            action={<button type="button" onClick={() => setEditingProduct('new')} className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-3.5 py-2.5 text-xs font-extrabold text-white transition hover:bg-violet-600"><Plus className="h-4 w-4" />{bi('Ajouter un produit', 'أضف منتجاً')}</button>}
+            title={isCommerce ? bi('Votre catalogue', 'كتالوج المنتجات') : bi('Vos offres et prestations', 'عروضك وخدماتك')}
+            subtitle={isCommerce ? bi('L’assistant s’appuie sur ces informations pour présenter les articles, prix et disponibilités.', 'المساعد يستعمل هاذ المعلومات باش يعرّف بالمنتجات والأسعار والمخزون.') : bi('Ajoutez les prestations, menus, services ou hébergements que votre assistant peut présenter.', 'أضف الخدمات أو القائمة أو الإقامة اللي يقدر المساعد يعرّف بها.')}
+            action={<button type="button" onClick={() => setEditingProduct('new')} className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-3.5 py-2.5 text-xs font-extrabold text-white transition hover:bg-violet-600"><Plus className="h-4 w-4" />{isCommerce ? bi('Ajouter un produit', 'أضف منتجاً') : bi('Ajouter une offre', 'أضف عرضاً')}</button>}
           />
           <div className="mb-4 flex flex-col gap-3 border-b border-violet-100/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <label className="relative block w-full sm:max-w-xs">
               <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={bi('Rechercher un produit…', 'ابحث عن منتج…')} className="w-full rounded-xl border border-slate-200 bg-white/85 py-2.5 pe-3 ps-9 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={isCommerce ? bi('Rechercher un produit…', 'ابحث عن منتج…') : bi('Rechercher une offre…', 'ابحث عن عرض…')} className="w-full rounded-xl border border-slate-200 bg-white/85 py-2.5 pe-3 ps-9 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
             </label>
-            <div className="flex flex-wrap items-center gap-2">
+            {isCommerce && <div className="flex flex-wrap items-center gap-2">
               <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={importCatalog} className="hidden" aria-label={bi('Importer un catalogue CSV', 'استيراد كتالوج CSV')} />
               <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-xs font-bold text-violet-800 transition hover:bg-violet-50"><FileUp className="h-4 w-4" />{bi('Importer CSV', 'استيراد CSV')}</button>
               <button type="button" onClick={exportCatalogTemplate} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-violet-200 hover:text-violet-700"><ArrowDownToLine className="h-4 w-4" />{bi('Modèle CSV', 'نموذج CSV')}</button>
-            </div>
+            </div>}
           </div>
-          <p className="mb-4 text-[11px] text-slate-500">{bi('Importe un CSV depuis Excel ou Google Sheets. Colonnes : nom, prix, stock, tailles, catégorie, description.', 'استورد CSV من Excel أو Google Sheets. الأعمدة: الاسم، السعر، المخزون، المقاسات، الصنف والوصف.')}</p>
+          <p className="mb-4 text-[11px] text-slate-500">{isCommerce ? bi('Importe un CSV depuis Excel ou Google Sheets. Colonnes : nom, prix, stock, tailles, catégorie, description.', 'استورد CSV من Excel أو Google Sheets. الأعمدة: الاسم، السعر، المخزون، المقاسات، الصنف والوصف.') : bi('Ajoutez ici les prestations ou offres présentées aux clients. Un prix à zéro peut être traité comme « sur devis ».', 'أضف هنا الخدمات والعروض المقدّمة للزبائن. السعر صفر يعني «حسب الطلب».')}</p>
           {filteredProducts.length ? (
             <div className="grid gap-3 lg:grid-cols-2">
               {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} isArabic={isArabic} onEdit={() => setEditingProduct(product)} onDelete={() => removeProduct(product.id)} onToggle={() => setStore((current) => ({ ...current, products: current.products.map((item) => item.id === product.id ? { ...item, active: !item.active } : item) }))} />
+                <ProductCard key={product.id} product={product} isArabic={isArabic} isCommerce={isCommerce} onEdit={() => setEditingProduct(product)} onDelete={() => removeProduct(product.id)} onToggle={() => setStore((current) => ({ ...current, products: current.products.map((item) => item.id === product.id ? { ...item, active: !item.active } : item) }))} />
               ))}
             </div>
           ) : <EmptyState icon={Package} title={bi('Aucun produit trouvé', 'ما لقيناش منتج')} subtitle={bi('Essaie une autre recherche ou ajoute ton premier produit.', 'جرّب كلمة أخرى أو أضف أول منتج.')} />}
@@ -372,8 +536,8 @@ export const AgentSawtifyPage: React.FC<{
         <section className="saw-glass rounded-[26px] p-4 sm:p-6">
           <SectionHeading
             icon={ClipboardList}
-            title={bi('Le suivi des commandes', 'متابعة الطلبات')}
-            subtitle={bi('Retrouvez les demandes clients, confirmez-les et préparez la livraison.', 'تابع طلبات الزبائن، أكّدها وحضّر التوصيل.')}
+            title={bi('Le suivi des demandes', 'متابعة الطلبات')}
+            subtitle={bi('Retrouvez les commandes, rendez-vous, devis et réservations. Confirmez-les ou supprimez-les au besoin.', 'تابع الطلبات والمواعيد وعروض الأسعار والحجوزات. أكّدها ولا احذفها عند الحاجة.')}
             action={<button type="button" onClick={exportOrders} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3.5 py-2.5 text-xs font-bold text-violet-800 transition hover:bg-violet-50"><ArrowDownToLine className="h-4 w-4" />{bi('Exporter CSV', 'تصدير CSV')}</button>}
           />
           <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -384,9 +548,9 @@ export const AgentSawtifyPage: React.FC<{
           </div>
           {filteredOrders.length ? (
             <div className="space-y-3">
-              {filteredOrders.map((order) => <OrderCard key={order.id} order={order} isArabic={isArabic} onStatusChange={(status) => changeOrderStatus(order.id, status)} />)}
+              {filteredOrders.map((order) => <OrderCard key={order.id} order={order} isArabic={isArabic} deleting={deletingOrderId === order.id} onStatusChange={(status) => changeOrderStatus(order.id, status)} onDelete={() => void deleteOrder(order.id)} />)}
             </div>
-          ) : <EmptyState icon={ShoppingBag} title={bi('Aucune commande ici', 'ما كاين حتى طلب هنا')} subtitle={bi('Les demandes envoyées depuis votre page client s’afficheront dans cet espace.', 'الطلبات اللي يبعثوها الزبائن من صفحتك يبانوا هنا.')} />}
+          ) : <EmptyState icon={ShoppingBag} title={bi('Aucune demande ici', 'ما كاين حتى طلب هنا')} subtitle={bi('Les demandes envoyées depuis votre page client s’afficheront dans cet espace.', 'الطلبات اللي يبعثوها الزبائن من صفحتك يبانوا هنا.')} />}
         </section>
       )}
 
@@ -400,18 +564,22 @@ export const AgentSawtifyPage: React.FC<{
           link={link}
           qrImage={qrImage}
           isArabic={isArabic}
+          previewMode={previewMode}
+          storeSaving={storeSaving}
+          storeDirty={storeDirty}
           onChangeSlug={(slug) => updateStore({ slug })}
           onCopy={copyLink}
           onOpen={openCallPage}
           onDownloadQr={downloadQr}
           onNotice={showNotice}
+          onSave={triggerStoreSave}
         />
       )}
 
       {notice && <div role="status" aria-live="polite" className="fixed bottom-5 end-4 z-[100] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-xs font-semibold text-white shadow-2xl sm:bottom-7 sm:end-7"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />{notice}</div>}
 
       {editingProduct && (
-        <ProductDialog product={editingProduct === 'new' ? null : editingProduct} isArabic={isArabic} onClose={() => setEditingProduct(null)} onSave={saveProduct} />
+        <ProductDialog product={editingProduct === 'new' ? null : editingProduct} isArabic={isArabic} isCommerce={isCommerce} onClose={() => setEditingProduct(null)} onSave={saveProduct} />
       )}
       {editingFaq && (
         <FaqDialog faq={editingFaq === 'new' ? null : editingFaq} isArabic={isArabic} onClose={() => setEditingFaq(null)} onSave={saveFaq} />
@@ -456,10 +624,11 @@ function OverviewSection({ store, link, qrImage, isArabic, onCopy, onOpen, onDow
   store: AgentStore; link: string; qrImage: string; isArabic: boolean; onCopy: () => void; onOpen: () => void; onDownloadQr: () => void; onNavigate: (section: DashboardSection) => void;
 }) {
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
+  const isCommerce = store.sector === 'commerce';
   const selectedVoice = getVoices(isArabic ? 'ar' : 'fr').find((voice) => voice.id === store.agentVoiceId);
   const checks = [
-    { done: !!store.name, label: bi('Présentez votre boutique', 'عرّف بمتجرك'), target: 'assistant' as const, icon: Store },
-    { done: store.products.some((product) => product.active), label: bi('Ajoutez vos produits et leurs stocks', 'أضف منتجاتك ومخزونها'), target: 'catalog' as const, icon: Package },
+    { done: !!store.name, label: bi('Présentez votre activité', 'عرّف بنشاطك'), target: 'assistant' as const, icon: Store },
+    { done: store.products.some((product) => product.active), label: isCommerce ? bi('Ajoutez vos produits et leurs stocks', 'أضف منتجاتك ومخزونها') : bi('Ajoutez vos offres et prestations', 'أضف عروضك وخدماتك'), target: 'catalog' as const, icon: Package },
     { done: store.faqs.some((faq) => faq.active), label: bi('Préparez les réponses aux questions courantes', 'حضّر أجوبة للأسئلة المتكررة'), target: 'faq' as const, icon: CircleHelp },
     { done: !!store.slug, label: bi('Partagez votre lien ou votre QR code', 'شارك رابطك أو رمز QR'), target: 'link' as const, icon: QrCode },
   ];
@@ -499,7 +668,7 @@ function OverviewSection({ store, link, qrImage, isArabic, onCopy, onOpen, onDow
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-md shadow-violet-300/40"><Bot className="h-5 w-5" /></span>
-            <div><p className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{bi('Votre assistant', 'مساعدك')}</p><p className="text-sm font-extrabold text-slate-950">{store.name || bi('Ma boutique', 'متجري')}</p></div>
+            <div><p className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{bi('Votre assistant', 'مساعدك')}</p><p className="text-sm font-extrabold text-slate-950">{store.name || bi('Mon activité', 'نشاطي')}</p></div>
           </div>
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${store.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{store.isActive ? bi('Disponible', 'متاح') : bi('En pause', 'متوقف')}</span>
         </div>
@@ -530,8 +699,8 @@ function OverviewSection({ store, link, qrImage, isArabic, onCopy, onOpen, onDow
       </section>
 
       <section className="saw-glass rounded-[26px] p-4 sm:p-6 xl:col-span-2">
-        <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-base font-black text-slate-950">{bi('Vos produits en un coup d’œil', 'منتجاتك بنظرة وحدة')}</h2><p className="mt-1 text-xs text-slate-500">{bi('Les articles actifs que votre assistant peut proposer.', 'المنتجات اللي يقدر المساعد يعرضها.')}</p></div><button type="button" onClick={() => onNavigate('catalog')} className="inline-flex items-center gap-1 text-xs font-extrabold text-violet-700 hover:text-violet-900">{bi('Voir le catalogue', 'شوف الكتالوج')} <ArrowRight className="h-3.5 w-3.5" /></button></div>
-        {store.products.filter((product) => product.active).length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{store.products.filter((product) => product.active).slice(0, 3).map((product) => <div key={product.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white/80 p-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-fuchsia-50 text-violet-700"><ShoppingBag className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-slate-900">{product.name}</p><p className="mt-1 truncate text-[10px] text-slate-500">{product.stock > 0 ? `${product.stock} ${bi('en stock', 'في المخزون')}` : bi('Rupture de stock', 'نفد المخزون')}</p></div><span className="shrink-0 text-xs font-black text-violet-800">{formatDzd(product.priceDzd, isArabic)}</span></div>)}</div> : <EmptyState icon={Package} title={bi('Ajoutez un produit', 'أضف منتجاً')} subtitle={bi('Votre catalogue apparaîtra ici.', 'الكتالوج تاعك يبان هنا.')} />}
+        <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-base font-black text-slate-950">{isCommerce ? bi('Vos produits en un coup d’œil', 'منتجاتك بنظرة وحدة') : bi('Vos offres et prestations', 'عروضك وخدماتك')}</h2><p className="mt-1 text-xs text-slate-500">{isCommerce ? bi('Les articles actifs que votre assistant peut proposer.', 'المنتجات اللي يقدر المساعد يعرضها.') : bi('Les informations que votre assistant peut présenter.', 'المعلومات اللي يقدر المساعد يعرّف بها.')}</p></div><button type="button" onClick={() => onNavigate('catalog')} className="inline-flex items-center gap-1 text-xs font-extrabold text-violet-700 hover:text-violet-900">{bi('Voir le catalogue', 'شوف الكتالوج')} <ArrowRight className="h-3.5 w-3.5" /></button></div>
+        {store.products.filter((product) => product.active).length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{store.products.filter((product) => product.active).slice(0, 3).map((product) => <div key={product.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white/80 p-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><ShoppingBag className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-slate-900">{product.name}</p><p className="mt-1 truncate text-[10px] text-slate-500">{isCommerce ? product.stock > 0 ? `${product.stock} ${bi('en stock', 'في المخزون')}` : bi('Rupture de stock', 'نفد المخزون') : product.description || product.category}</p></div><span className="shrink-0 text-xs font-black text-violet-800">{product.priceDzd > 0 ? formatDzd(product.priceDzd, isArabic) : bi('Sur devis', 'حسب الطلب')}</span></div>)}</div> : <EmptyState icon={Package} title={isCommerce ? bi('Ajoutez un produit', 'أضف منتجاً') : bi('Ajoutez une offre ou prestation', 'أضف عرضاً أو خدمة')} subtitle={bi('Votre catalogue apparaîtra ici.', 'الكتالوج تاعك يبان هنا.')} />}
       </section>
     </div>
   );
@@ -543,11 +712,23 @@ function AssistantSettings({ store, isArabic, onChange, onSaved }: { store: Agen
   return (
     <section className="saw-glass rounded-[26px] p-4 sm:p-6">
       <SectionHeading icon={Settings2} title={bi('Personnalisez votre assistant', 'خصّص مساعدك')} subtitle={bi('Présentez votre activité et choisissez comment votre assistant accueille les clients.', 'عرّف بنشاطك واختار كيفاش يستقبل المساعد زبائنك.')} />
+      <div role="note" className="mb-5 flex items-start gap-2.5 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-[11px] leading-5 text-emerald-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><p>{store.sector === 'health'
+        ? bi('Santé : l’assistant peut donner des informations pratiques et recevoir des demandes de rendez-vous uniquement. Il ne doit jamais poser de diagnostic, proposer de traitement ou prescrire un médicament. Demandez aux patients de ne pas envoyer de symptômes.', 'الصحة: المساعد يقدّم معلومات عملية ويستقبل طلبات المواعيد فقط. ممنوع يشخّص أو يقترح علاج أو يوصف دواء. اطلب من المرضى ما يبعثوش الأعراض.')
+        : bi('Garde-fou : restez dans le cadre légal et réglementaire de votre activité. Les demandes illégales, dangereuses, trompeuses ou contraires à l’éthique sont refusées.', 'قاعدة السلامة: التزم بالقانون والتنظيم الخاص بنشاطك. الطلبات غير القانونية أو الخطيرة أو المضللة أو المخالفة للأخلاق مرفوضة.')}</p></div>
       <VoicePicker selectedVoiceId={store.agentVoiceId} isArabic={isArabic} onSelect={(agentVoiceId) => onChange({ agentVoiceId })} />
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_.7fr]">
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label={bi('Nom de la boutique', 'اسم المتجر')}><input value={store.name} onChange={(event) => onChange({ name: event.target.value })} maxLength={60} placeholder={bi('Ex. Atelier Amine', 'مثال: Atelier Amine')} className={inputClass} /></FormField>
-          <FormField label={bi('Activité', 'نوع النشاط')}><input value={store.category} onChange={(event) => onChange({ category: event.target.value })} maxLength={60} placeholder={bi('Mode, restaurant, beauté…', 'ملابس، مطعم، تجميل…')} className={inputClass} /></FormField>
+          <FormField label={bi('Nom de votre activité', 'اسم النشاط')}><input value={store.name} onChange={(event) => onChange({ name: event.target.value })} maxLength={60} placeholder={bi('Ex. Atelier Amine, clinique, hôtel…', 'مثال: Atelier Amine، عيادة، فندق…')} className={inputClass} /></FormField>
+          <FormField label={bi('Secteur', 'القطاع')}>
+            <select value={store.sector} onChange={(event) => onChange({ sector: event.target.value as AgentStore['sector'] })} className={inputClass}>
+              <option value="commerce">{bi('E-commerce', 'التجارة الإلكترونية')}</option>
+              <option value="health">{bi('Santé et médical', 'الصحة والطب')}</option>
+              <option value="services">{bi('Services et artisans', 'الخدمات والحرفيين')}</option>
+              <option value="restaurant">{bi('Restauration', 'المطاعم')}</option>
+              <option value="hospitality">{bi('Hôtellerie', 'الفنادق')}</option>
+            </select>
+          </FormField>
+          <FormField label={bi('Détail de votre activité', 'تفاصيل النشاط')}><input value={store.category} onChange={(event) => onChange({ category: event.target.value })} maxLength={60} placeholder={bi('Mode, cabinet médical, plomberie…', 'ملابس، عيادة، سباكة…')} className={inputClass} /></FormField>
           <FormField label={bi('Ville / adresse de départ', 'المدينة')}><input value={store.location} onChange={(event) => onChange({ location: event.target.value })} maxLength={80} placeholder={bi('Alger', 'الجزائر')} className={inputClass} /></FormField>
           <FormField label={bi('Téléphone de la boutique', 'هاتف المتجر')}><input value={store.phone} onChange={(event) => onChange({ phone: event.target.value })} maxLength={24} inputMode="tel" placeholder="05 00 00 00 00" className={inputClass} /></FormField>
           <FormField label={bi('Langues de conversation', 'لغة المحادثة')}>
@@ -884,7 +1065,7 @@ function AgentPricingSection({ isArabic, previewMode, onSignIn }: { isArabic: bo
                 <div className={`h-full rounded-full transition-all duration-500 ${wallet?.low_balance ? 'bg-amber-500' : 'bg-gradient-to-r from-violet-600 to-fuchsia-500'}`} style={{ width: `${walletProgressPercent}%` }} />
               </div>
               <div className="mt-1.5 flex justify-between text-[9px] font-semibold text-slate-500"><span>{bi('Minutes consommées', 'دقائق مستهلكة')}</span><span>{walletProgressPercent.toFixed(1)} % {bi('restant', 'متبقي')}</span></div>
-              <p className="mt-2 text-[9px] leading-4 text-slate-500">{bi('Le débit se fait à la seconde : le forfait passe d’abord, puis les recharges. La page client actuelle est encore une démo et ne consomme pas ce solde.', 'يتم الخصم بالثانية: يُستهلك العرض أولاً ثم الشحن. صفحة الزبون الحالية معاينة ولا تخصم من هذا الرصيد بعد.')}</p>
+              <p className="mt-2 text-[9px] leading-4 text-slate-500">{bi('Le forfait est utilisé en premier, puis les recharges. Chaque réponse réelle décompte côté serveur une durée estimée à partir des textes échangés ; la durée audio réelle n’est pas mesurée. L’aperçu de démonstration ne débite pas.', 'يُستهلك العرض أولاً ثم الشحن. في الاستعمال الحقيقي، الخادم يخصم عند كل رد مدة تقديرية محسوبة من النصوص المتبادلة؛ مدة الصوت الحقيقية ما تتقاسش. معاينة العرض ما تخصمش من الرصيد.')}</p>
             </div>
             <button type="button" onClick={scrollToTopups} className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-extrabold text-white transition ${wallet?.low_balance ? 'bg-amber-600 hover:bg-amber-700' : 'bg-violet-700 hover:bg-violet-600'}`}>
               <Plus className="h-4 w-4" />{bi(wallet?.low_balance ? 'Recharger avant épuisement' : 'Recharger des minutes', wallet?.low_balance ? 'اشحن قبل ما يكمل الرصيد' : 'اشحن الدقائق')}
@@ -920,19 +1101,19 @@ function AgentPricingSection({ isArabic, previewMode, onSignIn }: { isArabic: bo
   );
 }
 
-function ProductCard({ product, isArabic, onEdit, onDelete, onToggle }: { product: AgentProduct; isArabic: boolean; onEdit: () => void; onDelete: () => void; onToggle: () => void }) {
+function ProductCard({ product, isArabic, isCommerce, onEdit, onDelete, onToggle }: { product: AgentProduct; isArabic: boolean; isCommerce: boolean; onEdit: () => void; onDelete: () => void; onToggle: () => void }) {
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
   return (
     <article className="rounded-2xl border border-slate-100 bg-white/90 p-4 transition hover:border-violet-200 hover:shadow-md hover:shadow-violet-900/[.03]">
       <div className="flex items-start gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-fuchsia-50 text-violet-700"><ShoppingBag className="h-5 w-5" /></div>
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700"><ShoppingBag className="h-5 w-5" /></div>
         <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-extrabold text-slate-950">{product.name}</h3><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${product.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{product.active ? bi('En ligne', 'معروض') : bi('Masqué', 'مخفي')}</span></div><p className="mt-1 text-[10px] text-slate-500">{product.category}</p></div>
-        <span className="shrink-0 text-sm font-black text-violet-800">{formatDzd(product.priceDzd, isArabic)}</span>
+        <span className="shrink-0 text-sm font-black text-violet-800">{product.priceDzd > 0 ? formatDzd(product.priceDzd, isArabic) : bi('Sur devis', 'حسب الطلب')}</span>
       </div>
       {product.description && <p className="mt-3 text-xs leading-5 text-slate-600">{product.description}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-        <span className="inline-flex items-center gap-1.5"><Package className="h-3.5 w-3.5 text-violet-500" />{product.stock > 0 ? `${product.stock} ${bi('en stock', 'في المخزون')}` : <span className="font-bold text-rose-600">{bi('Rupture de stock', 'نفد المخزون')}</span>}</span>
-        {product.sizes.length > 0 && <span>{bi('Tailles', 'المقاسات')}: {product.sizes.join(', ')}</span>}
+        {isCommerce && <span className="inline-flex items-center gap-1.5"><Package className="h-3.5 w-3.5 text-violet-500" />{product.stock > 0 ? `${product.stock} ${bi('en stock', 'في المخزون')}` : <span className="font-bold text-rose-600">{bi('Rupture de stock', 'نفد المخزون')}</span>}</span>}
+        {isCommerce && product.sizes.length > 0 && <span>{bi('Variantes', 'الخيارات')}: {product.sizes.join(', ')}</span>}
         <div className="ms-auto flex items-center gap-1">
           <button type="button" onClick={onToggle} className="rounded-lg p-2 text-slate-400 transition hover:bg-violet-50 hover:text-violet-700" aria-label={product.active ? bi('Masquer', 'إخفاء') : bi('Afficher', 'إظهار')}>{product.active ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}</button>
           <button type="button" onClick={onEdit} className="rounded-lg p-2 text-slate-400 transition hover:bg-violet-50 hover:text-violet-700" aria-label={bi('Modifier', 'تعديل')}><Pencil className="h-4 w-4" /></button>
@@ -943,38 +1124,46 @@ function ProductCard({ product, isArabic, onEdit, onDelete, onToggle }: { produc
   );
 }
 
-function OrderCard({ order, isArabic, onStatusChange }: { order: AgentOrder; isArabic: boolean; onStatusChange: (status: AgentOrderStatus) => void }) {
+function OrderCard({ order, isArabic, deleting, onStatusChange, onDelete }: { order: AgentOrder; isArabic: boolean; deleting: boolean; onStatusChange: (status: AgentOrderStatus) => void; onDelete: () => void }) {
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
   const statusColors: Record<AgentOrderStatus, string> = {
     new: 'bg-amber-50 text-amber-800 border-amber-200',
     confirmed: 'bg-sky-50 text-sky-800 border-sky-200',
     delivered: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   };
+  const requestType = order.requestType || 'order';
+  const isOrder = requestType === 'order';
+  const typeLabel = requestType === 'appointment' ? bi('Rendez-vous', 'موعد') : requestType === 'quote' ? bi('Devis', 'عرض سعر') : requestType === 'reservation' ? bi('Réservation', 'حجز') : requestType === 'room_service' ? bi('Room service', 'خدمة الغرف') : bi('Commande', 'طلب');
   const waPhone = order.phone.replace(/\D/g, '').replace(/^0/, '213');
   const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(bi(`Bonjour ${order.customerName}, je vous contacte pour votre demande ${order.productName}.`, `سلام ${order.customerName}، نتصل بيك بخصوص طلبك ${order.productName}.`))}`;
   const date = new Date(order.createdAt);
+  const preferredDate = order.preferredAt ? new Date(order.preferredAt) : null;
+  const preferredUntilDate = order.preferredUntil ? new Date(order.preferredUntil) : null;
+  const formatPreferredDate = (date: Date) => date.toLocaleString(isArabic ? 'ar-DZ' : 'fr-DZ', preferredUntilDate ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <article className="rounded-2xl border border-slate-100 bg-white/90 p-4 sm:flex sm:items-center sm:gap-4">
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><ShoppingBag className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><h3 className="text-sm font-extrabold text-slate-950">{order.customerName}</h3><span className="text-[10px] text-slate-400">{Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(isArabic ? 'ar-DZ' : 'fr-DZ', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>
-          <p className="mt-1 text-xs font-semibold text-slate-700">{order.productName}{order.size ? ` · ${bi('Taille', 'المقاس')} ${order.size}` : ''}{order.quantity > 1 ? ` · ×${order.quantity}` : ''}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><h3 className="text-sm font-extrabold text-slate-950">{order.customerName}</h3><span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-bold text-violet-700">{typeLabel}</span><span className="text-[10px] text-slate-400">{Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(isArabic ? 'ar-DZ' : 'fr-DZ', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>
+          <p className="mt-1 text-xs font-semibold text-slate-700">{order.productName}{isOrder && order.size ? ` · ${bi('Variante', 'الخيار')} ${order.size}` : ''}{isOrder && order.quantity > 1 ? ` · ×${order.quantity}` : ''}</p>
+          {!isOrder && <p className="mt-1 text-[10px] text-slate-500">{order.details || bi('Aucun détail ajouté.', 'ما زاد حتى تفاصيل.')}{preferredDate && Number.isFinite(preferredDate.getTime()) ? ` · ${formatPreferredDate(preferredDate)}` : ''}{preferredUntilDate && Number.isFinite(preferredUntilDate.getTime()) ? ` · ${bi('Départ', 'المغادرة')}: ${formatPreferredDate(preferredUntilDate)}` : ''}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500"><span className="inline-flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{order.wilaya}</span><span>{order.phone}</span></div>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 sm:mt-0 sm:border-0 sm:pt-0">
-        <span className="text-sm font-black text-slate-950">{formatDzd(order.amountDzd, isArabic)}</span>
-        <select aria-label={bi('Statut de la commande', 'حالة الطلب')} value={order.status} onChange={(event) => onStatusChange(event.target.value as AgentOrderStatus)} className={`rounded-full border px-2.5 py-1.5 text-[10px] font-bold outline-none ${statusColors[order.status]}`}>
-          <option value="new">{bi('À confirmer', 'بانتظار التأكيد')}</option><option value="confirmed">{bi('Confirmée', 'مؤكدة')}</option><option value="delivered">{bi('Livrée', 'تم التوصيل')}</option>
+        {isOrder ? <span className="text-sm font-black text-slate-950">{formatDzd(order.amountDzd, isArabic)}</span> : <span className="text-[10px] font-bold text-slate-500">{bi('Demande client', 'طلب زبون')}</span>}
+        <select aria-label={bi('Statut de la demande', 'حالة الطلب')} value={order.status} onChange={(event) => onStatusChange(event.target.value as AgentOrderStatus)} className={`rounded-full border px-2.5 py-1.5 text-[10px] font-bold outline-none ${statusColors[order.status]}`}>
+          <option value="new">{bi('À confirmer', 'بانتظار التأكيد')}</option><option value="confirmed">{bi('Confirmée', 'مؤكدة')}</option><option value="delivered">{isOrder ? bi('Livrée', 'تم التوصيل') : bi('Terminée', 'مكتمل')}</option>
         </select>
         <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] font-bold text-emerald-800 transition hover:bg-emerald-100"><MessageCircle className="h-3.5 w-3.5" />{bi('Contacter', 'اتصل')}</a>
+        <button type="button" disabled={deleting} onClick={onDelete} className="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 disabled:cursor-wait disabled:opacity-50" aria-label={bi('Supprimer cette demande', 'احذف هذا الطلب')} title={bi('Supprimer', 'حذف')}><Trash2 className="h-4 w-4" /></button>
       </div>
     </article>
   );
 }
 
-function LinkSection({ store, link, qrImage, isArabic, onChangeSlug, onCopy, onOpen, onDownloadQr, onNotice }: { store: AgentStore; link: string; qrImage: string; isArabic: boolean; onChangeSlug: (slug: string) => void; onCopy: () => void; onOpen: () => void; onDownloadQr: () => void; onNotice: (message: string) => void }) {
+function LinkSection({ store, link, qrImage, isArabic, previewMode, storeSaving, storeDirty, onChangeSlug, onCopy, onOpen, onDownloadQr, onNotice, onSave }: { store: AgentStore; link: string; qrImage: string; isArabic: boolean; previewMode: boolean; storeSaving: boolean; storeDirty: boolean; onChangeSlug: (slug: string) => void; onCopy: () => void; onOpen: () => void; onDownloadQr: () => void; onNotice: (message: string) => void; onSave: () => void }) {
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
   const shareUrl = `https://wa.me/?text=${encodeURIComponent(bi(`Parlez directement avec ${store.name} : ${link}`, `اهدر مباشرة مع ${store.name}: ${link}`))}`;
   return (
@@ -987,9 +1176,13 @@ function LinkSection({ store, link, qrImage, isArabic, onChangeSlug, onCopy, onO
               <span className="shrink-0 text-[11px] font-semibold text-slate-400">{window.location.host}/call/</span>
               <input value={store.slug} onChange={(event) => onChangeSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} maxLength={36} className="min-w-0 flex-1 bg-transparent py-3 text-sm font-bold text-violet-800 outline-none" placeholder="ma-boutique" aria-label={bi('Nom court du lien', 'الاسم المختصر للرابط')} />
             </div>
-            <button type="button" onClick={() => { if (!store.slug.trim()) { onNotice(bi('Choisis un nom pour ton lien.', 'اختار اسم للرابط.')); return; } onNotice(bi('Lien prêt à être partagé.', 'الرابط جاهز للمشاركة.')); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-xs font-extrabold text-white transition hover:bg-violet-600"><Check className="h-4 w-4" />{bi('Enregistrer', 'حفظ')}</button>
+            <button type="button" onClick={() => { if (!store.slug.trim()) { onNotice(bi('Choisis un nom pour ton lien.', 'اختار اسم للرابط.')); return; } onSave(); if (!previewMode) onNotice(storeDirty || storeSaving ? bi('Enregistrement de la boutique sur le serveur…', 'جاري حفظ المتجر على الخادم…') : bi('Lien enregistré et associé à votre compte.', 'تم حفظ الرابط وربطه بحسابك.')); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-xs font-extrabold text-white transition hover:bg-violet-600"><Check className="h-4 w-4" />{bi('Enregistrer', 'حفظ')}</button>
           </div>
-          <p className="mt-2 text-[10px] leading-4 text-slate-500">{bi('Lettres sans accents, chiffres et tirets. Exemple : atelier-amine.', 'حروف لاتينية وأرقام وشرطات فقط. مثال: atelier-amine.')}</p>
+          <p className={`mt-2 text-[10px] leading-4 ${storeSaving || storeDirty ? 'text-amber-700' : 'text-slate-500'}`}>{storeSaving || storeDirty
+            ? bi('Enregistrement de la boutique sur le serveur…', 'جاري حفظ المتجر على الخادم…')
+            : previewMode
+              ? bi('Aperçu local : les modifications ne sont pas associées à un compte.', 'معاينة محلية: التعديلات ما ترتبطش بحساب.')
+              : bi('Boutique associée à votre compte. Le lien et le QR ouvrent ces données enregistrées.', 'المتجر مربوط بحسابك. الرابط وQR يفتحو البيانات المحفوظة.')}</p>
         </FormField>
         <div className="mt-5 rounded-2xl border border-violet-100 bg-white p-3">
           <div className="flex items-center gap-2"><Link2 className="h-4 w-4 shrink-0 text-violet-600" /><input readOnly value={link} onFocus={(event) => event.currentTarget.select()} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-slate-700 outline-none" aria-label={bi('Votre lien client', 'رابط الزبون')} /></div>
@@ -1021,25 +1214,26 @@ function LinkSection({ store, link, qrImage, isArabic, onChangeSlug, onCopy, onO
   );
 }
 
-function ProductDialog({ product, isArabic, onClose, onSave }: { product: AgentProduct | null; isArabic: boolean; onClose: () => void; onSave: (product: AgentProduct) => void }) {
+function ProductDialog({ product, isArabic, isCommerce, onClose, onSave }: { product: AgentProduct | null; isArabic: boolean; isCommerce: boolean; onClose: () => void; onSave: (product: AgentProduct) => void }) {
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
   const [name, setName] = useState(product?.name || '');
   const [category, setCategory] = useState(product?.category || '');
   const [description, setDescription] = useState(product?.description || '');
-  const [price, setPrice] = useState(product ? String(product.priceDzd) : '');
-  const [stock, setStock] = useState(product ? String(product.stock) : '');
+  const [price, setPrice] = useState(product ? String(product.priceDzd) : '0');
+  const [stock, setStock] = useState(product ? String(product.stock) : '0');
   const [sizes, setSizes] = useState(product?.sizes.join(', ') || '');
   const [error, setError] = useState('');
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const amount = Number(price);
-    const quantity = Number(stock);
-    if (!name.trim() || !Number.isFinite(amount) || amount < 0 || !Number.isFinite(quantity) || quantity < 0) { setError(bi('Vérifie le nom, le prix et le stock.', 'تأكّد من الاسم والسعر والمخزون.')); return; }
-    onSave({ id: product?.id || makeAgentId('p'), name: name.trim(), category: category.trim() || bi('Autre', 'أخرى'), description: description.trim(), priceDzd: amount, stock: quantity, sizes: sizes.split(/[,،]/).map((item) => item.trim()).filter(Boolean), active: product?.active ?? true });
+    const quantity = isCommerce ? Number(stock) : (product?.stock || 0);
+    if (!name.trim() || !Number.isFinite(amount) || amount < 0 || !Number.isFinite(quantity) || quantity < 0) { setError(bi('Vérifie le nom, le prix et les quantités.', 'تأكّد من الاسم والسعر والكميات.')); return; }
+    onSave({ id: product?.id || makeAgentId('p'), name: name.trim(), category: category.trim() || bi('Autre', 'أخرى'), description: description.trim(), priceDzd: amount, stock: quantity, sizes: isCommerce ? sizes.split(/[,،]/).map((item) => item.trim()).filter(Boolean) : [], active: product?.active ?? true });
   };
-  return <DialogShell title={product ? bi('Modifier le produit', 'تعديل المنتج') : bi('Ajouter un produit', 'إضافة منتج')} isArabic={isArabic} onClose={onClose}>
+  const noun = isCommerce ? bi('produit', 'منتج') : bi('offre ou prestation', 'عرض أو خدمة');
+  return <DialogShell title={product ? bi('Modifier l’offre', 'تعديل العرض') : `${bi('Ajouter', 'إضافة')} ${noun}`} isArabic={isArabic} onClose={onClose}>
     <form onSubmit={submit} className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2"><FormField label={bi('Nom du produit *', 'اسم المنتج *')}><input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={80} className={inputClass} /></FormField><FormField label={bi('Catégorie', 'الصنف')}><input value={category} onChange={(event) => setCategory(event.target.value)} maxLength={50} className={inputClass} /></FormField><FormField label={bi('Prix (DA) *', 'السعر (دج) *')}><input type="number" min="0" step="1" value={price} onChange={(event) => setPrice(event.target.value)} className={inputClass} /></FormField><FormField label={bi('Stock disponible *', 'المخزون المتاح *')}><input type="number" min="0" step="1" value={stock} onChange={(event) => setStock(event.target.value)} className={inputClass} /></FormField><FormField label={bi('Tailles / variantes', 'المقاسات / الخيارات')} className="sm:col-span-2"><input value={sizes} onChange={(event) => setSizes(event.target.value)} placeholder={bi('Ex. 38, 39, 40 ou Unique', 'مثال: 38، 39، 40 أو مقاس واحد')} className={inputClass} /></FormField><FormField label={bi('Description', 'الوصف')} className="sm:col-span-2"><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} maxLength={280} className={`${inputClass} resize-y`} /></FormField></div>
+      <div className="grid gap-3 sm:grid-cols-2"><FormField label={`${isCommerce ? bi('Nom du produit', 'اسم المنتج') : bi('Nom de l’offre / prestation', 'اسم العرض أو الخدمة')} *`}><input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={80} className={inputClass} /></FormField><FormField label={bi('Catégorie', 'الصنف')}><input value={category} onChange={(event) => setCategory(event.target.value)} maxLength={50} className={inputClass} /></FormField><FormField label={bi('Prix en DA (0 = sur devis)', 'السعر بالدينار (0 = حسب الطلب)')}><input type="number" min="0" step="1" value={price} onChange={(event) => setPrice(event.target.value)} className={inputClass} /></FormField>{isCommerce && <FormField label={bi('Stock disponible *', 'المخزون المتاح *')}><input type="number" min="0" step="1" value={stock} onChange={(event) => setStock(event.target.value)} className={inputClass} /></FormField>}{isCommerce && <FormField label={bi('Tailles / variantes', 'المقاسات / الخيارات')} className="sm:col-span-2"><input value={sizes} onChange={(event) => setSizes(event.target.value)} placeholder={bi('Ex. 38, 39, 40 ou Unique', 'مثال: 38، 39، 40 أو مقاس واحد')} className={inputClass} /></FormField>}<FormField label={bi('Description', 'الوصف')} className="sm:col-span-2"><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} maxLength={280} className={`${inputClass} resize-y`} /></FormField></div>
       {error && <p role="alert" className="text-xs font-semibold text-rose-600">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">{bi('Annuler', 'إلغاء')}</button><button type="submit" className="rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-extrabold text-white hover:bg-violet-600">{bi('Enregistrer', 'حفظ')}</button></div>
     </form>

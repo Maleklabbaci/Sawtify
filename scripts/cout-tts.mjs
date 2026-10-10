@@ -27,7 +27,7 @@ const P = {
   TTS_BYTES_PER_SECOND: 48000,
   BASE_POINTS_COST: 20,
   EXTRA_POINTS_PER_MINUTE: 10,
-  USD_TO_DZD: 260,
+  USD_TO_DZD: 270,
   RETRY_FAIL_RATE: Number(process.env.RETRY_FAIL_RATE) || 0.06, // 6% : un morceau échoue puis est rejoué
   MAX_CHARS_DEFAULT: 1200,
   MAX_CHARS_UNLOCKED: 5000,
@@ -486,7 +486,7 @@ function report() {
   push(`       25 tok/s → ${usd(t25.realUSD, 5)} = ${dzd(t25.realDZD)}   |   32 tok/s → ${usd(t32.realUSD, 5)} = ${dzd(t32.realDZD)}   (+${(((t32.realUSD - t25.realUSD) / t25.realUSD) * 100).toFixed(0)}%)`);
   push("");
   push("  3) Taux de change USD→DZD (sensible sur le marché parallèle) :");
-  for (const rate of [240, 260, 280]) {
+  for (const rate of [240, 270, 300]) {
     push(`       1 USD = ${rate} DZD  →  1 minute = ${((focus.realUSD * rate)).toFixed(2)} DZD`);
   }
   push("");

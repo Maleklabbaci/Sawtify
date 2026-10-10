@@ -68,6 +68,8 @@ import {
   type PackOffer,
 } from "./src/config/growth";
 import { AGENT_ESTIMATED_COST_PER_MINUTE_DZD, AGENT_PRICING_OFFERS } from "./src/config/agentPricing";
+import { answerAgentQuestion, containsHealthClinicalContent, isDisallowedAgentIntent } from "./src/services/agentReply";
+import type { AgentOrder, AgentOrderStatus, AgentRequestType, AgentSector, AgentStore } from "./src/services/agentSawtify";
 
 dotenv.config();
 
@@ -257,6 +259,96 @@ async function getUserIdFromAuthHeader(req: express.Request): Promise<string | n
   } catch { return null; }
 }
 
+function normalizeAgentSlug(value: unknown): string {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("en")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+}
+
+function agentText(value: unknown, maxLength: number, fallback = ""): string {
+  return (typeof value === "string" ? value : fallback).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ").trim().slice(0, maxLength);
+}
+
+function normalizeAgentStore(value: any): AgentStore {
+  const source = value && typeof value === "object" ? value : {};
+  const products = (Array.isArray(source.products) ? source.products : []).slice(0, 200).map((product: any, index: number) => {
+    const sizes = (Array.isArray(product?.sizes) ? product.sizes : []).slice(0, 30)
+      .map((size: unknown) => agentText(size, 32)).filter(Boolean);
+    const price = Number(product?.priceDzd);
+    const stock = Number(product?.stock);
+    return {
+      id: agentText(product?.id, 80) || `product-${index + 1}`,
+      name: agentText(product?.name, 120, "Produit"),
+      category: agentText(product?.category, 80),
+      description: agentText(product?.description, 600),
+      priceDzd: Number.isFinite(price) ? Math.max(0, Math.min(1_000_000_000, price)) : 0,
+      stock: Number.isFinite(stock) ? Math.max(0, Math.min(1_000_000, Math.floor(stock))) : 0,
+      sizes,
+      active: product?.active !== false,
+    };
+  });
+  const faqs = (Array.isArray(source.faqs) ? source.faqs : []).slice(0, 100).map((faq: any, index: number) => ({
+    id: agentText(faq?.id, 80) || `faq-${index + 1}`,
+    question: agentText(faq?.question, 300),
+    answer: agentText(faq?.answer, 1200),
+    active: faq?.active !== false,
+  }));
+  const language = source.language === "ar" || source.language === "fr" || source.language === "both" ? source.language : "both";
+  const sector: AgentSector = ["commerce", "health", "services", "restaurant", "hospitality"].includes(String(source.sector))
+    ? source.sector as AgentSector : "commerce";
+  return {
+    name: agentText(source.name, 120, "Ma boutique") || "Ma boutique",
+    slug: normalizeAgentSlug(source.slug),
+    category: agentText(source.category, 120),
+    sector,
+    phone: agentText(source.phone, 40),
+    location: agentText(source.location, 120),
+    greeting: agentText(source.greeting, 600),
+    language,
+    agentVoiceId: agentText(source.agentVoiceId, 100) || "voice_amin",
+    isActive: source.isActive !== false,
+    products,
+    faqs,
+    orders: [],
+  };
+}
+
+function agentStoreData(store: AgentStore): Omit<AgentStore, "orders"> {
+  const { orders: _orders, ...data } = store;
+  return data;
+}
+
+function agentOrderFromDatabase(row: any): AgentOrder {
+  const status = ["new", "confirmed", "delivered"].includes(String(row?.status)) ? row.status as AgentOrderStatus : "new";
+  return {
+    id: String(row?.id || ""),
+    createdAt: String(row?.created_at || ""),
+    customerName: String(row?.customer_name || ""),
+    phone: String(row?.phone || ""),
+    wilaya: String(row?.wilaya || ""),
+    productId: String(row?.product_id || ""),
+    productName: String(row?.product_name || ""),
+    size: String(row?.size || ""),
+    quantity: Math.max(1, Number(row?.quantity) || 1),
+    amountDzd: Math.max(0, Number(row?.amount_dzd) || 0),
+    status,
+    requestType: ["appointment", "quote", "reservation", "room_service"].includes(String(row?.request_type)) ? row.request_type as AgentRequestType : "order",
+    details: agentText(row?.details, 500),
+    preferredAt: row?.preferred_at ? String(row.preferred_at) : null,
+    preferredUntil: row?.preferred_until ? String(row.preferred_until) : null,
+  };
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 const TTS_CONCURRENCY_LIMIT = Number(process.env.TTS_CONCURRENCY_LIMIT) || 6;
 const TTS_CONCURRENCY = createLimiter(TTS_CONCURRENCY_LIMIT);
 const TTS_QUEUE_MAX_PENDING = Number(process.env.TTS_QUEUE_MAX_PENDING) || 3;
@@ -344,7 +436,7 @@ const DAILY_GEMINI_LIMIT = Number(process.env.DAILY_GEMINI_LIMIT) || 30;
 const API_MIN_BALANCE = 1000;
 const GENERATION_RETENTION_DAYS = 7;
 const API_KEY_PREFIX = "swt_beta_";
-const USD_TO_DZD = 260;
+const USD_TO_DZD = 270;
 const ADMIN_USER_IDS = new Set((process.env.ADMIN_USER_IDS || "").split(",").map((id) => id.trim()).filter(Boolean));
 const ADMIN_EMAILS = new Set([
   "abdelmaleklabbaci01@gmail.com",
@@ -356,6 +448,17 @@ const GEMINI_TTS_AUDIO_USD_PER_1M = 20;
 // pas 25. Sert uniquement au calcul de coût/marge admin (analytics) — n'affecte
 // PAS computePointsCost, qui reste un barème points indépendant du coût réel.
 const GEMINI_AUDIO_TOKENS_PER_SECOND = Number(process.env.GEMINI_AUDIO_TOKENS_PER_SECOND) || 32;
+
+function estimateVoiceUsageCostUsd(operation: string, characters: number, metadata: any): number {
+  if (operation !== "tts" && operation !== "preview") return 0;
+  const recordedCost = Number(metadata?.cost_usd);
+  if (Number.isFinite(recordedCost) && recordedCost >= 0) return recordedCost;
+  const safeCharacters = Math.max(0, Number(characters) || 0);
+  const estimatedInputTokens = safeCharacters / 4;
+  const seconds = operation === "preview" ? 2.5 : safeCharacters / TTS_CHARS_PER_SECOND_ESTIMATE;
+  return (estimatedInputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M
+    + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
+}
 
 // FIX COST-5 : plafond de caractères par génération. Par défaut 1200 (au lieu de
 // 5000) pour couper le coût max d'une génération — un compte peut débloquer
@@ -768,18 +871,9 @@ async function deductCredits(userId: string, amount: number): Promise<{ success:
 }
 
 function getClientIp(req: express.Request): string {
-  // req.ip (calculé par Express via "trust proxy") renvoyait une adresse
-  // interne au réseau Render (plage 10.x.x.x) au lieu de la vraie IP
-  // publique du visiteur — ce qui cassait silencieusement l'anti-abus par
-  // IP (bonus de bienvenue). Le header X-Forwarded-For contient la vraie
-  // chaîne de proxys ; la toute première valeur est systématiquement l'IP
-  // d'origine du visiteur, quel que soit le nombre de sauts internes.
-  const xff = req.headers["x-forwarded-for"];
-  const first = Array.isArray(xff) ? xff[0] : xff;
-  if (first) {
-    const ip = first.split(",")[0].trim();
-    if (ip) return ip;
-  }
+  // Express calcule req.ip selon le nombre de proxys de confiance configuré
+  // au démarrage. Ne lis pas directement X-Forwarded-For : un client pourrait
+  // forger sa valeur pour contourner les limites et les contrôles par adresse.
   return req.ip || req.socket.remoteAddress || "unknown";
 }
 
@@ -2048,10 +2142,12 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // "true" fait confiance à toute la chaîne de proxys de Render pour lire la
-  // vraie IP d'origine (X-Forwarded-For) — avec juste "1", req.ip résolvait
-  // une adresse interne (10.x.x.x), ce qui cassait le rate-limiting par IP.
-  app.set("trust proxy", true);
+  // Indique le nombre exact de reverse proxies de confiance. Évite `true` :
+  // cela permettrait à un client de forger X-Forwarded-For pour contourner
+  // les limites d'essais et les protections basées sur l'adresse IP.
+  const configuredProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? "1");
+  const trustProxyHops = Number.isInteger(configuredProxyHops) && configuredProxyHops >= 0 ? configuredProxyHops : 1;
+  app.set("trust proxy", trustProxyHops);
 
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
@@ -2084,7 +2180,7 @@ async function startServer() {
   app.use((req, res, next) => {
     const origin = String(req.get("origin") || "").replace(/\/+$/, "");
     if (origin && (allowedOrigins.has(origin) || process.env.NODE_ENV !== "production")) res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key,X-Agent-Access-Token,X-File-Name,X-File-Type");
     res.setHeader("Access-Control-Expose-Headers", "Content-Type,Content-Disposition,X-Request-Id");
     res.setHeader("Vary", "Origin");
@@ -2096,6 +2192,8 @@ async function startServer() {
   app.use(globalLimiter);
 
   const agentAccessLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 6, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop d'essais. Réessaie dans 15 minutes." }) });
+  const agentPublicLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop de demandes Agent. Réessaie dans une minute." }) });
+  const agentOwnerLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop de modifications Agent. Réessaie dans une minute." }) });
   const requireAgentAccess: express.RequestHandler = (req, res, next) => {
     if (!AGENT_ACCESS_GATE_ENABLED) return next();
     if (!AGENT_ACCESS_CONFIGURED) return res.status(503).json({ success: false, error: "L'accès Agent privé n'est pas encore configuré." });
@@ -2311,7 +2409,7 @@ async function startServer() {
           if (!withChannel.error) return withChannel;
           return await supabaseClient.from("voice_generations").select("user_id, generation_source, points_deducted, audio_duration_seconds, char_count, rating, created_at").limit(20000);
         })(),
-        supabaseClient.from("gemini_usage_logs").select("user_id, operation, model, characters, success, metadata, created_at").limit(20000),
+        supabaseClient.from("gemini_usage_logs").select("user_id, operation, characters, success, metadata, created_at").limit(20000),
       ]);
       const { data: authUsersData, error: authUsersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const realAuthIds = authUsersError ? null : new Set((authUsersData?.users || []).map((user: any) => user.id));
@@ -2343,55 +2441,76 @@ async function startServer() {
       const paidPointsIssued = filteredTransactions.reduce((sum: number, row: any) => sum + Number(row.points_credited || 0), 0);
       const pointsConsumed = gens.reduce((sum: number, row: any) => sum + Number(row.points_deducted || 0), 0);
       const pointValueDzd = paidPointsIssued > 0 ? revenueDzd / paidPointsIssued : 0;
-      const logs = usageLogs || [];
-      let geminiUsd = 0;
-      let geminiInputTokens = 0;
-      let geminiOutputTokens = 0;
-      const geminiByUser = new Map<string, { costUsd: number; calls: number; characters: number; inputTokens: number; outputTokens: number }>();
-      let freeGeminiUsd = 0;
-      let paidGeminiUsd = 0;
-      for (const log of logs) {
-        const chars = Number(log.characters || 0);
+      const voiceLogs = (usageLogs || []).filter((log: any) => log.operation === "tts" || log.operation === "preview");
+      let voiceCostUsd = 0;
+      let voiceCalls = 0;
+      let voiceCharacters = 0;
+      const voiceCostsByUser = new Map<string, { costUsd: number; calls: number; characters: number }>();
+      for (const log of voiceLogs) {
+        const characters = Math.max(0, Number(log.characters || 0));
         const metadata = log.metadata && typeof log.metadata === "object" ? log.metadata : {};
-        const metadataCost = Number((metadata as any).cost_usd);
-        const inputTokens = Number((metadata as any).input_tokens || 0);
-        const outputTokens = Number((metadata as any).output_tokens || 0);
-        geminiInputTokens += inputTokens;
-        geminiOutputTokens += outputTokens;
-        const estimatedInputTokens = chars / 4;
-        let logCost = 0;
-        if (Number.isFinite(metadataCost) && metadataCost >= 0) {
-          logCost = metadataCost;
-        } else if (log.operation === "tts" || log.operation === "preview") {
-          const seconds = log.operation === "preview" ? 2.5 : chars / TTS_CHARS_PER_SECOND_ESTIMATE;
-          logCost = (estimatedInputTokens / 1_000_000) * GEMINI_TTS_INPUT_USD_PER_1M + ((seconds * GEMINI_AUDIO_TOKENS_PER_SECOND) / 1_000_000) * GEMINI_TTS_AUDIO_USD_PER_1M;
-        } else {
-          // Conservative estimate for text features; exact billing remains visible in Google Cloud.
-          logCost = (estimatedInputTokens / 1_000_000) * 0.30 + (Math.max(estimatedInputTokens, 1) / 1_000_000) * 1.50;
-        }
-        geminiUsd += logCost;
+        const logCost = estimateVoiceUsageCostUsd(log.operation, characters, metadata);
+        voiceCostUsd += logCost;
+        voiceCalls += 1;
+        voiceCharacters += characters;
         const userKey = String(log.user_id || "unknown");
-        const userCost = geminiByUser.get(userKey) || { costUsd: 0, calls: 0, characters: 0, inputTokens: 0, outputTokens: 0 };
+        const userCost = voiceCostsByUser.get(userKey) || { costUsd: 0, calls: 0, characters: 0 };
         userCost.costUsd += logCost;
         userCost.calls += 1;
-        userCost.characters += chars;
-        userCost.inputTokens += inputTokens;
-        userCost.outputTokens += outputTokens;
-        geminiByUser.set(userKey, userCost);
-        if (paidUserIds.has(log.user_id)) paidGeminiUsd += logCost; else freeGeminiUsd += logCost;
+        userCost.characters += characters;
+        voiceCostsByUser.set(userKey, userCost);
       }
-      const geminiCostDzd = geminiUsd * USD_TO_DZD;
-      const grossMarginDzd = revenueDzd - geminiCostDzd;
-      const [{ data: agentPaymentRows }, { data: agentWalletRows }] = await Promise.all([
+      const voiceCostDzd = voiceCostUsd * USD_TO_DZD;
+      const voiceGrossMarginDzd = revenueDzd - voiceCostDzd;
+      const [agentPaymentsQuery, agentWalletsQuery, agentUsageQuery, agentStoresQuery, agentOrdersQuery] = await Promise.all([
         supabaseClient.from("agent_sawtify_payments").select("invoice_id, user_id, offer_id, offer_kind, offer_name, minutes, amount_dzd, status, created_at, paid_at").order("created_at", { ascending: false }).limit(10000),
-        supabaseClient.from("agent_sawtify_wallets").select("user_id, plan_expires_at").limit(10000),
+        supabaseClient.from("agent_sawtify_wallets").select("user_id, plan_id, plan_minutes_remaining, topup_minutes_remaining, plan_seconds_remaining, topup_seconds_remaining, plan_seconds_purchased, topup_seconds_purchased, plan_expires_at, updated_at").order("updated_at", { ascending: false }).limit(10000),
+        supabaseClient.from("agent_sawtify_usage_events").select("id, owner_user_id, store_id, store_slug, input_characters, output_characters, billable_seconds, plan_seconds_used, topup_seconds_used, remaining_seconds_after, created_at").order("created_at", { ascending: false }).limit(10000),
+        supabaseClient.from("agent_sawtify_stores").select("id, owner_user_id, slug, is_active, updated_at").order("updated_at", { ascending: false }).limit(10000),
+        supabaseClient.from("agent_sawtify_orders").select("id, owner_user_id, store_id, customer_name, phone, wilaya, product_name, size, quantity, amount_dzd, status, request_type, details, preferred_at, preferred_until, created_at").order("created_at", { ascending: false }).limit(10000),
       ]);
-      const paidAgentPayments = (agentPaymentRows || []).filter((row: any) => row.status === "completed");
+      const agentPaymentRows = agentPaymentsQuery.data || [];
+      const agentWalletRows = agentWalletsQuery.data || [];
+      const agentUsageRows = agentUsageQuery.data || [];
+      const agentStoreRows = agentStoresQuery.data || [];
+      const agentOrderRows = agentOrdersQuery.data || [];
+      const agentDataAvailable = !agentPaymentsQuery.error && !agentWalletsQuery.error && !agentUsageQuery.error && !agentStoresQuery.error && !agentOrdersQuery.error;
+      const paidAgentPayments = agentPaymentRows.filter((row: any) => row.status === "completed");
+      const pendingAgentPayments = agentPaymentRows.filter((row: any) => row.status === "pending");
+      const failedAgentPayments = agentPaymentRows.filter((row: any) => row.status === "failed");
+      const subscriptionAgentPayments = paidAgentPayments.filter((row: any) => row.offer_kind === "subscription");
+      const topupAgentPayments = paidAgentPayments.filter((row: any) => row.offer_kind === "topup");
       const agentRevenueDzd = paidAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentSubscriptionRevenueDzd = subscriptionAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentTopupRevenueDzd = topupAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentPendingAmountDzd = pendingAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentFailedAmountDzd = failedAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
       const agentMinutesSold = paidAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const agentSubscriptionMinutesSold = subscriptionAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const agentTopupMinutesSold = topupAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const agentConsumedSeconds = agentUsageRows.reduce((sum: number, row: any) => sum + Math.max(0, Number(row.billable_seconds || 0)), 0);
+      const agentObservedCostDzd = (agentConsumedSeconds / 60) * AGENT_ESTIMATED_COST_PER_MINUTE_DZD;
+      const activeAgentStores = agentStoreRows.filter((row: any) => row.is_active).length;
+      const openAgentOrders = agentOrderRows.filter((row: any) => row.status === "new").length;
+      const nowMs = Date.now();
+      const agentWalletBalances = agentWalletRows.map((row: any) => {
+        const planActive = Boolean(row.plan_expires_at && Date.parse(row.plan_expires_at) > nowMs);
+        const planSecondsRemaining = planActive ? Math.max(0, Number(row.plan_seconds_remaining || 0)) : 0;
+        const topupSecondsRemaining = Math.max(0, Number(row.topup_seconds_remaining || 0));
+        return {
+          ...row,
+          plan_active: planActive,
+          plan_seconds_remaining_current: planSecondsRemaining,
+          topup_seconds_remaining_current: topupSecondsRemaining,
+          remaining_seconds: planSecondsRemaining + topupSecondsRemaining,
+        };
+      });
+      const activeAgentSubscribers = agentWalletBalances.filter((row: any) => row.plan_active).length;
+      const agentRemainingPlanSeconds = agentWalletBalances.reduce((sum: number, row: any) => sum + Number(row.plan_seconds_remaining_current || 0), 0);
+      const agentRemainingTopupSeconds = agentWalletBalances.reduce((sum: number, row: any) => sum + Number(row.topup_seconds_remaining_current || 0), 0);
+      const agentWalletsWithBalance = agentWalletBalances.filter((row: any) => Number(row.remaining_seconds || 0) > 0).length;
       const agentEstimatedCostDzd = agentMinutesSold * AGENT_ESTIMATED_COST_PER_MINUTE_DZD;
       const agentGrossMarginDzd = agentRevenueDzd - agentEstimatedCostDzd;
-      const activeAgentSubscribers = (agentWalletRows || []).filter((row: any) => row.plan_expires_at && Date.parse(row.plan_expires_at) > Date.now()).length;
       const agentMarginPercent = agentRevenueDzd > 0 ? (agentGrossMarginDzd / agentRevenueDzd) * 100 : 0;
       const activeUsers30d = users.filter((row: any) => String(row.updated_at || row.created_at) >= since30).length;
       // FIX ADMIN-PAGINATION : on renvoie tous les comptes (jusqu'à la limite déjà
@@ -2401,23 +2520,114 @@ async function startServer() {
         const ratingAgg = ratingsByUser.get(user.id);
         return {
           ...user,
-          gemini_calls: geminiByUser.get(user.id)?.calls || 0,
-          gemini_characters: geminiByUser.get(user.id)?.characters || 0,
-          gemini_cost_usd: geminiByUser.get(user.id)?.costUsd || 0,
-          gemini_cost_dzd: (geminiByUser.get(user.id)?.costUsd || 0) * USD_TO_DZD,
+          voice_calls: voiceCostsByUser.get(user.id)?.calls || 0,
+          voice_characters: voiceCostsByUser.get(user.id)?.characters || 0,
+          voice_cost_usd: voiceCostsByUser.get(user.id)?.costUsd || 0,
+          voice_cost_dzd: (voiceCostsByUser.get(user.id)?.costUsd || 0) * USD_TO_DZD,
           avg_rating: ratingAgg ? ratingAgg.sum / ratingAgg.count : null,
           ratings_count: ratingAgg?.count || 0,
         };
       });
       const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
       const emailByUserId = new Map<string, string | null>(users.map((user: any) => [String(user.id), user.email || null]));
-      const recentAgentPayments = (agentPaymentRows || [])
+      const agentUsageForAdmin = agentUsageRows.map((event: any) => ({
+        ...event,
+        user_email: emailByUserId.get(String(event.owner_user_id)) || null,
+      }));
+      const agentStoresForAdmin = agentStoreRows.map((store: any) => ({
+        ...store,
+        user_email: emailByUserId.get(String(store.owner_user_id)) || null,
+      }));
+      const agentStoreSlugById = new Map<string, string>(agentStoreRows.map((store: any) => [String(store.id), String(store.slug)]));
+      const agentOrdersForAdmin = agentOrderRows.map((order: any) => ({
+        ...order,
+        user_email: emailByUserId.get(String(order.owner_user_id)) || null,
+        store_slug: agentStoreSlugById.get(String(order.store_id)) || null,
+      }));
+      const agentPaymentsForAdmin = agentPaymentRows
         .slice()
         .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))
-        .slice(0, 20)
         .map((payment: any) => ({ ...payment, user_email: emailByUserId.get(String(payment.user_id)) || null }));
+      const agentWalletsForAdmin = agentWalletBalances
+        .map((wallet: any) => ({
+          user_id: wallet.user_id,
+          user_email: emailByUserId.get(String(wallet.user_id)) || null,
+          plan_id: wallet.plan_id || null,
+          plan_active: wallet.plan_active,
+          plan_expires_at: wallet.plan_expires_at || null,
+          plan_seconds_remaining: wallet.plan_seconds_remaining_current,
+          topup_seconds_remaining: wallet.topup_seconds_remaining_current,
+          remaining_seconds: wallet.remaining_seconds,
+          updated_at: wallet.updated_at,
+        }));
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
-      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, mcp_generations: mcpGenerations, mcp_claude_generations: mcpClaudeGenerations, mcp_chatgpt_generations: mcpChatgptGenerations, mcp_other_generations: mcpOtherGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, agent_sawtify: { paid_transactions: paidAgentPayments.length, active_subscribers: activeAgentSubscribers, revenue_dzd: agentRevenueDzd, minutes_sold: agentMinutesSold, estimated_cost_per_minute_dzd: AGENT_ESTIMATED_COST_PER_MINUTE_DZD, estimated_cost_dzd: agentEstimatedCostDzd, gross_margin_dzd: agentGrossMarginDzd, gross_margin_percent: agentMarginPercent, recent_payments: recentAgentPayments }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+      return res.json({
+        summary: {
+          total_users: users.length,
+          free_trial_users: users.filter((user: any) => !paidUserIds.has(user.id)).length,
+          paid_users: paidUserIds.size,
+          active_users_30d: activeUsers30d,
+          generations_total: gens.length,
+          free_generations: freeGenerations,
+          paid_generations: paidGenerations,
+          api_generations: apiGenerations,
+          mcp_generations: mcpGenerations,
+          mcp_claude_generations: mcpClaudeGenerations,
+          mcp_chatgpt_generations: mcpChatgptGenerations,
+          mcp_other_generations: mcpOtherGenerations,
+          revenue_dzd: revenueDzd,
+          points_consumed: pointsConsumed,
+          paid_points_issued: paidPointsIssued,
+          point_value_dzd: pointValueDzd,
+          voice_calls: voiceCalls,
+          voice_characters: voiceCharacters,
+          voice_cost_usd: voiceCostUsd,
+          voice_cost_dzd: voiceCostDzd,
+          average_voice_cost_per_call_dzd: voiceCalls > 0 ? voiceCostDzd / voiceCalls : 0,
+          voice_gross_margin_dzd: voiceGrossMarginDzd,
+          voice_gross_margin_percent: revenueDzd > 0 ? (voiceGrossMarginDzd / revenueDzd) * 100 : 0,
+          usd_to_dzd: USD_TO_DZD,
+        },
+        agent_sawtify: {
+          data_available: agentDataAvailable,
+          paid_transactions: paidAgentPayments.length,
+          pending_transactions: pendingAgentPayments.length,
+          failed_transactions: failedAgentPayments.length,
+          pending_amount_dzd: agentPendingAmountDzd,
+          failed_amount_dzd: agentFailedAmountDzd,
+          active_subscribers: activeAgentSubscribers,
+          wallets_total: agentWalletRows.length,
+          wallets_with_balance: agentWalletsWithBalance,
+          revenue_dzd: agentRevenueDzd,
+          subscription_revenue_dzd: agentSubscriptionRevenueDzd,
+          topup_revenue_dzd: agentTopupRevenueDzd,
+          minutes_sold: agentMinutesSold,
+          subscription_minutes_sold: agentSubscriptionMinutesSold,
+          topup_minutes_sold: agentTopupMinutesSold,
+          remaining_plan_seconds: agentRemainingPlanSeconds,
+          remaining_topup_seconds: agentRemainingTopupSeconds,
+          remaining_seconds: agentRemainingPlanSeconds + agentRemainingTopupSeconds,
+          stores_total: agentStoreRows.length,
+          active_stores: activeAgentStores,
+          orders_total: agentOrderRows.length,
+          open_orders: openAgentOrders,
+          usage_events: agentUsageRows.length,
+          consumed_seconds: agentConsumedSeconds,
+          estimated_usage_cost_dzd: agentObservedCostDzd,
+          estimated_margin_after_usage_dzd: agentRevenueDzd - agentObservedCostDzd,
+          estimated_cost_per_minute_dzd: AGENT_ESTIMATED_COST_PER_MINUTE_DZD,
+          estimated_cost_dzd: agentEstimatedCostDzd,
+          gross_margin_dzd: agentGrossMarginDzd,
+          gross_margin_percent: agentMarginPercent,
+          payments: agentPaymentsForAdmin,
+          wallets: agentWalletsForAdmin,
+          usage_history: agentUsageForAdmin,
+          stores: agentStoresForAdmin,
+          orders: agentOrdersForAdmin,
+        },
+        recent_users: recentUsers,
+        recent_payments: recentPayments,
+      });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
@@ -2438,7 +2648,7 @@ async function startServer() {
           return await supabaseClient.from("voice_generations").select(cols).eq("user_id", userId).order("created_at", { ascending: false }).limit(200);
         })(),
         supabaseClient.from("transactions").select("id, amount_dzd, points_credited, status, gateway, gateway_reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-        supabaseClient.from("gemini_usage_logs").select("operation, model, characters, success, metadata, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+        supabaseClient.from("gemini_usage_logs").select("operation, characters, success, metadata, created_at").eq("user_id", userId).in("operation", ["tts", "preview"]).order("created_at", { ascending: false }).limit(200),
       ]);
       if (generationsError) return res.status(500).json({ error: "Impossible de lire les générations de cet utilisateur.", detail: generationsError.message });
       const signedGenerations = await Promise.all((generations || []).map(async (generation: any) => {
@@ -2449,13 +2659,29 @@ async function startServer() {
         }
         return { ...generation, audio_url: audioUrl };
       }));
-      const userUsageLogs = usageLogs || [];
-      const userGeminiCostUsd = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.cost_usd || 0)), 0);
-      const userInputTokens = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.input_tokens || 0)), 0);
-      const userOutputTokens = userUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.metadata?.output_tokens || 0)), 0);
+      const userVoiceUsageLogs = usageLogs || [];
+      const userVoiceCostUsd = userVoiceUsageLogs.reduce((sum: number, log: any) => sum + estimateVoiceUsageCostUsd(log.operation, log.characters, log.metadata), 0);
+      const userVoiceCharacters = userVoiceUsageLogs.reduce((sum: number, log: any) => sum + Math.max(0, Number(log.characters || 0)), 0);
       const { data: authUser } = await supabaseClient.auth.admin.getUserById(userId);
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_user_detail", metadata: { viewed_user_id: userId, role: admin.role } });
-      return res.json({ profile: { ...profile, phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null, onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null, acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null }, generations: signedGenerations, transactions: transactions || [], usage_logs: userUsageLogs, usage_summary: { calls: userUsageLogs.length, input_tokens: userInputTokens, output_tokens: userOutputTokens, cost_usd: userGeminiCostUsd, cost_dzd: userGeminiCostUsd * USD_TO_DZD, model: GEMINI_TEXT_MODEL } });
+      return res.json({
+        profile: {
+          ...profile,
+          phone: authUser?.user?.phone || authUser?.user?.user_metadata?.phone_number || null,
+          last_sign_in_at: authUser?.user?.last_sign_in_at || null,
+          onboarding_completed_at: authUser?.user?.user_metadata?.onboarding_completed_at || null,
+          acquisition_source: authUser?.user?.user_metadata?.acquisition_source || null,
+        },
+        generations: signedGenerations,
+        transactions: transactions || [],
+        usage_logs: userVoiceUsageLogs,
+        usage_summary: {
+          calls: userVoiceUsageLogs.length,
+          characters: userVoiceCharacters,
+          cost_usd: userVoiceCostUsd,
+          cost_dzd: userVoiceCostUsd * USD_TO_DZD,
+        },
+      });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le détail utilisateur.", detail: error?.message }); }
   });
 
@@ -2540,7 +2766,7 @@ async function startServer() {
     const started = Date.now();
     const generated = await synthesizeWithRetry(devApi.text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, devTags, safeDevRegister, safeDevIntensity);
     const usageCount = await recordGeminiUsage({ userId: key.userId, operation: "tts", characters: text.length, success: Boolean(generated.pcmBuffer), model: TTS_MODEL, metadata: { source: "developer_api", key_id: key.id } });
-    if (!generated.pcmBuffer) return res.status(503).json({ error: "Génération indisponible; aucun point débité.", detail: generated.error });
+    if (!generated.pcmBuffer) return res.status(503).json({ error: "Génération indisponible; aucun point débité." });
     const duration = Math.round((generated.pcmBuffer.length / 48000) * 10) / 10;
     const cost = computePointsCost(duration);
     const wav = pcmToWavBuffer(generated.pcmBuffer, 24000, 1, 16);
@@ -2640,7 +2866,7 @@ async function startServer() {
         const audioUrl = await inflight;
         return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: audioUrl, duration_seconds: 2.5, cached: true, source: "inflight" });
       } catch (err: any) {
-        return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes.", detail: err?.message });
+        return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes." });
       }
     }
 
@@ -2681,9 +2907,9 @@ async function startServer() {
     PREVIEW_INFLIGHT.set(cacheKey, generation);
     try {
       const dataUri = await generation;
-      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: dataUri, duration_seconds: 2.5, cached: false, source: "gemini" });
+      return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: dataUri, duration_seconds: 2.5, cached: false });
     } catch (err: any) {
-      return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes.", detail: err?.message });
+      return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes." });
     } finally {
       PREVIEW_INFLIGHT.delete(cacheKey);
     }
@@ -2785,7 +3011,6 @@ async function startServer() {
 
     res.set("Cache-Control", "public, max-age=300");
     res.json({
-      model: TTS_MODEL,
       lang,
       count: voix.length,
       total: previewTargets().length,
@@ -2896,7 +3121,7 @@ async function startServer() {
         return res.status(429).json({ error: `Limite quotidienne atteinte (${DAILY_TTS_LIMIT} générations audio).` });
       }
       if (await hasReachedDailyGeminiLimit(userId)) {
-        return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
+        return res.status(429).json({ error: "Limite quotidienne de génération atteinte. Réessayez plus tard." });
       }
 
       // FIX n°2 + 3.8 : analyse des balises par le MOTEUR (gère les deux
@@ -2932,7 +3157,7 @@ async function startServer() {
       // FIX n°1 + FIX TTS-B : échec Gemini (ou audio tronqué) → 503 explicite.
       // JAMAIS d'audio partiel ni synthétique facturé comme une vraie génération.
       if (!pcmBuffer || pcmBuffer.length <= 50) {
-        return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15, detail: synthError });
+        return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15 });
       }
 
       const wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
@@ -3021,7 +3246,7 @@ ${EXPRESSION_GUIDE}
       const { text, region = "general" } = req.body;
       if (!text || typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Texte manquant ou invalide" });
       if (text.length > 2000) return res.status(400).json({ error: "Texte trop long (maximum 2000 caractères)." });
-      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
+      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: "Limite quotidienne de génération atteinte. Réessayez plus tard." });
 
       const pointsCost = 2;
       const currentBalance = await getUserBalance(userId);
@@ -3105,7 +3330,7 @@ Génère maintenant la version optimisée :`;
         notification: "-2 Points", remaining_balance: finalBalance, region_used: region,
         analysis: { detected_type: textType, energy_level: energyLevel, original_word_count: wordCount, enhanced_word_count: enhancedText.split(/\s+/).length, emotion_tags_count: countEmotionTags(enhancedText), improvement_ratio_percent: Math.round(((enhancedText.length - text.length) / text.length) * 100), latin_words_preserved: originalLatinWords.length > 0 ? validateLatinPreservation(text, enhancedText) : true }
       });
-    } catch (err: any) { console.error("[LLM Enhance Error]", err.message || err); return res.status(500).json({ error: err.message || "Erreur lors de l'amélioration du texte" }); }
+    } catch (err: any) { console.error("[LLM Enhance Error]", err.message || err); return res.status(500).json({ error: "Le service d’amélioration est temporairement indisponible. Aucun point n’a été débité." }); }
   };
   app.post("/api/v1/llm/enhance", resolveUserIdMiddleware, llmLimiter, handleLLMEnhance);
   app.post("/api/llm/enhance", resolveUserIdMiddleware, llmLimiter, handleLLMEnhance);
@@ -3119,7 +3344,7 @@ Génère maintenant la version optimisée :`;
       const { product, style, region = "general" } = req.body;
       if (!product || typeof product !== "string" || !product.trim()) return res.status(400).json({ error: "Nom du produit ou service manquant" });
       if (product.length > 200) return res.status(400).json({ error: "Nom du produit trop long (maximum 200 caractères)." });
-      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
+      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: "Limite quotidienne de génération atteinte. Réessayez plus tard." });
 
       const pointsCost = 5;
       const currentBalance = await getUserBalance(userId);
@@ -3196,7 +3421,7 @@ Style vocal souhaité : ${style || "excited"}`;
         notification: "-5 Points", remaining_balance: finalBalance, sector_used: detectedSector, region_used: region,
         debug_framework: { hook: selectedHook, problem: selectedProblem, cta: selectedCTA }
       });
-    } catch (err: any) { console.error("[LLM Script Generator Error]", err.message || err); return res.status(500).json({ error: err.message || "Erreur lors de la génération du script" }); }
+    } catch (err: any) { console.error("[LLM Script Generator Error]", err.message || err); return res.status(500).json({ error: "Le service de génération du script est temporairement indisponible. Aucun point n’a été débité." }); }
   };
   app.post("/api/v1/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
   app.post("/api/llm/generate-script", resolveUserIdMiddleware, llmLimiter, handleLLMGenerateScript);
@@ -3221,7 +3446,7 @@ Style vocal souhaité : ${style || "excited"}`;
         .slice(0, 3)
         .map((c: string) => c.slice(0, 240));
 
-      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: `Limite quotidienne Gemini atteinte (${DAILY_GEMINI_LIMIT} appels).` });
+      if (await hasReachedDailyGeminiLimit(userId)) return res.status(429).json({ error: "Limite quotidienne de génération atteinte. Réessayez plus tard." });
 
       const pointsCost = 2;
       const currentBalance = await getUserBalance(userId);
@@ -3271,7 +3496,7 @@ Le texte de la proposition`;
         success: true, ideas, points_deducted: pointsCost, points_cost: pointsCost,
         notification: "-2 Points", remaining_balance: reduction.remaining, domain, mode,
       });
-    } catch (err: any) { console.error("[LLM Subject Ideas Error]", err.message || err); return res.status(500).json({ error: err.message || "Erreur lors de la génération des idées" }); }
+    } catch (err: any) { console.error("[LLM Subject Ideas Error]", err.message || err); return res.status(500).json({ error: "Le service de génération des idées est temporairement indisponible. Aucun point n’a été débité." }); }
   };
   app.post("/api/v1/llm/subject-ideas", resolveUserIdMiddleware, llmLimiter, handleLLMSubjectIdeas);
   app.post("/api/llm/subject-ideas", resolveUserIdMiddleware, llmLimiter, handleLLMSubjectIdeas);
@@ -3288,7 +3513,7 @@ Le texte de la proposition`;
         try { await supabaseClient.from("ai_feedback").insert({ user_id: userId || null, input_text: input_text || "", output_text, rating, type: type || "enhance", region: region || "general", sector: sector || "general", created_at: new Date().toISOString() }); } catch (e: any) { console.warn("[AI Feedback] Insert failed:", e.message); }
       }
       return res.json({ success: true, message: "Feedback enregistré" });
-    } catch (err: any) { console.error("[AI Feedback] Erreur:", err.message || err); return res.status(500).json({ success: false, error: err.message }); }
+    } catch (err: any) { console.error("[AI Feedback] Erreur:", err.message || err); return res.status(500).json({ success: false, error: "Impossible d’enregistrer le retour. Réessayez plus tard." }); }
   };
   app.post("/api/v1/ai/feedback", handleAIFeedback);
   app.post("/api/ai/feedback", handleAIFeedback);
@@ -3436,6 +3661,356 @@ Le texte de la proposition`;
       }
       console.error("[SlickPay Agent create invoice]", error?.message || error);
       return res.status(500).json({ success: false, error: "Erreur lors de la création de la facture." });
+    }
+  });
+
+  app.get("/api/agent/sawtify/store", requireAgentAccess, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise pour accéder à votre boutique." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Base de données indisponible." });
+    try {
+      const { data: row, error } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, owner_user_id, slug, store_data, is_active, updated_at")
+        .eq("owner_user_id", userId).maybeSingle();
+      if (error) return res.status(503).json({ success: false, error: "Le stockage serveur des boutiques n'est pas encore activé. Applique la migration Agent Sawtify." });
+      if (!row) return res.json({ success: true, store: null, orders: [] });
+      const { data: orderRows, error: orderError } = await supabaseClient.from("agent_sawtify_orders")
+.select("id, created_at, customer_name, phone, wilaya, product_id, product_name, size, quantity, amount_dzd, status, request_type, details, preferred_at, preferred_until")
+        .eq("owner_user_id", userId).order("created_at", { ascending: false }).limit(500);
+      if (orderError) return res.status(503).json({ success: false, error: "Impossible de charger les commandes de la boutique." });
+      const store = normalizeAgentStore(row.store_data);
+      store.slug = row.slug;
+      store.isActive = Boolean(row.is_active);
+      store.orders = (orderRows || []).map(agentOrderFromDatabase);
+      return res.json({ success: true, store, orders: store.orders, updated_at: row.updated_at });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible de charger la boutique." });
+    }
+  });
+
+  app.put("/api/agent/sawtify/store", requireAgentAccess, agentOwnerLimiter, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise pour enregistrer votre boutique." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Base de données indisponible." });
+    if (!req.body?.store || typeof req.body.store !== "object") return res.status(400).json({ success: false, error: "Configuration de boutique invalide." });
+    try {
+      const incoming = normalizeAgentStore(req.body.store);
+      let slug = normalizeAgentSlug(req.body.store.slug);
+      if (!slug || slug.length < 2) return res.status(400).json({ success: false, error: "Le lien doit contenir au moins deux caractères." });
+
+      const { data: existing, error: existingError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, slug, updated_at").eq("owner_user_id", userId).maybeSingle();
+      if (existingError) return res.status(503).json({ success: false, error: "Le stockage serveur des boutiques n'est pas encore activé." });
+      const expectedRevision = typeof req.body.revision === "string" ? req.body.revision : "";
+      if (existing && (!expectedRevision || expectedRevision !== String(existing.updated_at))) {
+        return res.status(409).json({ success: false, error: "La boutique a changé depuis son chargement. Recharge la page avant de poursuivre." });
+      }
+
+      const { data: occupied, error: slugError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, owner_user_id").eq("slug", slug).maybeSingle();
+      if (slugError) return res.status(503).json({ success: false, error: "Impossible de vérifier la disponibilité du lien." });
+      if (occupied && occupied.owner_user_id !== userId) {
+        if (existing) return res.status(409).json({ success: false, error: "Ce lien est déjà utilisé. Choisis-en un autre." });
+        const suffix = userId.replace(/-/g, "").slice(0, 8);
+        slug = `${slug.slice(0, 50).replace(/-+$/g, "")}-${suffix}`;
+        const { data: suffixConflict, error: suffixError } = await supabaseClient.from("agent_sawtify_stores")
+          .select("id").eq("slug", slug).maybeSingle();
+        if (suffixError || suffixConflict) return res.status(409).json({ success: false, error: "Impossible de réserver automatiquement ce lien. Modifie son nom et réessaie." });
+      }
+
+      incoming.slug = slug;
+      const storeRecord = {
+        owner_user_id: userId,
+        slug,
+        store_data: agentStoreData(incoming),
+        is_active: incoming.isActive,
+        updated_at: new Date().toISOString(),
+      };
+      const saveResult = existing
+        ? await supabaseClient.from("agent_sawtify_stores").update(storeRecord)
+          .eq("id", existing.id).eq("updated_at", expectedRevision)
+          .select("id, owner_user_id, slug, store_data, is_active, updated_at").maybeSingle()
+        : await supabaseClient.from("agent_sawtify_stores").insert(storeRecord)
+          .select("id, owner_user_id, slug, store_data, is_active, updated_at").maybeSingle();
+      const { data: saved, error: saveError } = saveResult;
+      if (saveError || !saved) {
+        if (existing && !saveError) return res.status(409).json({ success: false, error: "La boutique a été modifiée entre-temps. Recharge la page pour récupérer le stock et les dernières données." });
+        const duplicate = /duplicate key|unique constraint/i.test(String(saveError?.message || ""));
+        return res.status(duplicate ? 409 : 503).json({ success: false, error: duplicate ? "Ce lien ou cette boutique vient d'être réservé par un autre compte." : "Impossible d'enregistrer la boutique côté serveur." });
+      }
+      const store = normalizeAgentStore(saved.store_data);
+      store.slug = saved.slug;
+      store.isActive = Boolean(saved.is_active);
+      return res.json({ success: true, store, updated_at: saved.updated_at });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible d'enregistrer la boutique." });
+    }
+  });
+
+  app.get("/api/agent/sawtify/public/:slug", agentPublicLimiter, async (req, res) => {
+    const slug = normalizeAgentSlug(req.params.slug);
+    if (!slug) return res.status(400).json({ success: false, error: "Lien de boutique invalide." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Boutique indisponible pour le moment." });
+    try {
+      const { data: row, error } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, slug, store_data, is_active").eq("slug", slug).maybeSingle();
+      if (error) return res.status(503).json({ success: false, error: "Le stockage serveur des boutiques n'est pas encore activé." });
+      if (!row) return res.status(404).json({ success: false, error: "Cette boutique n'existe pas ou son lien a changé." });
+      const store = normalizeAgentStore(row.store_data);
+      store.slug = row.slug;
+      store.isActive = Boolean(row.is_active);
+      store.products = store.products.filter((product) => !isDisallowedAgentIntent(`${product.name} ${product.category} ${product.description}`));
+      store.phone = "";
+      store.agentVoiceId = "";
+      store.orders = [];
+      return res.json({ success: true, store });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible de charger cette boutique." });
+    }
+  });
+
+  app.post("/api/agent/sawtify/respond", agentPublicLimiter, async (req, res) => {
+    const slug = normalizeAgentSlug(req.body?.slug);
+    const rawQuestion = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+    const question = agentText(rawQuestion, 1200);
+    const language: "fr" | "ar" = req.body?.language === "ar" ? "ar" : "fr";
+    if (!slug || !question || rawQuestion.length > 1200) {
+      return res.status(400).json({ success: false, error: "Question invalide." });
+    }
+    const requestId = crypto.randomUUID();
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Service Agent indisponible pour le moment." });
+    try {
+      const { data: row, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, owner_user_id, slug, store_data, is_active").eq("slug", slug).maybeSingle();
+      if (storeError) return res.status(503).json({ success: false, error: "Le stockage serveur des boutiques n'est pas encore activé." });
+      if (!row) return res.status(404).json({ success: false, error: "Cette boutique n'existe pas ou son lien a changé." });
+      if (!row.is_active) return res.status(423).json({ success: false, error: "Cet assistant est en pause pour le moment." });
+
+      const store = normalizeAgentStore(row.store_data);
+      const answer = answerAgentQuestion(store, question, language);
+      const estimatedSeconds = Math.max(1, Math.min(300, Math.ceil((question.length + answer.length) / TTS_CHARS_PER_SECOND_ESTIMATE)));
+      const { data: wallet, error: walletError } = await supabaseClient.from("agent_sawtify_wallets")
+        .select("plan_seconds_remaining, topup_seconds_remaining, plan_expires_at")
+        .eq("user_id", row.owner_user_id).maybeSingle();
+      if (walletError) return res.status(503).json({ success: false, error: "Le portefeuille Agent n'est pas disponible." });
+      const planActive = Boolean(wallet?.plan_expires_at && Date.parse(wallet.plan_expires_at) > Date.now());
+      const remainingSeconds = (planActive ? Math.max(0, Number(wallet?.plan_seconds_remaining || 0)) : 0)
+        + Math.max(0, Number(wallet?.topup_seconds_remaining || 0));
+      if (remainingSeconds < estimatedSeconds) {
+        return res.status(402).json({ success: false, error: "Le solde de minutes de cette boutique est insuffisant. Le propriétaire doit recharger son compte.", remaining_seconds: remainingSeconds });
+      }
+
+      const { data: usageData, error: usageError } = await supabaseClient.rpc("consume_agent_sawtify_conversation", {
+        p_request_id: requestId,
+        p_user_id: row.owner_user_id,
+        p_store_id: row.id,
+        p_store_slug: row.slug,
+        p_input_characters: question.length,
+        p_output_characters: answer.length,
+        p_seconds: estimatedSeconds,
+      });
+      if (usageError) return res.status(503).json({ success: false, error: "Le suivi de consommation Agent n'est pas encore activé. Applique la migration Agent Sawtify." });
+      const usage = Array.isArray(usageData) ? usageData[0] : usageData;
+      if (!usage?.success) {
+        if (usage?.error === "insufficient_minutes" || usage?.error === "wallet_not_found") {
+          return res.status(402).json({ success: false, error: "Le solde de minutes est épuisé. Recharge le portefeuille Agent.", remaining_seconds: Number(usage.remaining_seconds || 0) });
+        }
+        return res.status(409).json({ success: false, error: "La consommation n'a pas pu être validée." });
+      }
+      return res.json({
+        success: true,
+        answer,
+        estimated_seconds: estimatedSeconds,
+        consumed_seconds: Number(usage.consumed_seconds || estimatedSeconds),
+        remaining_seconds: Number(usage.remaining_seconds || 0),
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible de répondre pour le moment." });
+    }
+  });
+
+  app.post("/api/agent/sawtify/orders", agentPublicLimiter, async (req, res) => {
+    const slug = normalizeAgentSlug(req.body?.slug);
+    const customerName = agentText(req.body?.customerName, 80);
+    const phone = agentText(req.body?.phone, 24);
+    const wilaya = agentText(req.body?.wilaya, 50);
+    const productId = agentText(req.body?.productId, 80);
+    const size = agentText(req.body?.size, 32);
+    const quantity = Number(req.body?.quantity);
+    const requestId = req.body?.requestId;
+    if (!slug || customerName.length < 2 || !/^[+0-9().\s-]{7,24}$/.test(phone) || !wilaya || !productId
+        || !Number.isInteger(quantity) || quantity < 1 || quantity > 100 || !isUuid(requestId)) {
+      return res.status(400).json({ success: false, error: "Informations de commande invalides." });
+    }
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Service de commande indisponible." });
+    try {
+      const { data: storeRow, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, is_active, store_data").eq("slug", slug).maybeSingle();
+      if (storeError) return res.status(503).json({ success: false, error: "Le stockage serveur des boutiques n'est pas encore activé." });
+      if (!storeRow || !storeRow.is_active) return res.status(404).json({ success: false, error: "Cette boutique ne prend pas de demandes pour le moment." });
+      const storeConfig = normalizeAgentStore(storeRow.store_data);
+      const requestedProduct = storeConfig.products.find((item) => item.id === productId && item.active);
+      if (!requestedProduct) return res.status(400).json({ success: false, error: "Ce produit n'est plus disponible." });
+      if (isDisallowedAgentIntent(`${requestedProduct.name} ${requestedProduct.category} ${requestedProduct.description}`)) {
+        return res.status(400).json({ success: false, error: "Cette demande ne peut pas être transmise car elle est illégale ou dangereuse." });
+      }
+      const { data, error } = await supabaseClient.rpc("create_agent_sawtify_order", {
+        p_store_id: storeRow.id,
+        p_request_id: requestId,
+        p_customer_name: customerName,
+        p_phone: phone,
+        p_wilaya: wilaya,
+        p_product_id: productId,
+        p_size: size,
+        p_quantity: quantity,
+      });
+      if (error) return res.status(503).json({ success: false, error: "L'enregistrement des commandes n'est pas encore activé. Applique la migration Agent Sawtify." });
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        const status = result?.error === "insufficient_stock" ? 409 : result?.error === "store_unavailable" ? 404 : 400;
+        const message = result?.error === "insufficient_stock" ? "Le stock vient de changer. Réduis la quantité et réessaie."
+          : result?.error === "product_unavailable" ? "Ce produit n'est plus disponible."
+            : result?.error === "invalid_size" ? "Cette variante n'est plus disponible." : "La demande n'a pas pu être enregistrée.";
+        return res.status(status).json({ success: false, error: message, available_stock: result?.available_stock });
+      }
+      return res.status(201).json({
+        success: true,
+        order: agentOrderFromDatabase(result.order),
+        product_stock_remaining: result.product_stock_remaining !== null && result.product_stock_remaining !== undefined && Number.isFinite(Number(result.product_stock_remaining))
+          ? Number(result.product_stock_remaining) : null,
+        already_processed: Boolean(result.already_processed),
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible d'enregistrer la demande." });
+    }
+  });
+
+  app.post("/api/agent/sawtify/requests", agentPublicLimiter, async (req, res) => {
+    const slug = normalizeAgentSlug(req.body?.slug);
+    const customerName = agentText(req.body?.customerName, 80);
+    const phone = agentText(req.body?.phone, 24);
+    const wilaya = agentText(req.body?.wilaya, 50);
+    const requestTitle = agentText(req.body?.title, 120);
+    const details = agentText(req.body?.details, 500);
+    const requestType = String(req.body?.requestType || "") as AgentRequestType;
+    const requestId = req.body?.requestId;
+    const preferredRaw = typeof req.body?.preferredAt === "string" ? req.body.preferredAt.trim() : "";
+    const preferredDate = preferredRaw ? new Date(preferredRaw) : null;
+    const preferredUntilRaw = typeof req.body?.preferredUntil === "string" ? req.body.preferredUntil.trim() : "";
+    const preferredUntilDate = preferredUntilRaw ? new Date(preferredUntilRaw) : null;
+    if (!slug || customerName.length < 2 || !/^[+0-9().\s-]{7,24}$/.test(phone) || !wilaya || !requestTitle
+        || !["appointment", "quote", "reservation", "room_service"].includes(requestType)
+        || !isUuid(requestId)
+        || (preferredRaw && (!preferredDate || !Number.isFinite(preferredDate.getTime())))
+        || (preferredUntilRaw && (!preferredUntilDate || !Number.isFinite(preferredUntilDate.getTime()) || !preferredDate || preferredUntilDate <= preferredDate))) {
+      return res.status(400).json({ success: false, error: "Informations de demande invalides." });
+    }
+    if (isDisallowedAgentIntent(`${requestTitle} ${details}`)) {
+      return res.status(400).json({ success: false, error: "Cette demande ne peut pas être transmise car elle est illégale ou dangereuse." });
+    }
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Service de demande indisponible." });
+    try {
+      const { data: storeRow, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, is_active, store_data").eq("slug", slug).maybeSingle();
+      if (storeError) return res.status(503).json({ success: false, error: "Le stockage serveur des boutiques n'est pas encore activé." });
+      if (!storeRow || !storeRow.is_active) return res.status(404).json({ success: false, error: "Cette activité ne prend pas de demandes pour le moment." });
+      const store = normalizeAgentStore(storeRow.store_data);
+      const allowedBySector: Record<AgentSector, AgentRequestType[]> = {
+        commerce: [],
+        health: ["appointment"],
+        services: ["appointment", "quote"],
+        restaurant: ["reservation"],
+        hospitality: ["reservation", "room_service"],
+      };
+      if (!allowedBySector[store.sector].includes(requestType)) {
+        return res.status(400).json({ success: false, error: "Ce type de demande n'est pas proposé par cette activité." });
+      }
+      if (preferredUntilRaw && (store.sector !== "hospitality" || requestType !== "reservation")) {
+        return res.status(400).json({ success: false, error: "Une date de départ est proposée uniquement pour une réservation de séjour." });
+      }
+      if (store.sector === "hospitality" && requestType === "reservation"
+          && (!preferredDate || !preferredUntilDate || preferredUntilDate <= preferredDate)) {
+        return res.status(400).json({ success: false, error: "Indiquez une date d’arrivée et une date de départ valides pour votre séjour." });
+      }
+      if (store.sector === "health" && (details || containsHealthClinicalContent(requestTitle))) {
+        return res.status(400).json({ success: false, error: "Pour protéger vos données, n'envoyez pas de symptômes ni de détails médicaux. Cette activité traite uniquement les demandes de rendez-vous." });
+      }
+
+      const { data, error } = await supabaseClient.rpc("create_agent_sawtify_request", {
+        p_store_id: storeRow.id,
+        p_request_id: requestId,
+        p_customer_name: customerName,
+        p_phone: phone,
+        p_wilaya: wilaya,
+        p_request_type: requestType,
+        p_request_title: requestTitle,
+        p_details: details,
+        p_preferred_at: preferredDate ? preferredDate.toISOString() : null,
+        p_preferred_until: preferredUntilDate ? preferredUntilDate.toISOString() : null,
+      });
+      if (error) return res.status(503).json({ success: false, error: "L'enregistrement des demandes n'est pas encore activé. Applique la migration Agent Sawtify." });
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        const status = result?.error === "store_unavailable" ? 404 : result?.error === "invalid_request_type" ? 400 : 400;
+        const message = result?.error === "medical_details_not_allowed"
+          ? "Pour protéger vos données, n'envoyez pas de symptômes ni de détails médicaux."
+          : result?.error === "invalid_stay_dates"
+            ? "Indiquez une date d’arrivée et une date de départ valides pour votre séjour."
+            : "La demande n'a pas pu être enregistrée.";
+        return res.status(status).json({ success: false, error: message });
+      }
+      return res.status(201).json({ success: true, order: agentOrderFromDatabase(result.order), already_processed: Boolean(result.already_processed) });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible d'enregistrer cette demande." });
+    }
+  });
+
+  app.patch("/api/agent/sawtify/orders/:orderId", requireAgentAccess, agentOwnerLimiter, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+    if (!isUuid(req.params.orderId)) return res.status(400).json({ success: false, error: "Commande invalide." });
+    const status = req.body?.status as AgentOrderStatus;
+    if (!["new", "confirmed", "delivered"].includes(status)) return res.status(400).json({ success: false, error: "Statut de commande invalide." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Base de données indisponible." });
+    try {
+      const { data, error } = await supabaseClient.from("agent_sawtify_orders")
+        .update({ status }).eq("id", req.params.orderId).eq("owner_user_id", userId)
+        .select("id, created_at, customer_name, phone, wilaya, product_id, product_name, size, quantity, amount_dzd, status, request_type, details, preferred_at, preferred_until").maybeSingle();
+      if (error) return res.status(503).json({ success: false, error: "Impossible de modifier cette commande." });
+      if (!data) return res.status(404).json({ success: false, error: "Commande introuvable." });
+      return res.json({ success: true, order: agentOrderFromDatabase(data) });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible de modifier cette commande." });
+    }
+  });
+
+  app.delete("/api/agent/sawtify/orders/:orderId", requireAgentAccess, agentOwnerLimiter, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+    if (!isUuid(req.params.orderId)) return res.status(400).json({ success: false, error: "Demande invalide." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Base de données indisponible." });
+    try {
+      const { data, error } = await supabaseClient.rpc("delete_agent_sawtify_order", {
+        p_owner_user_id: userId,
+        p_order_id: req.params.orderId,
+      });
+      if (error) return res.status(503).json({ success: false, error: "La suppression sécurisée des commandes n'est pas activée. Applique la migration Agent Sawtify." });
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        const status = result?.error === "order_not_found" ? 404 : 400;
+        return res.status(status).json({ success: false, error: status === 404 ? "Cette demande n'existe plus." : "Impossible de supprimer cette demande." });
+      }
+      const updatedAt = result.store_updated_at ? String(result.store_updated_at) : null;
+      return res.json({
+        success: true,
+        stock_restored: Boolean(result.stock_restored),
+        product_id: result.product_id || null,
+        product_stock_remaining: result.product_stock_remaining !== null && result.product_stock_remaining !== undefined && Number.isFinite(Number(result.product_stock_remaining))
+          ? Number(result.product_stock_remaining) : null,
+        updated_at: updatedAt,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible de supprimer cette demande." });
     }
   });
 

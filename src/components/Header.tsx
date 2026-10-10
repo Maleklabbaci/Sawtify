@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock, Clapperboard, Gift, Bot } from 'lucide-react';
+import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock, Gift } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import type { AppTab } from '../types';
 
@@ -64,20 +64,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden md:inline">{t.studioTab}</span>
             </button>
 
-            {/* Agent IA — entrée distincte, toujours liée au même compte Sawtify */}
-            <button
-              onClick={() => setActiveTab('agent-sawtify')}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-extrabold transition cursor-pointer ${
-                activeTab === 'agent-sawtify' ? 'border-transparent bg-gradient-to-r from-violet-700 to-fuchsia-600 text-white shadow-sm' : 'border-violet-200 bg-violet-50/70 text-violet-800 hover:bg-violet-100'
-              }`}
-              aria-label={language === 'ar' ? 'افتح مساحة Agent IA' : 'Ouvrir l’espace Agent IA'}
-              title={language === 'ar' ? 'مساعد صوتي لمتجرك' : 'Assistant vocal pour votre boutique'}
-            >
-              <Bot className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Agent IA</span>
-              <span className={`hidden xl:inline rounded-full px-1 py-0.5 text-[8px] font-black ${activeTab === 'agent-sawtify' ? 'bg-white/20 text-white' : 'bg-violet-200 text-violet-800'}`}>BOUTIQUE</span>
-            </button>
-
             {/* History Tab */}
             <button
               onClick={() => setActiveTab('history')}
@@ -92,17 +78,6 @@ export const Header: React.FC<HeaderProps> = ({
                   {historyCount}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => undefined}
-              disabled
-              title="Montage vidéo — Prochainement"
-              className="group relative flex cursor-not-allowed items-center gap-1.5 rounded-lg px-3 py-1.5 text-slate-400 opacity-60 blur-[0.4px] transition"
-            >
-              <Clapperboard className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Montage vidéo</span>
-              <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[8px] font-black text-slate-500">Prochainement</span>
             </button>
 
             {/* Pricing Tab */}

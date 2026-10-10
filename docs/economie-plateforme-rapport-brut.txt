@@ -1,6 +1,7 @@
 ════════════════════════════════════════════════════════════════════════════════════════════════
   SAWTIFY — OÙ PART RÉELLEMENT L'ARGENT CHAQUE MOIS ?
 ════════════════════════════════════════════════════════════════════════════════════════════════
+  ARCHIVE : simulation historique au taux 1 USD = 260 DZD ; le taux actif des calculs Admin est désormais 270 DZD.
   Hypothèses : 100 inscriptions/jour · 35% activés · 2.0% convertis en payant · panier moyen 1 000 DZD
   Coûts unitaires : clip payant 60 s = 3.79 DZD | clip gratuit 45 s = 2.84 DZD | 1 USD = 260 DZD
 
