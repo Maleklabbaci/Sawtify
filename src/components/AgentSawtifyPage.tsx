@@ -5,7 +5,7 @@ import {
   CircleHelp, ClipboardList, Copy, ExternalLink, Eye, EyeOff, FileUp,
   Headphones, Link2, MessageCircle, Mic2, Package, Pencil, Plus, QrCode,
   Search, Settings2, ShieldCheck, ShoppingBag, Sparkles, Store, Trash2, Truck, X, Play, Pause,
-  CreditCard, Wallet, CalendarDays, Code, Globe,
+  CreditCard, Wallet, CalendarDays,
   type LucideIcon,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -22,7 +22,7 @@ import {
   type AgentProduct, type AgentStore,
 } from '../services/agentSawtify';
 
-type DashboardSection = 'overview' | 'assistant' | 'catalog' | 'faq' | 'orders' | 'link' | 'widget' | 'pricing';
+type DashboardSection = 'overview' | 'assistant' | 'catalog' | 'faq' | 'orders' | 'link' | 'pricing';
 
 const formatDzd = (amount: number, arabic = false) =>
   `${new Intl.NumberFormat(arabic ? 'ar-DZ' : 'fr-DZ', { maximumFractionDigits: 0 }).format(amount)} ${arabic ? 'دج' : 'DA'}`;
@@ -364,7 +364,6 @@ export const AgentSawtifyPage: React.FC<{
     { id: 'orders', label: bi('Demandes', 'الطلبات'), icon: ClipboardList, badge: newOrders },
     { id: 'pricing', label: bi('Forfaits', 'الأسعار'), icon: CreditCard },
     { id: 'link', label: bi('Lien & QR', 'الرابط و QR'), icon: QrCode },
-    { id: 'widget', label: bi('Widget site web', 'ويدجت الموقع'), icon: Globe },
   ];
 
   return (
@@ -575,10 +574,6 @@ export const AgentSawtifyPage: React.FC<{
           onNotice={showNotice}
           onSave={triggerStoreSave}
         />
-      )}
-
-      {section === 'widget' && (
-        <WidgetSection store={store} isArabic={isArabic} previewMode={previewMode} storeSaving={storeSaving} storeDirty={storeDirty} onNotice={showNotice} />
       )}
 
       {notice && <div role="status" aria-live="polite" className="fixed bottom-5 end-4 z-[100] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-xs font-semibold text-white shadow-2xl sm:bottom-7 sm:end-7"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />{notice}</div>}
@@ -1288,84 +1283,4 @@ function orderStatusLabel(status: AgentOrderStatus, isArabic: boolean) {
     delivered: ['Livrée', 'تم التوصيل'],
   };
   return labels[status][isArabic ? 1 : 0];
-}
-
-
-function WidgetSection({ store, isArabic, previewMode, storeSaving, storeDirty, onNotice }: { store: AgentStore; isArabic: boolean; previewMode: boolean; storeSaving: boolean; storeDirty: boolean; onNotice: (message: string) => void }) {
-  const bi = (fr: string, ar: string) => isArabic ? ar : fr;
-  const [position, setPosition] = useState<'right' | 'left'>('right');
-  const [lang, setLang] = useState<'auto' | 'fr' | 'ar'>('auto');
-  const [open, setOpen] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const safeSlug = getCallLink(store.slug).split('/call/')[1] || 'ma-boutique';
-  const snippet = `<script src="${window.location.origin}/agent-widget.js" data-agent="${safeSlug}"${position === 'left' ? ' data-position="left"' : ''}${lang !== 'auto' ? ` data-lang="${lang}"` : ''} async></script>`;
-
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== iframeRef.current?.contentWindow || event.data?.type !== 'sawtify-agent') return;
-      setOpen(Boolean(event.data.open));
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
-
-  const copySnippet = async () => {
-    try { await navigator.clipboard.writeText(snippet); onNotice(bi('Code copié. Collez-le dans votre site.', 'تم نسخ الكود. الصقه في موقعك.')); }
-    catch { onNotice(bi('Sélectionnez le code pour le copier.', 'حدّد الكود لنسخه.')); }
-  };
-
-  const Choice = ({ value, current, onPick, children }: { value: string; current: string; onPick: (value: any) => void; children: React.ReactNode }) => (
-    <button type="button" onClick={() => onPick(value)} className={`rounded-lg px-3 py-2 text-[11px] font-extrabold transition ${current === value ? 'bg-violet-700 text-white' : 'bg-white text-violet-800 hover:bg-violet-50'}`}>{children}</button>
-  );
-
-  const previewSrc = `/widget/${encodeURIComponent(safeSlug)}?preview=1&side=${position}${lang !== 'auto' ? `&lang=${lang}` : ''}${previewMode ? '&demo=1' : ''}`;
-
-  return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_.9fr]">
-      <section className="saw-glass rounded-[26px] p-4 sm:p-6">
-        <SectionHeading icon={Globe} title={bi('Widget pour votre site web', 'ويدجت لموقعك')} subtitle={bi('Ajoutez une bulle à votre site : quand un visiteur clique, l’assistant lui parle, écoute sa question et répond avec votre catalogue et votre FAQ.', 'زيد بولة لموقعك: كي الزائر يضغط، المساعد يهدر معاه، يسمع سؤاله ويجاوب بالكتالوج والأسئلة تاعك.')} />
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <FormField label={bi('Position de la bulle', 'مكان البولة')}>
-            <div className="inline-flex gap-1 rounded-xl border border-violet-100 bg-violet-50/60 p-1"><Choice value="right" current={position} onPick={setPosition}>{bi('Droite', 'يمين')}</Choice><Choice value="left" current={position} onPick={setPosition}>{bi('Gauche', 'يسار')}</Choice></div>
-          </FormField>
-          <FormField label={bi('Langue de départ', 'لغة البداية')}>
-            <div className="inline-flex gap-1 rounded-xl border border-violet-100 bg-violet-50/60 p-1"><Choice value="auto" current={lang} onPick={setLang}>Auto</Choice><Choice value="fr" current={lang} onPick={setLang}>FR</Choice><Choice value="ar" current={lang} onPick={setLang}>دارجة</Choice></div>
-          </FormField>
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-4">
-          <div className="mb-2 flex items-center justify-between gap-2"><span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400"><Code className="h-3.5 w-3.5" />HTML</span>
-            <button type="button" onClick={copySnippet} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-violet-500"><Copy className="h-3.5 w-3.5" />{bi('Copier le code', 'نسخ الكود')}</button></div>
-          <pre dir="ltr" className="overflow-x-auto whitespace-pre-wrap break-all text-left text-[11px] leading-5 text-emerald-300">{snippet}</pre>
-        </div>
-        {(storeDirty || storeSaving) && !previewMode && <p className="mt-2 text-[10px] font-semibold text-amber-700">{bi('Enregistrement de la boutique en cours : le widget lira les dernières données une fois sauvegardées.', 'جاري حفظ المتجر: الويدجت يقرأ آخر البيانات بعد الحفظ.')}</p>}
-
-        <ol className="mt-5 space-y-3 text-xs leading-5 text-slate-600">
-          {[
-            bi('Copiez le code ci-dessus.', 'انسخ الكود لفوق.'),
-            bi('Collez-le juste avant la balise </body> de votre site. WordPress : plugin « Insert Headers and Footers ». Shopify : theme.liquid. Wix : Code personnalisé.', 'الصقه قبل وسم </body> في موقعك. WordPress: إضافة Insert Headers and Footers. Shopify: ملف theme.liquid. Wix: كود مخصص.'),
-            bi('Publiez : la bulle apparaît. Le visiteur clique, l’assistant parle puis écoute.', 'انشر الموقع: تظهر البولة. الزائر يضغط، المساعد يهدر ثم يسمع.'),
-          ].map((item, index) => <li key={index} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[11px] font-black text-violet-800">{index + 1}</span><span>{item}</span></li>)}
-        </ol>
-        <div className="mt-5 flex items-start gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 p-3 text-[11px] leading-5 text-slate-600"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" />{bi('Le widget répond uniquement à partir de votre catalogue et de votre FAQ. Chaque échange consomme vos minutes Agent, comme la page client. Si l’assistant est en pause, la bulle ne répond plus.', 'الويدجت يجاوب غير بالكتالوج والأسئلة تاعك. كل تبادل يخصم من دقائق Agent كيما صفحة الزبون. إذا المساعد متوقف، البولة ما تجاوبش.')}</div>
-      </section>
-
-      <section className="saw-glass rounded-[26px] p-4 sm:p-6">
-        <SectionHeading icon={Eye} title={bi('Aperçu en direct', 'معاينة مباشرة')} subtitle={bi('Cliquez sur la bulle pour tester sur un faux site.', 'اضغط على البولة باش تجرب على موقع تجريبي.')} />
-        <div className="relative mt-4 h-[560px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-3 py-2"><span className="h-2.5 w-2.5 rounded-full bg-rose-300" /><span className="h-2.5 w-2.5 rounded-full bg-amber-300" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-300" /><span className="ms-3 truncate rounded-md bg-white px-3 py-1 text-[10px] font-semibold text-slate-400">www.votre-site.dz</span></div>
-          <div className="space-y-3 p-5" aria-hidden="true"><div className="h-6 w-2/5 rounded bg-slate-200" /><div className="h-24 rounded-xl bg-gradient-to-br from-violet-100 to-fuchsia-100" /><div className="h-3 w-full rounded bg-slate-100" /><div className="h-3 w-5/6 rounded bg-slate-100" /><div className="grid grid-cols-3 gap-3"><div className="h-20 rounded-lg bg-slate-100" /><div className="h-20 rounded-lg bg-slate-100" /><div className="h-20 rounded-lg bg-slate-100" /></div></div>
-          <iframe
-            key={previewSrc}
-            ref={iframeRef}
-            src={previewSrc}
-            title={bi('Aperçu du widget', 'معاينة الويدجت')}
-            allow="microphone; autoplay"
-            style={{ position: 'absolute', bottom: open ? 6 : 10, [position]: open ? 6 : 10, width: open ? 'min(380px, calc(100% - 12px))' : 84, height: open ? 'min(520px, calc(100% - 52px))' : 84, border: 0, background: 'transparent', transition: 'width .25s, height .25s' }}
-          />
-        </div>
-      </section>
-    </div>
-  );
 }

@@ -1,0 +1,4 @@
+project_id = "jjpcvevdztletxgmmzqr"
+
+[functions.agent-sawtify-tools]
+verify_jwt = true

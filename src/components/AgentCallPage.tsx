@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import {
-  AudioLines, Bot, Check, CheckCircle2, ChevronRight, CircleHelp, Mic, MicOff,
-  Minus, Phone, Plus, Send, ShieldCheck, Sparkles, Store, Volume2, X,
+  AudioLines, CheckCircle2, Headphones, Mic, MicOff, Minus, MessageSquareText,
+  Phone, Plus, ShieldCheck, Store, Volume2, X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { answerAgentQuestion } from '../services/agentReply';
-import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
+import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
+import type { AgentLiveSession } from '../services/agentLive';
 import {
   createDemoAgentStore, DEMO_AGENT_STORE, makeAgentId, readAgentStore, saveAgentStore,
   type AgentOrder, type AgentProduct, type AgentRequestType, type AgentStore,
@@ -68,10 +69,13 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isLiveSession, setIsLiveSession] = useState(false);
   const [hint, setHint] = useState('');
-  const [needsTap, setNeedsTap] = useState(false);
-  const [bubblePalette] = useState<BubblePalette>(() => pickPalette());
+  const [caption, setCaption] = useState('');
   const [textQuestion, setTextQuestion] = useState('');
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [showManualOptions, setShowManualOptions] = useState(false);
   const [orderProduct, setOrderProduct] = useState<AgentProduct | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', wilaya: '', size: '', quantity: 1 });
@@ -80,17 +84,21 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [businessRequestError, setBusinessRequestError] = useState('');
   const [businessRequestForm, setBusinessRequestForm] = useState<RequestForm>({ name: '', phone: '', wilaya: '', title: '', details: '', preferredAt: '', preferredUntil: '', partySize: 2 });
   const recognitionRef = useRef<BrowserRecognition | null>(null);
-  const conversationEndRef = useRef<HTMLDivElement | null>(null);
+  const liveConnectionRef = useRef<AgentLiveSession | null>(null);
+  const liveConnectingRef = useRef(false);
+  const componentMountedRef = useRef(false);
+  const storeRef = useRef(store);
+  const languageRef = useRef(language);
   const orderRequestIdRef = useRef('');
   const businessRequestIdRef = useRef('');
   const autoStartAttemptedRef = useRef(false);
-  const conversationStartedRef = useRef(false);
   const respondingRef = useRef(false);
   const startListeningRef = useRef<() => void>(() => {});
+  storeRef.current = store;
+  languageRef.current = language;
   const isArabic = language === 'ar';
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
   const availableProducts = store.products.filter((product) => product.active);
-  const availableFaqs = store.faqs.filter((faq) => faq.active);
   const isCommerce = store.sector === 'commerce';
   const availableRequestTypes = sectorRequestTypes(store.sector);
   const sectorName = store.sector === 'health' ? bi('Santé et médical', 'الصحة والطب') : store.sector === 'services' ? bi('Services et artisans', 'الخدمات والحرفيين') : store.sector === 'restaurant' ? bi('Restauration', 'المطاعم') : store.sector === 'hospitality' ? bi('Hôtellerie', 'الفنادق') : bi('E-commerce', 'التجارة الإلكترونية');
@@ -116,12 +124,20 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
     let active = true;
     const loadStore = async () => {
+      autoStartAttemptedRef.current = false;
+      recognitionRef.current?.abort?.();
+      liveConnectionRef.current?.close();
+      liveConnectionRef.current = null;
       setStoreLoading(true);
       setStoreError('');
       try {
         const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/public/${encodeURIComponent(slug)}`);
         const body = await response.json();
-        if (!response.ok || !body.success || !body.store) throw new Error(body.error || 'Cette boutique est introuvable.');
+        if (!response.ok || !body.success || !body.store) {
+          throw new Error(response.status === 404
+            ? bi('Cette boutique est introuvable.', 'المتجر غير موجود.')
+            : bi('Cette boutique est momentanément indisponible. Réessayez plus tard.', 'المتجر ما راهوش متوفر حالياً. عاود من بعد.'));
+        }
         if (!active) return;
         setStore({ ...body.store, orders: [] });
         setLanguage(body.store.language === 'ar' ? 'ar' : 'fr');
@@ -136,44 +152,40 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   }, [isDemoPreview, slug]);
 
   useEffect(() => {
-    if (!messages.length) return;
-    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages]);
-
-  useEffect(() => {
     document.documentElement.lang = isArabic ? 'ar' : 'fr';
     document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
   }, [isArabic]);
 
-  useEffect(() => () => {
-    recognitionRef.current?.abort?.();
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  useEffect(() => {
+    componentMountedRef.current = true;
+    return () => {
+      componentMountedRef.current = false;
+      recognitionRef.current?.abort?.();
+      liveConnectionRef.current?.close();
+      liveConnectionRef.current = null;
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
   }, []);
 
-  const speak = (text: string, strict = false) => new Promise<boolean>((resolve) => {
-    if (!('speechSynthesis' in window)) { resolve(false); return; }
+  const speak = (text: string) => new Promise<void>((resolve) => {
+    if (!('speechSynthesis' in window)) { resolve(); return; }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = isArabic ? 'ar-SA' : 'fr-FR';
     utterance.rate = 0.96;
     let finished = false;
-    let started = false;
     let fallbackTimer: number | undefined;
-    let startTimer: number | undefined;
     const finish = () => {
       if (finished) return;
       finished = true;
       if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
-      if (startTimer !== undefined) window.clearTimeout(startTimer);
       setIsSpeaking(false);
-      resolve(started);
+      resolve();
     };
-    utterance.onstart = () => { started = true; if (startTimer !== undefined) window.clearTimeout(startTimer); setIsSpeaking(true); };
+    utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = finish;
     utterance.onerror = finish;
     fallbackTimer = window.setTimeout(finish, Math.min(120_000, Math.max(10_000, Math.ceil(text.length / 10) * 1000 + 5_000)));
-    // Autoplay blocked by the browser: nothing starts, so give up quickly and let the caller ask for a tap.
-    if (strict) startTimer = window.setTimeout(() => { if (!started) { window.speechSynthesis.cancel(); finish(); } }, 1800);
     try { window.speechSynthesis.speak(utterance); }
     catch { finish(); }
   });
@@ -205,7 +217,12 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         if (!response.ok || !body.success || typeof body.answer !== 'string'
             || !Number.isFinite(serverEstimate) || serverEstimate < 1
             || !Number.isFinite(Number(body.consumed_seconds)) || !Number.isFinite(Number(body.remaining_seconds))) {
-          throw new Error(body.error || bi('Impossible de répondre pour le moment.', 'ما قدرناش نجاوبو حالياً.'));
+          const message = response.status === 402
+            ? bi('Le solde vocal de cette boutique est épuisé. Réessayez plus tard.', 'رصيد الصوت تاع المتجر سالى. عاود من بعد.')
+            : response.status === 423
+              ? bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.')
+              : bi('Je ne peux pas répondre pour le moment. Réessayez dans un instant.', 'ما نقدرش نجاوبك حالياً. عاود بعد شوية.');
+          throw new Error(message);
         }
         answer = body.answer;
         estimatedSeconds = serverEstimate;
@@ -237,16 +254,13 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
   };
 
-  const startListening = () => {
-    if (isResponding) return;
-    if (!store.isActive) {
-      setHint(bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.'));
-      return;
-    }
+  const startBrowserRecognition = () => {
+    if (isResponding || isConnecting) return;
     const speechWindow = window as Window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
     const Constructor = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!Constructor) {
-      setHint(bi('La commande vocale n’est pas prise en charge par ce navigateur. Écrivez votre question ou choisissez une suggestion ci-dessous.', 'المتصفح ما يدعمش الأوامر الصوتية. اكتب سؤالك ولا اختار اقتراح من لتحت.'));
+      setHint(bi('La commande vocale n’est pas disponible ici. Vous pouvez écrire votre question.', 'الأوامر الصوتية ما هيش متوفرة هنا. تقدر تكتب سؤالك.'));
+      setShowTextInput(true);
       return;
     }
     try {
@@ -258,14 +272,15 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       recognition.onresult = (event) => {
         const transcript = event.results?.[0]?.[0]?.transcript?.trim();
         setIsListening(false);
-        if (transcript) answerCustomer(transcript);
-        else setHint(bi('Je n’ai pas bien entendu. Réessayez ou choisissez une question.', 'ما سمعتكش مليح. عاود ولا اختار سؤال.'));
+        if (transcript) void answerCustomer(transcript);
+        else setHint(bi('Je n’ai pas bien entendu. Réessayez ou écrivez votre question.', 'ما سمعتكش مليح. عاود ولا اكتب سؤالك.'));
       };
       recognition.onerror = (event) => {
         setIsListening(false);
         setHint(event?.error === 'not-allowed' || event?.error === 'service-not-allowed'
-          ? bi('Le navigateur a bloqué le démarrage automatique. Autorisez le micro ou touchez le bouton micro, ou écrivez votre question.', 'المتصفح منع التشغيل التلقائي. اسمح بالميكرو ولا اضغط على زر الميكرو، أو اكتب سؤالك.')
-          : bi('Je n’ai pas pu capter votre voix. Réessayez avec le micro ou écrivez votre question.', 'ما قدرتش نسمع صوتك. عاود بالميكرو ولا اكتب سؤالك.'));
+          ? bi('Autorisez le micro dans votre navigateur ou écrivez votre question.', 'اسمح للمتصفح يستعمل الميكرو ولا اكتب سؤالك.')
+          : bi('Je n’ai pas pu capter votre voix. Réessayez ou écrivez votre question.', 'ما قدرتش نسمع صوتك. عاود ولا اكتب سؤالك.'));
+        setShowTextInput(true);
       };
       recognition.onend = () => setIsListening(false);
       recognitionRef.current = recognition;
@@ -274,52 +289,238 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       recognition.start();
     } catch {
       setIsListening(false);
-      setHint(bi('Le navigateur a bloqué le micro au démarrage. Touchez le bouton micro pour réessayer, ou écrivez votre question.', 'المتصفح منع الميكرو عند التشغيل. اضغط على زر الميكرو لإعادة المحاولة، أو اكتب سؤالك.'));
+      setHint(bi('Le micro n’a pas pu démarrer. Autorisez-le ou écrivez votre question.', 'ما قدرش الميكرو يبدا. اسمحلو ولا اكتب سؤالك.'));
+      setShowTextInput(true);
     }
   };
 
-  startListeningRef.current = startListening;
-
-  // The assistant opens the conversation: it speaks its greeting, then listens.
-  const greetingRef = useRef(greeting);
-  greetingRef.current = greeting;
-  const beginConversation = async (fromTap = false) => {
-    if (conversationStartedRef.current) return;
-    conversationStartedRef.current = true;
-    setNeedsTap(false);
-    const spoke = await speak(greetingRef.current, !fromTap);
-    if (!spoke && !fromTap) {
-      // Browser blocked autoplay: wait for one tap on the bubble.
-      conversationStartedRef.current = false;
-      setNeedsTap(true);
+  const startListening = async () => {
+    if (liveConnectionRef.current) {
+      stopListening();
       return;
     }
-    startListeningRef.current();
-  };
-  const beginConversationRef = useRef(beginConversation);
-  beginConversationRef.current = beginConversation;
+    if (liveConnectingRef.current || isConnecting || isResponding) return;
+    if (!storeRef.current.isActive) {
+      setHint(bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.'));
+      return;
+    }
+    if (isDemoPreview) {
+      startBrowserRecognition();
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      setHint(bi('Je n’arrive pas à vous écouter pour le moment. Vous pouvez écrire votre question.', 'ما قدرتش نسمعك حالياً. تقدر تكتب سؤالك.'));
+      setShowTextInput(true);
+      return;
+    }
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') {
+      setHint(bi('Le micro n’est pas disponible sur cet appareil. Vous pouvez écrire votre question.', 'الميكرو ما هوش متوفر في هاذ الجهاز. تقدر تكتب سؤالك.'));
+      setShowTextInput(true);
+      return;
+    }
 
+    liveConnectingRef.current = true;
+    setIsConnecting(true);
+    setHint(bi('Un instant…', 'لحظة برك…'));
+    let microphone: MediaStream | null = null;
+    let audioContext: AudioContext | null = null;
+    const releasePendingResources = () => {
+      microphone?.getTracks().forEach((track) => track.stop());
+      microphone = null;
+      if (audioContext && audioContext.state !== 'closed') void audioContext.close().catch(() => undefined);
+      audioContext = null;
+    };
+    try {
+      audioContext = new AudioContext();
+      const contextReady = audioContext.resume().catch(() => undefined);
+      const { connectAgentLive } = await import('../services/agentLive');
+      if (!componentMountedRef.current) { releasePendingResources(); return; }
+      microphone = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      if (!componentMountedRef.current) { releasePendingResources(); return; }
+      const tokenResponse = await fetch(`${API_BASE_URL}/api/agent/sawtify/live-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, language: languageRef.current }),
+      });
+      const tokenBody = await tokenResponse.json().catch(() => ({}));
+      if (tokenResponse.status === 402) throw new Error('insufficient_minutes');
+      if (tokenResponse.status === 423) throw new Error('store_paused');
+      if (!tokenResponse.ok || !tokenBody.success || typeof tokenBody.token !== 'string' || typeof tokenBody.model !== 'string' || !tokenBody.config) {
+        throw new Error('live_unavailable');
+      }
+
+      await contextReady;
+      if (!componentMountedRef.current) { releasePendingResources(); return; }
+      const connection = await connectAgentLive({
+        token: tokenBody.token,
+        model: tokenBody.model,
+        config: tokenBody.config,
+        microphone,
+        audioContext,
+        callbacks: {
+          onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
+          onOutputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
+          onSpeaking: (speaking) => { if (componentMountedRef.current) setIsSpeaking(speaking); },
+          onTurnComplete: () => { if (componentMountedRef.current) { setIsResponding(false); setHint(''); } },
+          onToolCall: async (call) => {
+            if (call.name !== 'agent_turn' || !call.args) return { success: false, answer: bi('Je n’ai pas pu traiter cette demande. Réessayons.', 'ما قدرتش نعالج هاذ الطلب. نعاودو.') };
+            if (!componentMountedRef.current) return null;
+            setIsResponding(true);
+            setHint(bi('Je vérifie les informations…', 'جاري التحقق من المعلومات…'));
+            try {
+              const { data, error } = await supabase.functions.invoke('agent-sawtify-tools', {
+                body: {
+                  slug: storeRef.current.slug || slug,
+                  language: languageRef.current,
+                  requestId: makeRequestId(),
+                  toolName: call.name,
+                  arguments: call.args,
+                },
+              });
+              if (!componentMountedRef.current) return null;
+              if (error) {
+                const status = Number((error as { context?: { status?: number } }).context?.status || 0);
+                if (status === 402) {
+                  setHint(bi('Le solde vocal de cette boutique est épuisé. Le propriétaire doit le recharger.', 'رصيد الصوت تاع المتجر سالى. لازم المالك يعاود يشحنو.'));
+                } else if (status === 429) {
+                  setHint(bi('Trop de demandes en peu de temps. Réessayez dans un instant.', 'طلبات كثيرة في وقت قصير. عاود بعد شوية.'));
+                } else {
+                  setHint(bi('Je n’ai pas pu joindre la boutique pour le moment. Vous pouvez écrire votre question.', 'ما قدرتش نوصل للمتجر حالياً. تقدر تكتب سؤالك.'));
+                }
+                setShowTextInput(true);
+                setIsResponding(false);
+                setIsListening(false);
+                setIsLiveSession(false);
+                const activeConnection = liveConnectionRef.current;
+                liveConnectionRef.current = null;
+                activeConnection?.close();
+                return null;
+              }
+              if (!componentMountedRef.current) return null;
+              const result = data as Record<string, unknown> | null;
+              if (!result?.success || typeof result.answer !== 'string') throw new Error('tool_failed');
+              setHint('');
+              return { success: true, answer: result.answer, action: result.action };
+            } catch {
+              if (!componentMountedRef.current) return null;
+              setHint(bi('Je n’ai pas pu terminer cette réponse. Vous pouvez réessayer ou écrire votre question.', 'ما قدرتش نكمل الإجابة. تقدر تعاود ولا تكتب سؤالك.'));
+              setShowTextInput(true);
+              setIsResponding(false);
+              setIsListening(false);
+              setIsLiveSession(false);
+              const activeConnection = liveConnectionRef.current;
+              liveConnectionRef.current = null;
+              activeConnection?.close();
+              return null;
+            }
+          },
+          onError: () => {
+            if (!componentMountedRef.current) return;
+            setIsListening(false);
+            setIsLiveSession(false);
+            setIsResponding(false);
+            setShowTextInput(true);
+            setHint(bi('Je ne vous entends plus. Réessayez ou écrivez votre question.', 'ما بقيتش نسمعك. عاود ولا اكتب سؤالك.'));
+            const activeConnection = liveConnectionRef.current;
+            liveConnectionRef.current = null;
+            activeConnection?.close();
+          },
+          onClose: () => {
+            if (!componentMountedRef.current) return;
+            setIsListening(false);
+            setIsLiveSession(false);
+            setIsSpeaking(false);
+          },
+        },
+      });
+      if (!componentMountedRef.current) {
+        connection.close();
+        return;
+      }
+      liveConnectionRef.current = connection;
+      microphone = null;
+      audioContext = null;
+      setIsLiveSession(true);
+      setIsListening(true);
+      setIsSpeaking(false);
+      setCaption('');
+      setHint(bi('Je vous écoute…', 'راني نسمع فيك…'));
+    } catch (error: any) {
+      releasePendingResources();
+      if (!componentMountedRef.current) return;
+      setIsListening(false);
+      setIsLiveSession(false);
+      setIsSpeaking(false);
+      setShowTextInput(true);
+      const reason = error?.message === 'insufficient_minutes'
+        ? bi('Le solde vocal de cette boutique est épuisé. Le propriétaire doit le recharger.', 'رصيد الصوت تاع المتجر سالى. لازم المالك يعاود يشحنو.')
+        : error?.message === 'store_paused'
+          ? bi('Cette boutique est en pause pour le moment.', 'المتجر متوقف مؤقتاً.')
+          : error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
+            ? bi('Autorisez l’accès au micro pour parler, ou écrivez votre question.', 'اسمح باستعمال الميكرو باش تهدر، ولا اكتب سؤالك.')
+            : bi('Je n’arrive pas à démarrer l’écoute. Réessayez ou écrivez votre question.', 'ما قدرتش نبدا نسمعك. عاود ولا اكتب سؤالك.');
+      setHint(reason);
+    } finally {
+      liveConnectingRef.current = false;
+      if (componentMountedRef.current) setIsConnecting(false);
+    }
+  };
+
+  startListeningRef.current = () => { void startListening(); };
   useEffect(() => {
     if (storeLoading || !store.isActive || autoStartAttemptedRef.current) return;
-    autoStartAttemptedRef.current = true;
-    const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
-    if (activation && !activation.hasBeenActive) { setNeedsTap(true); return; }
-    const timer = window.setTimeout(() => { void beginConversationRef.current(); }, 350);
+    const timer = window.setTimeout(() => {
+      if (autoStartAttemptedRef.current) return;
+      autoStartAttemptedRef.current = true;
+      startListeningRef.current();
+    }, 350);
     return () => window.clearTimeout(timer);
-  }, [storeLoading, store.isActive]);
+  }, [storeLoading, store.isActive, slug]);
 
   const stopListening = () => {
     recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    const activeConnection = liveConnectionRef.current;
+    liveConnectionRef.current = null;
+    activeConnection?.close();
+    setIsLiveSession(false);
     setIsListening(false);
-    setHint('');
+    setIsSpeaking(false);
+    setHint(bi('Micro coupé. Touchez la bulle pour reprendre.', 'الميكرو تسد. اضغط على الفقاعة باش تعاود.'));
   };
 
   const submitTextQuestion = (event: React.FormEvent) => {
     event.preventDefault();
     const question = textQuestion.trim();
-    if (!question || isResponding) return;
+    if (!question || isResponding || isConnecting) return;
     setTextQuestion('');
+    setShowTextInput(false);
+    if (liveConnectionRef.current && isLiveSession) {
+      setCaption(question);
+      setIsResponding(true);
+      setHint(bi('Je prépare ma réponse…', 'جاري تحضير الإجابة…'));
+      liveConnectionRef.current.sendText(question);
+      return;
+    }
+    if (isListening) stopListening();
     void answerCustomer(question);
+  };
+
+  const changeLanguage = (nextLanguage: 'fr' | 'ar') => {
+    if (nextLanguage === languageRef.current) return;
+    languageRef.current = nextLanguage;
+    setLanguage(nextLanguage);
+    if (liveConnectionRef.current) {
+      const activeConnection = liveConnectionRef.current;
+      liveConnectionRef.current = null;
+      activeConnection.close();
+      setIsLiveSession(false);
+      setIsListening(false);
+      setIsSpeaking(false);
+      void startListening();
+    }
   };
 
   const openOrder = (product: AgentProduct) => {
@@ -327,6 +528,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       setHint(bi('La boutique est en pause et ne prend pas de demandes.', 'المتجر متوقف مؤقتاً وما يستقبلش الطلبات.'));
       return;
     }
+    if (liveConnectionRef.current || recognitionRef.current) stopListening();
     orderRequestIdRef.current = makeRequestId();
     setOrderProduct(product);
     setOrderSaved(false);
@@ -397,7 +599,9 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         }),
       });
       const body = await response.json();
-      if (!response.ok || !body.success || !body.order) throw new Error(body.error || bi('La demande n’a pas pu être envoyée.', 'ما قدرناش نبعثو الطلب.'));
+      if (!response.ok || !body.success || !body.order) throw new Error(response.status >= 500
+        ? bi('La demande n’a pas pu être transmise. Réessayez plus tard.', 'ما قدرناش نبعثو الطلب. عاود من بعد.')
+        : body.error || bi('La demande n’a pas pu être envoyée.', 'ما قدرناش نبعثو الطلب.'));
       setStore((current) => ({
         ...current,
         products: current.products.map((product) => product.id === orderProduct.id && body.product_stock_remaining !== null && body.product_stock_remaining !== undefined && Number.isFinite(Number(body.product_stock_remaining))
@@ -422,6 +626,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       setHint(bi('Cette activité est en pause et ne prend pas de demandes.', 'هذا النشاط متوقف مؤقتاً وما يستقبلش الطلبات.'));
       return;
     }
+    if (liveConnectionRef.current || recognitionRef.current) stopListening();
     businessRequestIdRef.current = makeRequestId();
     setBusinessRequestType(requestType);
     setBusinessRequestSaved(false);
@@ -507,7 +712,9 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         }),
       });
       const body = await response.json();
-      if (!response.ok || !body.success || !body.order) throw new Error(body.error || bi('Impossible d’envoyer la demande.', 'ما قدرناش نبعثو الطلب.'));
+      if (!response.ok || !body.success || !body.order) throw new Error(response.status >= 500
+        ? bi('La demande n’a pas pu être transmise. Réessayez plus tard.', 'ما قدرناش نبعثو الطلب. عاود من بعد.')
+        : body.error || bi('Impossible d’envoyer la demande.', 'ما قدرناش نبعثو الطلب.'));
       setBusinessRequestSaved(true);
       setHint('');
       setMessages((current) => [...current,
@@ -523,145 +730,126 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
   };
 
-  const questions = isArabic
-    ? ['بشحال Sneakers Atlas؟', 'توصلو لوهران؟', 'واش كاين المقاس 40؟']
-    : ['Combien coûte Sneakers Atlas ?', 'Vous livrez à Oran ?', 'La taille 40 est disponible ?'];
-
   if (storeLoading) return <main className="saw-app-background flex min-h-screen items-center justify-center p-6 text-center text-sm font-semibold text-slate-600">{bi('Chargement de la boutique…', 'جاري تحميل المتجر…')}</main>;
   if (storeError) return <main className="saw-app-background flex min-h-screen items-center justify-center p-6"><section className="max-w-lg rounded-3xl border border-amber-200 bg-white p-7 text-center shadow-lg"><Store className="mx-auto h-8 w-8 text-violet-700" /><h1 className="mt-3 text-lg font-black text-slate-900">{bi('Boutique introuvable', 'المتجر غير موجود')}</h1><p role="status" className="mt-2 text-sm leading-6 text-slate-600">{storeError}</p><a href="/agent-ai" className="mt-5 inline-flex rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-bold text-white">{bi('Découvrir Agent Sawtify', 'اكتشف Agent Sawtify')}</a></section></main>;
 
   return (
-    <main className="saw-app-background min-h-screen px-3 pb-8 pt-3 text-slate-900 sm:px-6 sm:pt-5" dir={isArabic ? 'rtl' : 'ltr'} style={{ fontFamily: isArabic ? 'var(--font-sans-arabic)' : "'Sora', var(--font-sans-latin)" }}>
+    <main className="agent-call-shell" dir={isArabic ? 'rtl' : 'ltr'} style={{ fontFamily: isArabic ? 'var(--font-sans-arabic)' : "'Sora', var(--font-sans-latin)" }}>
+      <div className="agent-call-liquid-bg" aria-hidden="true">
+        <span className="agent-call-blob agent-call-blob-one" />
+        <span className="agent-call-blob agent-call-blob-two" />
+        <span className="agent-call-blob agent-call-blob-three" />
+        <span className="agent-call-grain" />
+      </div>
       <Helmet>
         <title>{bi(`Parler avec ${store.name} · Sawtify`, `تواصل مع ${store.name} · Sawtify`)}</title>
-        <meta name="description" content={bi(`Découvrez ${store.name} et posez vos questions directement à son assistant.`, `اكتشف ${store.name} واسأل المساعد مباشرة.`)} />
+        <meta name="description" content={bi(`Parlez avec l’assistant de ${store.name}.`, `تواصل بالصوت مع مساعد ${store.name}.`)} />
       </Helmet>
-      {store.isActive && (needsTap || isSpeaking || isListening || isResponding) && (
-        <VoiceBubble
-          variant={needsTap ? 'splash' : 'float'}
-          palette={bubblePalette}
-          label={needsTap
-            ? bi('Touchez la bulle pour parler avec l’assistant', 'اضغط على البولة باش تهدر مع المساعد')
-            : isListening
-              ? bi('Je vous écoute…', 'راني نسمع فيك…')
-              : isResponding
-                ? bi('Préparation de la réponse…', 'جاري تحضير الإجابة…')
-                : bi(`${store.name} vous répond…`, `${store.name} راه يجاوبك…`)}
-          onStop={() => {
-            if (needsTap) { void beginConversation(true); return; }
-            if (isListening) { stopListening(); return; }
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            setIsSpeaking(false);
-          }}
-        />
-      )}
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-amber-950">
-          <p className="flex items-start gap-2 text-[11px] leading-5 sm:text-xs"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span><strong>{isDemoPreview ? bi('Démo vocale.', 'معاينة صوتية.') : bi('Assistant vocal.', 'مساعد صوتي.')}</strong> {isDemoPreview
-            ? bi('Les demandes de démonstration restent dans ce navigateur et ne sont pas envoyées à la boutique.', 'طلبات المعاينة تبقى في هذا المتصفح وما تتبعثش للمتجر.')
-            : bi('Les commandes, rendez-vous, devis et réservations sont transmis à cette activité. Les échanges restent dans ce navigateur ; seule une durée d’usage estimée est enregistrée, pas le contenu des conversations.', 'الطلبات والمواعيد وعروض الأسعار والحجوزات تتبعث لهذا النشاط. المحادثات تبقى في هذا المتصفح؛ نسجلو غير مدة استعمال تقديرية، ماشي محتوى المحادثة.')}</span></p>
-          <a href="/agent-sawtify" className="shrink-0 rounded-xl border border-amber-300 bg-white/75 px-3 py-2 text-[10px] font-extrabold text-amber-900 transition hover:bg-white">{bi('Espace vendeur', 'مساحة التاجر')}</a>
+
+      <header className="agent-call-top">
+        <div className="agent-call-shop-pill">
+          <span className="agent-call-shop-mark" aria-hidden="true"><AudioLines className="h-5 w-5" /></span>
+          <div className="agent-call-shop-copy">
+            <p className="agent-call-shop-name">{store.name}</p>
+            <p className="agent-call-shop-meta">{store.category || sectorName}{store.location ? ` · ${store.location}` : ''}</p>
+          </div>
+          <span className={`agent-call-availability ${store.isActive ? 'is-active' : ''}`} title={store.isActive ? bi('Disponible', 'متاح') : bi('En pause', 'متوقف')} />
+        </div>
+        <div className="agent-call-language" role="group" aria-label={bi('Langue', 'اللغة')}>
+          <button type="button" onClick={() => changeLanguage('fr')} aria-pressed={language === 'fr'} className={language === 'fr' ? 'selected' : ''}>FR</button>
+          <button type="button" onClick={() => changeLanguage('ar')} aria-pressed={language === 'ar'} className={language === 'ar' ? 'selected' : ''}>دارجة</button>
+        </div>
+      </header>
+
+      <section className="agent-call-stage" aria-label={bi('Conversation vocale', 'محادثة صوتية')}>
+        <div className="agent-call-orb-wrap">
+          <span className={`agent-call-orb-aura ${isListening ? 'active' : ''}`} aria-hidden="true" />
+          <button
+            type="button"
+            onClick={isListening ? stopListening : () => { void startListening(); }}
+            disabled={!store.isActive || isConnecting}
+            aria-pressed={isListening}
+            aria-label={isListening ? bi('Arrêter le micro', 'حبس الميكرو') : bi('Parler avec la boutique', 'اهدر مع المتجر')}
+            className={`aura-wrapper agent-call-orb ${isListening ? 'listening' : ''} ${isSpeaking ? 'speaking' : ''} ${isConnecting ? 'connecting' : ''}`}
+          >
+            <span className="layer-core">
+              <span className="aura-fluid aura-fluid-1" />
+              <span className="aura-fluid aura-fluid-2" />
+              <span className="aura-fluid aura-fluid-3" />
+              <span className="aura-gloss" />
+            </span>
+            <span className="sr-only">{isListening ? bi('Touchez pour arrêter', 'اضغط باش تحبس') : bi('Touchez pour parler', 'اضغط باش تهدر')}</span>
+          </button>
         </div>
 
-        <header className="mb-4 flex items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-700 to-fuchsia-500 text-white shadow-md shadow-violet-300/40"><AudioLines className="h-5 w-5" /></span>
-            <div className="min-w-0"><p className="truncate text-sm font-black text-slate-950">{store.name}</p><p className="truncate text-[10px] font-semibold text-slate-500">{store.category || sectorName}{store.location ? ` · ${store.location}` : ''}</p></div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
-              <button type="button" onClick={() => setLanguage('fr')} className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold ${language === 'fr' ? 'bg-violet-700 text-white' : 'text-slate-500 hover:bg-violet-50'}`}>FR</button>
-              <button type="button" onClick={() => setLanguage('ar')} className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold ${language === 'ar' ? 'bg-violet-700 text-white' : 'text-slate-500 hover:bg-violet-50'}`}>دارجة</button>
+        <div className="agent-call-caption" role="status" aria-live="polite" aria-atomic="true">
+          <span className={`agent-call-status-dot ${isSpeaking ? 'speaking' : isListening ? 'listening' : ''}`} />
+          <p>{isConnecting
+            ? bi('Un instant…', 'لحظة برك…')
+            : isSpeaking
+              ? bi('Je vous réponds…', 'راني نجاوبك…')
+              : isListening
+                ? bi('Je vous écoute…', 'راني نسمع فيك…')
+                : hint || caption || messages.at(-1)?.text || greeting}</p>
+        </div>
+
+        <div className="agent-call-actions">
+          <button type="button" onClick={() => setShowTextInput((visible) => !visible)} aria-expanded={showTextInput} className="agent-call-secondary-action">
+            <MessageSquareText className="h-4 w-4" />{bi('Écrire', 'اكتب')}
+          </button>
+          <button type="button" onClick={() => setShowManualOptions((visible) => !visible)} aria-expanded={showManualOptions} className="agent-call-secondary-action">
+            <Headphones className="h-4 w-4" />{bi('Autres options', 'خيارات أخرى')}
+          </button>
+          <button type="button" onClick={isListening ? stopListening : () => { void startListening(); }} disabled={!store.isActive || isConnecting} className={`agent-call-mic-button ${isListening ? 'is-active' : ''}`} aria-label={isListening ? bi('Couper le micro', 'حبس الميكرو') : bi('Activer le micro', 'شغل الميكرو')}>
+            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {showTextInput && (
+          <form onSubmit={submitTextQuestion} className="agent-call-text-form">
+            <input
+              autoFocus
+              value={textQuestion}
+              onChange={(event) => setTextQuestion(event.target.value)}
+              disabled={isResponding || isConnecting}
+              maxLength={1200}
+              className="agent-call-text-input"
+              placeholder={bi('Écrivez votre question…', 'اكتب سؤالك…')}
+              aria-label={bi('Votre question', 'سؤالك')}
+            />
+            <button type="submit" disabled={isResponding || isConnecting || !textQuestion.trim()} aria-label={bi('Envoyer', 'أرسل')}>
+              <Volume2 className="h-4 w-4" />
+            </button>
+          </form>
+        )}
+
+        {showManualOptions && (
+          <section className="agent-call-options" aria-label={bi('Options de demande', 'خيارات الطلب')}>
+            <div className="agent-call-options-heading">
+              <p>{isCommerce ? bi('Choisir un article', 'اختار منتج') : bi('Choisir une demande', 'اختار طلب')}</p>
+              <button type="button" onClick={() => setShowManualOptions(false)} aria-label={bi('Fermer les options', 'سد الخيارات')}><X className="h-4 w-4" /></button>
             </div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold ${store.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}><span className={`h-1.5 w-1.5 rounded-full ${store.isActive ? 'animate-pulse bg-emerald-500' : 'bg-slate-400'}`} />{store.isActive ? bi('Disponible', 'متاح') : bi('En pause', 'متوقف')}</span>
-          </div>
-        </header>
-
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,.75fr)]">
-          <section className="saw-glass overflow-hidden rounded-[28px]">
-            <div className="flex items-center justify-between gap-3 border-b border-violet-100/70 bg-white/55 px-4 py-4 sm:px-6">
-              <div className="flex items-center gap-3"><span className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-700 to-fuchsia-500 text-white shadow-lg shadow-violet-300/35"><Bot className="h-5 w-5" /><span className={`absolute -bottom-1 -end-1 h-3.5 w-3.5 rounded-full border-2 border-white ${store.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} /></span><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{bi('Agent Sawtify', 'مساعد Sawtify')}</p><p className="text-sm font-extrabold text-slate-950">{bi('Votre assistant', 'مساعدك')}</p></div></div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1.5 text-[10px] font-bold text-violet-800"><CheckCircle2 className="h-3.5 w-3.5" />{bi('Accès direct', 'دخول مباشر')}</span>
-            </div>
-
-            <div className="flex min-h-[440px] flex-col px-4 py-5 sm:min-h-[500px] sm:px-6">
-              <div className="flex-1 space-y-4">
-                <div className="flex items-end gap-2"><span className="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700"><Bot className="h-4 w-4" /></span><div className="max-w-[88%] rounded-[20px] rounded-bs-sm border border-violet-100 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm">{greeting}</div></div>
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex items-end gap-2 ${message.role === 'customer' ? 'justify-end' : ''}`}>
-                    {message.role === 'assistant' && <span className="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700"><Bot className="h-4 w-4" /></span>}
-                    <div className={`max-w-[88%] rounded-[20px] px-4 py-3 text-sm leading-6 shadow-sm ${message.role === 'assistant' ? 'rounded-bs-sm border border-violet-100 bg-white text-slate-700' : 'rounded-be-sm bg-violet-700 text-white'}`}>{message.text}</div>
-                  </div>
-                ))}
-                {isSpeaking && <div className="ms-9 flex items-center gap-2 text-[10px] font-semibold text-violet-700"><Volume2 className="h-3.5 w-3.5 animate-pulse" />{bi('Réponse vocale en cours…', 'المساعد راه يجاوب بالصوت…')}</div>}
-                <div ref={conversationEndRef} />
-              </div>
-
-              <div className="mt-6 border-t border-violet-100/70 pt-4">
-                <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[.13em] text-slate-500">{bi('Essayez une question', 'جرّب سؤال')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {questions.map((question) => <button key={question} type="button" disabled={isResponding} onClick={() => void answerCustomer(question)} className="rounded-full border border-violet-200 bg-white px-3 py-2 text-[10px] font-bold text-violet-800 transition hover:border-violet-400 hover:bg-violet-50 disabled:cursor-wait disabled:opacity-50">{question}</button>)}
-                </div>
-                {hint && <p role="status" className={`mt-3 text-xs font-semibold ${isListening ? 'text-violet-700' : 'text-slate-500'}`}>{hint}</p>}
-                <form onSubmit={submitTextQuestion} className="mt-4 flex items-center gap-2">
-                  <input value={textQuestion} onChange={(event) => setTextQuestion(event.target.value)} disabled={isResponding} maxLength={1200} className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50" placeholder={bi('Écrivez votre question…', 'اكتب سؤالك…')} aria-label={bi('Votre question', 'سؤالك')} />
-                  <button type="submit" disabled={isResponding || !textQuestion.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-700 text-white transition hover:bg-violet-600 disabled:cursor-wait disabled:opacity-50" aria-label={bi('Envoyer la question', 'أرسل السؤال')}><Send className="h-4 w-4" /></button>
-                </form>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-[10px] leading-4 text-slate-400">{bi('Le micro essaie de démarrer automatiquement. Vous pouvez aussi écrire.', 'نحاولو نشغلو الميكرو تلقائياً. تقدر تكتب كذلك.')}</div>
-                  <button type="button" disabled={isResponding || !store.isActive} onClick={isListening ? stopListening : startListening} className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition active:scale-95 disabled:cursor-wait disabled:opacity-60 ${isListening ? 'animate-pulse bg-rose-600 shadow-rose-200' : 'bg-violet-700 shadow-violet-300/50 hover:bg-violet-600'}`} aria-label={isListening ? bi('Arrêter le micro', 'أوقف الميكرو') : bi('Parler à l’assistant', 'اهدر مع المساعد')}>
-                    {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <aside className="space-y-4">
-            <section className="saw-glass rounded-[26px] p-4 sm:p-5">
-              <div className="mb-4 flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{sectorName}</p><h2 className="mt-1 text-base font-black text-slate-950">{store.name}</h2><p className="mt-1 text-xs text-slate-500">{store.category || sectorName}{store.location ? ` · ${store.location}` : ''}</p></div><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><Store className="h-5 w-5" /></span></div>
-              <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-600"><span className="rounded-full bg-white px-2.5 py-1.5">{bi('Français', 'الفرنسية')}</span><span className="rounded-full bg-white px-2.5 py-1.5">الدارجة</span><span className="rounded-full bg-white px-2.5 py-1.5">{bi('Sans inscription', 'بلا تسجيل')}</span></div>
-            </section>
-
             {isCommerce ? (
-              <section className="saw-glass rounded-[26px] p-4 sm:p-5">
-                <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-black text-slate-950">{bi('Les produits', 'المنتجات')}</h2><p className="mt-1 text-[10px] text-slate-500">{bi('Demandez un article ou sa disponibilité.', 'اطلب منتج ولا اسأل على التوفر.')}</p></div><span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-bold text-violet-800">{availableProducts.length}</span></div>
-                <div className="space-y-2.5">
-                  {availableProducts.length ? availableProducts.map((product) => (
-                    <article key={product.id} className="rounded-2xl border border-slate-100 bg-white/90 p-3">
-                      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-xs font-extrabold text-slate-900">{product.name}</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">{product.stock > 0 ? `${product.stock} ${bi('en stock', 'في المخزون')}` : bi('Rupture de stock', 'نفد المخزون')}{product.sizes.length ? ` · ${product.sizes.join(', ')}` : ''}</p></div><span className="shrink-0 text-xs font-black text-violet-800">{formatMoney(product.priceDzd, isArabic)}</span></div>
-                      {product.stock > 0 && store.isActive && <button type="button" onClick={() => openOrder(product)} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-violet-50 px-3 py-2 text-[10px] font-extrabold text-violet-800 transition hover:bg-violet-100">{bi('Demander cet article', 'اطلب هذا المنتج')}<ChevronRight className="h-3.5 w-3.5" /></button>}
-                    </article>
-                  )) : <div className="rounded-2xl bg-white/75 px-4 py-6 text-center text-xs text-slate-500">{bi('Aucun produit pour le moment.', 'ما كاين حتى منتج حالياً.')}</div>}
-                </div>
-              </section>
-            ) : (
-              <>
-                <section className="saw-glass rounded-[26px] p-4 sm:p-5">
-                  <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-black text-slate-950">{bi('Offres et prestations', 'العروض والخدمات')}</h2><p className="mt-1 text-[10px] text-slate-500">{bi('Choisissez une offre pour préparer votre demande.', 'اختار عرض باش تحضّر طلبك.')}</p></div><span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-bold text-violet-800">{availableProducts.length}</span></div>
-                  <div className="space-y-2.5">{availableProducts.length ? availableProducts.map((product) => {
-                    const defaultType = availableRequestTypes[0];
-                    return <article key={product.id} className="rounded-2xl border border-slate-100 bg-white/90 p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-xs font-extrabold text-slate-900">{product.name}</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">{product.description || product.category || sectorName}</p></div><span className="shrink-0 text-xs font-black text-violet-800">{product.priceDzd > 0 ? formatMoney(product.priceDzd, isArabic) : bi('Sur devis', 'حسب الطلب')}</span></div>{store.isActive && defaultType && <button type="button" onClick={() => openBusinessRequest(defaultType, product.name)} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-violet-50 px-3 py-2 text-[10px] font-extrabold text-violet-800 transition hover:bg-violet-100">{requestTypeLabel(defaultType, isArabic)}<ChevronRight className="h-3.5 w-3.5" /></button>}</article>;
-                  }) : <div className="rounded-2xl bg-white/75 px-4 py-6 text-center text-xs text-slate-500">{bi('Aucune offre renseignée pour le moment.', 'مازال ما كاين حتى عرض.')}</div>}</div>
-                </section>
-                <section className="saw-glass rounded-[26px] p-4 sm:p-5"><div className="mb-3"><h2 className="text-sm font-black text-slate-950">{bi('Faire une demande', 'أرسل طلباً')}</h2><p className="mt-1 text-[10px] text-slate-500">{store.sector === 'health' ? bi('Uniquement pour un rendez-vous : aucun diagnostic ni prescription.', 'لحجز موعد فقط: بلا تشخيص ولا وصفة طبية.') : bi('Votre demande sera confirmée directement par l’activité.', 'النشاط يأكد معاك الطلب مباشرة.')}</p></div><div className="grid gap-2">{availableRequestTypes.map((type) => <button key={type} type="button" disabled={!store.isActive} onClick={() => openBusinessRequest(type)} className="inline-flex w-full items-center justify-between rounded-xl border border-violet-100 bg-white px-3 py-2.5 text-start text-[11px] font-extrabold text-violet-800 transition hover:bg-violet-50 disabled:opacity-50"><span>{requestTypeLabel(type, isArabic)}</span><ChevronRight className="h-3.5 w-3.5" /></button>)}</div></section>
-              </>
-            )}
+              availableProducts.some((product) => product.stock > 0) ? availableProducts.filter((product) => product.stock > 0).slice(0, 8).map((product) => (
+                <button key={product.id} type="button" className="agent-call-option-row" onClick={() => { setShowManualOptions(false); openOrder(product); }}>
+                  <span>{product.name}</span><span>{formatMoney(product.priceDzd, isArabic)}</span>
+                </button>
+              )) : <p className="agent-call-options-empty">{bi('Aucun article disponible.', 'ما كاين حتى منتج متوفر.')}</p>
+            ) : availableRequestTypes.map((requestType) => (
+              <button key={requestType} type="button" className="agent-call-option-row" onClick={() => { setShowManualOptions(false); openBusinessRequest(requestType); }}>
+                <span>{requestTypeLabel(requestType, isArabic)}</span><span>›</span>
+              </button>
+            ))}
+          </section>
+        )}
 
-            <section className="saw-glass rounded-[26px] p-4 sm:p-5">
-              <div className="mb-3 flex items-center gap-2"><CircleHelp className="h-4 w-4 text-violet-700" /><h2 className="text-sm font-black text-slate-950">{bi('Infos pratiques', 'معلومات مفيدة')}</h2></div>
-              <ul className="space-y-2.5">
-                {availableFaqs.slice(0, 3).map((faq) => <li key={faq.id} className="flex gap-2 text-[11px] leading-5 text-slate-600"><Check className="mt-1 h-3 w-3 shrink-0 text-emerald-600" /><span><strong className="text-slate-800">{faq.question}</strong><br />{faq.answer}</span></li>)}
-                {!availableFaqs.length && <li className="text-xs text-slate-500">{bi('La boutique peut ajouter ses réponses depuis son espace.', 'المتجر يقدر يضيف أجوبته من المساحة تاعو.')}</li>}
-              </ul>
-            </section>
-
-            <div className="rounded-2xl border border-white/90 bg-white/65 px-4 py-3 text-[10px] leading-4 text-slate-500"><span className="flex items-start gap-2"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />{bi('Votre demande sera vérifiée directement avec la boutique avant confirmation.', 'المتجر يأكد معاك الطلب قبل ما يتسجل نهائياً.')}</span></div>
-          </aside>
-        </div>
-
-        <footer className="mt-5 flex flex-col items-center justify-between gap-3 text-center text-[10px] font-medium text-slate-400 sm:flex-row sm:text-start"><span>© {new Date().getFullYear()} Sawtify · {bi('Une voix proche de vous.', 'صوت قريب ليك.')}</span><a href="/agent-sawtify" className="inline-flex items-center gap-1 text-violet-700 hover:text-violet-900">{bi('Découvrir Agent Sawtify', 'اكتشف Agent Sawtify')} <ChevronRight className="h-3 w-3" /></a></footer>
-      </div>
+        <p className="agent-call-privacy">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+          {isDemoPreview
+            ? bi('Aperçu local : vos demandes restent dans ce navigateur.', 'معاينة محلية: طلباتك تبقى في هذا المتصفح.')
+            : bi('Votre voix est traitée pour répondre. Les demandes confirmées sont transmises à cette activité ; Sawtify n’enregistre pas le texte de la conversation.', 'صوتك يتعالج باش نجاوبوك. الطلبات اللي تأكدها تتبعث للنشاط؛ Sawtify ما تسجلش كلام المحادثة.')}
+        </p>
+      </section>
 
       {orderProduct && (
         <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}>
