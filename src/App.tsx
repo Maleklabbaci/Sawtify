@@ -1,12 +1,14 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
+import { AgentAccessGate } from './components/AgentAccessGate';
 import { GenerationRecord, PurchaseRecord, CreditPack } from './types';
+import type { AppTab } from './types';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 import { trackMarketingEvent } from './services/marketingTracking';
-import { Mic, AudioLines, History, CreditCard, Code2, Lock } from 'lucide-react';
+import { Mic, AudioLines, History, CreditCard, Code2, Lock, Bot } from 'lucide-react';
 import { API_BASE_URL } from './config/apiBase';
 import { useGrowth } from './hooks/useGrowth';
 import { claimReferral, captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from './services/growth';
@@ -24,6 +26,9 @@ const EditVideoPage = lazy(() => import('./components/EditVideoPage').then(m => 
 const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
 const DeveloperPage = lazy(() => import('./components/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
 const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
+const AgentSawtifyPage = lazy(() => import('./components/AgentSawtifyPage').then(m => ({ default: m.AgentSawtifyPage })));
+const AgentInfoPage = lazy(() => import('./components/AgentInfoPage').then(m => ({ default: m.AgentInfoPage })));
+const AgentCallPage = lazy(() => import('./components/AgentCallPage').then(m => ({ default: m.AgentCallPage })));
 const LoginModal = lazy(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })));
 const SigninModal = lazy(() => import('./components/SigninModal').then(m => ({ default: m.SigninModal })));
 const SetPasswordScreen = lazy(() => import('./components/SetPasswordScreen').then(m => ({ default: m.SetPasswordScreen })));
@@ -39,7 +44,7 @@ const importStudio = () => import('./components/TTSStudio');
 const TTSStudio = lazy(() => importStudio().then((m) => ({ default: m.TTSStudio })));
 
 /** Branded, page-aware loading surface — no detached spinner or blank screen. */
-const MinimalLoader: React.FC<{ page?: 'studio' | 'pricing' | 'history' | 'developer' | 'admin' | 'account' }> = ({ page = 'studio' }) => {
+const MinimalLoader: React.FC<{ page?: AppTab | 'account' }> = ({ page = 'studio' }) => {
   const { language, isRTL } = useLanguage();
   const arabic = language === 'ar';
   const title = page === 'pricing'
@@ -48,13 +53,15 @@ const MinimalLoader: React.FC<{ page?: 'studio' | 'pricing' | 'history' | 'devel
       ? (arabic ? 'نحمّلو سجلّك' : 'Chargement de ton historique')
       : page === 'account'
         ? (arabic ? 'نحضّرو حسابك' : 'Préparation de ton compte')
-        : (arabic ? 'نحضّرو الاستوديو' : 'Préparation de ton studio');
+        : page === 'agent-sawtify'
+          ? (arabic ? 'نحضّرو مساعد Sawtify' : 'Préparation d’Agent Sawtify')
+          : (arabic ? 'نحضّرو الاستوديو' : 'Préparation de ton studio');
   const subtitle = arabic ? 'ثواني برك، واجهتك راهي تتحضّر.' : 'Un instant, ton espace se prépare.';
 
   return (
     <section className={`mx-auto flex min-h-[58vh] w-full max-w-6xl flex-1 flex-col justify-center px-4 py-8 sm:px-6 ${isRTL ? 'text-right' : 'text-left'}`} role="status" aria-live="polite" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="mb-6 flex items-center gap-3 sm:mb-8">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-200/70"><AudioLines className="h-5 w-5" /></span>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-200/70">{page === 'agent-sawtify' ? <Bot className="h-5 w-5" /> : <AudioLines className="h-5 w-5" />}</span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[.18em] text-violet-600">Sawtify · {arabic ? 'مساحة العمل' : 'Espace de travail'}</p>
           <h1 className="mt-1 text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
@@ -90,12 +97,13 @@ const MinimalLoader: React.FC<{ page?: 'studio' | 'pricing' | 'history' | 'devel
 
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
-  const routeToTab = React.useCallback((path: string): 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin' => {
+  const routeToTab = React.useCallback((path: string): AppTab => {
     if (path === '/historique' || path === '/history') return 'history';
     if (path === '/edit-video') return 'studio';
     if (path === '/pricing' || path === '/recharge') return 'pricing';
     if (path === '/developer') return 'developer';
     if (path === '/admin') return 'admin';
+    if (path === '/agent-sawtify') return 'agent-sawtify';
     return 'studio';
   }, []);
   
@@ -105,7 +113,8 @@ function AppContent() {
   const [pendingUserEmail, setPendingUserEmail] = useState<string | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin'>(() => routeToTab(window.location.pathname));
+  const [activeTab, setActiveTab] = useState<AppTab>(() => routeToTab(window.location.pathname));
+  const requestedTabRef = React.useRef<AppTab | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showInstagramNudge, setShowInstagramNudge] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
@@ -178,11 +187,16 @@ function AppContent() {
   const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
-  const navigateTo = React.useCallback((tab: 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin', replace = false) => {
+  const navigateTo = React.useCallback((tab: AppTab, replace = false) => {
     if (tab === 'edit-video') { setToastMessage('Le montage vidéo est fermé pour le moment — Prochainement.'); return; }
-    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : '/studio';
+    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : tab === 'agent-sawtify' ? '/agent-sawtify' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
+  }, []);
+
+  const navigateToAgentInfo = React.useCallback(() => {
+    if (window.location.pathname !== '/agent-ai') window.history.pushState({}, '', '/agent-ai');
+    setActiveTab('studio');
   }, []);
 
   React.useEffect(() => {
@@ -280,7 +294,9 @@ function AppContent() {
     if (welcomeBonusPromiseRef.current) await welcomeBonusPromiseRef.current;
     await refreshAccountData();
     setIsBootstrapping(false);
-    navigateTo('studio', true);
+    const destination = requestedTabRef.current || 'studio';
+    requestedTabRef.current = null;
+    navigateTo(destination, true);
   }, [refreshAccountData, navigateTo]);
 
   // ── CROISSANCE : offre 1ère recharge, cashback, parrainage (décidés par le serveur) ──
@@ -368,8 +384,15 @@ function AppContent() {
     let unsubscribe: (() => void) | undefined;
     let mounted = true; // Pour éviter les setState si démonté
 
-    import('./services/supabaseClient').then(({ supabase, consumeSignupIntent }) => {
-      
+    import('./services/supabaseClient').then(({ supabase, consumeSignupIntent, isSupabaseConfigured }) => {
+      if (!mounted) return;
+      if (!isSupabaseConfigured) {
+        setIsLoggedIn(false);
+        setIsBalanceLoading(false);
+        setIsCheckingSession(false);
+        return;
+      }
+
       // Promise.race avec timeout pour ne jamais rester bloqué
       const sessionCheck = supabase.auth.getUser().then(({ data, error }) => {
         if (!mounted) return;
@@ -394,7 +417,7 @@ function AppContent() {
             return;
           }
 
-          navigateTo(routeToTab(window.location.pathname), true);
+          if (window.location.pathname !== '/agent-ai') navigateTo(routeToTab(window.location.pathname), true);
           setIsBootstrapping(true);
           refreshAccountData().finally(() => { if (mounted) setIsBootstrapping(false); });
         } else {
@@ -425,7 +448,7 @@ function AppContent() {
           trackMarketingEvent('account_created');
           setIsLoggedIn(true);
           setAuthModalMode('none');
-          navigateTo('studio');
+          navigateTo(requestedTabRef.current || 'studio', true);
 
           const createdAtMs = session.user.created_at ? new Date(session.user.created_at).getTime() : 0;
           const isBrandNewAccount = createdAtMs > 0 && (Date.now() - createdAtMs) < 2 * 60 * 1000;
@@ -453,8 +476,7 @@ function AppContent() {
           if (isBrandNewAccount) {
             welcomeBonusPromiseRef.current = import('./services/supabaseClient').then(({ claimWelcomeBonus }) => claimWelcomeBonus());
             welcomeBonusPromiseRef.current.then((result) => {
-              if (result === 'denied') showToast(language === 'ar' ? 'لديك حساب بالفعل بهذا عنوان IP.' : "Tu as déjà un compte avec cette IP.");
-              if (result === 'error') showToast(language === 'ar' ? 'تعذر التحقق من نقاط الترحيب' : "Impossible de vérifier ton bonus.");
+              if (!result) showToast(language === 'ar' ? 'لم نتمكن من منح مكافأة الترحيب.' : "Le bonus de bienvenue n’a pas pu être accordé.");
             });
             if (!wantsPasswordSetup) {
               showToast(language === 'ar' ? 'مرحباً بك في صوتيفي!' : 'Bienvenue sur Sawtify !');
@@ -565,6 +587,27 @@ function AppContent() {
     showToast(t.toastRecharged.replace('{points}', pack.points.toString()).replace('{method}', methodLabel));
   };
 
+  const agentInfoPage = (
+    <Suspense fallback={<MinimalLoader page="agent-sawtify" />}>
+      <AgentInfoPage
+        isLoggedIn={isLoggedIn}
+        onBack={() => navigateTo('studio')}
+        onOpenAgent={() => navigateTo('agent-sawtify')}
+        onOpenStudio={() => navigateTo('studio')}
+        onLogin={() => {
+          requestedTabRef.current = 'agent-sawtify';
+          trackMarketingEvent('signup_open', { intent: 'agent_ai_login' });
+          setAuthModalMode('login');
+        }}
+        onSignup={() => {
+          requestedTabRef.current = 'agent-sawtify';
+          trackMarketingEvent('signup_open', { intent: 'agent_sawtify' });
+          setAuthModalMode('signin');
+        }}
+      />
+    </Suspense>
+  );
+
   // Etat de connexion forcé si timeout
   const displayContent = (() => {
     // Si on a un utilisateur à accueillir (onboarding), on le montre toujours
@@ -581,12 +624,20 @@ function AppContent() {
             language={language}
             onDone={() => {
               setNeedsPasswordSetup(false);
-              navigateTo('studio', true);
+              const destination = requestedTabRef.current || 'studio';
+              requestedTabRef.current = null;
+              navigateTo(destination, true);
               showToast(language === 'ar' ? 'تم إنشاء كلمة المرور! مرحباً بك في صوتيفي' : 'Mot de passe créé ! Bienvenue sur Sawtify');
             }}
           />
         </Suspense>
       );
+    }
+
+    const callRouteMatch = window.location.pathname.match(/^\/call\/([^/]+)/);
+    if (callRouteMatch) {
+      const slug = decodeURIComponent(callRouteMatch[1]);
+      return <Suspense fallback={<MinimalLoader page="agent-sawtify" />}><AgentAccessGate onBack={() => navigateTo('studio')}><AgentCallPage slug={slug} /></AgentAccessGate></Suspense>;
     }
 
     // La landing reste visible pendant la vérification de session : aucun écran d'attente vide.
@@ -599,7 +650,9 @@ function AppContent() {
               onLoginSuccess={() => {
                 setAuthModalMode('none');
                 setIsLoggedIn(true);
-                navigateTo('studio');
+                const destination = requestedTabRef.current || 'studio';
+                requestedTabRef.current = null;
+                navigateTo(destination);
                 showToast(language === 'ar' ? 'مرحباً بك مجدداً!' : 'Bon retour ! Connexion réussie.');
               }}
               onSwitchToSignin={() => setAuthModalMode('signin')}
@@ -617,7 +670,9 @@ function AppContent() {
               onSigninSuccess={() => {
                 setAuthModalMode('none');
                 setIsLoggedIn(true);
-                navigateTo('studio');
+                const destination = requestedTabRef.current || 'studio';
+                requestedTabRef.current = null;
+                navigateTo(destination);
                 showToast(language === 'ar' ? 'تم إنشاء الحساب بنجاح! +50 نقطة هدية' : 'Compte créé avec succès ! +50 points offerts.');
               }}
               onSwitchToLogin={() => setAuthModalMode('login')}
@@ -627,11 +682,34 @@ function AppContent() {
         );
       }
 
+      if (window.location.pathname === '/agent-ai') return agentInfoPage;
+
+      if (activeTab === 'agent-sawtify') {
+        return (
+          <div className="saw-app-background min-h-screen">
+            <Suspense fallback={<MinimalLoader page="agent-sawtify" />}>
+              <AgentAccessGate onBack={() => navigateTo('studio')}>
+                <AgentSawtifyPage
+                  previewMode
+                  onBack={() => navigateTo('studio')}
+                  onSignIn={() => {
+                    requestedTabRef.current = 'agent-sawtify';
+                    trackMarketingEvent('signup_open', { intent: 'agent_sawtify' });
+                    setAuthModalMode('signin');
+                  }}
+                />
+              </AgentAccessGate>
+            </Suspense>
+          </div>
+        );
+      }
+
       return (
         <>
           <LandingPage
-            onLoginClick={() => { trackMarketingEvent('signup_open', { intent: 'login' }); setAuthModalMode('login'); }}
-            onSigninClick={() => { trackMarketingEvent('signup_open'); setAuthModalMode('signin'); }}
+            onLoginClick={() => { requestedTabRef.current = null; trackMarketingEvent('signup_open', { intent: 'login' }); setAuthModalMode('login'); }}
+            onSigninClick={() => { requestedTabRef.current = null; trackMarketingEvent('signup_open'); setAuthModalMode('signin'); }}
+            onAgentClick={navigateToAgentInfo}
             language={language}
             setLanguage={setLanguage}
           />
@@ -652,6 +730,8 @@ function AppContent() {
       );
     }
 
+    if (window.location.pathname === '/agent-ai') return agentInfoPage;
+
     // Utilisateur connecté : Afficher l'interface principale
     // Même si isBootstrapping est true, on affiche le contenu (le solde arrivera après)
     // C'est le KEY FIX : avant, on bloquait ici jusqu'à la fin du bootstrap
@@ -668,6 +748,7 @@ function AppContent() {
           onLogout={() => {
             import('./services/supabaseClient').then(({ signOutFromSupabase }) => signOutFromSupabase());
             setIsLoggedIn(false);
+            navigateTo('studio');
             showToast(language === 'ar' ? 'تم تسجيل الخروج' : 'Déconnexion réussie');
           }}
         />
@@ -687,9 +768,11 @@ function AppContent() {
         <main 
           key={language}
           className={`flex-1 w-full transition-opacity duration-150 ${
-            activeTab === 'studio' 
-              ? 'min-h-0 overflow-hidden flex flex-col' 
-              : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
+            activeTab === 'studio'
+              ? 'min-h-0 overflow-hidden flex flex-col'
+              : activeTab === 'agent-sawtify'
+                ? 'max-w-none px-0 py-0'
+                : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
           } ${
             isTransitioning ? 'opacity-0' : 'opacity-100 lang-fade-enter'
           }`}
@@ -728,8 +811,6 @@ function AppContent() {
               <PricingPage
                 balance={balance}
                 onRechargeSuccess={handleRechargeSuccess}
-                purchases={purchases}
-                language={language}
                 onNavigateToStudio={() => navigateTo('studio')}
                 growth={growth}
                 openPackId={pricingIntent}
@@ -739,14 +820,16 @@ function AppContent() {
             
             {activeTab === 'developer' && <DeveloperPage balance={balance} />}
             {activeTab === 'admin' && <AdminPage />}
+            {activeTab === 'agent-sawtify' && <AgentAccessGate onBack={() => navigateTo('studio')}><AgentSawtifyPage /></AgentAccessGate>}
           </Suspense>
         </main>
 
         {/* Bottom Nav Mobile */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-[70] border-t border-slate-200/80 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl" aria-label={language === 'ar' ? 'التنقل الرئيسي' : 'Navigation principale'}>
-          <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
+          <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
             {[
               { id: 'studio' as const, label: language === 'ar' ? 'استوديو' : 'Studio', icon: Mic },
+              { id: 'agent-sawtify' as const, label: language === 'ar' ? 'المساعد الذكي' : 'Agent IA', icon: Bot },
               { id: 'history' as const, label: language === 'ar' ? 'السجل' : 'Historique', icon: History },
               { id: 'pricing' as const, label: language === 'ar' ? 'النقاط' : 'Points', icon: CreditCard },
               { id: 'developer' as const, label: 'API', icon: balance > 1000 ? Code2 : Lock },

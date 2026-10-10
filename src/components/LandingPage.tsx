@@ -20,6 +20,7 @@ import {
   Quote,
   Mic,
   PhoneCall,
+  Bot,
   Megaphone,
   GraduationCap,
   Video,
@@ -36,6 +37,7 @@ import { motion, AnimatePresence, useInView } from "motion/react";
 export interface LandingPageProps {
   onLoginClick: () => void;
   onSigninClick: () => void;
+  onAgentClick: () => void;
   language: "fr" | "ar";
   setLanguage: (lang: "fr" | "ar") => void;
 }
@@ -576,7 +578,7 @@ const StepCard = ({
 );
 
 /* ═══════════ MAIN COMPONENT ═══════════ */
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSigninClick, language, setLanguage }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSigninClick, onAgentClick, language, setLanguage }) => {
   const isRTL = language === "ar";
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = useScrolled();
@@ -902,18 +904,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
             >
               {t.heroSub}
             </motion.p>
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-              whileHover={{ scale: 1.06, boxShadow: `0 0 45px ${PURPLE_GLOW_STRONG}` }}
-              whileTap={{ scale: 0.97 }}
-              onClick={onSigninClick}
-              className="px-10 py-4 rounded-full text-lg font-bold inline-flex items-center gap-2"
-              style={{ background: PURPLE, color: BG_BLACK }}
-            >
-              {t.ctaMain} <ArrowRight className="w-5 h-5" />
-            </motion.button>
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                whileHover={{ scale: 1.06, boxShadow: `0 0 45px ${PURPLE_GLOW_STRONG}` }}
+                whileTap={{ scale: 0.97 }}
+                onClick={onSigninClick}
+                className="px-10 py-4 rounded-full text-lg font-bold inline-flex items-center gap-2"
+                style={{ background: PURPLE, color: BG_BLACK }}
+              >
+                {t.ctaMain} <ArrowRight className="w-5 h-5" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.04, borderColor: PURPLE, color: TEXT_WHITE }}
+                whileTap={{ scale: 0.97 }}
+                onClick={onAgentClick}
+                className="inline-flex items-center gap-2 rounded-full border px-6 py-4 text-sm font-extrabold transition"
+                style={{ color: TEXT_WHITE, borderColor: BORDER_ZINC_700, background: 'rgba(24,24,27,.55)' }}
+              >
+                <Bot className="h-4 w-4" style={{ color: PURPLE }} />
+                {isRTL ? 'مساعد Sawtify الذكي' : 'Découvrir l’Agent IA'}
+                <ArrowRight className="h-4 w-4" />
+              </motion.button>
+            </div>
           </div>
 
           <motion.div

@@ -28,6 +28,12 @@ Sawtify est une plateforme algérienne de synthèse vocale (Text-to-Speech) nouv
 
 Le système fonctionne sur un modèle de crédits : chaque utilisateur dispose d'un solde qu'il peut recharger selon ses besoins, sans abonnement obligatoire.
 
+## Accès temporaire à Agent IA
+
+Pendant le développement, l'accès à l'espace Agent et à ses API est protégé par un code vérifié par le serveur. Configure `AGENT_ACCESS_CODE` et un `AGENT_ACCESS_SECRET` aléatoire d'au moins 32 caractères dans les variables d'environnement **du serveur uniquement**. Ne place pas ces valeurs dans Supabase, dans une variable `VITE_*`, ni dans le dépôt. Si `AGENT_ACCESS_SECRET` est absent, le serveur utilise `SUPABASE_SERVICE_ROLE_KEY`, mais un secret dédié est préférable.
+
+Le jeton de session expire après 12 heures. Le portail informatif `/agent-ai` reste public. Pour retirer le code partagé plus tard, configure `AGENT_ACCESS_GATE_ENABLED=false` côté serveur. Le schéma de paiement Agent est fourni dans `supabase/agent_sawtify_pricing.sql` et doit être appliqué séparément dans Supabase.
+
 ## Contact
 
 Pour toute question, démonstration ou partenariat concernant Sawtify, n'hésitez pas à nous contacter directement.

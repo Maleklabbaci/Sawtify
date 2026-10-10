@@ -67,6 +67,7 @@ import {
   type OfferContext,
   type PackOffer,
 } from "./src/config/growth";
+import { AGENT_ESTIMATED_COST_PER_MINUTE_DZD, AGENT_PRICING_OFFERS } from "./src/config/agentPricing";
 
 dotenv.config();
 
@@ -182,6 +183,10 @@ const SLICKPAY_WEBHOOK_SECRET = process.env.SLICKPAY_WEBHOOK_SECRET || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
+const AGENT_ACCESS_GATE_ENABLED = String(process.env.AGENT_ACCESS_GATE_ENABLED || "true").toLowerCase() !== "false";
+const AGENT_ACCESS_CODE = process.env.AGENT_ACCESS_CODE || "";
+const AGENT_ACCESS_SECRET = process.env.AGENT_ACCESS_SECRET || SUPABASE_SERVICE_ROLE_KEY;
+const AGENT_ACCESS_CONFIGURED = AGENT_ACCESS_CODE.length > 0 && AGENT_ACCESS_SECRET.length >= 32;
 const FRONTEND_URL = process.env.FRONTEND_URL || "";
 const PUBLIC_MEDIA_URL = (process.env.PUBLIC_MEDIA_URL || "https://sawtify.space").replace(/\/+$/, "");
 const lamejs: any = (lamejsModule as any).default || lamejsModule;
@@ -193,6 +198,7 @@ const VIDEO_JOBS = new Map<string, VideoJob>();
 if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
 if (!SUPABASE_JWT_SECRET) console.warn("[Config] SUPABASE_JWT_SECRET manquante — vérification JWT en ligne utilisée (plus lent)");
+if (AGENT_ACCESS_GATE_ENABLED && !AGENT_ACCESS_CONFIGURED) console.warn("[Config] Accès Agent privé activé mais incomplet : renseigne AGENT_ACCESS_CODE et un secret serveur de 32 caractères minimum.");
 if (!SLICKPAY_API_KEY) console.warn("[Config] SLICKPAY_API_KEY manquante");
 if (SLICKPAY_IS_SANDBOX && !SLICKPAY_SANDBOX_KEY) console.warn("[Config] SLICKPAY_MODE=sandbox mais SLICKPAY_SANDBOX_KEY manquante — retombe sur la clé prod (probablement invalide sur devapi).");
 console.log(`[Config] SlickPay: mode=${SLICKPAY_IS_SANDBOX ? "sandbox" : "production"} base_url=${SLICKPAY_BASE_URL}`);
@@ -370,6 +376,36 @@ const FREE_TRIAL_UNLOCK_POINTS_THRESHOLD = Number(process.env.FREE_TRIAL_UNLOCK_
 
 function hashApiKey(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function matchesAgentAccessCode(candidate: string): boolean {
+  if (!AGENT_ACCESS_CONFIGURED) return false;
+  const expectedHash = createHash("sha256").update(AGENT_ACCESS_CODE).digest();
+  const candidateHash = createHash("sha256").update(candidate).digest();
+  return crypto.timingSafeEqual(expectedHash, candidateHash);
+}
+
+function signAgentAccessToken(): string {
+  return jwt.sign({ scope: "agent-access" }, AGENT_ACCESS_SECRET, {
+    algorithm: "HS256",
+    expiresIn: "12h",
+    audience: "sawtify-agent",
+    issuer: "sawtify",
+  });
+}
+
+function isValidAgentAccessToken(token: string): boolean {
+  if (!AGENT_ACCESS_CONFIGURED || !token) return false;
+  try {
+    const payload = jwt.verify(token, AGENT_ACCESS_SECRET, {
+      algorithms: ["HS256"],
+      audience: "sawtify-agent",
+      issuer: "sawtify",
+    }) as any;
+    return payload?.scope === "agent-access";
+  } catch {
+    return false;
+  }
 }
 
 function newApiKey(): string {
@@ -822,6 +858,35 @@ async function updateInvoiceStatus(invoiceId: string, status: string, extra: any
   if (local) { local.status = status as any; Object.assign(local, extra); INVOICE_REGISTRY.set(invoiceId, local); }
   if (!supabaseClient) return;
   try { await supabaseClient.from("invoices").update({ status, ...extra, updated_at: new Date().toISOString() }).eq("id", invoiceId); } catch (e: any) { console.warn(`[Invoices] Mise à jour statut échouée pour ${invoiceId}:`, e?.message || e); }
+}
+
+async function loadAgentSawtifyPayment(invoiceId: string): Promise<any | null> {
+  if (!supabaseClient) return null;
+  try {
+    const { data, error } = await supabaseClient.from("agent_sawtify_payments").select("*").eq("invoice_id", invoiceId).maybeSingle();
+    if (error) {
+      if (!/agent_sawtify_payments|schema cache|does not exist/i.test(String(error.message || error.code))) console.warn("[Agent Sawtify] Paiement introuvable:", error.message);
+      return null;
+    }
+    return data || null;
+  } catch (error: any) {
+    console.warn("[Agent Sawtify] Lecture du paiement impossible:", error?.message || error);
+    return null;
+  }
+}
+
+async function completeAgentSawtifyPayment(invoiceId: string): Promise<any | null> {
+  if (!supabaseClient) return { success: false, error: "Base de données indisponible." };
+  const payment = await loadAgentSawtifyPayment(invoiceId);
+  if (!payment) return null;
+  if (payment.status === "completed") return { success: true, already_processed: true, minutes: payment.minutes, offer_id: payment.offer_id, offer_kind: payment.offer_kind };
+  try {
+    const { data, error } = await supabaseClient.rpc("complete_agent_sawtify_payment", { p_invoice_id: invoiceId });
+    if (error) return { success: false, error: error.message };
+    return data || { success: false, error: "Attribution des minutes impossible." };
+  } catch (error: any) {
+    return { success: false, error: error?.message || "Attribution des minutes impossible." };
+  }
 }
 
 const BASE_POINTS_COST = 20;
@@ -2020,7 +2085,7 @@ async function startServer() {
     const origin = String(req.get("origin") || "").replace(/\/+$/, "");
     if (origin && (allowedOrigins.has(origin) || process.env.NODE_ENV !== "production")) res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key,X-File-Name,X-File-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Sawtify-API-Key,X-Agent-Access-Token,X-File-Name,X-File-Type");
     res.setHeader("Access-Control-Expose-Headers", "Content-Type,Content-Disposition,X-Request-Id");
     res.setHeader("Vary", "Origin");
     if (req.method === "OPTIONS") return res.status(204).end();
@@ -2029,6 +2094,36 @@ async function startServer() {
 
   const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, handler: (req, res) => res.status(429).json({ error: "Trop de requêtes." }) });
   app.use(globalLimiter);
+
+  const agentAccessLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 6, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop d'essais. Réessaie dans 15 minutes." }) });
+  const requireAgentAccess: express.RequestHandler = (req, res, next) => {
+    if (!AGENT_ACCESS_GATE_ENABLED) return next();
+    if (!AGENT_ACCESS_CONFIGURED) return res.status(503).json({ success: false, error: "L'accès Agent privé n'est pas encore configuré." });
+    const token = req.get("x-agent-access-token") || "";
+    if (!isValidAgentAccessToken(token)) return res.status(403).json({ success: false, error: "Code d'accès Agent requis ou expiré." });
+    next();
+  };
+
+  app.get("/api/agent/access/status", (_req, res) => res.json({
+    required: AGENT_ACCESS_GATE_ENABLED,
+    configured: !AGENT_ACCESS_GATE_ENABLED || AGENT_ACCESS_CONFIGURED,
+  }));
+
+  app.post("/api/agent/access/verify", agentAccessLimiter, (req, res) => {
+    if (!AGENT_ACCESS_GATE_ENABLED) return res.json({ success: true, required: false });
+    if (!AGENT_ACCESS_CONFIGURED) return res.status(503).json({ success: false, error: "L'accès Agent privé n'est pas encore configuré." });
+    const candidate = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+    if (!matchesAgentAccessCode(candidate)) return res.status(401).json({ success: false, error: "Code invalide. Réessaie." });
+    return res.json({ success: true, token: signAgentAccessToken(), expires_in: 43200 });
+  });
+
+  app.get("/api/agent/access/check", (req, res) => {
+    if (!AGENT_ACCESS_GATE_ENABLED) return res.json({ success: true, required: false });
+    if (!AGENT_ACCESS_CONFIGURED) return res.status(503).json({ success: false, error: "L'accès Agent privé n'est pas encore configuré." });
+    const token = req.get("x-agent-access-token") || "";
+    if (!isValidAgentAccessToken(token)) return res.status(401).json({ success: false, error: "Accès Agent expiré." });
+    return res.json({ success: true, required: true });
+  });
 
   const resolveUserIdMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     (req as any).resolvedUserId = await getUserIdFromAuthHeader(req);
@@ -2287,6 +2382,17 @@ async function startServer() {
       }
       const geminiCostDzd = geminiUsd * USD_TO_DZD;
       const grossMarginDzd = revenueDzd - geminiCostDzd;
+      const [{ data: agentPaymentRows }, { data: agentWalletRows }] = await Promise.all([
+        supabaseClient.from("agent_sawtify_payments").select("invoice_id, user_id, offer_id, offer_kind, offer_name, minutes, amount_dzd, status, created_at, paid_at").order("created_at", { ascending: false }).limit(10000),
+        supabaseClient.from("agent_sawtify_wallets").select("user_id, plan_expires_at").limit(10000),
+      ]);
+      const paidAgentPayments = (agentPaymentRows || []).filter((row: any) => row.status === "completed");
+      const agentRevenueDzd = paidAgentPayments.reduce((sum: number, row: any) => sum + Number(row.amount_dzd || 0), 0);
+      const agentMinutesSold = paidAgentPayments.reduce((sum: number, row: any) => sum + Number(row.minutes || 0), 0);
+      const agentEstimatedCostDzd = agentMinutesSold * AGENT_ESTIMATED_COST_PER_MINUTE_DZD;
+      const agentGrossMarginDzd = agentRevenueDzd - agentEstimatedCostDzd;
+      const activeAgentSubscribers = (agentWalletRows || []).filter((row: any) => row.plan_expires_at && Date.parse(row.plan_expires_at) > Date.now()).length;
+      const agentMarginPercent = agentRevenueDzd > 0 ? (agentGrossMarginDzd / agentRevenueDzd) * 100 : 0;
       const activeUsers30d = users.filter((row: any) => String(row.updated_at || row.created_at) >= since30).length;
       // FIX ADMIN-PAGINATION : on renvoie tous les comptes (jusqu'à la limite déjà
       // appliquée sur la requête `users`, 5000) au lieu de les tronquer à 20 ici —
@@ -2304,8 +2410,14 @@ async function startServer() {
         };
       });
       const recentPayments = paidTx.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 20);
+      const emailByUserId = new Map<string, string | null>(users.map((user: any) => [String(user.id), user.email || null]));
+      const recentAgentPayments = (agentPaymentRows || [])
+        .slice()
+        .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))
+        .slice(0, 20)
+        .map((payment: any) => ({ ...payment, user_email: emailByUserId.get(String(payment.user_id)) || null }));
       await supabaseClient.from("admin_audit_log").insert({ admin_user_id: admin.userId, action: "view_admin_overview", metadata: { role: admin.role } });
-      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, mcp_generations: mcpGenerations, mcp_claude_generations: mcpClaudeGenerations, mcp_chatgpt_generations: mcpChatgptGenerations, mcp_other_generations: mcpOtherGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
+      return res.json({ summary: { total_users: users.length, free_trial_users: users.filter((u: any) => !paidUserIds.has(u.id)).length, paid_users: paidUserIds.size, active_users_30d: activeUsers30d, generations_total: gens.length, free_generations: freeGenerations, paid_generations: paidGenerations, api_generations: apiGenerations, mcp_generations: mcpGenerations, mcp_claude_generations: mcpClaudeGenerations, mcp_chatgpt_generations: mcpChatgptGenerations, mcp_other_generations: mcpOtherGenerations, revenue_dzd: revenueDzd, points_consumed: pointsConsumed, paid_points_issued: paidPointsIssued, point_value_dzd: pointValueDzd, gemini_calls: logs.length, gemini_input_tokens: geminiInputTokens, gemini_output_tokens: geminiOutputTokens, gemini_cost_usd: geminiUsd, gemini_cost_dzd: geminiCostDzd, free_gemini_cost_dzd: freeGeminiUsd * USD_TO_DZD, paid_gemini_cost_dzd: paidGeminiUsd * USD_TO_DZD, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, average_cost_per_generation_dzd: gens.length ? geminiCostDzd / gens.length : 0, gross_margin_dzd: grossMarginDzd, gross_margin_percent: revenueDzd > 0 ? (grossMarginDzd / revenueDzd) * 100 : 0, usd_to_dzd: USD_TO_DZD }, agent_sawtify: { paid_transactions: paidAgentPayments.length, active_subscribers: activeAgentSubscribers, revenue_dzd: agentRevenueDzd, minutes_sold: agentMinutesSold, estimated_cost_per_minute_dzd: AGENT_ESTIMATED_COST_PER_MINUTE_DZD, estimated_cost_dzd: agentEstimatedCostDzd, gross_margin_dzd: agentGrossMarginDzd, gross_margin_percent: agentMarginPercent, recent_payments: recentAgentPayments }, recent_users: recentUsers, recent_payments: recentPayments, cost_model: { text_model: GEMINI_TEXT_MODEL, text_input_usd_per_1m: GEMINI_TEXT_INPUT_USD_PER_1M, text_output_usd_per_1m: GEMINI_TEXT_OUTPUT_USD_PER_1M, tts_model: TTS_MODEL, tts_input_usd_per_1m: GEMINI_TTS_INPUT_USD_PER_1M, tts_audio_usd_per_1m: GEMINI_TTS_AUDIO_USD_PER_1M, audio_tokens_per_second: GEMINI_AUDIO_TOKENS_PER_SECOND } });
     } catch (error: any) { return res.status(500).json({ error: "Impossible de charger le dashboard Admin.", detail: error?.message }); }
   });
 
@@ -3183,6 +3295,227 @@ Le texte de la proposition`;
 
   /* ===================================================================     SLICKPAY
      ========================================================================== */
+  app.post("/api/agent/slickpay/create-invoice", requireAgentAccess, async (req, res) => {
+    let agentPaymentId: string | null = null;
+    try {
+      const userId = await getUserIdFromAuthHeader(req);
+      if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+      if (!supabaseClient) return res.status(503).json({ success: false, error: "Paiement indisponible." });
+      if (!SLICKPAY_API_KEY) return res.status(503).json({ success: false, error: "SlickPay n'est pas configuré sur le serveur." });
+
+      const offer = AGENT_PRICING_OFFERS.find((item) => item.id === req.body?.offerId);
+      if (!offer) return res.status(400).json({ success: false, error: "Forfait Agent inconnu." });
+
+      const { data: profile, error: profileError } = await supabaseClient
+        .from("profiles")
+        .select("email, full_name, phone_number")
+        .eq("id", userId)
+        .maybeSingle();
+      if (profileError || !profile?.email) return res.status(400).json({ success: false, error: "Profil client incomplet." });
+
+      const { data: paymentRow, error: paymentInsertError } = await supabaseClient
+        .from("agent_sawtify_payments")
+        .insert({
+          user_id: userId,
+          offer_id: offer.id,
+          offer_kind: offer.kind,
+          offer_name: offer.nameFr,
+          minutes: offer.minutes,
+          amount_dzd: offer.priceDzd,
+          payment_method: "slickpay",
+          status: "pending",
+        })
+        .select("id")
+        .single();
+      if (paymentInsertError || !paymentRow?.id) {
+        return res.status(503).json({ success: false, error: "Le paiement Agent n'est pas encore activé. Applique la migration Supabase dédiée." });
+      }
+      agentPaymentId = paymentRow.id;
+
+      const displayName = String(profile.full_name || "Client").trim();
+      const [firstname, ...lastnameParts] = displayName.split(/\s+/).filter(Boolean);
+      const lastname = lastnameParts.join(" ") || "Sawtify";
+      const email = String(profile.email).trim().toLowerCase();
+      const phone = String(profile.phone_number || "0550123456").trim();
+      const address = "Alger, Algérie";
+      const apiRoot = SLICKPAY_BASE_URL.replace(/\/+$/, "");
+      let accountUuid: string | undefined;
+      try {
+        const accountResponse = await fetch(`${apiRoot}/users/accounts`, { headers: { Authorization: `Bearer ${SLICKPAY_API_KEY}`, Accept: "application/json" } });
+        if (accountResponse.ok) {
+          const accountData = await accountResponse.json();
+          const accounts = accountData.data || accountData.accounts || (Array.isArray(accountData) ? accountData : []);
+          if (accounts.length) accountUuid = accounts[0].uuid || accounts[0].id;
+        }
+      } catch { /* L'association au compte SlickPay est facultative. */ }
+
+      let contactUuid = SLICKPAY_CONTACT_CACHE.get(email);
+      let contactError = "";
+      if (!contactUuid) {
+        try {
+          const fakeRib = () => randomBytes(16).toString("hex").replace(/[a-f]/g, "").padEnd(20, "0").slice(0, 20);
+          let contactResponse: Response | null = null;
+          let contactData: any = {};
+          for (let attempt = 0; attempt < 3; attempt++) {
+            contactResponse = await fetch(`${apiRoot}/users/contacts`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({
+                title: `${firstname || "Client"} ${lastname}`.trim(), firstname: firstname || "Client", lastname,
+                email, address, rib: fakeRib(),
+              }),
+            });
+            const text = await contactResponse.text();
+            try { contactData = JSON.parse(text); } catch { contactData = { message: text }; }
+            if (contactResponse.ok) break;
+            const ribConflict = contactResponse.status === 422 && JSON.stringify(contactData?.errors || contactData).includes("rib");
+            if (!ribConflict) break;
+          }
+          if (contactResponse?.ok) {
+            contactUuid = contactData.uuid || contactData.id || contactData.data?.uuid;
+            if (contactUuid) SLICKPAY_CONTACT_CACHE.set(email, contactUuid);
+          } else {
+            contactError = contactData?.message || `HTTP ${contactResponse?.status || "inconnu"}`;
+          }
+        } catch (error: any) {
+          contactError = error?.message || "Erreur réseau";
+        }
+      }
+      if (!contactUuid) {
+        await supabaseClient.from("agent_sawtify_payments").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", agentPaymentId);
+        return res.status(502).json({ success: false, error: "Impossible de créer le contact SlickPay.", detail: contactError });
+      }
+
+      const returnUrl = getPublicUrl(req, "/agent-sawtify?agent_payment=success");
+      const webhookUrl = getPublicUrl(req, "/api/slickpay/webhook") + (SLICKPAY_WEBHOOK_SECRET ? `?secret=${encodeURIComponent(SLICKPAY_WEBHOOK_SECRET)}` : "");
+      const payload: any = {
+        amount: offer.priceDzd,
+        url: returnUrl,
+        webhook_url: webhookUrl,
+        webhook_meta_data: [{ invoice_source: "sawtify_agent", agent_payment_id: agentPaymentId, user_id: userId, offer_id: offer.id }],
+        firstname: firstname || "Client",
+        lastname,
+        phone,
+        email,
+        address,
+        note: `Sawtify Agent - ${offer.nameFr} (${offer.minutes} min)`,
+        items: [{ name: `${offer.nameFr} · ${offer.minutes} min`, price: offer.priceDzd, quantity: 1 }],
+      };
+      if (accountUuid) payload.account = accountUuid;
+      payload.contact = contactUuid;
+
+      const slickPayResponse = await fetch(`${apiRoot}/users/invoices`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SLICKPAY_API_KEY}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const responseText = await slickPayResponse.text();
+      let slickPayData: any;
+      try { slickPayData = JSON.parse(responseText); } catch { slickPayData = { message: responseText }; }
+      const invoice = slickPayData?.data || slickPayData?.invoice || slickPayData;
+      const invoiceId = invoice?.id || invoice?.uuid;
+      const paymentUrl = invoice?.url || invoice?.payment_url || "";
+      if (!slickPayResponse.ok || !invoiceId || !paymentUrl) {
+        await supabaseClient.from("agent_sawtify_payments").update({ status: "failed", gateway_payload: slickPayData, updated_at: new Date().toISOString() }).eq("id", agentPaymentId);
+        console.error("[SlickPay Agent invoice]", slickPayResponse.status, slickPayData);
+        return res.status(502).json({ success: false, error: "Impossible de créer la facture SlickPay.", detail: slickPayData?.message || `HTTP ${slickPayResponse.status}` });
+      }
+
+      const { error: invoiceSaveError } = await supabaseClient.from("agent_sawtify_payments").update({
+        invoice_id: String(invoiceId), payment_url: paymentUrl, gateway_payload: slickPayData, updated_at: new Date().toISOString(),
+      }).eq("id", agentPaymentId);
+      if (invoiceSaveError) {
+        console.error("[SlickPay Agent] Facture créée mais enregistrement local impossible:", invoiceSaveError.message);
+        return res.status(503).json({ success: false, error: "La facture a été créée, mais son suivi est temporairement indisponible. Contacte le support avant de réessayer." });
+      }
+
+      return res.json({ success: true, invoiceId: String(invoiceId), paymentUrl, amountDzd: offer.priceDzd, minutes: offer.minutes, offerName: offer.nameFr });
+    } catch (error: any) {
+      if (agentPaymentId && supabaseClient) {
+        await supabaseClient.from("agent_sawtify_payments").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", agentPaymentId);
+      }
+      console.error("[SlickPay Agent create invoice]", error?.message || error);
+      return res.status(500).json({ success: false, error: "Erreur lors de la création de la facture." });
+    }
+  });
+
+  app.get("/api/agent/sawtify/account", requireAgentAccess, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Base de données indisponible." });
+    try {
+      const [{ data: wallet, error: walletError }, { data: payments, error: paymentsError }] = await Promise.all([
+        supabaseClient.from("agent_sawtify_wallets").select("plan_id, plan_minutes_remaining, topup_minutes_remaining, plan_seconds_remaining, topup_seconds_remaining, plan_seconds_purchased, topup_seconds_purchased, plan_expires_at, updated_at").eq("user_id", userId).maybeSingle(),
+        supabaseClient.from("agent_sawtify_payments").select("invoice_id, offer_id, offer_kind, offer_name, minutes, amount_dzd, status, created_at, paid_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
+      ]);
+      if (walletError || paymentsError) return res.status(503).json({ success: false, error: "Le suivi des forfaits Agent n'est pas encore activé." });
+      const planActive = Boolean(wallet?.plan_expires_at && Date.parse(wallet.plan_expires_at) > Date.now());
+      const planSecondsRemaining = planActive ? Math.max(0, Number(wallet?.plan_seconds_remaining || 0)) : 0;
+      const topupSecondsRemaining = Math.max(0, Number(wallet?.topup_seconds_remaining || 0));
+      const remainingSeconds = planSecondsRemaining + topupSecondsRemaining;
+      const purchasedSeconds = (planActive ? Math.max(0, Number(wallet?.plan_seconds_purchased || 0)) : 0)
+        + Math.max(0, Number(wallet?.topup_seconds_purchased || 0));
+      const progressPercent = purchasedSeconds > 0 ? Math.round((remainingSeconds / purchasedSeconds) * 10000) / 100 : 0;
+      const lowBalance = purchasedSeconds > 0 && (remainingSeconds <= 600 || remainingSeconds / purchasedSeconds <= 0.15);
+      const exactWallet = wallet ? {
+        ...wallet,
+        plan_seconds_remaining: planSecondsRemaining,
+        topup_seconds_remaining: topupSecondsRemaining,
+        remaining_seconds: remainingSeconds,
+        purchased_seconds: purchasedSeconds,
+        remaining_minutes_exact: remainingSeconds / 60,
+        progress_percent: progressPercent,
+        low_balance: lowBalance,
+        plan_active: planActive,
+        plan_minutes_remaining: Math.ceil(planSecondsRemaining / 60),
+        topup_minutes_remaining: Math.ceil(topupSecondsRemaining / 60),
+      } : null;
+      return res.json({ success: true, wallet: exactWallet, payments: payments || [] });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Impossible de charger le compte Agent." });
+    }
+  });
+
+  app.get("/api/agent/slickpay/check-status/:invoiceId", requireAgentAccess, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+    const invoiceId = String(req.params.invoiceId);
+    const payment = await loadAgentSawtifyPayment(invoiceId);
+    if (!payment || payment.user_id !== userId) return res.status(403).json({ success: false, error: "Accès interdit." });
+    if (payment.status === "completed") return res.json({ success: true, invoiceId, status: "completed", isPaid: true, minutes: payment.minutes, offerId: payment.offer_id });
+    const verification = await verifySlickPayInvoice(invoiceId);
+    if (verification.paid) {
+      const completion = await completeAgentSawtifyPayment(invoiceId);
+      if (!completion?.success) return res.status(500).json({ success: false, error: completion?.error || "Attribution des minutes impossible." });
+      return res.json({ success: true, invoiceId, status: "completed", isPaid: true, minutes: payment.minutes, offerId: payment.offer_id });
+    }
+    return res.json({ success: true, invoiceId, status: payment.status || "pending", isPaid: false });
+  });
+
+  app.post("/api/agent/slickpay/sync-pending", requireAgentAccess, async (req, res) => {
+    const userId = await getUserIdFromAuthHeader(req);
+    if (!userId) return res.status(401).json({ success: false, error: "Authentification requise." });
+    if (!supabaseClient || !SLICKPAY_API_KEY) return res.json({ success: true, credited: 0 });
+    try {
+      const { data: pending, error } = await supabaseClient.from("agent_sawtify_payments")
+        .select("invoice_id").eq("user_id", userId).eq("status", "pending").not("invoice_id", "is", null)
+        .order("created_at", { ascending: false }).limit(10);
+      if (error || !Array.isArray(pending)) return res.status(503).json({ success: false, error: "Impossible de synchroniser les paiements Agent." });
+      let credited = 0;
+      for (const payment of pending) {
+        const invoiceId = String(payment.invoice_id || "");
+        if (!invoiceId) continue;
+        const verification = await verifySlickPayInvoice(invoiceId);
+        if (!verification.paid) continue;
+        const completion = await completeAgentSawtifyPayment(invoiceId);
+        if (completion?.success) credited += 1;
+      }
+      return res.json({ success: true, credited });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || "Synchronisation impossible." });
+    }
+  });
+
   app.post("/api/slickpay/create-invoice", async (req, res) => {
     try {
       const userId = await getUserIdFromAuthHeader(req);
@@ -3353,7 +3686,17 @@ Le texte de la proposition`;
       const targetId = id || invoice_id;
       if (!targetId) return res.json({ received: true, warning: "No invoice id" });
       const verification = await verifySlickPayInvoice(targetId);
-      if (verification.paid) { const local = await loadInvoice(String(targetId)); if (local) await updateInvoiceStatus(String(targetId), "completed"); await creditIfPaid(targetId); }
+      if (verification.paid) {
+        const agentPayment = await loadAgentSawtifyPayment(String(targetId));
+        if (agentPayment) {
+          const result = await completeAgentSawtifyPayment(String(targetId));
+          if (!result?.success) console.warn("[SlickPay Agent] Attribution différée:", result?.error || "résultat vide");
+        } else {
+          const local = await loadInvoice(String(targetId));
+          if (local) await updateInvoiceStatus(String(targetId), "completed");
+          await creditIfPaid(targetId);
+        }
+      }
       return res.json({ received: true });
     } catch (webhookErr: any) { return res.status(200).json({ received: true, warning: webhookErr.message }); }
   });

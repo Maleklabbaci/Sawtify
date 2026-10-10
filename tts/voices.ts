@@ -1,4 +1,4 @@
-import { Voice, CreditPack } from '../types';
+import { Voice, CreditPack } from '../src/types';
 
 export type LanguageCode = 'fr' | 'ar';
 
