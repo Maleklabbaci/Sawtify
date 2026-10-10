@@ -8,13 +8,21 @@ import { VOICES_FR } from '../data/voices';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!isSupabaseConfigured) {
   console.warn(
-    '[Sawtify] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY manquants. Ajoute-les dans un fichier .env à la racine.'
+    '[Sawtify] Configuration du compte indisponible : l’application reste consultable en mode aperçu.'
   );
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// createClient valide son URL dès l’import du module. L’URL réservée .invalid
+// évite de faire échouer le chargement complet de l’application dans un aperçu
+// sans configuration; les opérations de compte sont désactivées plus bas.
+export const supabase = createClient(
+  supabaseUrl || 'https://sawtify-preview.invalid',
+  supabaseAnonKey || 'preview-not-configured',
+);
 
 const SIGNUP_INTENT_KEY = 'sawtify_signup_intent';
 

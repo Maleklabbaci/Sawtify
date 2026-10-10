@@ -2,6 +2,10 @@ export interface Voice {
   id: string;
   name: string;
   geminiVoice?: string;
+  character?: string;
+  characterAr?: string;
+  characterFr?: string;
+  legacyFor?: string[];
   locale: string;
   dialect: string;
   /**
@@ -63,3 +67,5 @@ export interface UserCredits {
   totalPurchasedPoints: number;
   lastUpdated: string;
 }
+
+export type AppTab = 'studio' | 'history' | 'edit-video' | 'pricing' | 'developer' | 'admin' | 'agent-sawtify';

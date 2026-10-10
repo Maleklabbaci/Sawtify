@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Phone, CalendarDays, Clock3, Coins, AudioLines, Loader2, MessageCircle, Send, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { getMyAccessToken } from '../services/supabaseClient';
+import { AGENT_ESTIMATED_COST_PER_MINUTE_DZD, AGENT_PRICING_OFFERS, calculateAgentOfferEconomics } from '../config/agentPricing';
 
 // Origine d'une génération : plateforme web ou connecteur MCP (Claude, ChatGPT, clé API).
 const CHANNEL_LABELS: Record<string, { label: string; className: string }> = {
@@ -16,6 +17,7 @@ type AdminData = {
   recent_users: Array<{ id: string; email: string; full_name: string | null; phone: string | null; credits_balance: number; total_generated_audios: number; created_at: string; gemini_calls: number; gemini_characters: number; gemini_cost_usd: number; gemini_cost_dzd: number; avg_rating: number | null; ratings_count: number }>;
   recent_payments: Array<{ amount_dzd: number; points_credited: number; status: string; gateway: string; created_at: string }>;
   cost_model: Record<string, number>;
+  agent_sawtify?: { paid_transactions: number; active_subscribers: number; revenue_dzd: number; minutes_sold: number; estimated_cost_per_minute_dzd: number; estimated_cost_dzd: number; gross_margin_dzd: number; gross_margin_percent: number; recent_payments?: Array<{ invoice_id: string | null; user_id: string; user_email: string | null; offer_id: string; offer_kind: 'subscription' | 'topup'; offer_name: string; minutes: number; amount_dzd: number; status: string; created_at: string; paid_at: string | null }> };
 };
 type FunnelData = { counts: Record<string, number>; campaigns: Array<{ name: string; visitors: number; signup_open: number; accounts: number; onboarding: number }> };
 type UserDetail = {
@@ -160,6 +162,11 @@ export const AdminPage: React.FC = () => {
   if (error) return <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-700"><ShieldAlert className="mx-auto mb-3 h-8 w-8" /><p className="font-bold">{error}</p><button onClick={load} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Réessayer</button></div>;
   if (!data) return null;
   const s = data.summary;
+  const agent = data.agent_sawtify || { paid_transactions: 0, active_subscribers: 0, revenue_dzd: 0, minutes_sold: 0, estimated_cost_per_minute_dzd: AGENT_ESTIMATED_COST_PER_MINUTE_DZD, estimated_cost_dzd: 0, gross_margin_dzd: 0, gross_margin_percent: 0, recent_payments: [] };
+  const recentAgentPayments = agent.recent_payments || [];
+  const flagshipOffer = AGENT_PRICING_OFFERS.find((offer) => offer.id === 'agent_plan_300')!;
+  const tenCustomerRevenue = flagshipOffer.priceDzd * 10;
+  const tenCustomerMaxCost = flagshipOffer.minutes * AGENT_ESTIMATED_COST_PER_MINUTE_DZD * 10;
   const totalPages = Math.max(1, Math.ceil(data.recent_users.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pagedUsers = data.recent_users.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -221,18 +228,17 @@ export const AdminPage: React.FC = () => {
       <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-black text-slate-900">Coûts Gemini — suivi précis</h2>
-            <p className="mt-1 text-sm text-slate-600">Calcul basé sur les tokens réellement renvoyés par Gemini pour chaque appel texte.</p>
+            <h2 className="text-xl font-black text-slate-900">Coûts de génération — suivi estimé</h2>
+            <p className="mt-1 text-sm text-slate-600">Estimation agrégée à partir de l’utilisation enregistrée sur la plateforme.</p>
           </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-800">{s.gemini_calls} appels</span>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-800">{s.gemini_calls} appels suivis</span>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ['Coût total', usd(s.gemini_cost_usd), money(s.gemini_cost_dzd)],
-            ['Entrée', integer(s.gemini_input_tokens), `$${s.text_input_usd_per_1m}/M tokens`],
-            ['Sortie', integer(s.gemini_output_tokens), `$${s.text_output_usd_per_1m}/M tokens`],
-            ['Coût / génération', money(s.average_cost_per_generation_dzd), 'moyenne'],
-            ['Modèle texte', 'gemini-3.1-flash-lite', 'actif'],
+            ['Coût total estimé', usd(s.gemini_cost_usd), money(s.gemini_cost_dzd)],
+            ['Générations vocales', integer(s.generations_total), `${integer(s.gemini_calls)} appels suivis`],
+            ['Coût moyen / génération', money(s.average_cost_per_generation_dzd), 'moyenne observée'],
+            ['Marge estimée plateforme', money(s.gross_margin_dzd), `${s.gross_margin_percent.toFixed(1)} % des revenus`],
           ].map(([label, value, detail]) => (
             <div key={label} className="rounded-2xl border border-amber-100 bg-white p-4">
               <p className="text-[11px] font-bold text-slate-500">{label}</p>
@@ -241,6 +247,61 @@ export const AdminPage: React.FC = () => {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-violet-200 bg-violet-50/50 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Agent Sawtify · revenus et marge</h2>
+            <p className="mt-1 text-sm text-slate-600">Coût prudent estimé à {money(agent.estimated_cost_per_minute_dzd || AGENT_ESTIMATED_COST_PER_MINUTE_DZD)} par minute, sur toutes les minutes vendues.</p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-800">{integer(agent.active_subscribers)} forfaits actifs</span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            ['Revenus encaissés', money(agent.revenue_dzd), `${integer(agent.paid_transactions)} paiements confirmés`],
+            ['Minutes vendues', integer(agent.minutes_sold), 'forfaits + recharges'],
+            ['Coût maximum estimé', money(agent.estimated_cost_dzd), 'si toutes les minutes sont utilisées'],
+            ['Marge brute estimée', money(agent.gross_margin_dzd), `${Number(agent.gross_margin_percent || 0).toFixed(2)} %`],
+            ['Coût par minute', money(agent.estimated_cost_per_minute_dzd || AGENT_ESTIMATED_COST_PER_MINUTE_DZD), 'hypothèse de calcul'],
+          ].map(([label, value, detail]) => (
+            <div key={label} className="rounded-2xl border border-violet-100 bg-white p-4">
+              <p className="text-[11px] font-bold text-slate-500">{label}</p>
+              <p className="mt-2 truncate text-lg font-black text-slate-900">{value}</p>
+              <p className="mt-1 text-xs leading-4 text-slate-500">{detail}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-violet-100 bg-white">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead><tr className="border-b border-violet-100 text-[11px] text-slate-500"><th className="p-3">Offre</th><th className="p-3">Minutes</th><th className="p-3">Prix</th><th className="p-3">Coût estimé</th><th className="p-3">Marge brute</th><th className="p-3">Marge %</th><th className="p-3">Prix / min</th></tr></thead>
+            <tbody>
+              {AGENT_PRICING_OFFERS.map((offer) => {
+                const economics = calculateAgentOfferEconomics(offer);
+                const offerTitle = `${offer.nameFr}${offer.kind === 'subscription' ? ' / mois' : ''}`;
+                return <tr key={offer.id} className="border-b border-slate-100 last:border-0"><td className="p-3 font-bold text-slate-800">{offerTitle}</td><td className="p-3">{integer(offer.minutes)}</td><td className="p-3 font-bold">{money(offer.priceDzd)}</td><td className="p-3">{money(economics.estimatedCostDzd)}</td><td className="p-3 font-black text-emerald-700">{money(economics.grossMarginDzd)}</td><td className="p-3 font-bold text-emerald-700">{economics.grossMarginPercent.toFixed(2)} %</td><td className="p-3">{money(economics.resalePricePerMinuteDzd)}</td></tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-violet-100 bg-white">
+          <div className="border-b border-violet-100 px-4 py-3"><h3 className="text-sm font-black text-slate-900">Achats Agent récents</h3><p className="mt-1 text-[10px] text-slate-500">Les 20 dernières factures, paiements confirmés ou en attente.</p></div>
+          {recentAgentPayments.length ? (
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead><tr className="border-b border-slate-100 text-[10px] text-slate-500"><th className="p-3">Client</th><th className="p-3">Offre</th><th className="p-3">Minutes</th><th className="p-3">Montant</th><th className="p-3">Statut</th><th className="p-3">Date</th></tr></thead>
+              <tbody>{recentAgentPayments.map((payment) => <tr key={`${payment.invoice_id || payment.offer_id}-${payment.created_at}`} className="border-b border-slate-100 last:border-0"><td className="p-3 font-semibold text-slate-700">{payment.user_email || payment.user_id.slice(0, 8)}</td><td className="p-3 font-bold text-slate-800">{payment.offer_name}</td><td className="p-3">{integer(payment.minutes)}</td><td className="p-3 font-bold">{money(Number(payment.amount_dzd))}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${payment.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : payment.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{payment.status === 'completed' ? 'Payé' : payment.status === 'failed' ? 'Échoué' : 'En attente'}</span></td><td className="p-3 text-slate-500">{dateTime(payment.created_at)}</td></tr>)}</tbody>
+            </table>
+          ) : <p className="px-4 py-6 text-center text-xs text-slate-500">Aucun achat Agent enregistré pour le moment.</p>}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-white/80 p-4">
+          <div><p className="text-xs font-black uppercase tracking-wide text-violet-700">Scénario · 10 forfaits Business</p><p className="mt-1 text-xs text-slate-600">10 × {money(flagshipOffer.priceDzd)} · {integer(flagshipOffer.minutes * 10)} minutes vendues · coût au maximum consommé : {money(tenCustomerMaxCost)}</p></div>
+          <div className="text-end"><p className="text-[10px] font-bold text-slate-500">Marge brute estimée</p><p className="text-xl font-black text-emerald-700">{money(tenCustomerRevenue - tenCustomerMaxCost)}</p></div>
+        </div>
+        <p className="mt-3 text-[10px] leading-4 text-slate-500">Cette marge est une estimation avant frais SlickPay, fiscalité, support et coûts fixes. Les minutes sont considérées entièrement consommées pour calculer le coût maximum.</p>
       </section>
 
       {funnel && (
@@ -300,7 +361,7 @@ export const AdminPage: React.FC = () => {
                 <th className="p-2">Solde</th>
                 <th className="p-2">Voix générées</th>
                 <th className="p-2">Note moyenne</th>
-                <th className="p-2">Coût Gemini</th>
+                <th className="p-2">Coût de génération</th>
                 <th className="p-2"></th>
                 <th className="p-2"></th>
               </tr>
@@ -475,13 +536,12 @@ export const AdminPage: React.FC = () => {
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h3 className="font-black text-slate-900">Activité Gemini</h3>
+                <h3 className="font-black text-slate-900">Activité enregistrée</h3>
                 <p className="mt-2 text-sm text-slate-500">{selectedUser.usage_logs.length} appels enregistrés</p>
                 <p className="mt-1 text-sm text-slate-500">{selectedUser.usage_logs.reduce((sum, log) => sum + Number(log.characters || 0), 0).toLocaleString('fr-FR')} caractères traités</p>
                 {selectedUser.usage_summary && <>
                   <p className="mt-1 text-sm font-black text-amber-700">{money(selectedUser.usage_summary.cost_dzd)} · {usd(selectedUser.usage_summary.cost_usd)}</p>
-                  <p className="mt-1 text-xs text-slate-500">{integer(selectedUser.usage_summary.input_tokens)} tokens entrée · {integer(selectedUser.usage_summary.output_tokens)} tokens sortie</p>
-                  <p className="mt-1 text-xs text-slate-400">Modèle texte : {selectedUser.usage_summary.model}</p>
+                  <p className="mt-1 text-xs text-slate-500">Coût calculé à partir des appels enregistrés.</p>
                 </>}
               </div>
             </div>
