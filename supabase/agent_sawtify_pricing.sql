@@ -711,3 +711,259 @@ REVOKE ALL ON FUNCTION public.delete_agent_sawtify_order(UUID, UUID) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.delete_agent_sawtify_order(UUID, UUID) TO service_role;
 REVOKE ALL ON FUNCTION public.consume_agent_sawtify_conversation(UUID, UUID, UUID, TEXT, INTEGER, INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.consume_agent_sawtify_conversation(UUID, UUID, UUID, TEXT, INTEGER, INTEGER, INTEGER) TO service_role;
+
+-- Sessions vocales : le serveur crée la session à /init, démarre l'horloge après
+-- l'ouverture du WebSocket, puis déduit une seule fois à /end.
+CREATE TABLE IF NOT EXISTS public.agent_sawtify_call_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  store_id UUID NOT NULL REFERENCES public.agent_sawtify_stores(id) ON DELETE CASCADE,
+  store_slug TEXT NOT NULL,
+  language TEXT NOT NULL CHECK (language IN ('fr', 'ar', 'en')),
+  status TEXT NOT NULL DEFAULT 'initialized' CHECK (status IN ('initialized', 'active', 'ended', 'cancelled')),
+  started_at TIMESTAMPTZ,
+  ended_at TIMESTAMPTZ,
+  duration_seconds INTEGER NOT NULL DEFAULT 0 CHECK (duration_seconds >= 0),
+  billed_seconds INTEGER NOT NULL DEFAULT 0 CHECK (billed_seconds >= 0),
+  completed_actions INTEGER NOT NULL DEFAULT 0 CHECK (completed_actions >= 0),
+  failed_actions INTEGER NOT NULL DEFAULT 0 CHECK (failed_actions >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_sawtify_calls_owner_created
+  ON public.agent_sawtify_call_sessions(owner_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_sawtify_calls_store_created
+  ON public.agent_sawtify_call_sessions(store_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_sawtify_calls_one_active_per_owner
+  ON public.agent_sawtify_call_sessions(owner_user_id) WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS public.agent_sawtify_call_actions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.agent_sawtify_call_sessions(id) ON DELETE CASCADE,
+  request_id UUID NOT NULL UNIQUE,
+  action_type TEXT NOT NULL CHECK (action_type IN ('place_order', 'submit_request')),
+  action_data JSONB,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
+  result JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finalized_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_agent_sawtify_call_actions_call_status
+  ON public.agent_sawtify_call_actions(call_id, status, created_at);
+
+ALTER TABLE public.agent_sawtify_call_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agent_sawtify_call_actions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.agent_sawtify_call_sessions, public.agent_sawtify_call_actions FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.agent_sawtify_call_sessions, public.agent_sawtify_call_actions TO service_role;
+
+-- Uniquement les demandes explicitement confirmées sont mises en attente.
+-- Les données de contact sont effacées du staging dès que /end les finalise.
+CREATE OR REPLACE FUNCTION public.stage_agent_sawtify_call_action(
+  p_call_id UUID,
+  p_request_id UUID,
+  p_action_type TEXT,
+  p_action_data JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_call public.agent_sawtify_call_sessions%ROWTYPE;
+  v_existing public.agent_sawtify_call_actions%ROWTYPE;
+BEGIN
+  IF p_call_id IS NULL OR p_request_id IS NULL OR p_action_data IS NULL
+     OR p_action_type NOT IN ('place_order', 'submit_request')
+     OR jsonb_typeof(p_action_data) <> 'object' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'invalid_call_action');
+  END IF;
+
+  SELECT * INTO v_call
+  FROM public.agent_sawtify_call_sessions
+  WHERE id = p_call_id
+  FOR UPDATE;
+  IF NOT FOUND OR v_call.status <> 'active' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'call_not_active');
+  END IF;
+
+  SELECT * INTO v_existing
+  FROM public.agent_sawtify_call_actions
+  WHERE request_id = p_request_id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.call_id = p_call_id AND v_existing.action_type = p_action_type THEN
+      RETURN jsonb_build_object('success', true, 'already_staged', true);
+    END IF;
+    RETURN jsonb_build_object('success', false, 'error', 'invalid_request_id');
+  END IF;
+
+  INSERT INTO public.agent_sawtify_call_actions (call_id, request_id, action_type, action_data)
+  VALUES (p_call_id, p_request_id, p_action_type, p_action_data);
+  RETURN jsonb_build_object('success', true, 'staged', true);
+END;
+$$;
+
+-- Fin d'appel idempotente : mesure l'horloge serveur, débite les secondes,
+-- finalise les commandes/demandes confirmées, puis rend les nouvelles demandes
+-- visibles dans le tableau du commerçant.
+CREATE OR REPLACE FUNCTION public.deduct_call_duration(p_call_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_call public.agent_sawtify_call_sessions%ROWTYPE;
+  v_action public.agent_sawtify_call_actions%ROWTYPE;
+  v_wallet public.agent_sawtify_wallets%ROWTYPE;
+  v_usage JSONB := '{}'::jsonb;
+  v_result JSONB;
+  v_end_time TIMESTAMPTZ := clock_timestamp();
+  v_duration INTEGER := 0;
+  v_billed INTEGER := 0;
+  v_available BIGINT := 0;
+  v_created INTEGER := 0;
+  v_failed INTEGER := 0;
+  v_request_type TEXT;
+  v_data JSONB;
+  v_error TEXT;
+BEGIN
+  IF p_call_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'invalid_call_id');
+  END IF;
+
+  SELECT * INTO v_call
+  FROM public.agent_sawtify_call_sessions
+  WHERE id = p_call_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'call_not_found');
+  END IF;
+  IF v_call.status IN ('ended', 'cancelled') THEN
+    RETURN jsonb_build_object(
+      'success', true, 'already_processed', true,
+      'duration_seconds', v_call.duration_seconds,
+      'billed_seconds', v_call.billed_seconds,
+      'completed_actions', v_call.completed_actions,
+      'failed_actions', v_call.failed_actions
+    );
+  END IF;
+
+  IF v_call.status <> 'active' OR v_call.started_at IS NULL THEN
+    UPDATE public.agent_sawtify_call_sessions
+    SET status = 'cancelled', ended_at = v_end_time
+    WHERE id = p_call_id;
+    DELETE FROM public.agent_sawtify_call_actions WHERE call_id = p_call_id;
+    RETURN jsonb_build_object('success', true, 'cancelled_before_audio', true, 'duration_seconds', 0, 'billed_seconds', 0);
+  END IF;
+
+  v_duration := GREATEST(1, LEAST(3600, CEIL(EXTRACT(EPOCH FROM (v_end_time - v_call.started_at)))::INTEGER));
+  v_usage := public.consume_agent_sawtify_seconds(v_call.owner_user_id, v_duration);
+  IF COALESCE((v_usage->>'success')::BOOLEAN, FALSE) IS TRUE THEN
+    v_billed := v_duration;
+  ELSE
+    -- If the wallet changed while the call was active, use its remaining seconds
+    -- rather than losing the whole end-of-call debit.
+    SELECT * INTO v_wallet
+    FROM public.agent_sawtify_wallets
+    WHERE user_id = v_call.owner_user_id
+    FOR UPDATE;
+    IF FOUND THEN
+      v_available := (CASE WHEN v_wallet.plan_expires_at IS NOT NULL AND v_wallet.plan_expires_at > v_end_time
+        THEN v_wallet.plan_seconds_remaining ELSE 0 END) + v_wallet.topup_seconds_remaining;
+      IF v_available > 0 THEN
+        v_usage := public.consume_agent_sawtify_seconds(v_call.owner_user_id, LEAST(v_available, v_duration)::INTEGER);
+        IF COALESCE((v_usage->>'success')::BOOLEAN, FALSE) IS TRUE THEN
+          v_billed := LEAST(v_available, v_duration)::INTEGER;
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+
+  IF v_billed > 0 THEN
+    INSERT INTO public.agent_sawtify_usage_events (
+      request_id, owner_user_id, store_id, store_slug,
+      input_characters, output_characters, billable_seconds,
+      plan_seconds_used, topup_seconds_used, remaining_seconds_after
+    ) VALUES (
+      v_call.id, v_call.owner_user_id, v_call.store_id, v_call.store_slug,
+      0, 0, v_billed,
+      COALESCE((v_usage->>'plan_seconds_used')::BIGINT, 0),
+      COALESCE((v_usage->>'topup_seconds_used')::BIGINT, 0),
+      COALESCE((v_usage->>'remaining_seconds')::BIGINT, 0)
+    ) ON CONFLICT (request_id) DO NOTHING;
+  END IF;
+
+  FOR v_action IN
+    SELECT * FROM public.agent_sawtify_call_actions
+    WHERE call_id = p_call_id AND status = 'pending'
+    ORDER BY created_at, id
+    FOR UPDATE
+  LOOP
+    v_data := COALESCE(v_action.action_data, '{}'::jsonb);
+    IF v_action.action_type = 'place_order' THEN
+      v_result := public.create_agent_sawtify_order(
+        v_call.store_id,
+        v_action.request_id,
+        v_data->>'customerName',
+        v_data->>'phone',
+        v_data->>'wilaya',
+        v_data->>'productId',
+        COALESCE(v_data->>'size', ''),
+        COALESCE(NULLIF(v_data->>'quantity', '')::INTEGER, 0)
+      );
+    ELSE
+      v_request_type := COALESCE(v_data->>'requestType', '');
+      v_result := public.create_agent_sawtify_request(
+        v_call.store_id,
+        v_action.request_id,
+        v_data->>'customerName',
+        v_data->>'phone',
+        v_data->>'wilaya',
+        v_request_type,
+        v_data->>'requestTitle',
+        COALESCE(v_data->>'details', ''),
+        NULLIF(v_data->>'preferredAt', '')::TIMESTAMPTZ,
+        NULLIF(v_data->>'preferredUntil', '')::TIMESTAMPTZ
+      );
+    END IF;
+
+    v_error := CASE WHEN COALESCE((v_result->>'success')::BOOLEAN, FALSE) THEN NULL ELSE COALESCE(v_result->>'error', 'order_error') END;
+    IF v_error IS NULL THEN
+      v_created := v_created + 1;
+      UPDATE public.agent_sawtify_call_actions
+      SET status = 'completed', action_data = NULL,
+          result = jsonb_build_object('success', true, 'order_id', v_result->'order'->>'id'),
+          finalized_at = v_end_time
+      WHERE id = v_action.id;
+    ELSE
+      v_failed := v_failed + 1;
+      UPDATE public.agent_sawtify_call_actions
+      SET status = 'failed', action_data = NULL,
+          result = jsonb_build_object('success', false, 'error', v_error),
+          finalized_at = v_end_time
+      WHERE id = v_action.id;
+    END IF;
+  END LOOP;
+
+  UPDATE public.agent_sawtify_call_sessions
+  SET status = 'ended', ended_at = v_end_time,
+      duration_seconds = v_duration, billed_seconds = v_billed,
+      completed_actions = v_created, failed_actions = v_failed
+  WHERE id = p_call_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'duration_seconds', v_duration,
+    'billed_seconds', v_billed,
+    'completed_actions', v_created,
+    'failed_actions', v_failed
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.stage_agent_sawtify_call_action(UUID, UUID, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.stage_agent_sawtify_call_action(UUID, UUID, TEXT, JSONB) TO service_role;
+REVOKE ALL ON FUNCTION public.deduct_call_duration(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.deduct_call_duration(UUID) TO service_role;

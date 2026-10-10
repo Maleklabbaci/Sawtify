@@ -176,7 +176,8 @@ function createLimiter(concurrency: number) {
 }
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const AGENT_LIVE_MODEL = process.env.AGENT_LIVE_MODEL || "gemini-3.8-live";
+const configuredAgentLiveModel = process.env.AGENT_LIVE_MODEL || "";
+const AGENT_LIVE_MODEL = /^gemini-2\.0.*live/i.test(configuredAgentLiveModel) ? "gemini-3.8-live" : configuredAgentLiveModel || "gemini-3.8-live";
 const AGENT_LIVE_VOICE = process.env.AGENT_LIVE_VOICE || "Kore";
 const SLICKPAY_PROD_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
 const SLICKPAY_SANDBOX_KEY = process.env.SLICKPAY_SANDBOX_KEY || "";
@@ -322,7 +323,7 @@ function normalizeAgentStore(value: any): AgentStore {
   };
 }
 
-function buildAgentLiveInstruction(store: AgentStore, language: "fr" | "ar"): string {
+function buildAgentLiveInstruction(store: AgentStore, language: "fr" | "ar" | "en"): string {
   const safeProducts = store.products
     .filter((product) => product.active && !isDisallowedAgentIntent(`${product.name} ${product.category} ${product.description}`))
     .slice(0, 40)
@@ -339,14 +340,20 @@ function buildAgentLiveInstruction(store: AgentStore, language: "fr" | "ar"): st
     question: faq.question.slice(0, 240),
     answer: faq.answer.slice(0, 800),
   }));
-  const nowInAlgeria = new Intl.DateTimeFormat("fr-DZ", {
+  const nowInAlgeria = new Intl.DateTimeFormat(language === "ar" ? "ar-DZ" : language === "en" ? "en-DZ" : "fr-DZ", {
     dateStyle: "full", timeStyle: "short", timeZone: "Africa/Algiers",
   }).format(new Date());
+  const selectedLanguage = language === "ar" ? "Algerian Darija" : language === "en" ? "English" : "French";
+  const languageRule = language === "ar"
+    ? "The selected language for this entire call is Algerian Darija. Speak only in natural Algerian Darija, not formal Arabic. Never switch to French, English, Spanish, Russian, or any other language, even if the caller does. If they use another language, politely say in Algerian Darija that this assistant supports Algerian Darija, French, and English, and continue only in Algerian Darija."
+    : language === "en"
+      ? "The selected language for this entire call is English. Speak only in English. Never switch to French, Arabic, Spanish, Russian, or any other language, even if the caller does. If they use another language, politely say in English that this assistant supports Algerian Darija, French, and English, and continue only in English."
+      : "La langue choisie pour tout cet appel est le français. Réponds uniquement en français. Ne passe jamais à l’arabe, à l’anglais, à l’espagnol, au russe ou à une autre langue, même si la personne les utilise. Si elle parle dans une autre langue, indique poliment en français que l’assistant prend en charge la darija algérienne, le français et l’anglais, puis continue uniquement en français.";
   return [
     "Tu es l’assistant vocal d’une activité en Algérie. Son nom, son secteur, sa localisation et son message d’accueil figurent uniquement dans les données structurées ci-dessous.",
-    `Langue d’interface choisie : ${language === "ar" ? "darja algérienne" : "français"}. Réponds dans la langue de la personne; en arabe, parle naturellement en darja algérienne, pas en arabe littéraire formel.`,
+    `Langue sélectionnée : ${selectedLanguage}. ${languageRule}`,
     "Sois chaleureux, concis et naturel. Ne révèle pas d’informations internes, de détails techniques ni le nom de services ou fournisseurs. Ne prétends jamais qu’une commande ou réservation est confirmée par la boutique : tu transmets une demande, puis l’activité confirme.",
-    "Avant toute réponse orale, appelle toujours l’outil agent_turn. Pour une question ou un échange normal, utilise action=reply et transmets la question de la personne. La réponse de l’outil est la seule source de vérité pour les prix, stocks, horaires, livraisons et conditions; ne les invente pas. Après le résultat, réponds brièvement et fidèlement.",
+    "Avant toute réponse orale, appelle toujours l’outil agent_turn. Pour une question ou un échange normal, utilise action=reply et transmets la question de la personne. La réponse de l’outil est la seule source de vérité pour les prix, stocks, horaires, livraisons et conditions; ne les invente pas. Après le résultat, réponds brièvement et fidèlement, toujours dans la langue sélectionnée.",
     "Pour une commande, un rendez-vous, un devis, une réservation ou un room service, recueille d’abord uniquement les champs utiles. Résume les informations, demande un accord explicite, puis seulement si la personne confirme, appelle agent_turn avec confirmed=true. Ne soumets jamais une demande sur un simple intérêt, une question ou une ambiguïté. Si une donnée manque, utilise action=reply et pose une seule question à la fois.",
     "Pour une commande, choisis productId uniquement parmi les identifiants du catalogue ci-dessous, vérifie la variante et la quantité, puis recueille nom, téléphone et ville/wilaya. Pour les demandes de service, utilise uniquement un requestType compatible avec le secteur et demande les dates nécessaires. N’invente jamais les coordonnées.",
     "Dans le secteur santé, aide uniquement pour des informations pratiques et la demande de rendez-vous. Ne demande ni ne conserve de symptômes ou de détails médicaux; ne diagnostique pas et ne prescris rien. Ne demande jamais de données de paiement dans un room service.",
@@ -2188,6 +2195,8 @@ async function startServer() {
 
   app.use(compression());
   app.use(express.json({ limit: "10mb" }));
+  // Allows a small text/plain sendBeacon payload to finalize calls during page unload.
+  app.use(express.text({ type: "text/plain", limit: "2kb" }));
 
   // Connecteur MCP (Claude / ChatGPT / Gemini CLI) + OAuth — voir docs/MCP-CONNECTEUR.md
   if (MCP_ENABLED) {
@@ -3807,9 +3816,9 @@ Le texte de la proposition`;
     }
   });
 
-  app.post("/api/agent/sawtify/live-session", agentLiveLimiter, async (req, res) => {
+  app.post(["/api/agent/sawtify/init", "/api/agent/sawtify/live-session"], agentLiveLimiter, async (req, res) => {
     const slug = normalizeAgentSlug(req.body?.slug);
-    const language: "fr" | "ar" = req.body?.language === "ar" ? "ar" : "fr";
+    const language: "fr" | "ar" | "en" = req.body?.language === "ar" ? "ar" : req.body?.language === "en" ? "en" : "fr";
     if (!slug) return res.status(400).json({ success: false, error: "Lien de boutique invalide." });
     if (!supabaseClient) return res.status(503).json({ success: false, error: "Service vocal indisponible pour le moment." });
     if (!GEMINI_API_KEY) return res.status(503).json({ success: false, error: "Service vocal indisponible pour le moment." });
@@ -3820,6 +3829,21 @@ Le texte de la proposition`;
       if (storeError) return res.status(503).json({ success: false, error: "Boutique indisponible pour le moment." });
       if (!row) return res.status(404).json({ success: false, error: "Cette boutique n’existe pas ou son lien a changé." });
       if (!row.is_active) return res.status(423).json({ success: false, error: "Cette boutique est en pause pour le moment." });
+
+      // Recover sessions abandoned by a closed browser before admitting a new call.
+      const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: staleCalls, error: staleCallError } = await supabaseClient.from("agent_sawtify_call_sessions")
+        .select("id").eq("owner_user_id", row.owner_user_id).eq("status", "active")
+        .lt("started_at", staleCutoff).limit(10);
+      if (staleCallError) return res.status(503).json({ success: false, error: "Service vocal indisponible pour le moment." });
+      for (const staleCall of staleCalls || []) {
+        const { error: finalizeError } = await supabaseClient.rpc("deduct_call_duration", { p_call_id: staleCall.id });
+        if (finalizeError) return res.status(503).json({ success: false, error: "Service vocal indisponible pour le moment." });
+      }
+      const { error: staleInitError } = await supabaseClient.from("agent_sawtify_call_sessions")
+        .update({ status: "cancelled", ended_at: new Date().toISOString() })
+        .eq("owner_user_id", row.owner_user_id).eq("status", "initialized").lt("created_at", staleCutoff);
+      if (staleInitError) return res.status(503).json({ success: false, error: "Service vocal indisponible pour le moment." });
 
       const { data: wallet, error: walletError } = await supabaseClient.from("agent_sawtify_wallets")
         .select("plan_seconds_remaining, topup_seconds_remaining, plan_expires_at")
@@ -3837,7 +3861,7 @@ Le texte de la proposition`;
       const functionDeclaration = {
         name: "agent_turn",
         behavior: Behavior.BLOCKING,
-        description: "Consulte les données actuelles de la boutique et, uniquement après confirmation explicite, transmet une demande valide.",
+        description: "Consulte les données actuelles de la boutique et, uniquement après confirmation explicite, prépare une demande valide à transmettre à la fin de l’appel.",
         parameters: {
           type: GenAiType.OBJECT,
           properties: {
@@ -3865,7 +3889,7 @@ Le texte de la proposition`;
         responseModalities: [Modality.AUDIO],
         systemInstruction: buildAgentLiveInstruction(store, language),
         speechConfig: {
-          languageCode: language === "ar" ? "ar" : "fr",
+          languageCode: language === "ar" ? "ar" : language === "en" ? "en-US" : "fr-FR",
           voiceConfig: { prebuiltVoiceConfig: { voiceName: AGENT_LIVE_VOICE } },
         },
         inputAudioTranscription: {},
@@ -3884,27 +3908,109 @@ Le texte de la proposition`;
         },
       });
       if (!token.name) return res.status(502).json({ success: false, error: "La session vocale n’a pas pu démarrer." });
-      // The token locks the full session prompt and tool schema server-side. Return only the audio
-      // modality needed by the browser; never expose the store catalogue or internal instructions.
-      return res.json({ success: true, token: token.name, model, config: { responseModalities: config.responseModalities } });
+
+      const callId = crypto.randomUUID();
+      const { error: callInsertError } = await supabaseClient.from("agent_sawtify_call_sessions").insert({
+        id: callId,
+        owner_user_id: row.owner_user_id,
+        store_id: row.id,
+        store_slug: row.slug,
+        language,
+        status: "initialized",
+      });
+      if (callInsertError) {
+        console.warn("[Agent Live] call session could not be stored:", String(callInsertError.message || "unknown error").slice(0, 180));
+        return res.status(503).json({ success: false, error: "La session vocale n’a pas pu démarrer." });
+      }
+
+      // GEMINI_API_KEY stays on Render. Only the short-lived, one-use token reaches the browser.
+      return res.json({ success: true, callId, token: token.name, model, config: { responseModalities: config.responseModalities } });
     } catch (error: any) {
       console.warn("[Agent Live] provisioning failed:", String(error?.message || "unknown error").slice(0, 240));
       return res.status(502).json({ success: false, error: "La voix en direct est temporairement indisponible." });
     }
   });
 
+  app.post("/api/agent/sawtify/start", agentPublicLimiter, async (req, res) => {
+    const callId = req.body?.callId;
+    if (!isUuid(callId)) return res.status(400).json({ success: false, error: "La session vocale n’est pas disponible." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+    try {
+      const { data: call, error: callError } = await supabaseClient.from("agent_sawtify_call_sessions")
+        .select("id, owner_user_id, store_id, status, started_at")
+        .eq("id", callId).maybeSingle();
+      if (callError) return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+      if (!call) return res.status(404).json({ success: false, error: "La session vocale n’est pas disponible." });
+      if (call.status === "active" && call.started_at) return res.json({ success: true, alreadyStarted: true });
+      if (call.status !== "initialized") return res.status(409).json({ success: false, error: "La session vocale n’est plus disponible." });
+
+      const { data: store, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("is_active").eq("id", call.store_id).maybeSingle();
+      if (storeError) return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+      if (!store?.is_active) return res.status(423).json({ success: false, error: "Cette boutique est momentanément indisponible." });
+
+      const { data: wallet, error: walletError } = await supabaseClient.from("agent_sawtify_wallets")
+        .select("plan_seconds_remaining, topup_seconds_remaining, plan_expires_at")
+        .eq("user_id", call.owner_user_id).maybeSingle();
+      if (walletError) return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+      const planActive = Boolean(wallet?.plan_expires_at && Date.parse(wallet.plan_expires_at) > Date.now());
+      const remainingSeconds = (planActive ? Math.max(0, Number(wallet?.plan_seconds_remaining || 0)) : 0)
+        + Math.max(0, Number(wallet?.topup_seconds_remaining || 0));
+      if (remainingSeconds < 1) return res.status(402).json({ success: false, error: "La session vocale n’est pas disponible." });
+
+      const startedAt = new Date().toISOString();
+      const { data: updatedCall, error: updateError } = await supabaseClient.from("agent_sawtify_call_sessions")
+        .update({ status: "active", started_at: startedAt })
+        .eq("id", callId).eq("status", "initialized").is("started_at", null)
+        .select("id").maybeSingle();
+      if (updateError) return res.status(updateError.code === "23505" ? 409 : 503).json({ success: false, error: "La session vocale n’est pas disponible." });
+      if (!updatedCall) return res.status(409).json({ success: false, error: "La session vocale n’est plus disponible." });
+      return res.json({ success: true });
+    } catch {
+      return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+    }
+  });
+
+  app.post("/api/agent/sawtify/end", agentPublicLimiter, async (req, res) => {
+    let endBody: any = req.body;
+    if (typeof endBody === "string") {
+      try { endBody = JSON.parse(endBody); } catch { endBody = {}; }
+    }
+    const callId = endBody?.callId;
+    if (!isUuid(callId)) return res.status(400).json({ success: false, error: "La session vocale n’est pas disponible." });
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+    try {
+      const { data, error } = await supabaseClient.rpc("deduct_call_duration", { p_call_id: callId });
+      if (error) return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) return res.status(409).json({ success: false, error: "La session vocale n’est plus disponible." });
+      // Usage, balances, and call duration stay server-side and are never returned to customers.
+      return res.json({ success: true, actionIssue: Number(result.failed_actions || 0) > 0 });
+    } catch {
+      return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+    }
+  });
+
   app.post("/api/agent/sawtify/voice-tool", agentPublicLimiter, async (req, res) => {
     const slug = normalizeAgentSlug(req.body?.slug);
-    const language: "fr" | "ar" = req.body?.language === "ar" ? "ar" : "fr";
+    const language: "fr" | "ar" | "en" = req.body?.language === "ar" ? "ar" : req.body?.language === "en" ? "en" : "fr";
+    const callId = req.body?.callId;
     const requestId = req.body?.requestId;
     const toolName = agentText(req.body?.toolName, 80);
     const rawArgs = req.body?.arguments && typeof req.body.arguments === "object" && !Array.isArray(req.body.arguments)
       ? req.body.arguments as Record<string, unknown>
       : {};
-    if (!slug || !isUuid(requestId) || toolName !== "agent_turn") {
+    if (!slug || !isUuid(callId) || !isUuid(requestId) || toolName !== "agent_turn") {
       return res.status(400).json({ success: false, error: "La demande n’a pas pu être traitée." });
     }
     if (!supabaseClient) return res.status(503).json({ success: false, error: "Conversation indisponible." });
+    const { data: callSession, error: callSessionError } = await supabaseClient.from("agent_sawtify_call_sessions")
+      .select("id, store_slug, language, status").eq("id", callId).maybeSingle();
+    if (callSessionError) return res.status(503).json({ success: false, error: "Conversation indisponible." });
+    if (!callSession || callSession.status !== "active" || callSession.store_slug !== slug) {
+      return res.status(409).json({ success: false, error: "La conversation n’est plus disponible." });
+    }
+    if (callSession.language !== language) return res.status(409).json({ success: false, error: "La langue de cet appel est fixe." });
 
     const args: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rawArgs).slice(0, 32)) {
@@ -3914,7 +4020,7 @@ Le texte de la proposition`;
     const question = agentText(args.question, 1200);
     if (!question) return res.status(400).json({ success: false, error: "La demande n’a pas pu être traitée." });
 
-    const toolBody = { slug, language, requestId, toolName, arguments: args };
+    const toolBody = { slug, callId, language, requestId, toolName, arguments: args };
     let lastStatus = 0;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
@@ -3937,13 +4043,18 @@ Le texte de la proposition`;
       }
     }
 
-    // If the tool service is temporarily unavailable, answer a read-only question
-    // through the same server-side data and billing path. Reusing requestId keeps
-    // the usage RPC idempotent if the original tool call completed but its reply was lost.
+    // If the tool service is temporarily unavailable, answer only a read-only
+    // question from server-side store data. Duration is charged once at /end.
     const requestedAction = agentText(args.action, 30);
     const readOnlyAction = !requestedAction || requestedAction === "reply";
-    if (readOnlyAction && lastStatus !== 402) {
+    if (readOnlyAction && (lastStatus === 0 || lastStatus >= 500)) {
       try {
+        const { data: currentCall, error: currentCallError } = await supabaseClient.from("agent_sawtify_call_sessions")
+          .select("id, store_slug, language, status").eq("id", callId).maybeSingle();
+        if (currentCallError) throw currentCallError;
+        if (!currentCall || currentCall.status !== "active" || currentCall.store_slug !== slug || currentCall.language !== language) {
+          return res.status(409).json({ success: false, error: "La conversation n’est plus disponible." });
+        }
         const { data: row, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
           .select("id, owner_user_id, slug, store_data, is_active").eq("slug", slug).maybeSingle();
         if (storeError) throw storeError;
@@ -3951,29 +4062,10 @@ Le texte de la proposition`;
           return res.status(row ? 423 : 404).json({ success: false, error: "Cette boutique est momentanément indisponible." });
         }
         const store = normalizeAgentStore(row.store_data);
-        const details = agentText(args.details, 500);
         const answer = answerAgentQuestion(store, question, language);
-        const inputCharacters = Math.min(1200, question.length + details.length);
-        const outputCharacters = Math.max(1, Math.min(4000, answer.length));
-        const billableSeconds = Math.max(1, Math.min(300, Math.ceil((inputCharacters + outputCharacters) / TTS_CHARS_PER_SECOND_ESTIMATE)));
-        const { data: usageData, error: usageError } = await supabaseClient.rpc("consume_agent_sawtify_conversation", {
-          p_request_id: requestId,
-          p_user_id: row.owner_user_id,
-          p_store_id: row.id,
-          p_store_slug: row.slug,
-          p_input_characters: inputCharacters,
-          p_output_characters: outputCharacters,
-          p_seconds: billableSeconds,
-        });
-        if (usageError) throw usageError;
-        const usage = Array.isArray(usageData) ? usageData[0] : usageData;
-        if (!usage?.success) {
-          const status = usage?.error === "insufficient_minutes" || usage?.error === "wallet_not_found" ? 402 : 409;
-          return res.status(status).json({ success: false, error: "La réponse n’est pas disponible pour le moment." });
-        }
         return res.json({ success: true, answer, action: "reply" });
       } catch {
-        // Return a short spoken response below; never expose backend details in the call UI.
+        // Never close the Live socket or switch the active voice call to text here.
       }
     }
 
@@ -3987,7 +4079,7 @@ Le texte de la proposition`;
     const slug = normalizeAgentSlug(req.body?.slug);
     const rawQuestion = typeof req.body?.question === "string" ? req.body.question.trim() : "";
     const question = agentText(rawQuestion, 1200);
-    const language: "fr" | "ar" = req.body?.language === "ar" ? "ar" : "fr";
+    const language: "fr" | "ar" | "en" = req.body?.language === "ar" ? "ar" : req.body?.language === "en" ? "en" : "fr";
     if (!slug || !question || rawQuestion.length > 1200) {
       return res.status(400).json({ success: false, error: "Question invalide." });
     }

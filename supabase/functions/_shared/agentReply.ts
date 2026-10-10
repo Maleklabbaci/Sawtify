@@ -49,12 +49,72 @@ const sectorLabel = (sector: AgentSector | undefined, arabic: boolean) => {
   return arabic ? 'المتجر' : 'la boutique';
 };
 
+function answerAgentQuestionInEnglish(store: AgentReplyStore, question: string): string {
+  const products = store.products.filter((product) => product.active && !isDisallowedAgentIntent(`${product.name} ${product.category} ${product.description}`));
+  const faqs = store.faqs.filter((faq) => faq.active);
+  const normalized = normalize(question);
+  const product = products.find((item) => normalize(item.name).split(' ').some((word) => word.length > 3 && normalized.includes(word)));
+  const asksPrice = /price|how much|cost|tariff/.test(normalized);
+  const asksDelivery = /deliver|delivery|shipping|wilaya|ship to/.test(normalized);
+  const asksSize = /size|variant|available size/.test(normalized);
+  const asksStock = /stock|available|in stock|remaining/.test(normalized);
+  const asksAppointment = /appointment|book a visit|schedule/.test(normalized);
+  const asksQuote = /quote|estimate|pricing/.test(normalized);
+  const asksReservation = /reserv|table|room|booking|stay/.test(normalized);
+  const sector = store.sector || 'commerce';
+
+  if (isDisallowedAgentIntent(normalized)) return 'I cannot help with an illegal or dangerous request. I can only assist with safe, lawful information and services.';
+  if (sector === 'health' && MEDICAL_EMERGENCY_INTENT.test(normalized)) return 'If this is an emergency or there is immediate danger, contact local emergency services or go to the nearest emergency department now. I cannot assess medical conditions.';
+  if (sector === 'health' && MEDICAL_ADVICE_INTENT.test(normalized)) return 'I can help with practical information and appointment requests, but I cannot diagnose or prescribe treatment. Please contact a qualified healthcare professional.';
+
+  const faq = faqs.find((item) => normalize(item.question).split(' ').filter((word) => word.length > 4).some((word) => normalized.includes(word)));
+  if (faq) return faq.answer;
+
+  if (sector === 'health') return asksAppointment
+    ? 'I can help request an appointment. Tell me which service you need and a suitable time; please do not share symptoms or medical details.'
+    : `Welcome to ${store.name || 'the health centre'}. I can help with practical information and appointment requests only.`;
+  if (sector === 'services') {
+    if (asksQuote) return 'To request a quote, tell me which service you need and when you are available.';
+    if (asksAppointment) return 'Tell me which service you need and a suitable time, and the provider will contact you to confirm.';
+    if (product && asksPrice) return `${product.name}: ${formatMoney(product.priceDzd, false)}. You can request a quote to confirm the final price.`;
+    return `I can introduce the services offered by ${store.name || 'this provider'} and help you request a quote or appointment.`;
+  }
+  if (sector === 'restaurant') {
+    if (asksReservation) return 'To request a table reservation, tell me the date, time, and number of guests.';
+    if (asksPrice && products.length) return `Here are a few menu items: ${products.slice(0, 3).map((item) => `${item.name} at ${formatMoney(item.priceDzd, false)}`).join(' · ')}.`;
+    return `Welcome to ${store.name || 'the restaurant'}. I can help with menu information or a table reservation.`;
+  }
+  if (sector === 'hospitality') {
+    if (/room service/.test(normalized)) return 'For room service, tell me your room number and what you need. Do not share payment information.';
+    if (asksReservation) return 'To request a stay, tell me your arrival and departure dates and the number of guests.';
+    return `Welcome to ${store.name || 'this property'}. I can help with stay information, reservations, and room service.`;
+  }
+
+  if (!product && asksSize) {
+    const requestedSize = normalized.match(/\b\d{2}\b/)?.[0];
+    const matchingProduct = products.find((item) => item.stock > 0 && (requestedSize ? item.sizes.includes(requestedSize) : item.sizes.length > 0));
+    if (matchingProduct) return `${matchingProduct.name} is available in size ${requestedSize || matchingProduct.sizes[0]}. Available sizes: ${matchingProduct.sizes.join(', ')}.`;
+  }
+  if (product) {
+    if (product.stock <= 0) return `${product.name} is currently out of stock. Would you like help finding another item?`;
+    if (asksPrice) return `${product.name} costs ${formatMoney(product.priceDzd, false)}. ${product.stock} are currently in stock.`;
+    if (asksSize && product.sizes.length) return `Available sizes for ${product.name}: ${product.sizes.join(', ')}. Which one would you like?`;
+    if (asksStock) return `${product.name} is available; ${product.stock} are in stock.`;
+    return `${product.name} costs ${formatMoney(product.priceDzd, false)}. ${product.description || `${product.stock} in stock.`}`;
+  }
+  if (asksDelivery) return 'Tell me your city or wilaya and I can check the delivery details.';
+  if (asksPrice) return `Here are some available items: ${products.slice(0, 3).map((item) => `${item.name} at ${formatMoney(item.priceDzd, false)}`).join(' · ')}.`;
+  if (/order|buy|purchase/.test(normalized)) return 'Of course. Tell me which item you want and the size or variant you need.';
+  return `I can help with ${store.name || 'this business'}${sector === 'commerce' ? ', prices, sizes, and delivery' : ' and its services or reservations'}. What would you like to know?`;
+}
+
 /** Rule-based, server-metered reply logic shared by the customer page and local demo. */
 export function answerAgentQuestion(
   store: AgentReplyStore,
   question: string,
-  language: 'fr' | 'ar',
+  language: 'fr' | 'ar' | 'en',
 ): string {
+  if (language === 'en') return answerAgentQuestionInEnglish(store, question);
   const isArabic = language === 'ar';
   const sector = store.sector || 'commerce';
   const products = store.products.filter((product) => product.active && !isDisallowedAgentIntent(`${product.name} ${product.category} ${product.description}`));

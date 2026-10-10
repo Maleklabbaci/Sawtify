@@ -54,6 +54,7 @@ export const AgentSawtifyPage: React.FC<{
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastSavedStoreKeyRef = useRef('');
   const storeRevisionRef = useRef('');
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const link = useMemo(() => {
     const callLink = getCallLink(store.slug);
     return previewMode ? `${callLink}?demo=1` : callLink;
@@ -97,6 +98,7 @@ export const AgentSawtifyPage: React.FC<{
         }
         if (!active || !savedStore) return;
         const loadedStore = { ...savedStore, orders: body.orders || savedStore.orders || [] } as AgentStore;
+        knownOrderIdsRef.current = new Set(loadedStore.orders.map((order) => order.id));
         lastSavedStoreKeyRef.current = JSON.stringify({ ...loadedStore, orders: [] });
         setStore(loadedStore);
         setStoreReady(true);
@@ -110,6 +112,53 @@ export const AgentSawtifyPage: React.FC<{
     void loadOwnerStore();
     return () => { active = false; };
   }, [previewMode]);
+
+  // Keep the merchant dashboard fresh and notify in-app when a newly confirmed
+  // voice request is finalized server-side at /end.
+  useEffect(() => {
+    if (previewMode || !storeReady || !store.slug) return;
+    let active = true;
+    let inFlight = false;
+    const refreshOrders = async () => {
+      if (!active || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const headers = await agentHeaders();
+        const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/store`, { headers });
+        if (!response.ok) return;
+        const body = await response.json();
+        if (!active || !body.success || !Array.isArray(body.orders)) return;
+        const orders = body.orders as AgentOrder[];
+        const previousIds = knownOrderIdsRef.current;
+        const newlyReceived = orders.filter((order) => !previousIds.has(order.id));
+        knownOrderIdsRef.current = new Set(orders.map((order) => order.id));
+        setStore((current) => current.slug === store.slug ? { ...current, orders } : current);
+        if (newlyReceived.length) {
+          const notification = newlyReceived.length === 1
+            ? bi('Nouvelle demande client reçue. Ouvrez « Demandes » pour la consulter.', 'وصلك طلب جديد من زبون. افتح «الطلبات» باش تشوفو.')
+            : bi(`${newlyReceived.length} nouvelles demandes clients reçues. Ouvrez « Demandes » pour les consulter.`, `وصلك ${newlyReceived.length} طلبات جديدة من الزبائن. افتح «الطلبات» باش تشوفهم.`);
+          setNotice(notification);
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(bi('Nouvelle demande Sawtify', 'طلب جديد عبر Sawtify'), { body: notification });
+          }
+        }
+      } catch {
+        // Polling is best-effort; keep the dashboard usable during temporary network loss.
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refreshOrders();
+    const interval = window.setInterval(() => { void refreshOrders(); }, 15_000);
+    window.addEventListener('focus', refreshOrders);
+    document.addEventListener('visibilitychange', refreshOrders);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshOrders);
+      document.removeEventListener('visibilitychange', refreshOrders);
+    };
+  }, [previewMode, storeReady, store.slug]);
 
   useEffect(() => {
     if (previewMode) saveAgentStore(store);

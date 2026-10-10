@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { answerAgentQuestion } from '../services/agentReply';
-import type { AgentLiveSession } from '../services/agentLive';
+import { connectAgentLive, type AgentLiveSession } from '../services/agentLive';
 import {
   createDemoAgentStore, DEMO_AGENT_STORE, makeAgentId, readAgentStore, saveAgentStore,
   type AgentOrder, type AgentProduct, type AgentRequestType, type AgentStore,
@@ -60,7 +60,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [store, setStore] = useState<AgentStore>(() => isDemoPreview ? readAgentStore() : createDemoAgentStore());
   const [storeLoading, setStoreLoading] = useState(!isDemoPreview);
   const [storeError, setStoreError] = useState('');
-  const [language, setLanguage] = useState<'fr' | 'ar'>(() => {
+  const [language, setLanguage] = useState<'fr' | 'ar' | 'en'>(() => {
     const initial = isDemoPreview ? readAgentStore().language : 'fr';
     return initial === 'ar' ? 'ar' : 'fr';
   });
@@ -91,26 +91,39 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const orderRequestIdRef = useRef('');
   const businessRequestIdRef = useRef('');
   const respondingRef = useRef(false);
+  const activeCallIdRef = useRef<string | null>(null);
+  const pendingToolCallsRef = useRef<Set<Promise<void>>>(new Set());
   storeRef.current = store;
   languageRef.current = language;
   const isArabic = language === 'ar';
-  const bi = (fr: string, ar: string) => isArabic ? ar : fr;
+  const isEnglish = language === 'en';
+  const bi = (fr: string, ar: string, en = fr) => isArabic ? ar : isEnglish ? en : fr;
   const availableProducts = store.products.filter((product) => product.active);
   const isCommerce = store.sector === 'commerce';
   const availableRequestTypes = sectorRequestTypes(store.sector);
   const sectorName = store.sector === 'health' ? bi('Santé et médical', 'الصحة والطب') : store.sector === 'services' ? bi('Services et artisans', 'الخدمات والحرفيين') : store.sector === 'restaurant' ? bi('Restauration', 'المطاعم') : store.sector === 'hospitality' ? bi('Hôtellerie', 'الفنادق') : bi('E-commerce', 'التجارة الإلكترونية');
-  const greeting = store.greeting === DEMO_AGENT_STORE.greeting
-    ? store.sector === 'health'
-      ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous renseigner et vous aider à demander un rendez-vous.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعاونك بالمعلومات وحجز موعد.`)
-      : store.sector === 'services'
-        ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous présenter nos prestations et vous aider à demander un devis ou un rendez-vous.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعرّفك بخدماتنا ونعاونك تطلب سعر ولا موعد.`)
-        : store.sector === 'restaurant'
-          ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous renseigner sur le menu ou vous aider à réserver une table.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعاونك بمعلومات القائمة ولا حجز طاولة.`)
-          : store.sector === 'hospitality'
-            ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous renseigner sur les séjours, réservations et services.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعاونك بمعلومات الإقامة والحجوزات والخدمات.`)
-            : isArabic
-              ? `سلام! مرحبا بيك عند ${store.name}. نقدر نعاونك بالمنتجات، الأسعار ولا التوصيل، واش حاب تعرف؟`
-              : DEMO_AGENT_STORE.greeting
+  const greeting = store.greeting === DEMO_AGENT_STORE.greeting || isEnglish
+    ? isEnglish
+      ? store.sector === 'health'
+        ? `Hello, welcome to ${store.name}. I can help with practical information and appointment requests.`
+        : store.sector === 'services'
+          ? `Hello, welcome to ${store.name}. I can introduce our services and help you request a quote or appointment.`
+          : store.sector === 'restaurant'
+            ? `Hello, welcome to ${store.name}. I can help with menu information or a table reservation.`
+            : store.sector === 'hospitality'
+              ? `Hello, welcome to ${store.name}. I can help with stays, reservations, and services.`
+              : `Hello, welcome to ${store.name}. I can help with products, prices, and delivery. What would you like to know?`
+      : store.sector === 'health'
+        ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous renseigner et vous aider à demander un rendez-vous.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعاونك بالمعلومات وحجز موعد.`)
+        : store.sector === 'services'
+          ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous présenter nos prestations et vous aider à demander un devis ou un rendez-vous.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعرّفك بخدماتنا ونعاونك تطلب سعر ولا موعد.`)
+          : store.sector === 'restaurant'
+            ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous renseigner sur le menu ou vous aider à réserver une table.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعاونك بمعلومات القائمة ولا حجز طاولة.`)
+            : store.sector === 'hospitality'
+              ? bi(`Bonjour, bienvenue chez ${store.name}. Je peux vous renseigner sur les séjours, réservations et services.`, `سلام، مرحبا بيك عند ${store.name}. نقدر نعاونك بمعلومات الإقامة والحجوزات والخدمات.`)
+              : isArabic
+                ? `سلام! مرحبا بيك عند ${store.name}. نقدر نعاونك بالمنتجات، الأسعار ولا التوصيل، واش حاب تعرف؟`
+                : DEMO_AGENT_STORE.greeting
     : store.greeting || bi('Bonjour ! Comment puis-je vous aider ?', 'سلام، كيفاش نقدر نعاونك؟');
 
   useEffect(() => {
@@ -122,6 +135,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     let active = true;
     const loadStore = async () => {
       recognitionRef.current?.abort?.();
+      finishActiveCall();
       liveConnectionRef.current?.close();
       liveConnectionRef.current = null;
       setStoreLoading(true);
@@ -148,9 +162,62 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   }, [isDemoPreview, slug]);
 
   useEffect(() => {
-    document.documentElement.lang = isArabic ? 'ar' : 'fr';
+    document.documentElement.lang = isArabic ? 'ar' : isEnglish ? 'en' : 'fr';
     document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
-  }, [isArabic]);
+  }, [isArabic, isEnglish]);
+
+  const finishActiveCall = () => {
+    const callId = activeCallIdRef.current;
+    activeCallIdRef.current = null;
+    if (!callId) return;
+
+    const sendEnd = () => {
+      const endUrl = `${API_BASE_URL}/api/agent/sawtify/end`;
+      if (!componentMountedRef.current && typeof navigator.sendBeacon === 'function') {
+        try {
+          const queued = navigator.sendBeacon(endUrl, new Blob([JSON.stringify({ callId })], { type: 'text/plain' }));
+          if (queued) return;
+        } catch { /* Fall through to a keepalive fetch. */ }
+      }
+      void fetch(endUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId }),
+        keepalive: true,
+      }).then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!componentMountedRef.current) return;
+        if (body.actionIssue) {
+          setHint(bi(
+            'Une demande n’a pas pu être transmise. Contactez la boutique directement pour vérifier.',
+            'تعذّر إرسال أحد الطلبات. تواصل مع المتجر مباشرة للتأكد.',
+            'A request could not be sent. Please contact the store directly to check.',
+          ));
+        } else if (!response.ok || !body.success) {
+          setHint(bi(
+            'L’appel n’a pas pu être finalisé. Les demandes en attente n’ont peut-être pas été transmises.',
+            'ما قدرناش ننهيو المكالمة. ممكن الطلبات المعلقة ما تبعثتش.',
+            'The call could not be finalized. Pending requests may not have been sent.',
+          ));
+        }
+      }).catch(() => {
+        if (componentMountedRef.current) setHint(bi(
+          'L’appel n’a pas pu être finalisé. Les demandes en attente n’ont peut-être pas été transmises.',
+          'ما قدرناش ننهيو المكالمة. ممكن الطلبات المعلقة ما تبعثتش.',
+          'The call could not be finalized. Pending requests may not have been sent.',
+        ));
+      });
+    };
+
+    const pending = [...pendingToolCallsRef.current];
+    if (!pending.length) {
+      sendEnd();
+      return;
+    }
+    // Let an in-flight confirmed action reach durable staging before /end locks and finalizes it.
+    const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, componentMountedRef.current ? 10_000 : 3_500));
+    void Promise.race([Promise.allSettled(pending).then(() => undefined), timeout]).then(sendEnd);
+  };
 
   useEffect(() => {
     componentMountedRef.current = true;
@@ -159,6 +226,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       recognitionRef.current?.abort?.();
       liveConnectionRef.current?.close();
       liveConnectionRef.current = null;
+      finishActiveCall();
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
   }, []);
@@ -167,7 +235,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     if (!('speechSynthesis' in window)) { resolve(); return; }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = isArabic ? 'ar-SA' : 'fr-FR';
+    utterance.lang = isArabic ? 'ar-SA' : isEnglish ? 'en-US' : 'fr-FR';
     utterance.rate = 0.96;
     let finished = false;
     let fallbackTimer: number | undefined;
@@ -244,7 +312,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       recognitionRef.current?.abort?.();
       const recognition = new Constructor();
       // Generic locales have much broader browser SpeechRecognition support than fr-DZ/ar-DZ.
-      recognition.lang = isArabic ? 'ar-SA' : 'fr-FR';
+      recognition.lang = isArabic ? 'ar-SA' : isEnglish ? 'en-US' : 'fr-FR';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognition.onresult = (event) => {
@@ -300,84 +368,107 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     const releasePendingResources = () => {
       microphone?.getTracks().forEach((track) => track.stop());
       microphone = null;
-      if (audioContext && audioContext.state !== 'closed') void audioContext.close().catch(() => undefined);
+      if (audioContext && audioContext.state !== 'closed') void audioContext.close();
       audioContext = null;
     };
+
     try {
-      audioContext = new AudioContext();
-      const contextReady = audioContext.resume().catch(() => undefined);
-      const { connectAgentLive } = await import('../services/agentLive');
-      if (!componentMountedRef.current) { releasePendingResources(); return; }
-      microphone = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      if (!componentMountedRef.current) { releasePendingResources(); return; }
-      const tokenResponse = await fetch(`${API_BASE_URL}/api/agent/sawtify/live-session`, {
+      const initResponse = await fetch(`${API_BASE_URL}/api/agent/sawtify/init`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug, language: languageRef.current }),
       });
-      const tokenBody = await tokenResponse.json().catch(() => ({}));
-      if (tokenResponse.status === 402) throw new Error('live_unavailable');
-      if (tokenResponse.status === 423) throw new Error('store_paused');
-      if (!tokenResponse.ok || !tokenBody.success || typeof tokenBody.token !== 'string' || typeof tokenBody.model !== 'string' || !tokenBody.config) {
+      const initBody = await initResponse.json().catch(() => ({}));
+      if (initResponse.status === 423) throw new Error('store_paused');
+      if (!initResponse.ok || !initBody.success || typeof initBody.callId !== 'string' || typeof initBody.token !== 'string' || typeof initBody.model !== 'string' || !initBody.config) {
         throw new Error('live_unavailable');
       }
+      activeCallIdRef.current = initBody.callId;
 
+      audioContext = new AudioContext();
+      const contextReady = audioContext.state === 'suspended' ? audioContext.resume() : Promise.resolve();
+      microphone = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       await contextReady;
-      if (!componentMountedRef.current) { releasePendingResources(); return; }
+      if (!componentMountedRef.current) {
+        releasePendingResources();
+        finishActiveCall();
+        return;
+      }
+
+      const startResponse = await fetch(`${API_BASE_URL}/api/agent/sawtify/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId: initBody.callId }),
+      });
+      const startBody = await startResponse.json().catch(() => ({}));
+      if (!startResponse.ok || !startBody.success) throw new Error('live_unavailable');
+
       const connection = await connectAgentLive({
-        token: tokenBody.token,
-        model: tokenBody.model,
-        config: tokenBody.config,
+        token: initBody.token,
+        model: initBody.model,
+        config: initBody.config,
         microphone,
         audioContext,
         callbacks: {
           onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
-          onOutputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); } },
+          onOutputTranscription: (text) => { if (componentMountedRef.current) setCaption(text.trim()); },
           onSpeaking: (speaking) => { if (componentMountedRef.current) setIsSpeaking(speaking); },
           onTurnComplete: () => { if (componentMountedRef.current) { setIsResponding(false); setHint(''); } },
           onToolCall: async (call) => {
-            const unavailableAnswer = bi(
-              'Je ne peux pas obtenir ces informations pour le moment. Réessayons dans un instant.',
-              'ما نقدرش نجيب هاذ المعلومات حالياً. نعاودو بعد شوية.',
-            );
-            if (call.name !== 'agent_turn' || !call.args) {
-              setHint(unavailableAnswer);
-              return { success: false, answer: unavailableAnswer };
-            }
-            if (!componentMountedRef.current) return null;
-            setIsResponding(true);
-            setHint(bi('Je vérifie les informations…', 'جاري التحقق من المعلومات…'));
+            let settle!: () => void;
+            const pending = new Promise<void>((resolve) => { settle = resolve; });
+            pendingToolCallsRef.current.add(pending);
             try {
-              const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/voice-tool`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  slug: storeRef.current.slug || slug,
-                  language: languageRef.current,
-                  requestId: makeRequestId(),
-                  toolName: call.name,
-                  arguments: call.args,
-                }),
-              });
-              const body = await response.json().catch(() => ({}));
-              if (!componentMountedRef.current) return null;
-              if (!response.ok || !body.success || typeof body.answer !== 'string') {
-                const answer = response.status === 423
-                  ? bi('Cette boutique est momentanément indisponible.', 'المتجر ما راهوش متوفر حالياً.')
-                  : response.status === 429
-                    ? bi('Nous ne pouvons pas traiter cette demande tout de suite. Réessayons dans un instant.', 'ما نقدرش نعالجو هاذ الطلب حالياً. نعاودو بعد شوية.')
-                    : unavailableAnswer;
-                setHint(answer);
-                return { success: false, answer };
+              const unavailableAnswer = bi(
+                'Je ne peux pas obtenir ces informations pour le moment. Réessayons dans un instant.',
+                'ما نقدرش نجيب هاذ المعلومات حالياً. نعاودو بعد شوية.',
+                'I can’t retrieve this information right now. Let’s try again in a moment.',
+              );
+              if (call.name !== 'agent_turn' || !call.args) {
+                setHint(unavailableAnswer);
+                return { success: false, answer: unavailableAnswer };
               }
-              setHint('');
-              return { success: true, answer: body.answer, action: body.action };
-            } catch {
-              if (!componentMountedRef.current) return null;
-              setHint(unavailableAnswer);
-              return { success: false, answer: unavailableAnswer };
+              const callId = activeCallIdRef.current;
+              if (!componentMountedRef.current || !callId) return null;
+              setIsResponding(true);
+              setHint(bi('Je vérifie les informations…', 'جاري التحقق من المعلومات…', 'Checking the information…'));
+              try {
+                const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/voice-tool`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    slug: storeRef.current.slug || slug,
+                    callId,
+                    language: languageRef.current,
+                    requestId: makeRequestId(),
+                    toolName: call.name,
+                    arguments: call.args,
+                  }),
+                  keepalive: true,
+                });
+                const body = await response.json().catch(() => ({}));
+                if (!componentMountedRef.current) return null;
+                if (!response.ok || !body.success || typeof body.answer !== 'string') {
+                  const answer = response.status === 423
+                    ? bi('Cette boutique est momentanément indisponible.', 'المتجر ما راهوش متوفر حالياً.', 'This store is temporarily unavailable.')
+                    : response.status === 429
+                      ? bi('Nous ne pouvons pas traiter cette demande tout de suite. Réessayons dans un instant.', 'ما نقدرش نعالجو هاذ الطلب حالياً. نعاودو بعد شوية.', 'I can’t process this request right now. Let’s try again in a moment.')
+                      : unavailableAnswer;
+                  setHint(answer);
+                  return { success: false, answer };
+                }
+                setHint('');
+                return { success: true, answer: body.answer, action: body.action };
+              } catch {
+                if (!componentMountedRef.current) return null;
+                setHint(unavailableAnswer);
+                return { success: false, answer: unavailableAnswer };
+              }
+            } finally {
+              pendingToolCallsRef.current.delete(pending);
+              settle();
             }
           },
           onError: () => {
@@ -390,22 +481,27 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
             const activeConnection = liveConnectionRef.current;
             liveConnectionRef.current = null;
             activeConnection?.close();
+            finishActiveCall();
           },
           onClose: () => {
             if (!componentMountedRef.current) return;
             setIsListening(false);
             setIsLiveSession(false);
             setIsSpeaking(false);
+            finishActiveCall();
           },
         },
       });
       if (!componentMountedRef.current) {
         connection.close();
+        releasePendingResources();
+        finishActiveCall();
         return;
       }
       liveConnectionRef.current = connection;
       microphone = null;
       audioContext = null;
+
       setIsLiveSession(true);
       setIsListening(true);
       setIsSpeaking(false);
@@ -413,6 +509,10 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       setHint(bi('Je vous écoute…', 'راني نسمع فيك…'));
     } catch (error: any) {
       releasePendingResources();
+      const activeConnection = liveConnectionRef.current;
+      liveConnectionRef.current = null;
+      activeConnection?.close();
+      finishActiveCall();
       if (!componentMountedRef.current) return;
       setIsListening(false);
       setIsLiveSession(false);
@@ -436,6 +536,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     const activeConnection = liveConnectionRef.current;
     liveConnectionRef.current = null;
     activeConnection?.close();
+    finishActiveCall();
     setIsLiveSession(false);
     setIsListening(false);
     setIsSpeaking(false);
@@ -459,19 +560,12 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     void answerCustomer(question);
   };
 
-  const changeLanguage = (nextLanguage: 'fr' | 'ar') => {
-    if (nextLanguage === languageRef.current) return;
+  const changeLanguage = (nextLanguage: 'fr' | 'ar' | 'en') => {
+    if (nextLanguage === languageRef.current || activeCallIdRef.current || liveConnectingRef.current || liveConnectionRef.current || isListening || isResponding) return;
     languageRef.current = nextLanguage;
     setLanguage(nextLanguage);
-    if (liveConnectionRef.current) {
-      const activeConnection = liveConnectionRef.current;
-      liveConnectionRef.current = null;
-      activeConnection.close();
-      setIsLiveSession(false);
-      setIsListening(false);
-      setIsSpeaking(false);
-      void startListening();
-    }
+    setCaption('');
+    setHint('');
   };
 
   const openOrder = (product: AgentProduct) => {
@@ -707,8 +801,9 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
           <span className={`agent-call-availability ${store.isActive ? 'is-active' : ''}`} title={store.isActive ? bi('Disponible', 'متاح') : bi('En pause', 'متوقف')} />
         </div>
         <div className="agent-call-language" role="group" aria-label={bi('Langue', 'اللغة')}>
-          <button type="button" onClick={() => changeLanguage('fr')} aria-pressed={language === 'fr'} className={language === 'fr' ? 'selected' : ''}>FR</button>
-          <button type="button" onClick={() => changeLanguage('ar')} aria-pressed={language === 'ar'} className={language === 'ar' ? 'selected' : ''}>دارجة</button>
+          <button type="button" onClick={() => changeLanguage('fr')} disabled={isLiveSession || isConnecting || isResponding} aria-pressed={language === 'fr'} className={language === 'fr' ? 'selected' : ''}>FR</button>
+          <button type="button" onClick={() => changeLanguage('ar')} disabled={isLiveSession || isConnecting || isResponding} aria-pressed={language === 'ar'} className={language === 'ar' ? 'selected' : ''}>دارجة</button>
+          <button type="button" onClick={() => changeLanguage('en')} disabled={isLiveSession || isConnecting || isResponding} aria-pressed={language === 'en'} className={language === 'en' ? 'selected' : ''}>EN</button>
         </div>
       </header>
 

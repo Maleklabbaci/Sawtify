@@ -7,7 +7,7 @@ declare const Deno: {
 };
 import { answerAgentQuestion, containsHealthClinicalContent, isDisallowedAgentIntent } from '../_shared/agentReply.ts';
 
-type Language = 'fr' | 'ar';
+type Language = 'fr' | 'ar' | 'en';
 type Sector = 'commerce' | 'health' | 'services' | 'restaurant' | 'hospitality';
 type Product = {
   id: string;
@@ -33,7 +33,7 @@ type ToolArgs = Record<string, unknown>;
 type PreparedTurn = {
   answer: string;
   action: 'reply' | 'place_order' | 'submit_request';
-  apply?: () => Promise<string | null>;
+  pendingAction?: { type: 'place_order' | 'submit_request'; payload: Record<string, unknown> };
 };
 
 const corsHeaders = {
@@ -44,7 +44,6 @@ const corsHeaders = {
 };
 const MAX_REQUESTS_PER_MINUTE = 24;
 const MAX_INPUT_CHARS = 1200;
-const CHARS_PER_SECOND = 14;
 const rateWindow = new Map<string, number[]>();
 const serviceUrl = Deno.env.get('SUPABASE_URL') || '';
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -150,8 +149,8 @@ function storeFromDatabase(row: Record<string, unknown>): Store {
   };
 }
 
-function languageText(language: Language, french: string, arabic: string): string {
-  return language === 'ar' ? arabic : french;
+function languageText(language: Language, french: string, arabic: string, english = french): string {
+  return language === 'ar' ? arabic : language === 'en' ? english : french;
 }
 
 function normalizePhone(value: unknown): string {
@@ -172,34 +171,35 @@ function parseIsoDate(value: unknown): string | null {
 
 function formatDateForSpeech(value: string | null, language: Language): string {
   if (!value) return '';
-  return new Intl.DateTimeFormat(language === 'ar' ? 'ar-DZ' : 'fr-DZ', {
+  return new Intl.DateTimeFormat(language === 'ar' ? 'ar-DZ' : language === 'en' ? 'en-DZ' : 'fr-DZ', {
     dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Algiers',
   }).format(new Date(value));
 }
 
 function requiredFieldAnswer(field: string, language: Language): string {
-  const fields: Record<string, [string, string]> = {
-    product: ['Quel produit souhaitez-vous ?', 'واش هو المنتج اللي حاب تطلبو؟'],
-    name: ['Quel nom puis-je transmettre à la boutique ?', 'واش هو الاسم اللي نبعثو للمتجر؟'],
-    phone: ['Quel numéro de téléphone la boutique peut-elle utiliser pour vous recontacter ?', 'واش هو رقم الهاتف اللي يقدرو يتصلو بيك فيه؟'],
-    wilaya: ['Dans quelle ville ou wilaya êtes-vous ?', 'في أي مدينة ولا ولاية راك؟'],
-    size: ['Quelle taille ou variante souhaitez-vous ?', 'واش هو المقاس ولا الخيار اللي تحبو؟'],
-    service: ['Quel service ou sujet souhaitez-vous demander ?', 'واش هي الخدمة ولا الطلب اللي حاب تديرو؟'],
-    date: ['Quel jour et quelle heure vous conviennent ?', 'واش هو النهار والوقت اللي يناسبوك؟'],
-    stayDates: ['Quelles sont vos dates d’arrivée et de départ ?', 'واش هما تاريخ الوصول والمغادرة؟'],
-    partySize: ['Combien de personnes seront présentes ?', 'شحال من شخص راح يكون؟'],
-    room: ['Quel est votre numéro de chambre et quel service souhaitez-vous ?', 'واش هو رقم الغرفة والخدمة اللي تحتاجها؟'],
+  const fields: Record<string, [string, string, string]> = {
+    product: ['Quel produit souhaitez-vous ?', 'واش هو المنتج اللي حاب تطلبو؟', 'Which product would you like?'],
+    name: ['Quel nom puis-je transmettre à la boutique ?', 'واش هو الاسم اللي نبعثو للمتجر؟', 'What name should I give the store?'],
+    phone: ['Quel numéro de téléphone la boutique peut-elle utiliser pour vous recontacter ?', 'واش هو رقم الهاتف اللي يقدرو يتصلو بيك فيه؟', 'Which phone number can the store use to contact you?'],
+    wilaya: ['Dans quelle ville ou wilaya êtes-vous ?', 'في أي مدينة ولا ولاية راك؟', 'Which city or wilaya are you in?'],
+    size: ['Quelle taille ou variante souhaitez-vous ?', 'واش هو المقاس ولا الخيار اللي تحبو؟', 'Which size or variant would you like?'],
+    service: ['Quel service ou sujet souhaitez-vous demander ?', 'واش هي الخدمة ولا الطلب اللي حاب تديرو؟', 'Which service or request would you like?'],
+    date: ['Quel jour et quelle heure vous conviennent ?', 'واش هو النهار والوقت اللي يناسبوك؟', 'Which day and time work for you?'],
+    stayDates: ['Quelles sont vos dates d’arrivée et de départ ?', 'واش هما تاريخ الوصول والمغادرة؟', 'What are your arrival and departure dates?'],
+    partySize: ['Combien de personnes seront présentes ?', 'شحال من شخص راح يكون؟', 'How many people will be attending?'],
+    room: ['Quel est votre numéro de chambre et quel service souhaitez-vous ?', 'واش هو رقم الغرفة والخدمة اللي تحتاجها؟', 'What is your room number, and what service do you need?'],
   };
   const pair = fields[field] || fields.service;
-  return pair[language === 'ar' ? 1 : 0];
+  return pair[language === 'ar' ? 1 : language === 'en' ? 2 : 0];
 }
 
 function formatMoney(amount: number, language: Language): string {
   const arabic = language === 'ar';
-  return `${new Intl.NumberFormat(arabic ? 'ar-DZ' : 'fr-DZ', { maximumFractionDigits: 0 }).format(amount)} ${arabic ? 'دج' : 'DA'}`;
+  const locale = arabic ? 'ar-DZ' : language === 'en' ? 'en-DZ' : 'fr-DZ';
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(amount)} ${arabic ? 'دج' : 'DA'}`;
 }
 
-function prepareOrder(store: Store, args: ToolArgs, language: Language, requestId: string): PreparedTurn {
+function prepareOrder(store: Store, args: ToolArgs, language: Language): PreparedTurn {
   const question = cleanText(args.question, MAX_INPUT_CHARS);
   const details = cleanText(args.details, 500);
   const productId = cleanText(args.productId, 80);
@@ -213,17 +213,17 @@ function prepareOrder(store: Store, args: ToolArgs, language: Language, requestI
   const reply = (answer: string): PreparedTurn => ({ answer, action: 'reply' });
 
   if (store.sector !== 'commerce') {
-    return reply(languageText(language, 'Cette activité ne propose pas de commande de produit. Je peux vous aider avec une demande adaptée à ses services.', 'هذا النشاط ما يوفرش طلب منتجات. نقدر نعاونك بطلب مناسب للخدمات تاعو.'));
+    return reply(languageText(language, 'Cette activité ne propose pas de commande de produit. Je peux vous aider avec une demande adaptée à ses services.', 'هذا النشاط ما يوفرش طلب منتجات. نقدر نعاونك بطلب مناسب للخدمات تاعو.', 'This business does not take product orders. I can help with a request related to its services.'));
   }
   if (isDisallowedAgentIntent(`${question} ${details} ${product?.name || ''}`)) {
     return reply(answerAgentQuestion(store, question, language));
   }
   if (!product) return reply(requiredFieldAnswer('product', language));
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
-    return reply(languageText(language, 'Quelle quantité souhaitez-vous, entre 1 et 100 ?', 'شحال من قطعة تحب، بين 1 و100؟'));
+    return reply(languageText(language, 'Quelle quantité souhaitez-vous, entre 1 et 100 ?', 'شحال من قطعة تحب، بين 1 و100؟', 'What quantity would you like, from 1 to 100?'));
   }
   if (product.stock < quantity) {
-    return reply(languageText(language, `${product.name} n’est disponible qu’en ${product.stock} exemplaire${product.stock > 1 ? 's' : ''}.`, `${product.name} متوفر غير بـ${product.stock} قطعة.`));
+    return reply(languageText(language, `${product.name} n’est disponible qu’en ${product.stock} exemplaire${product.stock > 1 ? 's' : ''}.`, `${product.name} متوفر غير بـ${product.stock} قطعة.`, `${product.name} has only ${product.stock} available.`));
   }
   if (product.sizes.length && !product.sizes.includes(size)) return reply(requiredFieldAnswer('size', language));
   if (customerName.length < 2) return reply(requiredFieldAnswer('name', language));
@@ -235,42 +235,28 @@ function prepareOrder(store: Store, args: ToolArgs, language: Language, requestI
       language,
       `Récapitulatif : ${quantity} × ${product.name}${size ? `, variante ${size}` : ''}, soit ${formatMoney(product.priceDzd * quantity, language)}, pour ${customerName} à ${wilaya}. Souhaitez-vous que je transmette cette demande à la boutique ?`,
       `نراجعو الطلب: ${quantity} × ${product.name}${size ? `، المقاس ${size}` : ''}، المجموع ${formatMoney(product.priceDzd * quantity, language)}، باسم ${customerName} في ${wilaya}. تحب نبعث الطلب للمتجر؟`,
+      `Order summary: ${quantity} × ${product.name}${size ? `, variant ${size}` : ''}, total ${formatMoney(product.priceDzd * quantity, language)}, for ${customerName} in ${wilaya}. Would you like me to send this request to the store?`,
     );
     return reply(summary);
   }
 
   const answer = languageText(
     language,
-    'Votre demande est transmise à la boutique. Elle vous recontactera pour confirmer la disponibilité et la livraison.',
-    'وصل طلبك للمتجر. يرجعلك باش يأكد التوفر والتوصيل.',
+    'Votre demande est enregistrée et sera transmise à la boutique à la fin de l’appel. Elle vous recontactera pour confirmer la disponibilité et la livraison.',
+    'تسجل طلبك، ونبعثوه للمتجر كي تسالي المكالمة. يرجعلك باش يأكد التوفر والتوصيل.',
+    'Your request is ready and will be sent to the store when this call ends. The store will contact you to confirm availability and delivery.',
   );
   return {
     answer,
     action: 'place_order',
-    apply: async () => {
-      try {
-        const { data, error } = await supabase!.rpc('create_agent_sawtify_order', {
-          p_store_id: store.id,
-          p_request_id: requestId,
-          p_customer_name: customerName,
-          p_phone: phone,
-          p_wilaya: wilaya,
-          p_product_id: product.id,
-          p_size: size,
-          p_quantity: quantity,
-        });
-        if (error) return 'database_error';
-        const result = Array.isArray(data) ? data[0] : data;
-        if (!result?.success) return cleanText(result?.error, 40) || 'order_error';
-        return null;
-      } catch {
-        return 'database_error';
-      }
+    pendingAction: {
+      type: 'place_order',
+      payload: { customerName, phone, wilaya, productId: product.id, size, quantity },
     },
   };
 }
 
-function prepareRequest(store: Store, args: ToolArgs, language: Language, requestId: string): PreparedTurn {
+function prepareRequest(store: Store, args: ToolArgs, language: Language): PreparedTurn {
   const question = cleanText(args.question, MAX_INPUT_CHARS);
   const requestType = cleanText(args.requestType, 24);
   const titleInput = cleanText(args.requestTitle, 120);
@@ -292,7 +278,7 @@ function prepareRequest(store: Store, args: ToolArgs, language: Language, reques
     hospitality: ['reservation', 'room_service'],
   };
   if (!allowedBySector[store.sector].includes(requestType)) {
-    return reply(languageText(language, 'Cette activité ne propose pas ce type de demande.', 'هذا النشاط ما يوفرش هاذ النوع من الطلبات.'));
+    return reply(languageText(language, 'Cette activité ne propose pas ce type de demande.', 'هذا النشاط ما يوفرش هاذ النوع من الطلبات.', 'This business does not offer that type of request.'));
   }
   if (isDisallowedAgentIntent(`${question} ${titleInput} ${details}`)) {
     return reply(answerAgentQuestion(store, question, language));
@@ -301,10 +287,10 @@ function prepareRequest(store: Store, args: ToolArgs, language: Language, reques
     return reply(answerAgentQuestion(store, question, language));
   }
   if (store.sector === 'health' && details) {
-    return reply(languageText(language, 'Pour protéger vos informations, ne communiquez aucun détail médical. Cette activité traite uniquement les demandes de rendez-vous.', 'باش نحافظو على معلوماتك، ما تبعث حتى تفاصيل طبية. هذا النشاط يستقبل غير طلبات المواعيد.'));
+    return reply(languageText(language, 'Pour protéger vos informations, ne communiquez aucun détail médical. Cette activité traite uniquement les demandes de rendez-vous.', 'باش نحافظو على معلوماتك، ما تبعث حتى تفاصيل طبية. هذا النشاط يستقبل غير طلبات المواعيد.', 'For your privacy, do not share medical details. This business only handles appointment requests.'));
   }
 
-  const title = titleInput || languageText(language, 'Demande de service', 'طلب خدمة');
+  const title = titleInput || languageText(language, 'Demande de service', 'طلب خدمة', 'Service request');
   const isReservation = requestType === 'reservation' && (store.sector === 'restaurant' || store.sector === 'hospitality');
   const isStay = requestType === 'reservation' && store.sector === 'hospitality';
   const isRoomService = requestType === 'room_service' && store.sector === 'hospitality';
@@ -319,10 +305,10 @@ function prepareRequest(store: Store, args: ToolArgs, language: Language, reques
   if (isStay && (!preferredAt || !preferredUntil || preferredUntil <= preferredAt)) return reply(requiredFieldAnswer('stayDates', language));
   if (isReservation && !validatedPartySize) return reply(requiredFieldAnswer('partySize', language));
   if (isRoomService && !details) return reply(requiredFieldAnswer('room', language));
-  if (details.length > 500) return reply(languageText(language, 'Le détail de la demande est trop long. Pouvez-vous le résumer ?', 'تفاصيل الطلب طويلة بزاف، تقدر تلخّصها؟'));
+  if (details.length > 500) return reply(languageText(language, 'Le détail de la demande est trop long. Pouvez-vous le résumer ?', 'تفاصيل الطلب طويلة بزاف، تقدر تلخّصها؟', 'The request details are too long. Could you shorten them?'));
 
   const finalTitle = isReservation && validatedPartySize
-    ? cleanText(`${title} · ${validatedPartySize} ${language === 'ar' ? 'أشخاص' : 'personnes'}`, 120)
+    ? cleanText(`${title} · ${validatedPartySize} ${language === 'ar' ? 'أشخاص' : language === 'en' ? 'people' : 'personnes'}`, 120)
     : title;
   const spokenPreferredAt = formatDateForSpeech(preferredAt, language);
   const spokenPreferredUntil = formatDateForSpeech(preferredUntil, language);
@@ -331,39 +317,27 @@ function prepareRequest(store: Store, args: ToolArgs, language: Language, reques
       language,
       `Je vais transmettre à l’activité : « ${finalTitle} »${spokenPreferredAt ? `, le ${spokenPreferredAt}` : ''}${spokenPreferredUntil ? ` au ${spokenPreferredUntil}` : ''}, pour ${customerName}. Confirmez-vous l’envoi ?`,
       `راح نبعث للنشاط: « ${finalTitle} »${spokenPreferredAt ? `، في ${spokenPreferredAt}` : ''}${spokenPreferredUntil ? ` حتى ${spokenPreferredUntil}` : ''}، باسم ${customerName}. تأكد الإرسال؟`,
+      `I’ll send this to the business: “${finalTitle}”${spokenPreferredAt ? `, on ${spokenPreferredAt}` : ''}${spokenPreferredUntil ? ` through ${spokenPreferredUntil}` : ''}, for ${customerName}. Do you confirm?`,
     );
     return reply(answer);
   }
 
   const answer = languageText(
     language,
-    'Votre demande est transmise à l’activité. Elle vous recontactera pour confirmer les détails.',
-    'وصل طلبك للنشاط. يرجعولك باش يأكدو التفاصيل.',
+    'Votre demande est enregistrée et sera transmise à l’activité à la fin de l’appel. Elle vous recontactera pour confirmer les détails.',
+    'تسجل طلبك، ونبعثوه للنشاط كي تسالي المكالمة. يرجعولك باش يأكدو التفاصيل.',
+    'Your request is ready and will be sent to the business when this call ends. They will contact you to confirm the details.',
   );
   return {
     answer,
     action: 'submit_request',
-    apply: async () => {
-      try {
-        const { data, error } = await supabase!.rpc('create_agent_sawtify_request', {
-          p_store_id: store.id,
-          p_request_id: requestId,
-          p_customer_name: customerName,
-          p_phone: phone,
-          p_wilaya: wilaya,
-          p_request_type: requestType,
-          p_request_title: finalTitle,
-          p_details: store.sector === 'health' ? '' : details,
-          p_preferred_at: preferredAt,
-          p_preferred_until: preferredUntil,
-        });
-        if (error) return 'database_error';
-        const result = Array.isArray(data) ? data[0] : data;
-        if (!result?.success) return cleanText(result?.error, 40) || 'request_error';
-        return null;
-      } catch {
-        return 'database_error';
-      }
+    pendingAction: {
+      type: 'submit_request',
+      payload: {
+        customerName, phone, wilaya, requestType, requestTitle: finalTitle,
+        details: store.sector === 'health' ? '' : details,
+        preferredAt, preferredUntil,
+      },
     },
   };
 }
@@ -371,18 +345,18 @@ function prepareRequest(store: Store, args: ToolArgs, language: Language, reques
 function databaseFailureAnswer(error: string | null, language: Language, store: Store): string | null {
   if (!error) return null;
   if (error === 'insufficient_stock') {
-    return languageText(language, 'Le stock vient de changer et cette demande n’a pas été transmise. Je peux vérifier une autre variante.', 'تبدل المخزون وما تبعثش الطلب. نقدر نشوفلك خيار آخر.');
+    return languageText(language, 'Le stock vient de changer et cette demande n’a pas été transmise. Je peux vérifier une autre variante.', 'تبدل المخزون وما تبعثش الطلب. نقدر نشوفلك خيار آخر.', 'The stock has changed, so the request was not sent. I can check another option.');
   }
   if (error === 'invalid_size') {
-    return languageText(language, 'Cette variante n’est plus disponible et la demande n’a pas été transmise.', 'هاذ المقاس ما بقاش متوفر وما تبعثش الطلب.');
+    return languageText(language, 'Cette variante n’est plus disponible et la demande n’a pas été transmise.', 'هاذ المقاس ما بقاش متوفر وما تبعثش الطلب.', 'This variant is no longer available, so the request was not sent.');
   }
   if (error === 'product_unavailable' || error === 'store_unavailable') {
-    return languageText(language, 'Cette offre n’est plus disponible et la demande n’a pas été transmise.', 'هاذ العرض ما بقاش متوفر وما تبعثش الطلب.');
+    return languageText(language, 'Cette offre n’est plus disponible et la demande n’a pas été transmise.', 'هاذ العرض ما بقاش متوفر وما تبعثش الطلب.', 'This offer is no longer available, so the request was not sent.');
   }
   if (error === 'invalid_request_type' || error === 'invalid_stay_dates' || error === 'medical_details_not_allowed') {
-    return languageText(language, 'Les informations ne permettent pas de transmettre la demande. Vérifions-les ensemble.', 'المعلومات ما تسمحش بإرسال الطلب. نراجعوها مع بعض.');
+    return languageText(language, 'Les informations ne permettent pas de transmettre la demande. Vérifions-les ensemble.', 'المعلومات ما تسمحش بإرسال الطلب. نراجعوها مع بعض.', 'These details are not enough to send the request. Let’s review them together.');
   }
-  return languageText(language, `Je n’ai pas pu transmettre cette demande à ${store.name}. Réessayons dans un instant.`, `ما قدرتش نبعث الطلب لـ${store.name}. نعاودو بعد شوية.`);
+  return languageText(language, `Je n’ai pas pu transmettre cette demande à ${store.name}. Réessayons dans un instant.`, `ما قدرتش نبعث الطلب لـ${store.name}. نعاودو بعد شوية.`, `I couldn’t send this request to ${store.name}. Let’s try again in a moment.`);
 }
 
 Deno.serve(async (request) => {
@@ -399,13 +373,14 @@ Deno.serve(async (request) => {
   }
 
   const slug = normalizeSlug(body.slug);
-  const language: Language = body.language === 'ar' ? 'ar' : 'fr';
+  const language: Language = body.language === 'ar' ? 'ar' : body.language === 'en' ? 'en' : 'fr';
   const requestId = body.requestId;
+  const callId = typeof body.callId === 'string' ? body.callId : null;
   const toolName = cleanText(body.toolName, 80);
   const args = body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
     ? body.arguments as ToolArgs
     : {};
-  if (!slug || !isUuid(requestId) || toolName !== 'agent_turn') {
+  if (!slug || !isUuid(callId) || !isUuid(requestId) || toolName !== 'agent_turn') {
     return json({ success: false, error: 'invalid_tool_request' }, 400);
   }
   if (!allowRequest(rateLimitKey(request, slug))) return json({ success: false, error: 'rate_limited' }, 429);
@@ -423,38 +398,36 @@ Deno.serve(async (request) => {
     if (!row || !row.is_active) return json({ success: false, error: 'store_paused' }, 404);
 
     const store = storeFromDatabase(row as Record<string, unknown>);
+    const { data: call, error: callError } = await supabase
+      .from('agent_sawtify_call_sessions')
+      .select('id, store_id, store_slug, language, status')
+      .eq('id', callId)
+      .maybeSingle();
+    if (callError) return json({ success: false, error: 'call_unavailable' }, 503);
+    if (!call || call.status !== 'active' || call.store_id !== store.id || call.store_slug !== store.slug) {
+      return json({ success: false, error: 'call_not_active' }, 409);
+    }
+    if (call.language !== language) return json({ success: false, error: 'session_language_mismatch' }, 409);
     const action = cleanText(args.action, 30);
     let prepared: PreparedTurn;
-    if (action === 'place_order') prepared = prepareOrder(store, { ...args, question }, language, requestId);
-    else if (action === 'submit_request') prepared = prepareRequest(store, { ...args, question }, language, requestId);
+    if (action === 'place_order') prepared = prepareOrder(store, { ...args, question }, language);
+    else if (action === 'submit_request') prepared = prepareRequest(store, { ...args, question }, language);
     else prepared = { answer: answerAgentQuestion(store, question, language), action: 'reply' };
 
-    const inputCharacters = Math.min(MAX_INPUT_CHARS, question.length + cleanText(args.details, 500).length);
-    const outputCharacters = Math.max(1, Math.min(4000, prepared.answer.length));
-    const billableSeconds = Math.max(1, Math.min(300, Math.ceil((inputCharacters + outputCharacters) / CHARS_PER_SECOND)));
-    const { data: usageData, error: usageError } = await supabase.rpc('consume_agent_sawtify_conversation', {
-      p_request_id: requestId,
-      p_user_id: store.owner_user_id,
-      p_store_id: store.id,
-      p_store_slug: store.slug,
-      p_input_characters: inputCharacters,
-      p_output_characters: outputCharacters,
-      p_seconds: billableSeconds,
-    });
-    if (usageError) return json({ success: false, error: 'usage_unavailable' }, 503);
-    const usage = Array.isArray(usageData) ? usageData[0] : usageData;
-    if (!usage?.success) {
-      if (usage?.error === 'insufficient_minutes' || usage?.error === 'wallet_not_found') {
-        return json({ success: false, error: 'conversation_unavailable' }, 402);
-      }
-      return json({ success: false, error: 'usage_not_validated' }, 409);
-    }
-
     let finalAnswer = prepared.answer;
-    if (prepared.apply) {
-      const applyError = await prepared.apply();
-      const failureAnswer = databaseFailureAnswer(applyError, language, store);
-      if (failureAnswer) finalAnswer = failureAnswer;
+    if (prepared.pendingAction) {
+      const { data: stagedData, error: stagedError } = await supabase.rpc('stage_agent_sawtify_call_action', {
+        p_call_id: callId,
+        p_request_id: requestId,
+        p_action_type: prepared.pendingAction.type,
+        p_action_data: prepared.pendingAction.payload,
+      });
+      if (stagedError) return json({ success: false, error: 'call_action_unavailable' }, 503);
+      const staged = Array.isArray(stagedData) ? stagedData[0] : stagedData;
+      if (!staged?.success) {
+        finalAnswer = databaseFailureAnswer(cleanText(staged?.error, 40) || 'database_error', language, store)
+          || languageText(language, 'Je n’ai pas pu enregistrer cette demande.', 'ما قدرتش نسجل هاذ الطلب.', 'I could not save this request.');
+      }
     }
 
     return json({ success: true, answer: finalAnswer, action: prepared.action });
