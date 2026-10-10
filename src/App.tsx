@@ -425,7 +425,9 @@ function AppContent() {
             return;
           }
 
-          if (window.location.pathname !== '/agent-ai') navigateTo(routeToTab(window.location.pathname), true);
+          const pathname = window.location.pathname;
+          const isPublicCallRoute = /^\/call\/[^/]+\/?$/.test(pathname);
+          if (pathname !== '/agent-ai' && !isPublicCallRoute) navigateTo(routeToTab(pathname), true);
           setIsBootstrapping(true);
           refreshAccountData().finally(() => { if (mounted) setIsBootstrapping(false); });
         } else {
@@ -618,6 +620,14 @@ function AppContent() {
 
   // Etat de connexion forcé si timeout
   const displayContent = (() => {
+    // The customer call page is public and must remain on /call/:slug even when
+    // a Supabase session is already present (the studio's session bootstrap must not redirect it).
+    const callRouteMatch = window.location.pathname.match(/^\/call\/([^/]+)/);
+    if (callRouteMatch) {
+      const slug = decodeURIComponent(callRouteMatch[1]);
+      return <Suspense fallback={<MinimalLoader page="agent-sawtify" />}><AgentCallPage slug={slug} /></Suspense>;
+    }
+
     // Si on a un utilisateur à accueillir (onboarding), on le montre toujours
     if (welcomeUser) {
       return <WelcomeOnboarding name={welcomeUser.name} email={welcomeUser.email} language={language} onComplete={() => { trackMarketingEvent('onboarding_completed'); return finishWelcome(); }} />;
@@ -640,12 +650,6 @@ function AppContent() {
           />
         </Suspense>
       );
-    }
-
-    const callRouteMatch = window.location.pathname.match(/^\/call\/([^/]+)/);
-    if (callRouteMatch) {
-      const slug = decodeURIComponent(callRouteMatch[1]);
-      return <Suspense fallback={<MinimalLoader page="agent-sawtify" />}><AgentCallPage slug={slug} /></Suspense>;
     }
 
     // The Agent product information page remains public, whether signed in or not.
