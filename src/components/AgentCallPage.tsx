@@ -91,9 +91,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const languageRef = useRef(language);
   const orderRequestIdRef = useRef('');
   const businessRequestIdRef = useRef('');
-  const autoStartAttemptedRef = useRef(false);
   const respondingRef = useRef(false);
-  const startListeningRef = useRef<() => void>(() => {});
+  const [usageNotice, setUsageNotice] = useState('');
   storeRef.current = store;
   languageRef.current = language;
   const isArabic = language === 'ar';
@@ -124,7 +123,6 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
     let active = true;
     const loadStore = async () => {
-      autoStartAttemptedRef.current = false;
       recognitionRef.current?.abort?.();
       liveConnectionRef.current?.close();
       liveConnectionRef.current = null;
@@ -198,6 +196,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     if (respondingRef.current || !question.trim()) return;
     respondingRef.current = true;
     setIsResponding(true);
+    setUsageNotice('');
     setHint(bi('Préparation de la réponse…', 'جاري تحضير الإجابة…'));
     try {
       let answer: string;
@@ -239,9 +238,11 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       await speak(answer);
 
       if (isDemoPreview) {
+        setUsageNotice('');
         setHint(bi('Aperçu de démonstration : aucun solde n’est débité.', 'معاينة تجريبية: ما تخصم حتى مدة من الرصيد.'));
       } else {
-        setHint(bi(
+        setHint('');
+        setUsageNotice(bi(
           `Durée estimée décomptée : ${consumedSeconds || estimatedSeconds} s · solde restant : ${remainingSeconds} s.`,
           `المدة التقديرية المخصومة: ${consumedSeconds || estimatedSeconds} ث · الرصيد المتبقي: ${remainingSeconds} ث.`,
         ));
@@ -266,7 +267,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     try {
       recognitionRef.current?.abort?.();
       const recognition = new Constructor();
-      recognition.lang = isArabic ? 'ar-DZ' : 'fr-DZ';
+      // Generic locales have much broader browser SpeechRecognition support than fr-DZ/ar-DZ.
+      recognition.lang = isArabic ? 'ar-SA' : 'fr-FR';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognition.onresult = (event) => {
@@ -304,6 +306,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       setHint(bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.'));
       return;
     }
+    setUsageNotice('');
     if (isDemoPreview) {
       startBrowserRecognition();
       return;
@@ -360,8 +363,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         microphone,
         audioContext,
         callbacks: {
-          onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
-          onOutputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
+          onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); setUsageNotice(''); } },
+          onOutputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); } },
           onSpeaking: (speaking) => { if (componentMountedRef.current) setIsSpeaking(speaking); },
           onTurnComplete: () => { if (componentMountedRef.current) { setIsResponding(false); setHint(''); } },
           onToolCall: async (call) => {
@@ -401,6 +404,15 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
               if (!componentMountedRef.current) return null;
               const result = data as Record<string, unknown> | null;
               if (!result?.success || typeof result.answer !== 'string') throw new Error('tool_failed');
+              const consumedSeconds = Number(result.consumed_seconds);
+              const remainingSeconds = Number(result.remaining_seconds);
+              if (Number.isFinite(consumedSeconds) && consumedSeconds >= 1
+                  && Number.isFinite(remainingSeconds) && remainingSeconds >= 0) {
+                setUsageNotice(bi(
+                  `Durée estimée décomptée : ${consumedSeconds} s · solde restant : ${remainingSeconds} s.`,
+                  `المدة التقديرية المخصومة: ${consumedSeconds} ث · الرصيد المتبقي: ${remainingSeconds} ث.`,
+                ));
+              }
               setHint('');
               return { success: true, answer: result.answer, action: result.action };
             } catch {
@@ -468,17 +480,6 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
   };
 
-  startListeningRef.current = () => { void startListening(); };
-  useEffect(() => {
-    if (storeLoading || !store.isActive || autoStartAttemptedRef.current) return;
-    const timer = window.setTimeout(() => {
-      if (autoStartAttemptedRef.current) return;
-      autoStartAttemptedRef.current = true;
-      startListeningRef.current();
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [storeLoading, store.isActive, slug]);
-
   const stopListening = () => {
     recognitionRef.current?.stop();
     recognitionRef.current = null;
@@ -495,6 +496,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     event.preventDefault();
     const question = textQuestion.trim();
     if (!question || isResponding || isConnecting) return;
+    setUsageNotice('');
     setTextQuestion('');
     setShowTextInput(false);
     if (liveConnectionRef.current && isLiveSession) {
@@ -792,6 +794,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
                 ? bi('Je vous écoute…', 'راني نسمع فيك…')
                 : hint || caption || messages.at(-1)?.text || greeting}</p>
         </div>
+
+        {usageNotice && <p className="agent-call-usage" role="status" aria-live="polite">{usageNotice}</p>}
 
         <div className="agent-call-actions">
           <button type="button" onClick={() => setShowTextInput((visible) => !visible)} aria-expanded={showTextInput} className="agent-call-secondary-action">

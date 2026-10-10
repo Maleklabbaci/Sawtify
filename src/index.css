@@ -560,6 +560,7 @@
   backdrop-filter: blur(28px) saturate(145%);
 }
 .agent-call-caption p { max-width: 56ch; margin: 0; color: #686f87; font-size: clamp(12px, 1.6vw, 14px); font-weight: 600; line-height: 1.7; }
+.agent-call-usage { margin: -8px 0 0; color: #79809a; font-size: 10px; font-weight: 650; line-height: 1.5; text-align: center; }
 .agent-call-status-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #b5bac8; }
 .agent-call-status-dot.listening { background: #76bfa1; box-shadow: 0 0 0 5px rgba(118,191,161,.12); animation: agent-call-status-pulse 1.4s ease-in-out infinite; }
 .agent-call-status-dot.speaking { background: #918fdb; box-shadow: 0 0 0 5px rgba(145,143,219,.13); animation: agent-call-status-pulse .9s ease-in-out infinite; }
