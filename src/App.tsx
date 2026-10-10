@@ -94,6 +94,9 @@ const MinimalLoader: React.FC<{ page?: AppTab | 'account' }> = ({ page = 'studio
   );
 };
 
+// Public pages (customer call page, Agent product page) must keep their URL even when a session exists.
+const isPublicPath = () => /^\/call\//.test(window.location.pathname) || window.location.pathname === '/agent-ai';
+
 function AppContent() {
   const { t, isRTL, language, setLanguage, isTransitioning } = useLanguage();
   const routeToTab = React.useCallback((path: string): AppTab => {
@@ -425,7 +428,7 @@ function AppContent() {
             return;
           }
 
-          if (window.location.pathname !== '/agent-ai') navigateTo(routeToTab(window.location.pathname), true);
+          if (!isPublicPath()) navigateTo(routeToTab(window.location.pathname), true);
           setIsBootstrapping(true);
           refreshAccountData().finally(() => { if (mounted) setIsBootstrapping(false); });
         } else {
@@ -456,7 +459,7 @@ function AppContent() {
           trackMarketingEvent('account_created');
           setIsLoggedIn(true);
           setAuthModalMode('none');
-          navigateTo(requestedTabRef.current || 'studio', true);
+          if (!isPublicPath() || requestedTabRef.current) navigateTo(requestedTabRef.current || 'studio', true);
 
           const createdAtMs = session.user.created_at ? new Date(session.user.created_at).getTime() : 0;
           const isBrandNewAccount = createdAtMs > 0 && (Date.now() - createdAtMs) < 2 * 60 * 1000;
