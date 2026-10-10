@@ -723,6 +723,8 @@ function AppContent() {
       );
     }
 
+    if (window.location.pathname === '/agent-ai') return agentInfoPage;
+
     // Utilisateur connecté : Afficher l'interface principale
     // Même si isBootstrapping est true, on affiche le contenu (le solde arrivera après)
     // C'est le KEY FIX : avant, on bloquait ici jusqu'à la fin du bootstrap
