@@ -22,12 +22,13 @@ interface Props {
   palette: BubblePalette;
   label: string;
   onStop: () => void;
+  variant?: 'pill' | 'float' | 'splash';
 }
 
-export const VoiceBubble: React.FC<Props> = ({ palette, label, onStop }) =>
+export const VoiceBubble: React.FC<Props> = ({ palette, label, onStop, variant = 'pill' }) =>
   createPortal(
     <div
-      className="saw-vb-overlay"
+      className={`saw-vb-overlay${variant === 'pill' ? '' : ` saw-vb-${variant}`}`}
       style={{
         '--vb-base': palette.base, '--vb-liquid-1': palette.liquid1, '--vb-liquid-2': palette.liquid2, '--vb-liquid-3': palette.liquid3, '--vb-accent': palette.accent,
       } as React.CSSProperties}

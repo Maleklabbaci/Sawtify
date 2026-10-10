@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { answerAgentQuestion } from '../services/agentReply';
+import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import {
   createDemoAgentStore, DEMO_AGENT_STORE, makeAgentId, readAgentStore, saveAgentStore,
   type AgentOrder, type AgentProduct, type AgentRequestType, type AgentStore,
@@ -68,6 +69,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
   const [hint, setHint] = useState('');
+  const [needsTap, setNeedsTap] = useState(false);
+  const [bubblePalette] = useState<BubblePalette>(() => pickPalette());
   const [textQuestion, setTextQuestion] = useState('');
   const [orderProduct, setOrderProduct] = useState<AgentProduct | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
@@ -81,6 +84,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const orderRequestIdRef = useRef('');
   const businessRequestIdRef = useRef('');
   const autoStartAttemptedRef = useRef(false);
+  const conversationStartedRef = useRef(false);
   const respondingRef = useRef(false);
   const startListeningRef = useRef<() => void>(() => {});
   const isArabic = language === 'ar';
@@ -146,25 +150,30 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
 
-  const speak = (text: string) => new Promise<void>((resolve) => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
+  const speak = (text: string, strict = false) => new Promise<boolean>((resolve) => {
+    if (!('speechSynthesis' in window)) { resolve(false); return; }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = isArabic ? 'ar-SA' : 'fr-FR';
     utterance.rate = 0.96;
     let finished = false;
+    let started = false;
     let fallbackTimer: number | undefined;
+    let startTimer: number | undefined;
     const finish = () => {
       if (finished) return;
       finished = true;
       if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
+      if (startTimer !== undefined) window.clearTimeout(startTimer);
       setIsSpeaking(false);
-      resolve();
+      resolve(started);
     };
-    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onstart = () => { started = true; if (startTimer !== undefined) window.clearTimeout(startTimer); setIsSpeaking(true); };
     utterance.onend = finish;
     utterance.onerror = finish;
     fallbackTimer = window.setTimeout(finish, Math.min(120_000, Math.max(10_000, Math.ceil(text.length / 10) * 1000 + 5_000)));
+    // Autoplay blocked by the browser: nothing starts, so give up quickly and let the caller ask for a tap.
+    if (strict) startTimer = window.setTimeout(() => { if (!started) { window.speechSynthesis.cancel(); finish(); } }, 1800);
     try { window.speechSynthesis.speak(utterance); }
     catch { finish(); }
   });
@@ -270,10 +279,32 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   };
 
   startListeningRef.current = startListening;
+
+  // The assistant opens the conversation: it speaks its greeting, then listens.
+  const greetingRef = useRef(greeting);
+  greetingRef.current = greeting;
+  const beginConversation = async (fromTap = false) => {
+    if (conversationStartedRef.current) return;
+    conversationStartedRef.current = true;
+    setNeedsTap(false);
+    const spoke = await speak(greetingRef.current, !fromTap);
+    if (!spoke && !fromTap) {
+      // Browser blocked autoplay: wait for one tap on the bubble.
+      conversationStartedRef.current = false;
+      setNeedsTap(true);
+      return;
+    }
+    startListeningRef.current();
+  };
+  const beginConversationRef = useRef(beginConversation);
+  beginConversationRef.current = beginConversation;
+
   useEffect(() => {
     if (storeLoading || !store.isActive || autoStartAttemptedRef.current) return;
     autoStartAttemptedRef.current = true;
-    const timer = window.setTimeout(() => startListeningRef.current(), 250);
+    const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+    if (activation && !activation.hasBeenActive) { setNeedsTap(true); return; }
+    const timer = window.setTimeout(() => { void beginConversationRef.current(); }, 350);
     return () => window.clearTimeout(timer);
   }, [storeLoading, store.isActive]);
 
@@ -505,6 +536,25 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         <title>{bi(`Parler avec ${store.name} · Sawtify`, `تواصل مع ${store.name} · Sawtify`)}</title>
         <meta name="description" content={bi(`Découvrez ${store.name} et posez vos questions directement à son assistant.`, `اكتشف ${store.name} واسأل المساعد مباشرة.`)} />
       </Helmet>
+      {store.isActive && (needsTap || isSpeaking || isListening || isResponding) && (
+        <VoiceBubble
+          variant={needsTap ? 'splash' : 'float'}
+          palette={bubblePalette}
+          label={needsTap
+            ? bi('Touchez la bulle pour parler avec l’assistant', 'اضغط على البولة باش تهدر مع المساعد')
+            : isListening
+              ? bi('Je vous écoute…', 'راني نسمع فيك…')
+              : isResponding
+                ? bi('Préparation de la réponse…', 'جاري تحضير الإجابة…')
+                : bi(`${store.name} vous répond…`, `${store.name} راه يجاوبك…`)}
+          onStop={() => {
+            if (needsTap) { void beginConversation(true); return; }
+            if (isListening) { stopListening(); return; }
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            setIsSpeaking(false);
+          }}
+        />
+      )}
       <div className="mx-auto max-w-6xl">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-amber-950">
           <p className="flex items-start gap-2 text-[11px] leading-5 sm:text-xs"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span><strong>{isDemoPreview ? bi('Démo vocale.', 'معاينة صوتية.') : bi('Assistant vocal.', 'مساعد صوتي.')}</strong> {isDemoPreview

@@ -285,6 +285,42 @@
 }
 @media (prefers-reduced-motion: reduce) { .saw-vb-overlay, .saw-vb-liquid { animation: none; } }
 
+/* Voice bubble — large variants used on the customer call page. */
+.saw-vb-overlay.saw-vb-float {
+  top: auto; right: auto; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  flex-direction: column; gap: 6px; padding: 14px 24px 16px; border-radius: 30px;
+  animation: saw-vb-float-in .3s ease-out; transform: translateX(-50%);
+}
+.saw-vb-float .saw-vb-wrapper { width: 132px; height: 132px; flex-basis: 132px; }
+.saw-vb-float .saw-vb-bubble { width: 112px; height: 112px; }
+.saw-vb-float .saw-vb-label { max-width: 240px; text-align: center; font-size: 13px; }
+.saw-vb-overlay.saw-vb-splash {
+  inset: 0; top: 0; right: 0; bottom: 0; left: 0; transform: none;
+  flex-direction: column; justify-content: center; gap: 18px; padding: 24px; border: 0; border-radius: 0;
+  background: rgba(248, 245, 255, .84); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+.saw-vb-splash .saw-vb-wrapper { width: 230px; height: 230px; flex-basis: 230px; }
+.saw-vb-splash .saw-vb-bubble { width: 192px; height: 192px; }
+.saw-vb-splash .saw-vb-label { max-width: 290px; text-align: center; font-size: 16px; }
+@keyframes saw-vb-float-in { from { opacity: 0; transform: translate(-50%, 12px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+
+/* Studio — agent promo card: a square with a robot sliding in from the page edge. */
+.saw-robot-card {
+  position: fixed; z-index: 45; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); inset-inline-end: 0;
+  width: 184px; height: 184px; --robot-from: 112%;
+  animation: saw-robot-slide .7s cubic-bezier(.2,.9,.25,1.1) both;
+}
+[dir="rtl"] .saw-robot-card { --robot-from: -112%; }
+@keyframes saw-robot-slide { from { transform: translateX(var(--robot-from)); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.saw-robot-body { animation: saw-robot-bob 3.2s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes saw-robot-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.saw-robot-arm { animation: saw-robot-wave 1.6s ease-in-out infinite; transform-origin: 80px 118px; transform-box: view-box; }
+@keyframes saw-robot-wave { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-24deg); } }
+.saw-robot-eye { animation: saw-robot-blink 4.5s infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes saw-robot-blink { 0%,94%,100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+@media (max-width: 480px) { .saw-robot-card { width: 156px; height: 156px; } }
+@media (prefers-reduced-motion: reduce) { .saw-robot-card, .saw-robot-body, .saw-robot-arm, .saw-robot-eye { animation: none; } }
+
 /* Round landing-page voice bubbles: pastel light with colored currents moving inside. */
 .aura-wrapper {
   --aura-base: #fff0e8; --aura-fluid-1: #ff7267; --aura-fluid-2: #ffd36e; --aura-fluid-3: #ff9a80; --aura-glow: #ff5e3a;
