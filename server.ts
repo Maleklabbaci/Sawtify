@@ -3829,7 +3829,7 @@ Le texte de la proposition`;
       const remainingSeconds = (planActive ? Math.max(0, Number(wallet?.plan_seconds_remaining || 0)) : 0)
         + Math.max(0, Number(wallet?.topup_seconds_remaining || 0));
       if (remainingSeconds < 1) {
-        return res.status(402).json({ success: false, error: "Le solde vocal de cette boutique est épuisé. Le propriétaire doit recharger son compte.", remaining_seconds: remainingSeconds });
+        return res.status(402).json({ success: false, error: "La conversation n’est pas disponible pour le moment." });
       }
 
       const store = normalizeAgentStore(row.store_data);
@@ -3893,6 +3893,96 @@ Le texte de la proposition`;
     }
   });
 
+  app.post("/api/agent/sawtify/voice-tool", agentPublicLimiter, async (req, res) => {
+    const slug = normalizeAgentSlug(req.body?.slug);
+    const language: "fr" | "ar" = req.body?.language === "ar" ? "ar" : "fr";
+    const requestId = req.body?.requestId;
+    const toolName = agentText(req.body?.toolName, 80);
+    const rawArgs = req.body?.arguments && typeof req.body.arguments === "object" && !Array.isArray(req.body.arguments)
+      ? req.body.arguments as Record<string, unknown>
+      : {};
+    if (!slug || !isUuid(requestId) || toolName !== "agent_turn") {
+      return res.status(400).json({ success: false, error: "La demande n’a pas pu être traitée." });
+    }
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "Conversation indisponible." });
+
+    const args: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawArgs).slice(0, 32)) {
+      if (typeof value === "string") args[key] = agentText(value, key === "details" ? 500 : 1200);
+      else if (typeof value === "number" || typeof value === "boolean") args[key] = value;
+    }
+    const question = agentText(args.question, 1200);
+    if (!question) return res.status(400).json({ success: false, error: "La demande n’a pas pu être traitée." });
+
+    const toolBody = { slug, language, requestId, toolName, arguments: args };
+    let lastStatus = 0;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const { data, error } = await supabaseClient.functions.invoke("agent-sawtify-tools", {
+          body: toolBody,
+          headers: req.ip ? { "x-forwarded-for": req.ip } : {},
+        });
+        if (!error && data?.success === true && typeof data.answer === "string") {
+          return res.json({ success: true, answer: data.answer, action: data.action });
+        }
+        const context = (error as { context?: unknown } | null)?.context;
+        lastStatus = context && typeof context === "object" && "status" in context
+          ? Number((context as { status?: number }).status || 0)
+          : 0;
+        if (!lastStatus && (data?.error === "insufficient_minutes" || data?.error === "conversation_unavailable")) lastStatus = 402;
+        if (!lastStatus && data?.error === "rate_limited") lastStatus = 429;
+        if (lastStatus > 0 && lastStatus < 500) break;
+      } catch {
+        lastStatus = 0;
+      }
+    }
+
+    // If the tool service is temporarily unavailable, answer a read-only question
+    // through the same server-side data and billing path. Reusing requestId keeps
+    // the usage RPC idempotent if the original tool call completed but its reply was lost.
+    const requestedAction = agentText(args.action, 30);
+    const readOnlyAction = !requestedAction || requestedAction === "reply";
+    if (readOnlyAction && lastStatus !== 402) {
+      try {
+        const { data: row, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
+          .select("id, owner_user_id, slug, store_data, is_active").eq("slug", slug).maybeSingle();
+        if (storeError) throw storeError;
+        if (!row || !row.is_active) {
+          return res.status(row ? 423 : 404).json({ success: false, error: "Cette boutique est momentanément indisponible." });
+        }
+        const store = normalizeAgentStore(row.store_data);
+        const details = agentText(args.details, 500);
+        const answer = answerAgentQuestion(store, question, language);
+        const inputCharacters = Math.min(1200, question.length + details.length);
+        const outputCharacters = Math.max(1, Math.min(4000, answer.length));
+        const billableSeconds = Math.max(1, Math.min(300, Math.ceil((inputCharacters + outputCharacters) / TTS_CHARS_PER_SECOND_ESTIMATE)));
+        const { data: usageData, error: usageError } = await supabaseClient.rpc("consume_agent_sawtify_conversation", {
+          p_request_id: requestId,
+          p_user_id: row.owner_user_id,
+          p_store_id: row.id,
+          p_store_slug: row.slug,
+          p_input_characters: inputCharacters,
+          p_output_characters: outputCharacters,
+          p_seconds: billableSeconds,
+        });
+        if (usageError) throw usageError;
+        const usage = Array.isArray(usageData) ? usageData[0] : usageData;
+        if (!usage?.success) {
+          const status = usage?.error === "insufficient_minutes" || usage?.error === "wallet_not_found" ? 402 : 409;
+          return res.status(status).json({ success: false, error: "La réponse n’est pas disponible pour le moment." });
+        }
+        return res.json({ success: true, answer, action: "reply" });
+      } catch {
+        // Return a short spoken response below; never expose backend details in the call UI.
+      }
+    }
+
+    if (lastStatus === 402) return res.status(402).json({ success: false, error: "La réponse n’est pas disponible pour le moment." });
+    if (lastStatus === 429) return res.status(429).json({ success: false, error: "La demande ne peut pas être traitée maintenant." });
+    if (lastStatus === 423) return res.status(423).json({ success: false, error: "Cette boutique est momentanément indisponible." });
+    return res.status(503).json({ success: false, error: "La conversation n’est pas disponible pour le moment." });
+  });
+
   app.post("/api/agent/sawtify/respond", agentPublicLimiter, async (req, res) => {
     const slug = normalizeAgentSlug(req.body?.slug);
     const rawQuestion = typeof req.body?.question === "string" ? req.body.question.trim() : "";
@@ -3921,7 +4011,7 @@ Le texte de la proposition`;
       const remainingSeconds = (planActive ? Math.max(0, Number(wallet?.plan_seconds_remaining || 0)) : 0)
         + Math.max(0, Number(wallet?.topup_seconds_remaining || 0));
       if (remainingSeconds < estimatedSeconds) {
-        return res.status(402).json({ success: false, error: "Le solde de minutes de cette boutique est insuffisant. Le propriétaire doit recharger son compte.", remaining_seconds: remainingSeconds });
+        return res.status(402).json({ success: false, error: "La réponse n’est pas disponible pour le moment." });
       }
 
       const { data: usageData, error: usageError } = await supabaseClient.rpc("consume_agent_sawtify_conversation", {
@@ -3937,17 +4027,11 @@ Le texte de la proposition`;
       const usage = Array.isArray(usageData) ? usageData[0] : usageData;
       if (!usage?.success) {
         if (usage?.error === "insufficient_minutes" || usage?.error === "wallet_not_found") {
-          return res.status(402).json({ success: false, error: "Le solde de minutes est épuisé. Recharge le portefeuille Agent.", remaining_seconds: Number(usage.remaining_seconds || 0) });
+          return res.status(402).json({ success: false, error: "La réponse n’est pas disponible pour le moment." });
         }
         return res.status(409).json({ success: false, error: "La consommation n'a pas pu être validée." });
       }
-      return res.json({
-        success: true,
-        answer,
-        estimated_seconds: estimatedSeconds,
-        consumed_seconds: Number(usage.consumed_seconds || estimatedSeconds),
-        remaining_seconds: Number(usage.remaining_seconds || 0),
-      });
+      return res.json({ success: true, answer });
     } catch (error: any) {
       return res.status(500).json({ success: false, error: error?.message || "Impossible de répondre pour le moment." });
     }

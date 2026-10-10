@@ -445,7 +445,7 @@ Deno.serve(async (request) => {
     const usage = Array.isArray(usageData) ? usageData[0] : usageData;
     if (!usage?.success) {
       if (usage?.error === 'insufficient_minutes' || usage?.error === 'wallet_not_found') {
-        return json({ success: false, error: 'insufficient_minutes' }, 402);
+        return json({ success: false, error: 'conversation_unavailable' }, 402);
       }
       return json({ success: false, error: 'usage_not_validated' }, 409);
     }
@@ -457,13 +457,7 @@ Deno.serve(async (request) => {
       if (failureAnswer) finalAnswer = failureAnswer;
     }
 
-    return json({
-      success: true,
-      answer: finalAnswer,
-      action: prepared.action,
-      consumed_seconds: Number(usage.consumed_seconds || billableSeconds),
-      remaining_seconds: Number(usage.remaining_seconds || 0),
-    });
+    return json({ success: true, answer: finalAnswer, action: prepared.action });
   } catch {
     return json({ success: false, error: 'tool_execution_failed' }, 500);
   }

@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
 import { answerAgentQuestion } from '../services/agentReply';
-import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
 import type { AgentLiveSession } from '../services/agentLive';
 import {
   createDemoAgentStore, DEMO_AGENT_STORE, makeAgentId, readAgentStore, saveAgentStore,
@@ -92,7 +91,6 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const orderRequestIdRef = useRef('');
   const businessRequestIdRef = useRef('');
   const respondingRef = useRef(false);
-  const [usageNotice, setUsageNotice] = useState('');
   storeRef.current = store;
   languageRef.current = language;
   const isArabic = language === 'ar';
@@ -139,8 +137,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         if (!active) return;
         setStore({ ...body.store, orders: [] });
         setLanguage(body.store.language === 'ar' ? 'ar' : 'fr');
-      } catch (error: any) {
-        if (active) setStoreError(error?.message || 'Impossible de charger cette boutique pour le moment.');
+      } catch {
+        if (active) setStoreError(bi('Cette boutique est momentanément indisponible. Réessayez plus tard.', 'المتجر ما راهوش متوفر حالياً. عاود من بعد.'));
       } finally {
         if (active) setStoreLoading(false);
       }
@@ -196,13 +194,9 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     if (respondingRef.current || !question.trim()) return;
     respondingRef.current = true;
     setIsResponding(true);
-    setUsageNotice('');
     setHint(bi('Préparation de la réponse…', 'جاري تحضير الإجابة…'));
     try {
       let answer: string;
-      let estimatedSeconds = 0;
-      let consumedSeconds = 0;
-      let remainingSeconds = 0;
       if (isDemoPreview) {
         answer = answerAgentQuestion(store, question, language);
       } else {
@@ -211,22 +205,14 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, question, language }),
         });
-        const body = await response.json();
-        const serverEstimate = Number(body.estimated_seconds);
-        if (!response.ok || !body.success || typeof body.answer !== 'string'
-            || !Number.isFinite(serverEstimate) || serverEstimate < 1
-            || !Number.isFinite(Number(body.consumed_seconds)) || !Number.isFinite(Number(body.remaining_seconds))) {
-          const message = response.status === 402
-            ? bi('Le solde vocal de cette boutique est épuisé. Réessayez plus tard.', 'رصيد الصوت تاع المتجر سالى. عاود من بعد.')
-            : response.status === 423
-              ? bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.')
-              : bi('Je ne peux pas répondre pour le moment. Réessayez dans un instant.', 'ما نقدرش نجاوبك حالياً. عاود بعد شوية.');
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !body.success || typeof body.answer !== 'string') {
+          const message = response.status === 423
+            ? bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.')
+            : bi('Je ne peux pas répondre pour le moment. Réessayez dans un instant.', 'ما نقدرش نجاوبك حالياً. عاود بعد شوية.');
           throw new Error(message);
         }
         answer = body.answer;
-        estimatedSeconds = serverEstimate;
-        consumedSeconds = Number(body.consumed_seconds);
-        remainingSeconds = Number(body.remaining_seconds);
       }
 
       setMessages((current) => [
@@ -236,19 +222,9 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       ]);
       setHint('');
       await speak(answer);
-
-      if (isDemoPreview) {
-        setUsageNotice('');
-        setHint(bi('Aperçu de démonstration : aucun solde n’est débité.', 'معاينة تجريبية: ما تخصم حتى مدة من الرصيد.'));
-      } else {
-        setHint('');
-        setUsageNotice(bi(
-          `Durée estimée décomptée : ${consumedSeconds || estimatedSeconds} s · solde restant : ${remainingSeconds} s.`,
-          `المدة التقديرية المخصومة: ${consumedSeconds || estimatedSeconds} ث · الرصيد المتبقي: ${remainingSeconds} ث.`,
-        ));
-      }
-    } catch (error: any) {
-      setHint(error?.message || bi('Impossible de répondre pour le moment.', 'ما قدرناش نجاوبو حالياً.'));
+      setHint('');
+    } catch {
+      setHint(bi('Je ne peux pas répondre pour le moment. Réessayez dans un instant.', 'ما نقدرش نجاوب حالياً. عاود بعد شوية.'));
     } finally {
       respondingRef.current = false;
       setIsResponding(false);
@@ -306,14 +282,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       setHint(bi('Cet assistant est en pause pour le moment.', 'المساعد متوقف مؤقتاً.'));
       return;
     }
-    setUsageNotice('');
     if (isDemoPreview) {
       startBrowserRecognition();
-      return;
-    }
-    if (!isSupabaseConfigured) {
-      setHint(bi('Je n’arrive pas à vous écouter pour le moment. Vous pouvez écrire votre question.', 'ما قدرتش نسمعك حالياً. تقدر تكتب سؤالك.'));
-      setShowTextInput(true);
       return;
     }
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') {
@@ -348,7 +318,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         body: JSON.stringify({ slug, language: languageRef.current }),
       });
       const tokenBody = await tokenResponse.json().catch(() => ({}));
-      if (tokenResponse.status === 402) throw new Error('insufficient_minutes');
+      if (tokenResponse.status === 402) throw new Error('live_unavailable');
       if (tokenResponse.status === 423) throw new Error('store_paused');
       if (!tokenResponse.ok || !tokenBody.success || typeof tokenBody.token !== 'string' || typeof tokenBody.model !== 'string' || !tokenBody.config) {
         throw new Error('live_unavailable');
@@ -363,69 +333,51 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         microphone,
         audioContext,
         callbacks: {
-          onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); setUsageNotice(''); } },
+          onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
           onOutputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); } },
           onSpeaking: (speaking) => { if (componentMountedRef.current) setIsSpeaking(speaking); },
           onTurnComplete: () => { if (componentMountedRef.current) { setIsResponding(false); setHint(''); } },
           onToolCall: async (call) => {
-            if (call.name !== 'agent_turn' || !call.args) return { success: false, answer: bi('Je n’ai pas pu traiter cette demande. Réessayons.', 'ما قدرتش نعالج هاذ الطلب. نعاودو.') };
+            const unavailableAnswer = bi(
+              'Je ne peux pas obtenir ces informations pour le moment. Réessayons dans un instant.',
+              'ما نقدرش نجيب هاذ المعلومات حالياً. نعاودو بعد شوية.',
+            );
+            if (call.name !== 'agent_turn' || !call.args) {
+              setHint(unavailableAnswer);
+              return { success: false, answer: unavailableAnswer };
+            }
             if (!componentMountedRef.current) return null;
             setIsResponding(true);
             setHint(bi('Je vérifie les informations…', 'جاري التحقق من المعلومات…'));
             try {
-              const { data, error } = await supabase.functions.invoke('agent-sawtify-tools', {
-                body: {
+              const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/voice-tool`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                   slug: storeRef.current.slug || slug,
                   language: languageRef.current,
                   requestId: makeRequestId(),
                   toolName: call.name,
                   arguments: call.args,
-                },
+                }),
               });
+              const body = await response.json().catch(() => ({}));
               if (!componentMountedRef.current) return null;
-              if (error) {
-                const status = Number((error as { context?: { status?: number } }).context?.status || 0);
-                if (status === 402) {
-                  setHint(bi('Le solde vocal de cette boutique est épuisé. Le propriétaire doit le recharger.', 'رصيد الصوت تاع المتجر سالى. لازم المالك يعاود يشحنو.'));
-                } else if (status === 429) {
-                  setHint(bi('Trop de demandes en peu de temps. Réessayez dans un instant.', 'طلبات كثيرة في وقت قصير. عاود بعد شوية.'));
-                } else {
-                  setHint(bi('Je n’ai pas pu joindre la boutique pour le moment. Vous pouvez écrire votre question.', 'ما قدرتش نوصل للمتجر حالياً. تقدر تكتب سؤالك.'));
-                }
-                setShowTextInput(true);
-                setIsResponding(false);
-                setIsListening(false);
-                setIsLiveSession(false);
-                const activeConnection = liveConnectionRef.current;
-                liveConnectionRef.current = null;
-                activeConnection?.close();
-                return null;
-              }
-              if (!componentMountedRef.current) return null;
-              const result = data as Record<string, unknown> | null;
-              if (!result?.success || typeof result.answer !== 'string') throw new Error('tool_failed');
-              const consumedSeconds = Number(result.consumed_seconds);
-              const remainingSeconds = Number(result.remaining_seconds);
-              if (Number.isFinite(consumedSeconds) && consumedSeconds >= 1
-                  && Number.isFinite(remainingSeconds) && remainingSeconds >= 0) {
-                setUsageNotice(bi(
-                  `Durée estimée décomptée : ${consumedSeconds} s · solde restant : ${remainingSeconds} s.`,
-                  `المدة التقديرية المخصومة: ${consumedSeconds} ث · الرصيد المتبقي: ${remainingSeconds} ث.`,
-                ));
+              if (!response.ok || !body.success || typeof body.answer !== 'string') {
+                const answer = response.status === 423
+                  ? bi('Cette boutique est momentanément indisponible.', 'المتجر ما راهوش متوفر حالياً.')
+                  : response.status === 429
+                    ? bi('Nous ne pouvons pas traiter cette demande tout de suite. Réessayons dans un instant.', 'ما نقدرش نعالجو هاذ الطلب حالياً. نعاودو بعد شوية.')
+                    : unavailableAnswer;
+                setHint(answer);
+                return { success: false, answer };
               }
               setHint('');
-              return { success: true, answer: result.answer, action: result.action };
+              return { success: true, answer: body.answer, action: body.action };
             } catch {
               if (!componentMountedRef.current) return null;
-              setHint(bi('Je n’ai pas pu terminer cette réponse. Vous pouvez réessayer ou écrire votre question.', 'ما قدرتش نكمل الإجابة. تقدر تعاود ولا تكتب سؤالك.'));
-              setShowTextInput(true);
-              setIsResponding(false);
-              setIsListening(false);
-              setIsLiveSession(false);
-              const activeConnection = liveConnectionRef.current;
-              liveConnectionRef.current = null;
-              activeConnection?.close();
-              return null;
+              setHint(unavailableAnswer);
+              return { success: false, answer: unavailableAnswer };
             }
           },
           onError: () => {
@@ -466,13 +418,11 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       setIsLiveSession(false);
       setIsSpeaking(false);
       setShowTextInput(true);
-      const reason = error?.message === 'insufficient_minutes'
-        ? bi('Le solde vocal de cette boutique est épuisé. Le propriétaire doit le recharger.', 'رصيد الصوت تاع المتجر سالى. لازم المالك يعاود يشحنو.')
-        : error?.message === 'store_paused'
-          ? bi('Cette boutique est en pause pour le moment.', 'المتجر متوقف مؤقتاً.')
-          : error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
-            ? bi('Autorisez l’accès au micro pour parler, ou écrivez votre question.', 'اسمح باستعمال الميكرو باش تهدر، ولا اكتب سؤالك.')
-            : bi('Je n’arrive pas à démarrer l’écoute. Réessayez ou écrivez votre question.', 'ما قدرتش نبدا نسمعك. عاود ولا اكتب سؤالك.');
+      const reason = error?.message === 'store_paused'
+        ? bi('Cette boutique est en pause pour le moment.', 'المتجر متوقف مؤقتاً.')
+        : error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
+          ? bi('Autorisez l’accès au micro pour parler, ou écrivez votre question.', 'اسمح باستعمال الميكرو باش تهدر، ولا اكتب سؤالك.')
+          : bi('Je n’arrive pas à démarrer la conversation. Réessayez dans un instant.', 'ما قدرتش نبدا المحادثة. عاود بعد شوية.');
       setHint(reason);
     } finally {
       liveConnectingRef.current = false;
@@ -496,7 +446,6 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     event.preventDefault();
     const question = textQuestion.trim();
     if (!question || isResponding || isConnecting) return;
-    setUsageNotice('');
     setTextQuestion('');
     setShowTextInput(false);
     if (liveConnectionRef.current && isLiveSession) {
@@ -616,8 +565,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         { id: makeAgentId('msg'), role: 'customer', text: bi(`Demande envoyée pour ${orderProduct.name}.`, `تم إرسال طلب ${orderProduct.name}.`) },
         { id: makeAgentId('msg'), role: 'assistant', text: bi('Merci ! Votre demande est transmise à la boutique. Elle vous recontactera pour confirmer les détails.', 'يعطيك الصحة! وصل طلبك للمتجر، ويتصل بيك باش يأكد التفاصيل.') },
       ]);
-    } catch (error: any) {
-      setHint(error?.message || bi('La demande n’a pas pu être envoyée.', 'ما قدرناش نبعثو الطلب.'));
+    } catch {
+      setHint(bi('Votre demande n’a pas pu être envoyée. Réessayez dans un instant.', 'ما قدرناش نبعثو الطلب. عاود بعد شوية.'));
     } finally {
       setIsResponding(false);
     }
@@ -691,7 +640,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         setBusinessRequestSaved(true);
         setMessages((current) => [...current,
           { id: makeAgentId('msg'), role: 'customer', text: request.productName },
-          { id: makeAgentId('msg'), role: 'assistant', text: bi('Aperçu de démonstration : la demande reste dans ce navigateur et n’entraîne aucun débit.', 'معاينة تجريبية: الطلب يبقى في هذا المتصفح وما يخصم حتى رصيد.') },
+          { id: makeAgentId('msg'), role: 'assistant', text: bi('Aperçu de démonstration : la demande reste dans ce navigateur.', 'معاينة تجريبية: الطلب يبقى في هذا المتصفح.') },
         ]);
         setHint('');
         return;
@@ -723,8 +672,8 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         { id: makeAgentId('msg'), role: 'customer', text: businessRequestForm.title.trim() },
         { id: makeAgentId('msg'), role: 'assistant', text: bi('Merci. Votre demande a été transmise ; l’activité vous recontactera pour confirmer.', 'يعطيك الصحة. وصل طلبك، ويتصلو بيك باش يأكدو التفاصيل.') },
       ]);
-    } catch (error: any) {
-      const message = error?.message || bi('Impossible d’envoyer la demande.', 'ما قدرناش نبعثو الطلب.');
+    } catch {
+      const message = bi('Votre demande n’a pas pu être envoyée. Réessayez dans un instant.', 'ما قدرناش نبعثو الطلب. عاود بعد شوية.');
       setBusinessRequestError(message);
       setHint(message);
     } finally {
@@ -794,8 +743,6 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
                 ? bi('Je vous écoute…', 'راني نسمع فيك…')
                 : hint || caption || messages.at(-1)?.text || greeting}</p>
         </div>
-
-        {usageNotice && <p className="agent-call-usage" role="status" aria-live="polite">{usageNotice}</p>}
 
         <div className="agent-call-actions">
           <button type="button" onClick={() => setShowTextInput((visible) => !visible)} aria-expanded={showTextInput} className="agent-call-secondary-action">
