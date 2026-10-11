@@ -12,6 +12,7 @@ export type AgentLiveCallbacks = {
   onSpeaking: (speaking: boolean) => void;
   onTurnComplete: () => void;
   onToolCall: (call: FunctionCall) => Promise<Record<string, unknown> | null>;
+  onSpeechError?: () => void;
   onError: () => void;
   onClose: () => void;
 };
@@ -27,6 +28,7 @@ type ConnectOptions = {
   config: LiveConnectConfig;
   microphone: MediaStream;
   audioContext?: AudioContext;
+  synthesizeText?: (text: string, signal: AbortSignal) => Promise<{ pcmBase64: string; sampleRateHz: number }>;
   callbacks: AgentLiveCallbacks;
 };
 
@@ -107,8 +109,15 @@ export async function connectAgentLive(options: ConnectOptions): Promise<AgentLi
   let nextPlaybackTime = audioContext.currentTime;
   let closed = false;
   let turnComplete = false;
+  let turnText = "";
+  let speechRequestId = 0;
+  let currentSpeechController: AbortController | null = null;
 
   const stopPlayback = () => {
+    const hadPendingSpeech = Boolean(currentSpeechController);
+    speechRequestId += 1;
+    currentSpeechController?.abort();
+    currentSpeechController = null;
     scheduledSources.forEach((source) => {
       try { source.stop(); } catch { /* Source may already have ended. */ }
       try { source.disconnect(); } catch { /* Ignore closed audio nodes. */ }
@@ -116,6 +125,7 @@ export async function connectAgentLive(options: ConnectOptions): Promise<AgentLi
     scheduledSources.clear();
     nextPlaybackTime = audioContext.currentTime;
     callbacks.onSpeaking(false);
+    if (hadPendingSpeech && !closed) callbacks.onTurnComplete();
   };
 
   const cleanupAudio = () => {
@@ -158,6 +168,37 @@ export async function connectAgentLive(options: ConnectOptions): Promise<AgentLi
     }
   };
 
+  const synthesizeAndPlay = (text: string) => {
+    if (!options.synthesizeText || !text.trim() || closed) {
+      callbacks.onTurnComplete();
+      return;
+    }
+
+    const requestId = ++speechRequestId;
+    const controller = new AbortController();
+    currentSpeechController = controller;
+    let failed = false;
+    callbacks.onSpeaking(true);
+    void options.synthesizeText(text.trim(), controller.signal)
+      .then((audio) => {
+        if (closed || controller.signal.aborted || requestId !== speechRequestId) return;
+        if (!audio?.pcmBase64) throw new Error('Empty Sawtify speech response');
+        playPcm(audio.pcmBase64, `audio/pcm;rate=${audio.sampleRateHz || FALLBACK_OUTPUT_SAMPLE_RATE}`);
+        turnComplete = true;
+      })
+      .catch(() => {
+        if (closed || controller.signal.aborted || requestId !== speechRequestId) return;
+        failed = true;
+        callbacks.onSpeaking(false);
+      })
+      .finally(() => {
+        if (currentSpeechController === controller) currentSpeechController = null;
+        if (closed || requestId !== speechRequestId) return;
+        callbacks.onTurnComplete();
+        if (failed) callbacks.onSpeechError?.();
+      });
+  };
+
   const handleToolCalls = async (calls: FunctionCall[]) => {
     if (!session || closed) return;
     const responses: Array<{ id?: string; name?: string; response: Record<string, unknown> }> = [];
@@ -182,20 +223,35 @@ export async function connectAgentLive(options: ConnectOptions): Promise<AgentLi
           if (closed) return;
           const content = message.serverContent;
           const inputText = content?.inputTranscription?.text || content?.interimInputTranscription?.text;
-          if (inputText) callbacks.onInputTranscription(inputText);
+          if (inputText) {
+            if (options.synthesizeText && (scheduledSources.size > 0 || currentSpeechController)) stopPlayback();
+            callbacks.onInputTranscription(inputText);
+          }
           const outputText = content?.outputTranscription?.text;
           if (outputText) callbacks.onOutputTranscription(outputText);
 
-          if (content?.interrupted) stopPlayback();
+          if (content?.interrupted) {
+            turnText = "";
+            stopPlayback();
+          }
           for (const part of content?.modelTurn?.parts || []) {
+            if (typeof part.text === 'string' && part.text) {
+              turnText += part.text;
+              callbacks.onOutputTranscription(turnText);
+            }
             if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
               playPcm(part.inlineData.data, part.inlineData.mimeType);
             }
           }
           if (content?.turnComplete) {
+            const completedText = turnText.trim();
+            turnText = "";
             turnComplete = true;
-            callbacks.onTurnComplete();
-            if (scheduledSources.size === 0) callbacks.onSpeaking(false);
+            if (completedText && options.synthesizeText) synthesizeAndPlay(completedText);
+            else {
+              callbacks.onTurnComplete();
+              if (scheduledSources.size === 0) callbacks.onSpeaking(false);
+            }
           }
           const calls = message.toolCall?.functionCalls;
           if (calls?.length) void handleToolCalls(calls);

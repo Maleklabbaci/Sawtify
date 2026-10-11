@@ -302,7 +302,7 @@ export type BuildTtsRequestResult = {
 };
 
 /** Registre de langue choisi explicitement par l'utilisateur (popup front). */
-export type Register = "darija" | "fusha" | "francais";
+export type Register = "darija" | "fusha" | "francais" | "english";
 /** Intensité émotionnelle choisie explicitement par l'utilisateur. */
 export type Intensity = "low" | "normal" | "high";
 
@@ -332,6 +332,10 @@ export function languageInstruction(text: string, register?: Register | null): s
 
   if (reg === "francais") {
     return "natural, warm, conversational French, like a real person talking to a friend, not a formal announcer";
+  }
+
+  if (reg === "english") {
+    return "natural, warm, conversational English, like a real person talking to a friend, not a formal announcer";
   }
 
   if (reg === "fusha") {
@@ -364,6 +368,9 @@ function legacyLanguageLine(register?: Register | null): string {
 
   if (reg === "francais") {
     return "Language: French. Natural, warm, conversational delivery, like a real person talking to a friend, never a formal announcer.";
+  }
+  if (reg === "english") {
+    return "Language: English. Natural, warm, conversational delivery, like a real person talking to a friend, never a formal announcer.";
   }
   if (reg === "fusha") {
     return "Language: Modern Standard Arabic (Fusha, Arabic script). Formal and clear articulation, never Algerian Darija.";

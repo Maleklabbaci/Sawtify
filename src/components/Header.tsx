@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, History, Plus, CreditCard, LogOut, Zap, Code2, Lock, Gift } from 'lucide-react';
+import { Mic, History, Plus, CreditCard, LogOut, Zap, Bot, Gift } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import type { AppTab } from '../types';
 
@@ -23,7 +23,6 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const isLowBalance = balance < 20;
-  const canUseDeveloperApi = balance > 1000;
 
   return (
     <header
@@ -92,14 +91,12 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => canUseDeveloperApi && setActiveTab('developer')}
-              disabled={!canUseDeveloperApi}
-              title={canUseDeveloperApi ? 'Developer API Beta' : 'Disponible avec plus de 1 000 points'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${activeTab === 'developer' ? 'bg-purple-600 text-white shadow-sm' : canUseDeveloperApi ? 'text-slate-600 hover:text-slate-900 hover:bg-white/50 cursor-pointer' : 'text-slate-400 cursor-not-allowed'}`}
+              onClick={() => setActiveTab('agent-sawtify')}
+              aria-current={activeTab === 'agent-sawtify' ? 'page' : undefined}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${activeTab === 'agent-sawtify' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}`}
             >
-              {canUseDeveloperApi ? <Code2 className="w-3.5 h-3.5" /> : <Lock className="w-3 h-3" />}
-              <span className="hidden md:inline">Développeur</span>
-              <span className="hidden lg:inline text-[9px] font-bold">BETA</span>
+              <Bot className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Agent Sawtify</span>
             </button>
           </nav>
 

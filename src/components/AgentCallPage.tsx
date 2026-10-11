@@ -83,6 +83,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [businessRequestError, setBusinessRequestError] = useState('');
   const [businessRequestForm, setBusinessRequestForm] = useState<RequestForm>({ name: '', phone: '', wilaya: '', title: '', details: '', preferredAt: '', preferredUntil: '', partySize: 2 });
   const recognitionRef = useRef<BrowserRecognition | null>(null);
+  const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const liveConnectionRef = useRef<AgentLiveSession | null>(null);
   const liveConnectingRef = useRef(false);
   const componentMountedRef = useRef(false);
@@ -227,32 +228,63 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       liveConnectionRef.current?.close();
       liveConnectionRef.current = null;
       finishActiveCall();
+      fallbackAudioRef.current?.pause();
+      fallbackAudioRef.current = null;
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
   }, []);
 
-  const speak = (text: string) => new Promise<void>((resolve) => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = isArabic ? 'ar-SA' : isEnglish ? 'en-US' : 'fr-FR';
-    utterance.rate = 0.96;
-    let finished = false;
-    let fallbackTimer: number | undefined;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
-      setIsSpeaking(false);
-      resolve();
-    };
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = finish;
-    utterance.onerror = finish;
-    fallbackTimer = window.setTimeout(finish, Math.min(120_000, Math.max(10_000, Math.ceil(text.length / 10) * 1000 + 5_000)));
-    try { window.speechSynthesis.speak(utterance); }
-    catch { finish(); }
-  });
+  const speak = async (text: string, wavBase64?: string) => {
+    if (wavBase64) {
+      const played = await new Promise<boolean>((resolve) => {
+        const audio = new Audio(`data:audio/wav;base64,${wavBase64}`);
+        fallbackAudioRef.current?.pause();
+        fallbackAudioRef.current = audio;
+        let finished = false;
+        let fallbackTimer: number | undefined;
+        const finish = (success: boolean) => {
+          if (finished) return;
+          finished = true;
+          if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
+          audio.onplaying = null;
+          audio.onended = null;
+          audio.onerror = null;
+          if (fallbackAudioRef.current === audio) fallbackAudioRef.current = null;
+          if (componentMountedRef.current) setIsSpeaking(false);
+          resolve(success);
+        };
+        audio.onplaying = () => { if (componentMountedRef.current) setIsSpeaking(true); };
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        fallbackTimer = window.setTimeout(() => finish(true), Math.min(120_000, Math.max(10_000, Math.ceil(text.length / 10) * 1000 + 5_000)));
+        void audio.play().catch(() => finish(false));
+      });
+      if (played) return;
+    }
+
+    if (!('speechSynthesis' in window)) return;
+    return new Promise<void>((resolve) => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = isArabic ? 'ar-SA' : isEnglish ? 'en-US' : 'fr-FR';
+      utterance.rate = 0.96;
+      let finished = false;
+      let fallbackTimer: number | undefined;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
+        if (componentMountedRef.current) setIsSpeaking(false);
+        resolve();
+      };
+      utterance.onstart = () => { if (componentMountedRef.current) setIsSpeaking(true); };
+      utterance.onend = finish;
+      utterance.onerror = finish;
+      fallbackTimer = window.setTimeout(finish, Math.min(120_000, Math.max(10_000, Math.ceil(text.length / 10) * 1000 + 5_000)));
+      try { window.speechSynthesis.speak(utterance); }
+      catch { finish(); }
+    });
+  };
 
   const answerCustomer = async (question: string) => {
     if (!store.isActive) {
@@ -265,6 +297,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
     setHint(bi('Préparation de la réponse…', 'جاري تحضير الإجابة…'));
     try {
       let answer: string;
+      let audioWavBase64: string | undefined;
       if (isDemoPreview) {
         answer = answerAgentQuestion(store, question, language);
       } else {
@@ -281,6 +314,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
           throw new Error(message);
         }
         answer = body.answer;
+        audioWavBase64 = typeof body.audio_base64 === 'string' ? body.audio_base64 : undefined;
       }
 
       setMessages((current) => [
@@ -289,7 +323,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         { id: makeAgentId('msg'), role: 'assistant', text: answer },
       ]);
       setHint('');
-      await speak(answer);
+      await speak(answer, audioWavBase64);
       setHint('');
     } catch {
       setHint(bi('Je ne peux pas répondre pour le moment. Réessayez dans un instant.', 'ما نقدرش نجاوب حالياً. عاود بعد شوية.'));
@@ -383,6 +417,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       if (!initResponse.ok || !initBody.success || typeof initBody.callId !== 'string' || typeof initBody.token !== 'string' || typeof initBody.model !== 'string' || !initBody.config) {
         throw new Error('live_unavailable');
       }
+      const outputMode = initBody.outputMode === 'sawtify_tts' ? 'sawtify_tts' : 'gemini_live';
       activeCallIdRef.current = initBody.callId;
 
       audioContext = new AudioContext();
@@ -411,11 +446,38 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
         config: initBody.config,
         microphone,
         audioContext,
+        synthesizeText: outputMode === 'sawtify_tts' ? async (text, signal) => {
+          const callId = activeCallIdRef.current;
+          if (!callId) throw new Error('Agent call has ended');
+          const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/speech`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: storeRef.current.slug || slug, callId, text }),
+            signal,
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok || !body.success || typeof body.audio_pcm_base64 !== 'string') {
+            throw new Error('Sawtify speech is unavailable');
+          }
+          return {
+            pcmBase64: body.audio_pcm_base64,
+            sampleRateHz: Number(body.sample_rate) || 24_000,
+          };
+        } : undefined,
         callbacks: {
           onInputTranscription: (text) => { if (componentMountedRef.current) { setCaption(text.trim()); setHint(''); } },
           onOutputTranscription: (text) => { if (componentMountedRef.current) setCaption(text.trim()); },
           onSpeaking: (speaking) => { if (componentMountedRef.current) setIsSpeaking(speaking); },
           onTurnComplete: () => { if (componentMountedRef.current) { setIsResponding(false); setHint(''); } },
+          onSpeechError: () => {
+            if (!componentMountedRef.current) return;
+            setIsSpeaking(false);
+            setHint(bi(
+              'La réponse reste visible à l’écran, mais la synthèse vocale est momentanément indisponible.',
+              'الإجابة باينة في الشاشة، بصح الصوت غير متوفر مؤقتاً.',
+              'The reply is still shown on screen, but speech synthesis is temporarily unavailable.',
+            ));
+          },
           onToolCall: async (call) => {
             let settle!: () => void;
             const pending = new Promise<void>((resolve) => { settle = resolve; });

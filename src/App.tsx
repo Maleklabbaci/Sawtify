@@ -7,7 +7,7 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { ReportWidget } from './components/ReportWidget';
 import { WelcomeOnboarding } from './components/WelcomeOnboarding';
 import { trackMarketingEvent } from './services/marketingTracking';
-import { Mic, AudioLines, History, CreditCard, Code2, Lock, Bot } from 'lucide-react';
+import { Mic, AudioLines, History, CreditCard, Bot } from 'lucide-react';
 import { API_BASE_URL } from './config/apiBase';
 import { useGrowth } from './hooks/useGrowth';
 import { claimReferral, captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from './services/growth';
@@ -23,7 +23,6 @@ import { ReferralInviteBanner } from './components/growth/ReferralInviteBanner';
 const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PricingPage = lazy(() => import('./components/PricingPage').then(m => ({ default: m.PricingPage })));
-const DeveloperPage = lazy(() => import('./components/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
 const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
 const AgentSawtifyPage = lazy(() => import('./components/AgentSawtifyPage').then(m => ({ default: m.AgentSawtifyPage })));
 const AgentInfoPage = lazy(() => import('./components/AgentInfoPage').then(m => ({ default: m.AgentInfoPage })));
@@ -99,7 +98,7 @@ function AppContent() {
   const routeToTab = React.useCallback((path: string): AppTab => {
     if (path === '/historique' || path === '/history') return 'history';
     if (path === '/pricing' || path === '/recharge') return 'pricing';
-    if (path === '/developer') return 'developer';
+    if (path === '/developer') return 'agent-sawtify';
     if (path === '/admin') return 'admin';
     if (path === '/agent-sawtify') return 'agent-sawtify';
     return 'studio';
@@ -186,7 +185,7 @@ function AppContent() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
   const navigateTo = React.useCallback((tab: AppTab, replace = false) => {
-    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'developer' ? '/developer' : tab === 'admin' ? '/admin' : tab === 'agent-sawtify' ? '/agent-sawtify' : '/studio';
+    const path = tab === 'history' ? '/historique' : tab === 'pricing' ? '/pricing' : tab === 'admin' ? '/admin' : tab === 'agent-sawtify' ? '/agent-sawtify' : '/studio';
     if (window.location.pathname !== path) window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
     setActiveTab(tab);
   }, []);
@@ -202,7 +201,7 @@ function AppContent() {
   React.useEffect(() => {
     if (isCheckingSession || isLoggedIn || activeTab !== 'agent-sawtify') return;
     requestedTabRef.current = 'agent-sawtify';
-    if (window.location.pathname === '/agent-sawtify') window.history.replaceState({}, '', '/agent-ai');
+    if (window.location.pathname === '/agent-sawtify' || window.location.pathname === '/developer') window.history.replaceState({}, '', '/agent-ai');
     setActiveTab('studio');
     setAuthModalMode('login');
   }, [isCheckingSession, isLoggedIn, activeTab]);
@@ -782,7 +781,6 @@ function AppContent() {
                 onBalanceChange={syncDisplayedBalance}
                 onDeductPoints={handleDeductPoints}
                 onOpenRecharge={() => navigateTo('pricing')}
-                onOpenAgent={() => navigateTo('agent-sawtify')}
                 recentGenerations={generations}
                 prefillText={studioPrefill}
                 onPrefillConsumed={() => setStudioPrefill(null)}
@@ -812,9 +810,8 @@ function AppContent() {
               />
             )}
             
-            {activeTab === 'developer' && <DeveloperPage balance={balance} />}
             {activeTab === 'admin' && <AdminPage />}
-            {activeTab === 'agent-sawtify' && <AgentAccessGate onBack={() => navigateTo('studio')}><AgentSawtifyPage /></AgentAccessGate>}
+            {activeTab === 'agent-sawtify' && <AgentAccessGate onBack={() => navigateTo('studio')}><AgentSawtifyPage balance={balance} /></AgentAccessGate>}
           </Suspense>
         </main>
 
@@ -825,11 +822,10 @@ function AppContent() {
               { id: 'studio' as const, label: language === 'ar' ? 'استوديو' : 'Studio', icon: Mic },
               { id: 'history' as const, label: language === 'ar' ? 'السجل' : 'Historique', icon: History },
               { id: 'pricing' as const, label: language === 'ar' ? 'النقاط' : 'Points', icon: CreditCard },
-              { id: 'developer' as const, label: 'API', icon: balance > 1000 ? Code2 : Lock },
+              { id: 'agent-sawtify' as const, label: language === 'ar' ? 'Agent' : 'Agent', icon: Bot },
             ].map(({ id, label, icon: Icon }) => {
               const active = activeTab === id;
-              const disabled = id === 'developer' && balance <= 1000;
-              return <button key={id} type="button" disabled={disabled} onClick={() => !disabled && navigateTo(id)} className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-bold transition active:scale-95 ${active ? 'bg-purple-50 text-purple-700' : disabled ? 'text-slate-300' : 'text-slate-500 hover:bg-slate-50'}`}>
+              return <button key={id} type="button" onClick={() => navigateTo(id)} className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-bold transition active:scale-95 ${active ? 'bg-purple-50 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <Icon className={`h-5 w-5 ${active ? 'text-purple-600' : ''}`} />
                 <span>{label}</span>
                 {id === 'history' && generations.length > 0 && <span className="absolute right-2 top-1 min-w-4 rounded-full bg-purple-600 px-1 text-[9px] leading-4 text-white">{generations.length}</span>}

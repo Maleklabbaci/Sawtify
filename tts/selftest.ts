@@ -393,6 +393,23 @@ const force = buildTtsRequest({
       "★ texte français → consigne de langue ABSENTE, seuls les réglages passent");
   ok(!/Darija/i.test(frOnlyStyle), "★ et surtout : aucune mention de darija sur du français");
 
+  ok(/conversational English/.test(languageInstruction("Hello, welcome to the store.", "english")),
+      "registre English explicite → consigne TTS conversationnelle en anglais");
+  const englishOnly = buildTtsRequest({
+    model: "gemini-3.8-flash-tts", rawText: "Hello, welcome to the store.",
+    voiceName: "Puck", register: "english",
+  });
+  const englishStyle: string = (englishOnly.body as any).contents[0].parts[0].speech_metadata?.style || "";
+  ok(/conversational English/.test(englishStyle),
+      "registre English → la consigne de langue atteint bien le modèle TTS moderne");
+  const englishLegacy = buildTtsRequest({
+    model: "gemini-3.1-flash-tts-preview", rawText: "Hello, welcome to the store.",
+    voiceName: "Puck", register: "english",
+  });
+  const englishLegacyText: string = String((englishLegacy.body as any).contents[0].parts[0].text || "");
+  ok(/Language: English/.test(englishLegacyText),
+      "registre English → la consigne de langue atteint aussi le modèle TTS legacy");
+
   // ── LE SECOND BUG, RÉPARÉ DANS LE MÊME GESTE ────────────────────────────
   // Avant, la composition du style était un `||` : la vitesse ÉCRASAIT le ton.
   // « [calm] + vitesse rapide » n'envoyait que « speaking rapidly », et le

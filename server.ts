@@ -45,6 +45,7 @@ import {
   parallelMap,
   addLeadingSilence,
   VERBATIM_INSTRUCTION,
+  type Register,
 } from "./tts/engine";
 
 import { parseTranscript, VOCAL_TAGS, normalizeTagKey } from "./tts/vocalTags";
@@ -180,6 +181,10 @@ function createLimiter(concurrency: number) {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const configuredAgentLiveModel = process.env.AGENT_LIVE_MODEL || "";
 const AGENT_LIVE_MODEL = /^gemini-2\.0.*live/i.test(configuredAgentLiveModel) ? "gemini-3.8-live" : configuredAgentLiveModel || "gemini-3.8-live";
+const configuredAgentLiveOutputMode = (process.env.AGENT_LIVE_OUTPUT_MODE || "sawtify_tts").trim().toLowerCase();
+const AGENT_LIVE_OUTPUT_MODE = configuredAgentLiveOutputMode === "gemini_live" ? "gemini_live" : "sawtify_tts";
+const AGENT_TTS_MAX_CHARS = 700;
+const AGENT_TTS_MAX_CHARS_PER_CALL = 4000;
 const AGENT_LIVE_VOICE = process.env.AGENT_LIVE_VOICE || "Kore";
 const SLICKPAY_PROD_KEY = process.env.SLICKPAY_API_KEY || process.env.SLICKPAY_PUBLIC_KEY || "";
 const SLICKPAY_SANDBOX_KEY = process.env.SLICKPAY_SANDBOX_KEY || "";
@@ -355,6 +360,7 @@ function buildAgentLiveInstruction(store: AgentStore, language: "fr" | "ar" | "e
     "Tu es l’assistant vocal d’une activité en Algérie. Son nom, son secteur, sa localisation et son message d’accueil figurent uniquement dans les données structurées ci-dessous.",
     `Langue sélectionnée : ${selectedLanguage}. ${languageRule}`,
     "Sois chaleureux, concis et naturel. Ne révèle pas d’informations internes, de détails techniques ni le nom de services ou fournisseurs. Ne prétends jamais qu’une commande ou réservation est confirmée par la boutique : tu transmets une demande, puis l’activité confirme.",
+    "For speech, aim for one or two short sentences (usually under 350 characters). In Darija, use relaxed everyday Algerian phrasing and natural conversational rhythm—not formal Arabic or a newsreader cadence. Avoid filler words, stage directions, and repeating the caller’s question.",
     "Avant toute réponse orale, appelle toujours l’outil agent_turn. Pour une question ou un échange normal, utilise action=reply et transmets la question de la personne. La réponse de l’outil est la seule source de vérité pour les prix, stocks, horaires, livraisons et conditions; ne les invente pas. Après le résultat, réponds brièvement et fidèlement, toujours dans la langue sélectionnée.",
     "Pour une commande, un rendez-vous, un devis, une réservation ou un room service, recueille d’abord uniquement les champs utiles. Résume les informations, demande un accord explicite, puis seulement si la personne confirme, appelle agent_turn avec confirmed=true. Ne soumets jamais une demande sur un simple intérêt, une question ou une ambiguïté. Si une donnée manque, utilise action=reply et pose une seule question à la fois.",
     "Pour une commande, choisis productId uniquement parmi les identifiants du catalogue ci-dessous, vérifie la variante et la quantité, puis recueille nom, téléphone et ville/wilaya. Pour les demandes de service, utilise uniquement un requestType compatible avec le secteur et demande les dates nécessaires. N’invente jamais les coordonnées.",
@@ -1579,9 +1585,10 @@ async function synthesizeWithRetry(
   pitch = 1.0,
   originalVoiceId: string = "",
   emotionTags: string[] = [],
-  register: "darija" | "fusha" | "francais" = "darija",
+  register: Register = "darija",
   intensity: "low" | "normal" | "high" = "normal",
-  stylePrompt: string = ""
+  stylePrompt: string = "",
+  speechBehavior: { introFiller?: boolean; trailingPause?: boolean } = {}
 ): Promise<{ pcmBuffer: Buffer | null; error: string | null; usedStreaming: boolean; chunkCount: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée", usedStreaming: false, chunkCount: 0 };
@@ -1651,8 +1658,8 @@ async function synthesizeWithRetry(
 
     // FIX TTS-D : intro "..." uniquement sur le 1er morceau,
     // pause finale "..." uniquement sur le dernier.
-    let chunkText = normalizeTextForTTS(chunk, isLastChunk);
-    if (ci === 0) chunkText = injectNaturalFiller(chunkText);
+    let chunkText = normalizeTextForTTS(chunk, isLastChunk && speechBehavior.trailingPause !== false);
+    if (ci === 0 && speechBehavior.introFiller !== false) chunkText = injectNaturalFiller(chunkText);
 
     // ── Construction de la requête par le MOTEUR TTS ─────────────────────
     // Le moteur choisit TOUT SEUL le bon format selon TTS_MODEL :
@@ -1769,6 +1776,87 @@ async function synthesizeWithRetry(
 
   console.log(`[TTS ✓] Génération complète — ${chunks.length} morceau(x) en ${parallelisme} parallèle(s), ${totalBuffer.length} bytes PCM (~${totalSeconds.toFixed(1)}s), voice=${selectedVoiceName}`);
   return { pcmBuffer: totalBuffer, error: null, usedStreaming: false, chunkCount: chunks.length };
+}
+
+const AGENT_SPEECH_LANGUAGES = ["fr", "ar", "en"] as const;
+type AgentSpeechLanguage = typeof AGENT_SPEECH_LANGUAGES[number];
+type AgentSpeechResult = { pcmBuffer: Buffer; voiceId: string; voiceName: string; chunkCount: number };
+
+async function synthesizeAgentSpeech(params: {
+  store: AgentStore;
+  text: string;
+  language: AgentSpeechLanguage;
+  userId: string;
+  source: "live_call" | "text_fallback";
+  callId?: string;
+}): Promise<AgentSpeechResult> {
+  const speechText = agentText(params.text, AGENT_TTS_MAX_CHARS);
+  if (!speechText) throw new Error("agent_speech_empty");
+  if (params.text.trim().length > AGENT_TTS_MAX_CHARS) throw new Error("agent_speech_too_long");
+  if (!GEMINI_API_KEY) throw new Error("agent_tts_unavailable");
+  if (await hasReachedDailyGeminiLimit(params.userId)) throw new Error("agent_daily_limit");
+
+  if (params.callId && supabaseClient) {
+    const { data: previousCalls, error: usageError } = await supabaseClient.from("gemini_usage_logs")
+      .select("characters").eq("user_id", params.userId).eq("operation", "tts")
+      .contains("metadata", { call_id: params.callId });
+    if (usageError) throw new Error("agent_speech_budget_unavailable");
+    const usedCharacters = (previousCalls || []).reduce((sum: number, row: any) => sum + Math.max(0, Number(row.characters) || 0), 0);
+    if (usedCharacters + speechText.length > AGENT_TTS_MAX_CHARS_PER_CALL) throw new Error("agent_call_speech_limit");
+  }
+
+  const queueFull = (TTS_CONCURRENCY as any).activeCount >= TTS_CONCURRENCY_LIMIT
+    && (TTS_CONCURRENCY as any).pendingCount >= TTS_QUEUE_MAX_PENDING;
+  if (queueFull) throw new Error("agent_tts_busy");
+
+  const voiceId = params.store.agentVoiceId || "voice_amin";
+  const voiceName = resolveRequestedVoice(voiceId);
+  const register: Register = params.language === "ar" ? "darija" : params.language === "fr" ? "francais" : "english";
+  const stylePrompt = params.language === "ar"
+    ? "natural, relaxed Algerian conversation, warm and lightly expressive, never a formal newsreader"
+    : params.language === "fr"
+      ? "natural, warm conversational French, clear and relaxed, never a formal announcer"
+      : "natural, warm conversational English, clear and relaxed, never a formal announcer";
+
+  let generated: Awaited<ReturnType<typeof synthesizeWithRetry>>;
+  try {
+    generated = await TTS_CONCURRENCY(() => synthesizeWithRetry(
+      speechText,
+      voiceName,
+      2,
+      1.0,
+      1.0,
+      voiceId,
+      [],
+      register,
+      "normal",
+      stylePrompt,
+      { introFiller: false, trailingPause: false },
+    ));
+  } catch (error: any) {
+    await recordGeminiUsage({
+      userId: params.userId,
+      operation: "tts",
+      characters: speechText.length,
+      success: false,
+      model: TTS_MODEL,
+      metadata: { source: params.source, call_id: params.callId, voice: voiceId },
+    });
+    throw error;
+  }
+
+  await recordGeminiUsage({
+    userId: params.userId,
+    operation: "tts",
+    characters: speechText.length,
+    success: Boolean(generated.pcmBuffer),
+    model: TTS_MODEL,
+    metadata: { source: params.source, call_id: params.callId, voice: voiceId, chunks: generated.chunkCount },
+  });
+  if (!generated.pcmBuffer || generated.pcmBuffer.length <= 50) {
+    throw new Error(generated.error || "agent_tts_failed");
+  }
+  return { pcmBuffer: generated.pcmBuffer, voiceId, voiceName, chunkCount: generated.chunkCount };
 }
 
 
@@ -2243,6 +2331,7 @@ async function startServer() {
   const agentAccessLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 6, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop d'essais. Réessaie dans 15 minutes." }) });
   const agentPublicLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop de demandes Agent. Réessaie dans une minute." }) });
   const agentLiveLimiter = rateLimit({ windowMs: 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Le démarrage vocal est limité pour protéger cette boutique. Réessaie dans une minute." }) });
+  const agentSpeechLimiter = rateLimit({ windowMs: 60 * 1000, max: 18, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop de réponses vocales. Réessaie dans un instant." }) });
   const agentOwnerLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, handler: (_req, res) => res.status(429).json({ success: false, error: "Trop de modifications Agent. Réessaie dans une minute." }) });
   const requireAgentAccess: express.RequestHandler = (req, res, next) => {
     if (!AGENT_ACCESS_GATE_ENABLED) return next();
@@ -3899,15 +3988,18 @@ Le texte de la proposition`;
         },
       };
       const model = AGENT_LIVE_MODEL;
+      const outputMode = AGENT_LIVE_OUTPUT_MODE;
       const config = {
-        responseModalities: [Modality.AUDIO],
+        responseModalities: [outputMode === "sawtify_tts" ? Modality.TEXT : Modality.AUDIO],
         systemInstruction: buildAgentLiveInstruction(store, language),
-        speechConfig: {
-          languageCode: language === "ar" ? "ar" : language === "en" ? "en-US" : "fr-FR",
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: AGENT_LIVE_VOICE } },
-        },
+        ...(outputMode === "gemini_live" ? {
+          speechConfig: {
+            languageCode: language === "ar" ? "ar" : language === "en" ? "en-US" : "fr-FR",
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: AGENT_LIVE_VOICE } },
+          },
+          outputAudioTranscription: {},
+        } : {}),
         inputAudioTranscription: {},
-        outputAudioTranscription: {},
         temperature: 0.25,
         maxOutputTokens: 1024,
         tools: [{ functionDeclarations: [functionDeclaration] }],
@@ -3938,7 +4030,7 @@ Le texte de la proposition`;
       }
 
       // GEMINI_API_KEY stays on Render. Only the short-lived, one-use token reaches the browser.
-      return res.json({ success: true, callId, token: token.name, model, config: { responseModalities: config.responseModalities } });
+      return res.json({ success: true, callId, token: token.name, model, outputMode, config: { responseModalities: config.responseModalities } });
     } catch (error: any) {
       console.warn("[Agent Live] provisioning failed:", String(error?.message || "unknown error").slice(0, 240));
       return res.status(502).json({ success: false, error: "La voix en direct est temporairement indisponible." });
@@ -4002,6 +4094,73 @@ Le texte de la proposition`;
       return res.json({ success: true, actionIssue: Number(result.failed_actions || 0) > 0 });
     } catch {
       return res.status(503).json({ success: false, error: "La session vocale n’est pas disponible." });
+    }
+  });
+
+  app.post("/api/agent/sawtify/speech", agentPublicLimiter, agentSpeechLimiter, async (req, res) => {
+    const slug = normalizeAgentSlug(req.body?.slug);
+    const callId = req.body?.callId;
+    const rawText = typeof req.body?.text === "string" ? req.body.text : "";
+    const text = agentText(rawText, AGENT_TTS_MAX_CHARS);
+    if (!slug || !isUuid(callId) || !text || rawText.trim().length > AGENT_TTS_MAX_CHARS) {
+      return res.status(400).json({ success: false, error: "La réponse vocale n’est pas disponible." });
+    }
+    if (!supabaseClient) return res.status(503).json({ success: false, error: "La réponse vocale n’est pas disponible." });
+
+    try {
+      const { data: call, error: callError } = await supabaseClient.from("agent_sawtify_call_sessions")
+        .select("id, owner_user_id, store_id, store_slug, language, status, started_at")
+        .eq("id", callId).maybeSingle();
+      if (callError) return res.status(503).json({ success: false, error: "La réponse vocale n’est pas disponible." });
+      if (!call || call.status !== "active" || call.store_slug !== slug || !call.started_at) {
+        return res.status(409).json({ success: false, error: "La session vocale n’est plus disponible." });
+      }
+      const callStartedAt = Date.parse(call.started_at);
+      if (!Number.isFinite(callStartedAt) || Date.now() - callStartedAt > 60 * 60 * 1000) {
+        return res.status(409).json({ success: false, error: "La session vocale n’est plus disponible." });
+      }
+      if (!AGENT_SPEECH_LANGUAGES.includes(call.language as AgentSpeechLanguage)) {
+        return res.status(409).json({ success: false, error: "La langue de cet appel n’est pas disponible." });
+      }
+
+      const { data: row, error: storeError } = await supabaseClient.from("agent_sawtify_stores")
+        .select("id, owner_user_id, slug, store_data, is_active")
+        .eq("id", call.store_id).eq("slug", slug).maybeSingle();
+      if (storeError) return res.status(503).json({ success: false, error: "La réponse vocale n’est pas disponible." });
+      if (!row || row.owner_user_id !== call.owner_user_id || !row.is_active) {
+        return res.status(row && !row.is_active ? 423 : 409).json({ success: false, error: "La boutique n’est plus disponible." });
+      }
+
+      const { data: wallet, error: walletError } = await supabaseClient.from("agent_sawtify_wallets")
+        .select("plan_seconds_remaining, topup_seconds_remaining, plan_expires_at")
+        .eq("user_id", call.owner_user_id).maybeSingle();
+      if (walletError) return res.status(503).json({ success: false, error: "La réponse vocale n’est pas disponible." });
+      const planActive = Boolean(wallet?.plan_expires_at && Date.parse(wallet.plan_expires_at) > Date.now());
+      const remainingSeconds = (planActive ? Math.max(0, Number(wallet?.plan_seconds_remaining || 0)) : 0)
+        + Math.max(0, Number(wallet?.topup_seconds_remaining || 0));
+      if (remainingSeconds < 1) return res.status(402).json({ success: false, error: "La réponse vocale n’est pas disponible." });
+
+      const store = normalizeAgentStore(row.store_data);
+      store.slug = row.slug;
+      const generated = await synthesizeAgentSpeech({
+        store,
+        text,
+        language: call.language as AgentSpeechLanguage,
+        userId: call.owner_user_id,
+        source: "live_call",
+        callId,
+      });
+      return res.json({
+        success: true,
+        audio_pcm_base64: generated.pcmBuffer.toString("base64"),
+        sample_rate: 24000,
+      });
+    } catch (error: any) {
+      console.warn("[Agent Live TTS] synthesis unavailable:", String(error?.message || "unknown error").slice(0, 180));
+      const status = error?.message === "agent_speech_too_long" ? 413
+        : error?.message === "agent_daily_limit" || error?.message === "agent_call_speech_limit" ? 429
+          : 503;
+      return res.status(status).json({ success: false, error: "La réponse vocale n’est pas disponible." });
     }
   });
 
@@ -4089,7 +4248,7 @@ Le texte de la proposition`;
     return res.status(503).json({ success: false, error: "La conversation n’est pas disponible pour le moment." });
   });
 
-  app.post("/api/agent/sawtify/respond", agentPublicLimiter, async (req, res) => {
+  app.post("/api/agent/sawtify/respond", agentPublicLimiter, agentSpeechLimiter, async (req, res) => {
     const slug = normalizeAgentSlug(req.body?.slug);
     const rawQuestion = typeof req.body?.question === "string" ? req.body.question.trim() : "";
     const question = agentText(rawQuestion, 1200);
@@ -4137,7 +4296,20 @@ Le texte de la proposition`;
         }
         return res.status(409).json({ success: false, error: "La consommation n'a pas pu être validée." });
       }
-      return res.json({ success: true, answer });
+      let audioBase64: string | null = null;
+      try {
+        const generated = await synthesizeAgentSpeech({
+          store,
+          text: answer,
+          language,
+          userId: row.owner_user_id,
+          source: "text_fallback",
+        });
+        audioBase64 = pcmToWavBuffer(generated.pcmBuffer, 24000, 1, 16).toString("base64");
+      } catch (speechError: any) {
+        console.warn("[Agent text fallback TTS] audio unavailable:", String(speechError?.message || "unknown error").slice(0, 160));
+      }
+      return res.json({ success: true, answer, audio_base64: audioBase64, audio_format: audioBase64 ? "wav" : null });
     } catch (error: any) {
       return res.status(500).json({ success: false, error: error?.message || "Impossible de répondre pour le moment." });
     }

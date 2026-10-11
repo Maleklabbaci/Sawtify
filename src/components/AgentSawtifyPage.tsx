@@ -6,7 +6,7 @@ import {
   Headphones, Link2, MessageCircle, Mic2, Package, Pencil, Plus, QrCode,
   Search, Settings2, ShieldCheck, ShoppingBag, Sparkles, Store, Trash2, Truck, X, Play, Pause,
   CreditCard, Wallet, CalendarDays, Smartphone, Wifi, Battery, Signal,
-  PhoneCall, MessageSquareText, Radio, Clock3, RefreshCw, Send, PhoneIncoming,
+  PhoneCall, MessageSquareText, Radio, Clock3, RefreshCw, Send, PhoneIncoming, Code2,
   type LucideIcon,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -23,7 +23,9 @@ import {
   type AgentProduct, type AgentStore,
 } from '../services/agentSawtify';
 
-type DashboardSection = 'overview' | 'assistant' | 'catalog' | 'faq' | 'orders' | 'link' | 'pricing' | 'gateway';
+const DeveloperPage = React.lazy(() => import('./DeveloperPage').then((module) => ({ default: module.DeveloperPage })));
+
+type DashboardSection = 'overview' | 'assistant' | 'catalog' | 'faq' | 'orders' | 'link' | 'pricing' | 'gateway' | 'developer';
 
 const formatDzd = (amount: number, arabic = false) =>
   `${new Intl.NumberFormat(arabic ? 'ar-DZ' : 'fr-DZ', { maximumFractionDigits: 0 }).format(amount)} ${arabic ? 'دج' : 'DA'}`;
@@ -32,9 +34,10 @@ const csvEscape = (value: string | number) => `"${String(value).replace(/"/g, '"
 
 export const AgentSawtifyPage: React.FC<{
   previewMode?: boolean;
+  balance: number;
   onBack?: () => void;
   onSignIn?: () => void;
-}> = ({ previewMode = false, onBack, onSignIn }) => {
+}> = ({ previewMode = false, balance, onBack, onSignIn }) => {
   const { language } = useLanguage();
   const isArabic = language === 'ar';
   const bi = (fr: string, ar: string) => isArabic ? ar : fr;
@@ -44,7 +47,11 @@ export const AgentSawtifyPage: React.FC<{
   const [storeError, setStoreError] = useState('');
   const [storeSaving, setStoreSaving] = useState(false);
   const [saveTrigger, setSaveTrigger] = useState(0);
-  const [section, setSection] = useState<DashboardSection>('overview');
+  const [section, setSection] = useState<DashboardSection>(() =>
+    window.location.pathname === '/developer' || new URLSearchParams(window.location.search).get('section') === 'developer'
+      ? 'developer'
+      : 'overview',
+  );
   const [qrImage, setQrImage] = useState('');
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
@@ -415,6 +422,7 @@ export const AgentSawtifyPage: React.FC<{
     { id: 'pricing', label: bi('Forfaits', 'الأسعار'), icon: CreditCard },
     { id: 'link', label: bi('Lien & QR', 'الرابط و QR'), icon: QrCode },
     { id: 'gateway', label: bi('Passerelle GSM', 'بوابة GSM'), icon: Smartphone },
+    ...(!previewMode ? [{ id: 'developer' as const, label: bi('Développement', 'التطوير'), icon: Code2 }] : []),
   ];
 
   return (
@@ -629,6 +637,12 @@ export const AgentSawtifyPage: React.FC<{
 
       {section === 'gateway' && (
         <GatewaySection store={store} previewMode={previewMode} isArabic={isArabic} onNotice={showNotice} />
+      )}
+
+      {section === 'developer' && !previewMode && (
+        <React.Suspense fallback={<section className="saw-glass mx-auto max-w-5xl rounded-[26px] p-6 text-sm font-semibold text-slate-600" role="status">{bi('Chargement des outils de développement…', 'جاري تحميل أدوات التطوير…')}</section>}>
+          <DeveloperPage balance={balance} />
+        </React.Suspense>
       )}
 
       {notice && <div role="status" aria-live="polite" className="fixed bottom-5 end-4 z-[100] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-xs font-semibold text-white shadow-2xl sm:bottom-7 sm:end-7"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />{notice}</div>}

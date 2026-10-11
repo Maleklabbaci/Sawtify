@@ -11,6 +11,12 @@ Cette livraison raccorde l’appel client au modèle vocal en direct et conserve
 
 La durée, les secondes restantes et le solde ne sont pas renvoyés à l’interface client. Les langues d’appel proposées sont la darija algérienne, le français et l’anglais; la langue choisie ne change pas pendant l’appel. Le modèle par défaut est `gemini-3.8-live`; la clé API n’est utilisée que par le serveur Render.
 
+## Voix de l’Agent
+
+Par défaut, Live génère la réponse en texte (et conserve ses appels d’outil), puis le serveur la fait parler par le moteur TTS de Sawtify. La voix enregistrée dans la boutique (`agentVoiceId`) est donc utilisée pendant l’appel. La darija reçoit un registre algérien explicite; le français et l’anglais ont également leur propre consigne de prononciation. L’introduction artificielle « … » du TTS général est désactivée pour les réponses conversationnelles.
+
+Les réponses parlées sont limitées à 700 caractères, à 4 000 caractères synthétisés par appel, et protégées par une limite de 18 requêtes vocales par minute et les plafonds Gemini de l’utilisateur. En cas d’échec du TTS, le transcript reste visible et aucun audio synthétique de remplacement n’est inventé. Pour revenir à la voix audio native de Gemini Live, régler `AGENT_LIVE_OUTPUT_MODE=gemini_live` côté serveur; `AGENT_LIVE_VOICE` ne s’applique qu’à ce mode. `AGENT_LIVE_OUTPUT_MODE=sawtify_tts` est la valeur par défaut.
+
 ## Mise en service manuelle
 
 1. Dans le SQL Editor du projet Supabase, appliquer le script complet `supabase/agent_sawtify_pricing.sql`. Il contient le schéma de facturation existant ainsi que les tables et fonctions de session vocale.
