@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Sawtify — Passerelle GSM — État d’avancement</title>
+</head>
+<body style="font-family:Arial,sans-serif;color:#1f2937;line-height:1.55;max-width:850px;margin:32px auto;padding:0 24px">
+  <p style="color:#6d28d9;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Sawtify · Note technique</p>
+  <h1 style="color:#251447;margin-bottom:4px">Passerelle GSM Sawtify</h1>
+  <p style="color:#64748b;margin-top:0">État d’avancement — 10 octobre 2026</p>
+
+  <div style="background:#f5f3ff;border-left:4px solid #7c3aed;padding:14px 18px;margin:24px 0">
+    <strong>Résumé.</strong> L’onglet marchand, les routes protégées, l’appairage à jeton temporaire, le modèle Supabase et le squelette Android sont présents dans le dépôt. Aucune migration distante, aucun déploiement, aucune compilation/signature APK ni aucun test avec SIM réelle n’ont été effectués.
+  </div>
+
+  <h2 style="color:#4c1d95">Livré dans le dépôt</h2>
+  <ul>
+    <li><strong>Interface Agent Sawtify :</strong> nouvel onglet « Passerelle GSM » avec état des appareils, batterie, réseau, signal, SIM, événements, commandes récentes et action de révocation. Les valeurs sont issues de Supabase ou du WebSocket ; aucun jeu de démonstration n’est utilisé. Sans appareil, la passerelle apparaît hors ligne.</li>
+    <li><strong>Backend Express et WebSocket :</strong> routes propriétaires protégées par authentification et accès Agent, tickets de tableau de bord à usage unique, connexions persistantes, télémétrie réelle, journaux et file de commandes JSON.</li>
+    <li><strong>Appairage :</strong> QR temporaire valable cinq minutes et utilisable une seule fois. La clé unique <code>swt_gw_…</code> est délivrée au relais Android une seule fois ; seul son hash et un préfixe de recherche sont conservés dans Supabase. Le tableau de bord n’affiche pas la clé permanente.</li>
+    <li><strong>Migration séparée :</strong> <code>supabase/agent_sawtify_gateway.sql</code> crée les tables passerelles, jetons, tickets WebSocket, commandes et événements, avec RLS et accès service-role.</li>
+    <li><strong>Android :</strong> sources dans <code>android/</code> : stockage chiffré de la clé, notification persistante de service au premier plan, WebSocket, télémétrie, capacités multi-SIM, métadonnées d’appels/SMS entrants, commandes téléphonie/SMS et composants PCM (entrée 16 kHz, sortie 24 kHz).</li>
+  </ul>
+
+  <h2 style="color:#4c1d95">Protections prévues</h2>
+  <ul>
+    <li>Un SMS sortant ne peut viser qu’un numéro déjà présent dans une demande client appartenant au propriétaire et confirmée dans Agent Sawtify.</li>
+    <li>La création exige une confirmation explicite de consentement, son type et une référence d’audit ; le serveur impose l’idempotence et une limite de dix SMS par heure et par compte.</li>
+    <li>Le contenu et le numéro du SMS ne sont pas copiés dans le journal d’événements. Les numéros d’historique sont masqués dans l’interface.</li>
+    <li>Le texte des SMS entrants, les numéros entrants et les identifiants SIM ne sont pas transmis au tableau de bord. Les appels entrants ne sont pas répondus automatiquement.</li>
+    <li>Les données client, commandes et télémetrie ne sont pas remplacées par des valeurs simulées.</li>
+  </ul>
+
+  <h2 style="color:#9a3412">Points bloquants avant production</h2>
+  <ol>
+    <li><strong>Base :</strong> appliquer manuellement la migration <code>supabase/agent_sawtify_gateway.sql</code> dans le projet Supabase cible et vérifier les clés d’environnement côté serveur. Aucun changement distant n’a été fait depuis cette session.</li>
+    <li><strong>APK :</strong> le dépôt contient le squelette source, pas un binaire compilé/signé. L’outil Android et la clé de signature ne sont pas disponibles ici. Le tableau de bord désactive le téléchargement tant que le vrai fichier n’est pas présent ; la route <code>/downloads/sawtify-gateway.apk</code> renvoie actuellement 404. Après build et signature, le pipeline devra installer ce fichier à cette adresse.</li>
+    <li><strong>Voix GSM :</strong> le pont audio Live côté serveur (PCM du téléphone vers Gemini Live et retour audio) n’est pas encore relié. Pour éviter qu’un appel réel soit lancé sans réponse vocale Sawtify, l’API bloque actuellement les appels GSM sortants avec une réponse 501. Le relais Android sait décrire le transport PCM, mais le serveur refuse les trames audio tant que ce pont n’est pas configuré.</li>
+    <li><strong>Limites Android :</strong> <code>AudioRecord</code> utilise le microphone standard ; il ne capture pas nécessairement l’audio cellulaire montant et descendant. Android, les fabricants et les opérateurs peuvent limiter l’audio d’appel, le routage par SIM, les SMS ou l’exécution en arrière-plan. Les appels/SMS multi-SIM doivent être validés sur les appareils et opérateurs ciblés.</li>
+    <li><strong>Validation matérielle :</strong> aucune compilation Gradle, installation, signature APK, connexion WSS à Supabase, émission SMS, appel, ni test sur téléphone/SIM réel n’a été possible dans cet environnement.</li>
+  </ol>
+
+  <h2 style="color:#4c1d95">Vérifications locales</h2>
+  <ul>
+    <li><code>npm run lint</code> — réussi.</li>
+    <li><code>npm run build</code> — réussi ; les avertissements Vite sur certains imports dynamiques/statistiques préexistants ne bloquent pas le build.</li>
+    <li>Analyse syntaxique de la migration SQL — 24 instructions analysées ; cela ne remplace pas son exécution sur Supabase.</li>
+    <li><code>git diff --check</code> — réussi.</li>
+    <li>Contrôle HTTP local : <code>/api/health</code> répond 200 ; le téléchargement APK répond 404 tant qu’aucun artefact signé n’est installé.</li>
+  </ul>
+
+  <p style="margin-top:32px;padding-top:14px;border-top:1px solid #e5e7eb;color:#64748b;font-size:12px">Aucun push GitHub, commit, déploiement, migration distante ou test matériel n’a été effectué.</p>
+</body>
+</html>

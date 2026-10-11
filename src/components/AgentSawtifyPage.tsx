@@ -5,7 +5,8 @@ import {
   CircleHelp, ClipboardList, Copy, ExternalLink, Eye, EyeOff, FileUp,
   Headphones, Link2, MessageCircle, Mic2, Package, Pencil, Plus, QrCode,
   Search, Settings2, ShieldCheck, ShoppingBag, Sparkles, Store, Trash2, Truck, X, Play, Pause,
-  CreditCard, Wallet, CalendarDays,
+  CreditCard, Wallet, CalendarDays, Smartphone, Wifi, Battery, Signal,
+  PhoneCall, MessageSquareText, Radio, Clock3, RefreshCw, Send, PhoneIncoming,
   type LucideIcon,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -22,7 +23,7 @@ import {
   type AgentProduct, type AgentStore,
 } from '../services/agentSawtify';
 
-type DashboardSection = 'overview' | 'assistant' | 'catalog' | 'faq' | 'orders' | 'link' | 'pricing';
+type DashboardSection = 'overview' | 'assistant' | 'catalog' | 'faq' | 'orders' | 'link' | 'pricing' | 'gateway';
 
 const formatDzd = (amount: number, arabic = false) =>
   `${new Intl.NumberFormat(arabic ? 'ar-DZ' : 'fr-DZ', { maximumFractionDigits: 0 }).format(amount)} ${arabic ? 'دج' : 'DA'}`;
@@ -413,6 +414,7 @@ export const AgentSawtifyPage: React.FC<{
     { id: 'orders', label: bi('Demandes', 'الطلبات'), icon: ClipboardList, badge: newOrders },
     { id: 'pricing', label: bi('Forfaits', 'الأسعار'), icon: CreditCard },
     { id: 'link', label: bi('Lien & QR', 'الرابط و QR'), icon: QrCode },
+    { id: 'gateway', label: bi('Passerelle GSM', 'بوابة GSM'), icon: Smartphone },
   ];
 
   return (
@@ -623,6 +625,10 @@ export const AgentSawtifyPage: React.FC<{
           onNotice={showNotice}
           onSave={triggerStoreSave}
         />
+      )}
+
+      {section === 'gateway' && (
+        <GatewaySection store={store} previewMode={previewMode} isArabic={isArabic} onNotice={showNotice} />
       )}
 
       {notice && <div role="status" aria-live="polite" className="fixed bottom-5 end-4 z-[100] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-xs font-semibold text-white shadow-2xl sm:bottom-7 sm:end-7"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />{notice}</div>}
@@ -1332,4 +1338,348 @@ function orderStatusLabel(status: AgentOrderStatus, isArabic: boolean) {
     delivered: ['Livrée', 'تم التوصيل'],
   };
   return labels[status][isArabic ? 1 : 0];
+}
+
+type GatewaySim = { slot: string; state: string; operator: string };
+type GatewayDevice = {
+  id: string;
+  device_name: string;
+  online: boolean;
+  status: 'online' | 'offline';
+  battery_percent: number | null;
+  network_state: string | null;
+  signal_percent: number | null;
+  active_sim_slot: string | null;
+  sim_slots: GatewaySim[];
+  capabilities: Record<string, boolean>;
+  last_seen_at: string | null;
+  paired_at: string;
+};
+type GatewayJob = { id: string; action: string; destination_masked?: string; status: string; error_code?: string | null; created_at: string; finished_at?: string | null };
+type GatewayEvent = { id: string; event_type: string; details: Record<string, unknown>; created_at: string };
+type GatewayDashboardData = {
+  gateways: GatewayDevice[];
+  jobs: GatewayJob[];
+  events: GatewayEvent[];
+  stats: { gateways_total: number; gateways_online: number; jobs_pending: number; jobs_last_30: number; events_last_30: number };
+  apk: { available: boolean; download_path: string };
+  features: { sms_gateway_ready: boolean; gsm_ai_call_ready: boolean };
+};
+
+function GatewaySection({ store, previewMode, isArabic, onNotice }: {
+  store: AgentStore;
+  previewMode: boolean;
+  isArabic: boolean;
+  onNotice: (message: string) => void;
+}) {
+  const bi = (fr: string, ar: string) => isArabic ? ar : fr;
+  const [data, setData] = useState<GatewayDashboardData | null>(null);
+  const [loading, setLoading] = useState(!previewMode);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [wsConnected, setWsConnected] = useState(false);
+  const [pairingImage, setPairingImage] = useState('');
+  const [pairingExpiresAt, setPairingExpiresAt] = useState('');
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [selectedGatewayId, setSelectedGatewayId] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [action, setAction] = useState<'outbound_call' | 'send_sms'>('send_sms');
+  const [simSlot, setSimSlot] = useState('');
+  const [smsMessage, setSmsMessage] = useState('');
+  const [consentMethod, setConsentMethod] = useState<'explicit_customer_request' | 'recorded_opt_in'>('explicit_customer_request');
+  const [consentReference, setConsentReference] = useState('');
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [submittingJob, setSubmittingJob] = useState(false);
+  const [revokingId, setRevokingId] = useState('');
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+
+  const getHeaders = React.useCallback(async () => {
+    const token = await getMyAccessToken();
+    if (!token) throw new Error(bi('Connectez-vous pour gérer une passerelle.', 'سجّل الدخول باش تسيّر البوابة.'));
+    return { Authorization: `Bearer ${token}`, 'X-Agent-Access-Token': getAgentAccessToken() || '' };
+  }, [isArabic]);
+
+  const refreshState = React.useCallback(async (quiet = false) => {
+    if (previewMode) return;
+    if (!quiet) setRefreshing(true);
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/gateway/state`, { headers });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || bi('Les données de passerelle ne sont pas disponibles.', 'بيانات البوابة غير متاحة.'));
+      setData(body as GatewayDashboardData);
+      setError('');
+    } catch (cause: any) {
+      setError(cause?.message || bi('Impossible de charger les données réelles de la passerelle.', 'تعذّر تحميل بيانات البوابة الحقيقية.'));
+    } finally {
+      setLoading(false);
+      if (!quiet) setRefreshing(false);
+    }
+  }, [getHeaders, isArabic, previewMode]);
+
+  React.useEffect(() => {
+    if (previewMode) return;
+    let active = true;
+    const connect = async () => {
+      try {
+        const headers = await getHeaders();
+        const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/gateway/ws-ticket`, { method: 'POST', headers });
+        const body = await response.json();
+        if (!response.ok || !body.success || !body.ticket) throw new Error(body.error || 'WebSocket unavailable');
+        if (!active) return;
+        const base = (API_BASE_URL || window.location.origin).replace(/[/]+$/, '');
+        const socketUrl = `${base.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')}/api/agent/sawtify/gateway/ws`;
+        const socket = new WebSocket(socketUrl);
+        socketRef.current = socket;
+        socket.onopen = () => {
+          setWsConnected(true);
+          socket.send(JSON.stringify({ type: 'dashboard_auth', ticket: body.ticket }));
+        };
+        socket.onmessage = (event) => {
+          try {
+            const packet = JSON.parse(String(event.data));
+            if (packet.type === 'gateway_snapshot' && Array.isArray(packet.gateways)) {
+              setData((current) => current ? { ...current, gateways: packet.gateways } : current);
+            } else if (packet.type === 'gateway_telemetry' && packet.gateway_id && packet.telemetry) {
+              setData((current) => {
+                if (!current) return current;
+                const gateways = current.gateways.map((gateway) => gateway.id === packet.gateway_id ? {
+                  ...gateway,
+                  online: true,
+                  status: 'online' as const,
+                  battery_percent: packet.telemetry.battery_percent,
+                  network_state: packet.telemetry.network_state,
+                  signal_percent: packet.telemetry.signal_percent,
+                  active_sim_slot: packet.telemetry.active_sim_slot,
+                  sim_slots: packet.telemetry.sim_slots || [],
+                  capabilities: packet.telemetry.capabilities || gateway.capabilities,
+                  last_seen_at: packet.telemetry.last_seen_at || gateway.last_seen_at,
+                } : gateway);
+                return { ...current, gateways, stats: { ...current.stats, gateways_online: gateways.filter((gateway) => gateway.online).length } };
+              });
+            } else if (packet.type === 'gateway_changed' || packet.type === 'job_update' || packet.type === 'gateway_event') {
+              void refreshState(true);
+            }
+          } catch {
+            // Ignore invalid server frames; the polling fallback remains active.
+          }
+        };
+        socket.onclose = () => {
+          setWsConnected(false);
+          if (active) reconnectTimerRef.current = window.setTimeout(() => { void connect(); }, 3000);
+        };
+        socket.onerror = () => setWsConnected(false);
+      } catch {
+        if (active) reconnectTimerRef.current = window.setTimeout(() => { void connect(); }, 10_000);
+      }
+    };
+    void refreshState(true);
+    void connect();
+    const interval = window.setInterval(() => { void refreshState(true); }, 20_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      if (reconnectTimerRef.current !== null) window.clearTimeout(reconnectTimerRef.current);
+      socketRef.current?.close();
+      socketRef.current = null;
+      setWsConnected(false);
+    };
+  }, [getHeaders, previewMode, refreshState]);
+
+  const confirmedOrders = store.orders.filter((order) => order.status === 'confirmed' && Boolean(order.phone.trim()));
+  const onlineGateways = data?.gateways.filter((gateway) => gateway.online) || [];
+  const selectedGateway = onlineGateways.find((gateway) => gateway.id === selectedGatewayId) || onlineGateways[0] || null;
+  const readySims = (selectedGateway?.sim_slots || []).filter((sim) => sim.state === 'ready');
+
+  React.useEffect(() => {
+    if (selectedGateway && selectedGatewayId !== selectedGateway.id) setSelectedGatewayId(selectedGateway.id);
+    if (!selectedGateway && selectedGatewayId) setSelectedGatewayId('');
+  }, [selectedGateway?.id, selectedGatewayId]);
+
+  const createPairingCode = async () => {
+    setPairingBusy(true);
+    setError('');
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/gateway/pairing-token`, { method: 'POST', headers });
+      const body = await response.json();
+      if (!response.ok || !body.success || !body.pairing_token) throw new Error(body.error || bi('Impossible de générer le QR d’appairage.', 'تعذّر إنشاء رمز الاقتران.'));
+      const apiOrigin = (API_BASE_URL || window.location.origin).replace(/[/]+$/, '');
+      const qrPayload = `sawtify-gateway://pair?server=${encodeURIComponent(apiOrigin)}&token=${encodeURIComponent(body.pairing_token)}`;
+      const image = await QRCode.toDataURL(qrPayload, { width: 300, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#26154a', light: '#ffffff' } });
+      setPairingImage(image);
+      setPairingExpiresAt(String(body.expires_at || ''));
+      onNotice(bi('QR d’appairage créé. Il expire dans cinq minutes.', 'تم إنشاء رمز الاقتران، صلاحيته خمس دقائق.'));
+      void refreshState(true);
+    } catch (cause: any) {
+      setError(cause?.message || bi('Impossible de générer le QR d’appairage.', 'تعذّر إنشاء رمز الاقتران.'));
+    } finally {
+      setPairingBusy(false);
+    }
+  };
+
+  const revokeGateway = async (gateway: GatewayDevice) => {
+    if (!window.confirm(bi(`Révoquer « ${gateway.device_name} » ? Son accès sera immédiatement coupé.`, `إلغاء « ${gateway.device_name} »؟ سيتم قطع الاتصال فوراً.`))) return;
+    setRevokingId(gateway.id);
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/gateway/${encodeURIComponent(gateway.id)}`, { method: 'DELETE', headers });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || bi('Impossible de révoquer cette passerelle.', 'تعذّر إلغاء هذه البوابة.'));
+      setPairingImage('');
+      onNotice(bi('Passerelle révoquée.', 'تم إلغاء البوابة.'));
+      await refreshState(true);
+    } catch (cause: any) {
+      setError(cause?.message || bi('Impossible de révoquer cette passerelle.', 'تعذّر إلغاء هذه البوابة.'));
+    } finally {
+      setRevokingId('');
+    }
+  };
+
+  const submitGatewayJob = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedGateway || !selectedOrderId || !consentConfirmed || consentReference.trim().length < 6) return;
+    setSubmittingJob(true);
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/agent/sawtify/gateway/jobs`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gatewayId: selectedGateway.id,
+          orderId: selectedOrderId,
+          action,
+          simSlot: simSlot || null,
+          message: action === 'send_sms' ? smsMessage : undefined,
+          consentConfirmed: true,
+          consentMethod,
+          consentReference: consentReference.trim(),
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || bi('La commande n’a pas été acceptée.', 'لم يتم قبول الأمر.'));
+      setConsentReference('');
+      setConsentConfirmed(false);
+      setSmsMessage('');
+      onNotice(action === 'outbound_call' ? bi('Appel autorisé transmis à la passerelle.', 'تم إرسال طلب الاتصال المصرّح به للبوابة.') : bi('SMS autorisé transmis à la passerelle.', 'تم إرسال طلب SMS المصرّح به للبوابة.'));
+      await refreshState(true);
+    } catch (cause: any) {
+      setError(cause?.message || bi('La commande n’a pas été acceptée.', 'لم يتم قبول الأمر.'));
+    } finally {
+      setSubmittingJob(false);
+    }
+  };
+
+  const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString(isArabic ? 'ar-DZ' : 'fr-DZ', { dateStyle: 'short', timeStyle: 'short' }) : bi('Jamais', 'أبداً');
+  const statusLabel = (status: string) => ({ queued: bi('En attente', 'في الانتظار'), dispatched: bi('Envoyée', 'تم الإرسال'), accepted: bi('Acceptée', 'تم القبول'), running: bi('En cours', 'قيد التنفيذ'), completed: bi('Terminée', 'مكتملة'), failed: bi('Échec', 'فشلت'), cancelled: bi('Annulée', 'ملغاة') }[status] || status);
+  const eventLabel = (eventType: string) => ({ gateway_connected: bi('Passerelle connectée', 'البوابة متصلة'), gateway_disconnected: bi('Passerelle déconnectée', 'البوابة غير متصلة'), telemetry: bi('Télémétrie reçue', 'تم استلام القياسات'), inbound_call: bi('Appel entrant signalé', 'تم رصد اتصال وارد'), call_state: bi('État d’appel mis à jour', 'تم تحديث حالة الاتصال'), inbound_sms: bi('Événement SMS entrant', 'تم رصد SMS وارد'), sms_state: bi('État SMS sortant mis à jour', 'تم تحديث حالة SMS الصادر'), job_dispatched: bi('Commande GSM transmise', 'تم إرسال أمر GSM'), job_started: bi('Commande en cours', 'الأمر قيد التنفيذ'), job_completed: bi('Commande terminée', 'اكتمل الأمر'), job_failed: bi('Commande échouée', 'فشل الأمر'), gateway_revoked: bi('Accès de la passerelle révoqué', 'تم إلغاء صلاحية البوابة') }[eventType] || eventType);
+
+  return (
+    <div className="space-y-5">
+      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#211246] via-[#4c1d95] to-[#7c3aed] p-5 text-white shadow-[0_24px_70px_rgba(76,29,149,.22)] sm:p-7">
+        <div className="absolute -end-16 -top-24 h-64 w-64 rounded-full bg-fuchsia-300/15 blur-3xl" />
+        <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[.14em]"><Radio className="h-3.5 w-3.5" />{bi('Call Centre · Agent IA', 'مركز الاتصال · وكيل الذكاء الاصطناعي')}</div>
+            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{bi('Call Centre APK Sawtify', 'Call Centre APK من Sawtify')}</h2>
+            <p className="mt-2 max-w-xl text-xs leading-6 text-violet-100 sm:text-sm">{bi('Votre téléphone SIM restera lié à votre Agent IA. Les appels ne seront traités que si le service est disponible ; sinon, votre correspondant entendra un simple message d’indisponibilité. Aucun solde ni aucune durée ne seront affichés. Les appels ne sont pas encore activés.', 'هاتفك بشريحة SIM يبقى مرتبطاً بوكيلك الذكي. تتم معالجة المكالمات فقط عند توفر الخدمة، وإلا سيسمع المتصل رسالة عدم توفر بسيطة. لا يتم عرض أي رصيد ولا مدة. المكالمات غير مفعّلة بعد.')}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void createPairingCode()} disabled={previewMode || pairingBusy || loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-extrabold text-violet-800 shadow-lg transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"><Smartphone className="h-4 w-4" />{pairingBusy ? bi('Préparation…', 'جارٍ التحضير…') : bi('Appairer un téléphone', 'ربط هاتف')}</button>
+            <button type="button" onClick={() => void refreshState()} disabled={previewMode || refreshing} aria-label={bi('Actualiser les données', 'تحديث البيانات')} className="inline-flex items-center justify-center rounded-xl border border-white/25 bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /></button>
+          </div>
+        </div>
+      </section>
+
+      {previewMode && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold leading-5 text-amber-900">{bi('La passerelle GSM est désactivée dans l’aperçu. Connectez-vous à une vraie boutique pour voir les appareils Supabase.', 'بوابة GSM غير مفعّلة في المعاينة. سجّل الدخول إلى متجر حقيقي لرؤية الأجهزة المسجلة في Supabase.')}</div>}
+      {error && <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold leading-5 text-rose-800">{error}</div>}
+
+      {pairingImage && <section className="saw-glass rounded-[26px] p-4 sm:p-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <img src={pairingImage} alt={bi('QR temporaire d’appairage Sawtify Gateway', 'رمز QR مؤقت لربط بوابة Sawtify')} className="h-48 w-48 self-center rounded-2xl border border-violet-100 bg-white p-2 sm:self-start" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-black text-slate-900">{bi('Scannez avec l’application Android', 'امسح الرمز بتطبيق Android')}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-600">{bi('Ce QR contient un jeton à usage unique valable cinq minutes. La clé permanente ne sera jamais affichée dans le tableau de bord.', 'هذا الرمز يحتوي على مفتاح مؤقت يُستعمل مرة واحدة وصالح لخمس دقائق. المفتاح الدائم لن يظهر في لوحة التحكم.')}</p>
+            {pairingExpiresAt && <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700"><Clock3 className="h-3.5 w-3.5" />{bi('Expiration :', 'ينتهي في:')} {formatDate(pairingExpiresAt)}</p>}
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void createPairingCode()} disabled={pairingBusy} className="rounded-xl border border-violet-200 bg-white px-3.5 py-2.5 text-xs font-bold text-violet-800 hover:bg-violet-50 disabled:opacity-50">{bi('Renouveler le QR', 'تجديد الرمز')}</button><button type="button" onClick={() => setPairingImage('')} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">{bi('Fermer', 'إغلاق')}</button></div>
+          </div>
+        </div>
+      </section>}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <GatewayMetric icon={Smartphone} label={bi('Appareils jumelés', 'الأجهزة المرتبطة')} value={data ? String(data.stats.gateways_total) : '—'} detail={bi('données Supabase', 'بيانات Supabase')} />
+        <GatewayMetric icon={Wifi} label={bi('En ligne', 'متصلة')} value={data ? String(data.stats.gateways_online) : '—'} detail={wsConnected ? bi('flux WebSocket actif', 'اتصال WebSocket نشط') : bi('reconnexion en cours', 'جارٍ إعادة الاتصال')} />
+        <GatewayMetric icon={Activity} label={bi('Commandes en cours', 'أوامر قيد التنفيذ')} value={data ? String(data.stats.jobs_pending) : '—'} detail={bi('file réelle', 'قائمة حقيقية')} />
+        <GatewayMetric icon={Radio} label={bi('Journal récent', 'السجل الأخير')} value={data ? String(data.stats.events_last_30) : '—'} detail={bi('événements enregistrés', 'أحداث مسجلة')} />
+      </div>
+
+      <section className="saw-glass rounded-[26px] p-4 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-violet-100/70 pb-4">
+          <div><h3 className="text-base font-black text-slate-900">{bi('Téléphones passerelles', 'هواتف البوابة')}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{bi('État, batterie, réseau et SIM sont transmis par les appareils ; une absence de télémétrie reste affichée comme indisponible.', 'الحالة والبطارية والشبكة وSIM تُرسل من الجهاز؛ وعند غياب القياسات تظهر غير متاحة.')}</p></div>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold ${wsConnected ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-slate-400'}`} />{wsConnected ? bi('WebSocket connecté', 'اتصال مباشر') : bi('WebSocket déconnecté', 'الاتصال المباشر متوقف')}</span>
+        </div>
+        {loading ? <div className="py-10 text-center text-xs font-semibold text-slate-500">{bi('Chargement des données réelles…', 'جارٍ تحميل البيانات الحقيقية…')}</div> : data?.gateways.length ? <div className="grid gap-3 lg:grid-cols-2">
+          {data.gateways.map((gateway) => <article key={gateway.id} className="rounded-2xl border border-violet-100 bg-white/85 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${gateway.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><Smartphone className="h-5 w-5" /></span><div className="min-w-0"><h4 className="truncate text-sm font-extrabold text-slate-900">{gateway.device_name}</h4><p className="mt-0.5 text-[10px] text-slate-500">{bi('Appairé le', 'تم الربط في')} {formatDate(gateway.paired_at)}</p></div></div>
+              <button type="button" onClick={() => void revokeGateway(gateway)} disabled={revokingId === gateway.id} className="rounded-lg border border-rose-100 px-2.5 py-1.5 text-[10px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{revokingId === gateway.id ? '…' : bi('Révoquer', 'إلغاء')}</button>
+            </div>
+            <div className="mt-4 flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${gateway.online ? 'bg-emerald-500' : 'bg-slate-400'}`} /><span className={`text-xs font-extrabold ${gateway.online ? 'text-emerald-700' : 'text-slate-500'}`}>{gateway.online ? bi('En ligne', 'متصلة') : bi('Hors ligne', 'غير متصلة')}</span><span className="ms-auto text-[10px] text-slate-400">{bi('Dernier signal :', 'آخر إشارة:')} {formatDate(gateway.last_seen_at)}</span></div>
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <GatewayTelemetry icon={Battery} label={bi('Batterie', 'البطارية')} value={gateway.battery_percent === null ? '—' : `${gateway.battery_percent}%`} />
+              <GatewayTelemetry icon={Wifi} label={bi('Réseau', 'الشبكة')} value={gateway.network_state ? ({ connected: bi('Connecté', 'متصل'), no_service: bi('Sans réseau', 'بلا شبكة'), airplane_mode: bi('Mode avion', 'وضع الطيران'), unknown: bi('Inconnu', 'غير معروف') } as Record<string, string>)[gateway.network_state] || gateway.network_state : '—'} />
+              <GatewayTelemetry icon={Signal} label={bi('Signal', 'الإشارة')} value={gateway.signal_percent === null ? '—' : `${gateway.signal_percent}%`} />
+              <GatewayTelemetry icon={Radio} label={bi('SIM active', 'الشريحة النشطة')} value={gateway.active_sim_slot === null ? '—' : `${bi('SIM', 'SIM')} ${Number(gateway.active_sim_slot) + 1}`} />
+            </div>
+            {gateway.sim_slots?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{gateway.sim_slots.map((sim) => <span key={`${gateway.id}-${sim.slot}`} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">{bi('SIM', 'SIM')} {Number(sim.slot) + 1} · {sim.operator || bi('Opérateur non transmis', 'المشغّل غير متاح')} · {sim.state === 'ready' ? bi('prête', 'جاهزة') : sim.state === 'no_service' ? bi('sans réseau', 'بلا شبكة') : sim.state === 'disabled' ? bi('désactivée', 'معطلة') : bi('état inconnu', 'حالة غير معروفة')}</span>)}</div>}
+            <div className="mt-3 flex flex-wrap gap-1.5">{[
+              [gateway.capabilities?.outbound_call, bi('Appel sortant', 'اتصال صادر')],
+              [gateway.capabilities?.inbound_call, bi('Appel entrant', 'اتصال وارد')],
+              [gateway.capabilities?.sms_send, bi('SMS sortant', 'رسالة صادرة')],
+              [gateway.capabilities?.sms_receive, bi('SMS entrant', 'رسالة واردة')],
+            ].map(([available, label]) => <span key={String(label)} className={`rounded-full px-2 py-1 text-[9px] font-bold ${available ? 'bg-violet-50 text-violet-700' : 'bg-slate-100 text-slate-400'}`}>{label}: {available ? bi('disponible', 'متاح') : bi('non signalé', 'غير متاح')}</span>)}</div>
+          </article>)}
+        </div> : <EmptyState icon={Smartphone} title={bi('Aucune passerelle enregistrée', 'لا توجد بوابة مرتبطة')} subtitle={bi('Le statut reste hors ligne tant qu’aucun téléphone Android réel n’a terminé l’appairage.', 'ستبقى الحالة غير متصلة حتى إتمام ربط هاتف Android حقيقي.')} />}
+      </section>
+
+      <section className="saw-glass rounded-[26px] p-4 sm:p-6">
+        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><ArrowDownToLine className="h-5 w-5" /></span><div><h3 className="text-base font-black text-slate-900">{bi('Call Centre APK', 'Call Centre APK')}</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">{data?.apk.available ? bi('Le fichier installé sur le serveur est disponible au téléchargement.', 'الملف المثبّت على الخادم متاح للتحميل.') : bi('L’application Call Centre n’est pas encore disponible au téléchargement.', 'تطبيق Call Centre غير متاح للتحميل بعد.')}</p></div></div>
+          {data?.apk.available ? <a href={`${API_BASE_URL.replace(/[/]+$/, '')}${data.apk.download_path}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-xs font-extrabold text-white shadow-lg shadow-violet-700/15 transition hover:bg-violet-600"><ArrowDownToLine className="h-4 w-4" />{bi('Télécharger Call Centre APK (Android)', 'تحميل Call Centre APK (Android)')}</a> : <button type="button" disabled className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-xs font-extrabold text-slate-500"><ArrowDownToLine className="h-4 w-4" />{bi('Bientôt disponible', 'قريباً')}</button>}
+        </div>
+      </section>
+
+      <section className="saw-glass rounded-[26px] p-4 sm:p-6">
+        <div className="mb-4"><h3 className="text-base font-black text-slate-900">{bi('Appels et SMS autorisés', 'المكالمات والرسائل المصرّح بها')}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{bi('Une action ne peut viser qu’une demande confirmée. Le consentement est obligatoire, chaque commande est journalisée et les limites horaires sont appliquées côté serveur.', 'لا يمكن توجيه الأمر إلا لطلب مؤكّد. الموافقة مطلوبة، وكل أمر يُسجّل وتُطبّق حدود الإرسال على الخادم.')}</p></div>
+        {!onlineGateways.length ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900">{bi('Aucune passerelle en ligne : aucune action GSM ne peut être envoyée.', 'لا توجد بوابة متصلة؛ لا يمكن إرسال أي أمر GSM.')}</div> : !confirmedOrders.length ? <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">{bi('Aucune demande client confirmée avec numéro de téléphone.', 'لا يوجد طلب مؤكد يحتوي على رقم هاتف.')}</div> : <form onSubmit={(event) => void submitGatewayJob(event)} className="grid gap-3 md:grid-cols-2">
+          <FormField label={bi('Téléphone passerelle', 'هاتف البوابة')}><select value={selectedGateway?.id || ''} onChange={(event) => { setSelectedGatewayId(event.target.value); setSimSlot(''); }} className={inputClass}>{onlineGateways.map((gateway) => <option key={gateway.id} value={gateway.id}>{gateway.device_name}</option>)}</select></FormField>
+          <FormField label={bi('Demande client confirmée', 'طلب العميل المؤكد')}><select required value={selectedOrderId} onChange={(event) => setSelectedOrderId(event.target.value)} className={inputClass}><option value="">{bi('Sélectionner une demande…', 'اختر طلباً…')}</option>{confirmedOrders.map((order) => <option key={order.id} value={order.id}>{order.customerName} · {order.productName}</option>)}</select></FormField>
+          <FormField label={bi('Action', 'الإجراء')}><select value={action} onChange={(event) => setAction(event.target.value as 'outbound_call' | 'send_sms')} className={inputClass}><option value="outbound_call" disabled>{bi('Appel GSM avec voix IA — pont Live requis', 'اتصال GSM بصوت ذكي — يتطلب ربط Live')}</option><option value="send_sms">{bi('Envoyer un SMS', 'إرسال رسالة SMS')}</option></select><span className="mt-1.5 block text-[10px] leading-4 text-amber-700">{bi('Les appels GSM IA restent désactivés jusqu’à l’installation du pont audio Live serveur. Aucun appel ne sera lancé.', 'اتصالات GSM الذكية متوقفة حتى تجهيز جسر الصوت Live على الخادم. لن يتم إجراء أي اتصال.')}</span></FormField>
+          <FormField label={bi('SIM à utiliser', 'الشريحة المستخدمة')}><select value={simSlot} onChange={(event) => setSimSlot(event.target.value)} className={inputClass}><option value="">{bi('Choix par défaut du téléphone', 'اختيار الهاتف الافتراضي')}</option>{readySims.map((sim) => <option key={sim.slot} value={sim.slot}>{bi('SIM', 'SIM')} {Number(sim.slot) + 1}{sim.operator ? ` · ${sim.operator}` : ''}</option>)}</select></FormField>
+          {action === 'send_sms' && <FormField label={`${bi('Message SMS (max. 320 caractères)', 'نص SMS (320 حرفاً كحد أقصى)')} *`} className="md:col-span-2"><textarea required value={smsMessage} onChange={(event) => setSmsMessage(event.target.value.slice(0, 320))} rows={3} maxLength={320} className={`${inputClass} resize-y`} /><span className="mt-1 block text-end text-[10px] text-slate-400">{smsMessage.length}/320</span></FormField>}
+          <FormField label={bi('Référence de consentement (6 caractères min.)', 'مرجع الموافقة (6 أحرف على الأقل)')} className="md:col-span-2"><input required minLength={6} maxLength={160} value={consentReference} onChange={(event) => setConsentReference(event.target.value)} placeholder={bi('Ex. demande de rappel du 10/10 ou référence de consentement', 'مثال: طلب معاودة الاتصال بتاريخ 10/10 أو مرجع الموافقة')} className={inputClass} /></FormField>
+          <FormField label={bi('Type de consentement', 'نوع الموافقة')} className="md:col-span-2"><select value={consentMethod} onChange={(event) => setConsentMethod(event.target.value as 'explicit_customer_request' | 'recorded_opt_in')} className={inputClass}><option value="explicit_customer_request">{bi('Demande explicite du client', 'طلب صريح من الزبون')}</option><option value="recorded_opt_in">{bi('Consentement préalable enregistré', 'موافقة مسبقة مسجلة')}</option></select></FormField>
+          <label className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-semibold leading-5 text-amber-950 md:col-span-2"><input type="checkbox" checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} className="mt-1 h-4 w-4 accent-violet-700" /><span>{bi('Je confirme que le client a demandé cet appel/SMS ou a donné un accord valable, et que cette action respecte les règles locales.', 'أؤكد أن الزبون طلب هذا الاتصال/الرسالة أو وافق عليها، وأن الإجراء يحترم القوانين المحلية.')}</span></label>
+          <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2"><p className="text-[10px] leading-4 text-slate-500">{bi('Limite serveur : 10 SMS par heure et par compte. Android et l’opérateur peuvent exiger une permission ou empêcher certaines fonctions.', 'حد الخادم: 10 رسائل SMS في الساعة لكل حساب. قد يتطلب Android أو المشغّل إذناً أو يمنع بعض الوظائف.')}</p><button type="submit" disabled={submittingJob || !consentConfirmed || consentReference.trim().length < 6 || !selectedOrderId || (action === 'send_sms' && !smsMessage.trim())} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-xs font-extrabold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">{action === 'outbound_call' ? <PhoneCall className="h-4 w-4" /> : <Send className="h-4 w-4" />}{submittingJob ? bi('Envoi…', 'جارٍ الإرسال…') : action === 'outbound_call' ? bi('Envoyer l’appel', 'إرسال الاتصال') : bi('Envoyer le SMS', 'إرسال SMS')}</button></div>
+        </form>}
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-2">
+        <div className="saw-glass rounded-[26px] p-4 sm:p-6"><h3 className="mb-4 text-base font-black text-slate-900">{bi('Historique des commandes GSM', 'سجل أوامر GSM')}</h3>{data?.jobs.length ? <div className="space-y-2">{data.jobs.slice(0, 8).map((job) => <div key={job.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white/70 p-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${job.status === 'failed' ? 'bg-rose-50 text-rose-700' : job.action === 'send_sms' ? 'bg-blue-50 text-blue-700' : 'bg-violet-50 text-violet-700'}`}>{job.action === 'send_sms' ? <MessageSquareText className="h-4 w-4" /> : <PhoneCall className="h-4 w-4" />}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-slate-800">{job.action === 'send_sms' ? bi('SMS', 'SMS') : bi('Appel', 'اتصال')} · {job.destination_masked || '••••'}</p><p className="mt-0.5 text-[10px] text-slate-500">{formatDate(job.created_at)}{job.error_code ? ` · ${job.error_code}` : ''}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${job.status === 'failed' ? 'bg-rose-50 text-rose-700' : job.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{statusLabel(job.status)}</span></div>)}</div> : <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">{bi('Aucune commande réelle enregistrée.', 'لا توجد أوامر حقيقية مسجلة.')}</p>}</div>
+        <div className="saw-glass rounded-[26px] p-4 sm:p-6"><h3 className="mb-4 text-base font-black text-slate-900">{bi('Journal de télémétrie et d’événements', 'سجل القياسات والأحداث')}</h3>{data?.events.length ? <div className="space-y-2">{data.events.slice(0, 8).map((item) => <div key={item.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white/70 p-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">{item.event_type.includes('call') ? <PhoneIncoming className="h-4 w-4" /> : item.event_type.includes('sms') ? <MessageSquareText className="h-4 w-4" /> : <Radio className="h-4 w-4" />}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{eventLabel(item.event_type)}</p><p className="mt-0.5 text-[10px] text-slate-500">{formatDate(item.created_at)}</p></div></div>)}</div> : <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">{bi('Aucun événement réel enregistré.', 'لا توجد أحداث حقيقية مسجلة.')}</p>}</div>
+      </section>
+
+      <p className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-white/60 p-3 text-[10px] leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" />{bi('La clé d’appareil est conservée sous forme hachée dans Supabase et n’est remise qu’une fois au relais. Les SMS entrants et leurs contenus ne sont pas remontés au tableau de bord. Les appels, l’audio et les SMS dépendent des permissions Android, de la version du système et de l’opérateur ; aucun déploiement matériel n’est effectué par cette interface.', 'يُخزّن مفتاح الجهاز بصيغة هاش في Supabase ولا يُسلّم إلا مرة واحدة للمرحّل. لا يتم رفع محتوى SMS الوارد إلى لوحة التحكم. تعتمد المكالمات والصوت والرسائل على أذونات Android وإصدار النظام والمشغّل؛ هذه الواجهة لا تنفذ أي نشر على جهاز حقيقي.')}</p>
+    </div>
+  );
+}
+
+function GatewayMetric({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string; detail: string }) {
+  return <div className="rounded-2xl border border-white/90 bg-white/80 p-3 shadow-[0_8px_28px_rgba(49,24,90,.05)] sm:p-4"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold text-slate-500">{label}</span><Icon className="h-4 w-4 text-violet-700" /></div><p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</p><p className="mt-1 text-[9px] font-semibold text-slate-400">{detail}</p></div>;
+}
+
+function GatewayTelemetry({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return <div className="rounded-xl bg-slate-50 p-2.5"><p className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><Icon className="h-3 w-3" />{label}</p><p className="mt-1 truncate text-[11px] font-extrabold text-slate-700">{value}</p></div>;
 }

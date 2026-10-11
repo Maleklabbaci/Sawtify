@@ -4,6 +4,8 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { createServer as createHttpServer } from "node:http";
+import { registerAgentSawtifyGateway } from "./server/agentSawtifyGateway";
 import { createClient } from "@supabase/supabase-js";
 import { Behavior, GoogleGenAI, Modality, Type as GenAiType } from "@google/genai";
 import dotenv from "dotenv";
@@ -2184,6 +2186,7 @@ function buildCaptionsAss(script: string, duration: number, fontFamily: string, 
 // ===================================================================
 async function startServer() {
   const app = express();
+  const httpServer = createHttpServer(app);
   const PORT = Number(process.env.PORT) || 3000;
 
   // Indique le nombre exact de reverse proxies de confiance. Évite `true` :
@@ -2248,6 +2251,17 @@ async function startServer() {
     if (!isValidAgentAccessToken(token)) return res.status(403).json({ success: false, error: "Code d'accès Agent requis ou expiré." });
     next();
   };
+
+  registerAgentSawtifyGateway({
+    app,
+    httpServer,
+    supabase: supabaseClient,
+    resolveUserId: (req) => getUserIdFromAuthHeader(req),
+    requireAgentAccess,
+    ownerLimiter: agentOwnerLimiter,
+    allowedOrigins: (FRONTEND_URL || PUBLIC_MEDIA_URL).split(",").map((value) => value.trim().replace(/[/]+$/, "")).filter(Boolean),
+    isProduction: process.env.NODE_ENV === "production",
+  });
 
   app.get("/api/agent/access/status", (_req, res) => res.json({
     required: AGENT_ACCESS_GATE_ENABLED,
@@ -4698,7 +4712,7 @@ Le texte de la proposition`;
   }, express.static(PREVIEW_DIR, { fallthrough: true, index: false, dotfiles: "deny" }));
 
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+    const vite = await createViteServer({ server: { middlewareMode: true, hmr: { server: httpServer } }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
@@ -4899,7 +4913,7 @@ Le texte de la proposition`;
     }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     // Les aperçus manquants se fabriquent tout seuls, en tâche de fond :
     // aucune commande à lancer, aucun terminal. Voir warmMissingVoicePreviews.
