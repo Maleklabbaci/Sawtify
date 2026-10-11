@@ -14,6 +14,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:tts": "tsx tts/selftest.ts",
+    "test:gemini-retry": "tsx tts/test-retry-policy.ts",
+    "test:gemini-keys": "tsx tts/test-gemini-key-routing.ts",
     "verif:balises": "tsx scripts/verifier-balises.ts",
     "test:voix": "tsx tts/test-noms.ts",
     "compare:tts": "tsx scripts/comparer-3.1-vs-3.8.ts",

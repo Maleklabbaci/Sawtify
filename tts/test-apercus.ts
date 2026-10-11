@@ -24,6 +24,7 @@ import {
   type VoicePreviewManifest,
 } from "./voicePreviews";
 import { parseTranscript } from "./vocalTags";
+import { resolveGeminiVoiceName } from "./voiceMapping";
 
 let ok = 0, ko = 0;
 const echecs: string[] = [];
@@ -57,9 +58,19 @@ check("aucun prénom arabe vide", targets.every((t) => t.nameAr && /[\u0600-\u06
 check("aucun slug vide", targets.every((t) => t.slug && t.slug.length > 1));
 check("prénoms français tous uniques", new Set(targets.map((t) => t.nameFr)).size === 30);
 check("prénoms arabes tous uniques", new Set(targets.map((t) => t.nameAr)).size === 30);
-check("identifiants techniques tous uniques", new Set(targets.map((t) => t.voice.id)).size === 30);
+check("identifiants techniques tous uniques", new Set(targets.map((t) => t.geminiVoiceId)).size === 30);
+const HISTORICAL_VOICE_MAPPINGS: Record<string, string> = {
+  voice_amin: "Puck", voice_khalid: "Charon", voice_rashid: "Fenrir",
+  voice_bilal: "Algenib", voice_faycal: "Orus", voice_yasmin: "Zephyr",
+  voice_maryam: "Sulafat", voice_layla: "Leda", voice_nour: "Achernar",
+};
+check("les 9 IDs historiques, dont voice_amin, sont convertis vers Gemini",
+  Object.entries(HISTORICAL_VOICE_MAPPINGS).every(([legacy, gemini]) =>
+    resolveGeminiVoiceName(legacy) === gemini
+    && targets.some((target) => target.legacyId === legacy && target.geminiVoiceId === gemini)));
+check("les ID internes historiques n'atteignent jamais Gemini", targets.filter((t) => t.legacyId).every((t) => !t.geminiVoiceId.startsWith("voice_")));
 
-const fichiers = targets.map((t) => previewFileName(t.voice.id));
+const fichiers = targets.map((t) => previewFileName(t.geminiVoiceId));
 check("30 noms de fichiers distincts (aucun écrasement)", new Set(fichiers).size === 30);
 check("noms de fichiers sûrs (URL et système)", fichiers.every((f) => /^[a-z0-9-]+\.wav$/.test(f)), fichiers.filter((f) => !/^[a-z0-9-]+\.wav$/.test(f)).join(", "));
 
@@ -69,7 +80,7 @@ check("noms de fichiers sûrs (URL et système)", fichiers.every((f) => /^[a-z0-
 // et Achernar (Nour) sont bien des voix de FEMME ; Pulcherrima et Schedar,
 // elles, sont des voix d'HOMME du catalogue général, sans identifiant.
 const VOIX_PERSONAS = ["Puck", "Charon", "Fenrir", "Algenib", "Orus", "Zephyr", "Sulafat", "Leda", "Achernar"];
-const avecLegacy = targets.filter((t) => Boolean(t.legacyId)).map((t) => t.voice.id).sort();
+const avecLegacy = targets.filter((t) => Boolean(t.legacyId)).map((t) => t.geminiVoiceId).sort();
 check("les 9 voix des personas gardent leur identifiant Sawtify",
   avecLegacy.join(",") === [...VOIX_PERSONAS].sort().join(","), avecLegacy.join(", "));
 check("les 21 autres voix n'ont aucun identifiant historique",
@@ -81,10 +92,10 @@ section("3. TEXTES D'APERÇU — un par voix, tous propres");
 // ===========================================================================
 const textes = Object.entries(VOICE_PREVIEW_TEXTS);
 check("30 textes d'aperçu", textes.length === 30, `${textes.length}`);
-check("chaque voix a son texte", targets.every((t) => Boolean(VOICE_PREVIEW_TEXTS[t.voice.id])),
-  targets.filter((t) => !VOICE_PREVIEW_TEXTS[t.voice.id]).map((t) => t.voice.id).join(", "));
-check("aucun texte orphelin (clé inconnue)", targets.every((t) => t.voice.id in VOICE_PREVIEW_TEXTS),
-  textes.filter(([k]) => !targets.some((t) => t.voice.id === k)).map(([k]) => k).join(", "));
+check("chaque voix a son texte", targets.every((t) => Boolean(VOICE_PREVIEW_TEXTS[t.geminiVoiceId])),
+  targets.filter((t) => !VOICE_PREVIEW_TEXTS[t.geminiVoiceId]).map((t) => t.geminiVoiceId).join(", "));
+check("aucun texte orphelin (clé inconnue)", targets.every((t) => t.geminiVoiceId in VOICE_PREVIEW_TEXTS),
+  textes.filter(([k]) => !targets.some((t) => t.geminiVoiceId === k)).map(([k]) => k).join(", "));
 
 const problemes: string[] = [];
 const interdits: string[] = [];
@@ -119,8 +130,8 @@ const faux: VoicePreviewManifest = {
   version: 1,
   count: 30,
   voices: targets.map((t) => ({
-    voiceId: t.voice.id, legacyId: t.legacyId, nameFr: t.nameFr, nameAr: t.nameAr,
-    file: previewFileName(t.voice.id), durationSeconds: 10, bytes: 480000,
+    voiceId: t.geminiVoiceId, legacyId: t.legacyId, nameFr: t.nameFr, nameAr: t.nameAr,
+    file: previewFileName(t.geminiVoiceId), durationSeconds: 10, bytes: 480000,
     generatedAt: new Date().toISOString(), model: "gemini-3.8-flash-tts", gender: "unknown" as const,
   })),
 };

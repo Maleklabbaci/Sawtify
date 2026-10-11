@@ -28,6 +28,7 @@
 import { createHash } from "node:crypto";
 import { STUDIO_VOICES, type StudioVoice } from "./voices";
 import { VOICE_NAMES } from "./voiceNames";
+import { resolveGeminiVoiceName } from "./voiceMapping";
 
 /**
  * SCRIPT D'AUDITION — identique pour les 30 voix.
@@ -153,19 +154,24 @@ export type VoicePreviewManifest = {
 /** Construit la liste des 30 voix à générer, avec toutes leurs métadonnées. */
 export function previewTargets(): {
   voice: StudioVoice;
+  /** ID officiel Gemini, utilisé pour les requêtes, les fichiers et le manifeste. */
+  geminiVoiceId: string;
   nameFr: string;
   nameAr: string;
   slug: string;
+  /** ID historique Sawtify, conservé uniquement pour compatibilité API. */
   legacyId?: string;
 }[] {
   return STUDIO_VOICES.map((v) => {
-    const n = VOICE_NAMES.find((x) => x.id === v.id);
+    const geminiVoiceId = resolveGeminiVoiceName(v.geminiVoice || v.id);
+    const n = VOICE_NAMES.find((x) => x.id === geminiVoiceId);
     return {
       voice: v,
-      nameFr: n?.fr ?? v.id,
-      nameAr: n?.ar ?? v.id,
-      slug: n?.slug ?? v.id.toLowerCase(),
-      legacyId: v.legacyFor?.[0],
+      geminiVoiceId,
+      nameFr: n?.fr ?? v.name ?? v.id,
+      nameAr: n?.ar ?? v.name ?? v.id,
+      slug: n?.slug ?? geminiVoiceId.toLowerCase(),
+      legacyId: v.legacyFor?.[0] || (v.id.startsWith("voice_") && v.id !== geminiVoiceId ? v.id : undefined),
     };
   });
 }
@@ -209,10 +215,10 @@ export function validateManifest(m: VoicePreviewManifest | null): {
       `Script d'audition modifié depuis la génération (manifeste ${m.scriptHash} ≠ attendu ${AUDITION_SCRIPT_HASH})`
     );
   }
-  const manquants = previewTargets().filter((t) => !m.voices.some((v) => v.voiceId === t.voice.id));
+  const manquants = previewTargets().filter((t) => !m.voices.some((v) => v.voiceId === t.geminiVoiceId));
   if (manquants.length) {
     avertissements.push(
-      `${manquants.length} voix sans aperçu : ${manquants.map((t) => t.voice.id).join(", ")}`
+      `${manquants.length} voix sans aperçu : ${manquants.map((t) => t.geminiVoiceId).join(", ")}`
     );
   }
   if (m.count !== m.voices.length) {
@@ -225,6 +231,6 @@ export function validateManifest(m: VoicePreviewManifest | null): {
 export function voicesNeedingGenderValidation(m: VoicePreviewManifest | null): string[] {
   return previewTargets()
     .filter((t) => t.voice.gender === "unknown")
-    .filter((t) => !m?.voices.some((v) => v.voiceId === t.voice.id && v.gender !== "unknown"))
-    .map((t) => t.voice.id);
+    .filter((t) => !m?.voices.some((v) => v.voiceId === t.geminiVoiceId && v.gender !== "unknown"))
+    .map((t) => t.geminiVoiceId);
 }

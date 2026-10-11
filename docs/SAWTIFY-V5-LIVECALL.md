@@ -20,7 +20,7 @@ Les réponses parlées sont limitées à 700 caractères, à 4 000 caractères s
 ## Mise en service manuelle
 
 1. Dans le SQL Editor du projet Supabase, appliquer le script complet `supabase/agent_sawtify_pricing.sql`. Il contient le schéma de facturation existant ainsi que les tables et fonctions de session vocale.
-2. Vérifier que `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` et `GEMINI_API_KEY` sont configurées dans l’environnement serveur Render. Ne jamais ajouter `GEMINI_API_KEY` à une variable `VITE_*`, au navigateur ou au dépôt.
+2. Vérifier que `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` sont configurées dans l’environnement serveur Render. Pour Gemini, utiliser `GEMINI_API_KEY_FREE` (projet gratuit) et `GEMINI_API_KEY_PAID` (projet facturé); `GEMINI_API_KEY` reste accepté comme clé de secours historique. Ne jamais placer une clé dans une variable `VITE_*`, le navigateur, le dépôt ou la conversation. Voir `docs/gemini-api-keys.md`.
 3. Construire et déployer le serveur depuis l’environnement Render habituel. Aucun déploiement ni push GitHub n’a été effectué pour cette archive.
 
 Aucun canal e-mail/SMS externe n’étant configuré, la notification commerçant de cette version est intégrée au tableau de bord (mise à jour périodique pendant qu’il est ouvert; les demandes restent visibles au prochain chargement).

@@ -50,7 +50,22 @@ import {
 
 import { parseTranscript, VOCAL_TAGS, normalizeTagKey } from "./tts/vocalTags";
 import { LEGACY_VOICE_MIGRATION, CHARACTER_STYLE_HINT, findStudioVoice } from "./tts/voices";
-import { resolveVoiceName, voiceNameStats, voiceNameEntry, VOICE_NAMES } from "./tts/voiceNames";
+import { voiceNameStats, voiceNameEntry, VOICE_NAMES } from "./tts/voiceNames";
+import { resolveGeminiVoiceName } from "./tts/voiceMapping";
+import {
+  GEMINI_TTS_MAX_ATTEMPTS,
+  GeminiHttpError,
+  getGeminiHttpStatus,
+  geminiRetryDelayMs,
+  isGeminiDailyQuotaError,
+  isRetryableGeminiError,
+} from "./tts/retryPolicy";
+import {
+  getGeminiApiKeyCandidates,
+  getGeminiKeyConfiguration,
+  hasAnyGeminiApiKey,
+  markGeminiFreeQuotaExhausted,
+} from "./tts/geminiApiKeys";
 import {
   AUDITION_SCRIPT,
   AUDITION_SCRIPT_HASH,
@@ -178,7 +193,7 @@ function createLimiter(concurrency: number) {
   return limit;
 }
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY_PAID || process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_FREE || "";
 const configuredAgentLiveModel = process.env.AGENT_LIVE_MODEL || "";
 const AGENT_LIVE_MODEL = /^gemini-2\.0.*live/i.test(configuredAgentLiveModel) ? "gemini-3.8-live" : configuredAgentLiveModel || "gemini-3.8-live";
 const configuredAgentLiveOutputMode = (process.env.AGENT_LIVE_OUTPUT_MODE || "sawtify_tts").trim().toLowerCase();
@@ -208,7 +223,12 @@ const VIDEO_POINTS_PER_MINUTE = 70;
 type VideoJob = { userId: string; status: "queued" | "processing" | "ready" | "failed"; outputPath?: string; cost?: number; error?: string; createdAt: number };
 const VIDEO_JOBS = new Map<string, VideoJob>();
 
-if (!GEMINI_API_KEY) console.warn("[Config] GEMINI_API_KEY manquante");
+if (!hasAnyGeminiApiKey()) console.warn("[Config] GEMINI_API_KEY_FREE, GEMINI_API_KEY_PAID et GEMINI_API_KEY sont manquantes");
+else {
+  const keyConfig = getGeminiKeyConfiguration();
+  console.log(`[Config] Gemini API keys: free=${keyConfig.freeConfigured ? "configured" : "missing"}, paid=${keyConfig.paidConfigured ? "configured" : "missing"}${keyConfig.duplicateKeys ? " (same value; no independent fallback)" : ""}`);
+  if (keyConfig.duplicateKeys) console.warn("[Config] Les clés Gemini Free/Paid sont identiques; la deuxième clé n'ajoute ni quota ni fallback payant indépendant.");
+}
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) console.warn("[Config] SUPABASE manquants");
 if (!SUPABASE_JWT_SECRET) console.warn("[Config] SUPABASE_JWT_SECRET manquante — vérification JWT en ligne utilisée (plus lent)");
 if (AGENT_ACCESS_GATE_ENABLED && !AGENT_ACCESS_CONFIGURED) console.warn("[Config] Accès Agent privé activé mais incomplet : renseigne AGENT_ACCESS_CODE et un secret serveur de 32 caractères minimum.");
@@ -1074,59 +1094,10 @@ function pcmToMp3Buffer(pcmBuffer: Buffer, sampleRate = 24000): Buffer {
 // profil naturel de chaque voix (avant : 5 hommes = Puck, 4 femmes = Zephyr,
 // et on demandait à Puck "Upbeat" d'être un narrateur posé → incohérence).
 // ===================================================================
-const GEMINI_VOICE_MAP: Record<string, string> = {
-  // ── Hommes ──
-  voice_amin:   "Puck",     // Upbeat      → jeune, sympa, dynamique
-  voice_khalid: "Charon",   // Informative → narrateur documentaire, posé
-  voice_rashid: "Fenrir",   // Excitable   → hype, énergie
-  voice_bilal:  "Algenib",  // Gravelly    → voix grave, conteur
-  voice_faycal: "Orus",     // Firm        → vendeur sûr de lui
-  // ── Femmes ──
-  voice_yasmin: "Zephyr",   // Bright      → jeune femme enjouée
-  voice_maryam: "Sulafat",  // Warm        → chaleureuse
-  voice_layla:  "Leda",     // Youthful    → jeune, vive
-  voice_nour:   "Achernar", // Soft        → douce, calme
-  // ── Pass-through technique ──
-  Puck: "Puck", Zephyr: "Zephyr", Charon: "Charon", Kore: "Kore", Fenrir: "Fenrir",
-  Aoede: "Aoede", Orus: "Orus", Sulafat: "Sulafat", Leda: "Leda",
-  // ── Alias legacy (alignés sur les nouvelles voix) ──
-  voice_dz_amine: "Puck", voice_dz_yasmine: "Zephyr", voice_ar_sofiane: "Puck",
-  voice_fr_ines: "Sulafat", voice_dz_rachid: "Fenrir", voice_en_lina: "Leda",
-};
-
-// ── Extension 3.8 : accès aux 30 voix studio ──────────────────────────────
-// On AJOUTE les correspondances manquantes sans jamais écraser les entrées
-// ci-dessus (les voix historiques gardent donc exactement le même rendu).
-// Permet aussi d'envoyer directement un nom de voix officiel ("Kore",
-// "Sadachbia"…) ou une voix sur mesure ("voice_abc123") depuis l'API.
-for (const [legacyId, studioVoice] of Object.entries(LEGACY_VOICE_MIGRATION)) {
-  if (!(legacyId in GEMINI_VOICE_MAP)) GEMINI_VOICE_MAP[legacyId] = studioVoice;
-}
-
-/**
- * ★ POINT D'ENTRÉE UNIQUE POUR TOUTES LES VOIX ★
- *
- * Accepte N'IMPORTE QUELLE écriture et renvoie toujours le nom technique
- * officiel attendu par Google :
- *
- *   "voice_amin"  → "Puck"      (identifiant historique Sawtify)
- *   "Amine"       → "Puck"      (prénom français)
- *   "أمين"         → "Puck"      (prénom arabe)
- *   "amine"       → "Puck"      (slug)
- *   "Puck"        → "Puck"      (nom technique)
- *   "Karim"       → "Kore"      (nouvelle voix studio, en français)
- *   "كريم"         → "Kore"      (nouvelle voix studio, en arabe)
- *   "voice_xyz"   → "voice_xyz" (voix sur mesure, laissée telle quelle)
- *   "inconnu"     → "Puck"      (repli sûr : jamais de voix invalide envoyée)
- *
- * Remplace la double logique GEMINI_VOICE_MAP + LEGACY_VOICE_MIGRATION :
- * un seul endroit décide, donc aucune incohérence possible entre les routes.
- */
+// Mapping partagé : tous les chemins (TTS, aperçus et préchauffage) convertissent
+// les IDs historiques Sawtify en noms officiels acceptés par Gemini.
 function resolveRequestedVoice(requested: unknown): string {
-  const builtin = GEMINI_VOICE_MAP[String(requested)] || LEGACY_VOICE_MIGRATION[String(requested)];
-  if (builtin) return builtin;
-  if (/^voice_[A-Za-z0-9_-]{6,120}$/.test(String(requested || ""))) return String(requested);
-  return resolveVoiceName(String(requested || "")) || "Puck";
+  return resolveGeminiVoiceName(requested);
 }
 
 // Source : liste de reference verifiee (13 femmes / 17 hommes), 26/09/2026.
@@ -1226,7 +1197,10 @@ const PREVIEW_WARM_STATE = {
   quota_atteint: false,
   reprises: 0,
   prochaineTentative: null as string | null,
+  echecsPermanents: [] as string[],
 };
+const PREVIEW_PERMANENT_FAILURES = new Set<string>();
+let PREVIEW_WARMUP_RUNNING = false;
 /** Adresse PUBLIQUE d'un aperçu stocké (bucket public → CDN Supabase). */
 const publicPreviewUrl = (key: string): string | null =>
   SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/${PREVIEW_BUCKET}/${key}.wav` : null;
@@ -1339,8 +1313,9 @@ const previewKeyForVoice = (voiceName: string): string => `studio_${voiceName}`;
 
 /** Texte d'aperçu d'une voix (vitrine si elle existe, sinon audition). */
 function previewScriptForVoice(voiceName: string, voiceId: string): string {
+  const geminiVoiceName = resolveRequestedVoice(voiceName);
   return (
-    VOICE_PREVIEW_TEXTS[voiceName] ||
+    VOICE_PREVIEW_TEXTS[geminiVoiceName] ||
     VOICE_PREVIEW_SCRIPTS[voiceId] ||
     VOICE_PREVIEW_SCRIPTS[voiceName] ||
     AUDITION_SCRIPT
@@ -1353,18 +1328,35 @@ function previewScriptForVoice(voiceName: string, voiceId: string): string {
  * a donc qu'un seul code qui sait fabriquer un aperçu.
  */
 async function generateVoicePreviewDataUri(voiceName: string, voiceId: string): Promise<string> {
-  const script = previewScriptForVoice(voiceName, voiceId);
-  const { pcmBuffer, error } = await synthesizeWithRetry(script, voiceName, 3, 1.0, 1.0, voiceId, []);
-  if (!pcmBuffer || error) throw new Error(error || "Audio d'aperçu vide");
+  const geminiVoiceName = resolveRequestedVoice(voiceName);
+  const script = previewScriptForVoice(geminiVoiceName, voiceId);
+  const { pcmBuffer, error, errorStatus } = await synthesizeWithRetry(
+    script, geminiVoiceName, GEMINI_TTS_MAX_ATTEMPTS, 1.0, 1.0, voiceId, [],
+  );
+  if (!pcmBuffer || error) {
+    const previewError = new Error(error || "Audio d'aperçu vide") as Error & { status?: number | null };
+    previewError.status = errorStatus;
+    throw previewError;
+  }
   return `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
 }
 
-async function savePersistentPreview(cacheKey: string, dataUri: string): Promise<void> {
-  if (!supabaseClient) return;
+async function savePersistentPreview(cacheKey: string, dataUri: string): Promise<boolean> {
+  if (!supabaseClient) return false;
   try {
     const bytes = Buffer.from(dataUri.split(",")[1] || "", "base64");
-    await supabaseClient.storage.from(PREVIEW_BUCKET).upload(`${cacheKey}.wav`, bytes, { contentType: "audio/wav", upsert: true });
-  } catch (err: any) { console.warn(`[Preview cache] sauvegarde impossible: ${err?.message || err}`); }
+    const { error } = await supabaseClient.storage.from(PREVIEW_BUCKET).upload(
+      `${cacheKey}.wav`, bytes, { contentType: "audio/wav", upsert: true },
+    );
+    if (error) {
+      console.warn(`[Preview cache] sauvegarde impossible: ${error.message}`);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn(`[Preview cache] sauvegarde impossible: ${err?.message || err}`);
+    return false;
+  }
 }
 
 function normalizeTextForTTS(text: string, addTrailingPause = true): string {
@@ -1470,20 +1462,9 @@ function getRegionGuide(region: string): string { return REGION_GUIDES[region] |
 //   milieu était renvoyé comme un succès et FACTURÉ au client.
 // ===================================================================
 
-/* ===================================================================
-   APPEL GEMINI — LA CLÉ API PART DANS L'EN-TÊTE, PLUS DANS L'ADRESSE
-
-   Avant :  …:generateContent?key=LA_CLE
-   Après  :  …:generateContent   +   en-tête « x-goog-api-key »
-
-   Pourquoi : une adresse se retrouve partout — journaux du serveur, journaux
-   du proxy, messages d'erreur, historique du navigateur. Un en-tête, non.
-   C'est aussi la méthode utilisée dans la documentation officielle Google.
-
-   SÉCURITÉ : si Google refuse malgré tout l'appel avec l'en-tête (401 ou 403),
-   on retente UNE seule fois avec l'ancienne méthode. Ce changement ne peut donc
-   pas casser la production — au pire, il ne change rien.
-   =================================================================== */
+/* APPEL GEMINI — la clé reste dans l'en-tête, jamais dans l'URL.
+   Les réponses 4xx sont terminales; seul le mécanisme de retry des erreurs
+   réseau/serveur temporaires peut relancer la génération. */
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 async function appelleGemini(
@@ -1492,33 +1473,62 @@ async function appelleGemini(
   corps: unknown,
   options: { signal?: AbortSignal; timeoutMs?: number } = {}
 ): Promise<Response> {
-  const urlSansCle = `${GEMINI_BASE}/${modele}:generateContent`;
-  // Un seul signal possible : celui qu'on nous passe, ou un délai maximal.
+  const url = `${GEMINI_BASE}/${modele}:generateContent`;
   const signal = options.signal ?? (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined);
-  const corpsJson = JSON.stringify(corps);
-
-  const reponse = await fetch(urlSansCle, {
+  return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: corpsJson,
-    ...(signal ? { signal } : {}),
-  });
-  if (reponse.status !== 401 && reponse.status !== 403) return reponse;
-
-  // Repli : ancienne méthode (clé dans l'adresse). On ne retente qu'ici,
-  // et une seule fois, pour ne pas doubler les appels facturés.
-  console.warn(`[Gemini] L'en-tête x-goog-api-key a été refusé (${reponse.status}) — repli sur la clé dans l'adresse`);
-  return fetch(`${urlSansCle}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: corpsJson,
+    body: JSON.stringify(corps),
     ...(signal ? { signal } : {}),
   });
 }
 
-async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
+async function callGeminiRestWithKeyFallback(
+  quotaScope: string,
+  send: (apiKey: string) => Promise<Response>,
+): Promise<Response> {
+  const candidates = getGeminiApiKeyCandidates(quotaScope);
+  if (!candidates.length) throw new Error("Aucune clé Gemini active; vérifie les quotas gratuits et configure la clé payante de relève.");
+
+  let lastResponse: Response | null = null;
+  for (const credential of candidates) {
+    const response = await send(credential.apiKey);
+    lastResponse = response;
+    if (credential.tier !== "free" || response.ok) return response;
+
+    const body = await response.clone().text().catch(() => "");
+    const quotaError = new GeminiHttpError(response.status, body);
+    if (!isGeminiDailyQuotaError(quotaError)) return response;
+
+    const resetAt = markGeminiFreeQuotaExhausted(credential.apiKey, quotaScope);
+    console.warn(`[Gemini] Quota journalière gratuite épuisée pour ${quotaScope}; passage à la clé payante${resetAt ? ` jusqu'au reset ${new Date(resetAt).toISOString()}` : ""}.`);
+  }
+  return lastResponse!;
+}
+
+async function callGeminiSdkWithKeyFallback<T>(
+  quotaScope: string,
+  send: (apiKey: string) => Promise<T>,
+): Promise<T> {
+  const candidates = getGeminiApiKeyCandidates(quotaScope);
+  if (!candidates.length) throw new Error("Aucune clé Gemini active; vérifie les quotas gratuits et configure la clé payante de relève.");
+
+  let lastQuotaError: unknown;
+  for (const credential of candidates) {
+    try {
+      return await send(credential.apiKey);
+    } catch (error) {
+      if (credential.tier !== "free" || !isGeminiDailyQuotaError(error)) throw error;
+      lastQuotaError = error;
+      const resetAt = markGeminiFreeQuotaExhausted(credential.apiKey, quotaScope);
+      console.warn(`[Gemini] Quota journalière gratuite épuisée pour ${quotaScope}; passage à la clé payante${resetAt ? ` jusqu'au reset ${new Date(resetAt).toISOString()}` : ""}.`);
+    }
+  }
+  throw lastQuotaError instanceof Error ? lastQuotaError : new Error("Quota gratuit Gemini épuisé; aucune clé payante de relève disponible.");
+}
+
+async function callGeminiTTSNonStreaming(requestBody: any, apiKey: string): Promise<Buffer> {
+  if (!apiKey) throw new Error("Aucune clé Gemini active");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TTS_FETCH_TIMEOUT_MS);
 
@@ -1527,7 +1537,13 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Gemini API ${res.status}: ${errText.substring(0, 200)}`);
+      const retryAfter = res.headers.get("retry-after");
+      const retryAfterSeconds = Number(retryAfter);
+      const retryAfterDate = retryAfter && !Number.isFinite(retryAfterSeconds) ? Date.parse(retryAfter) : NaN;
+      const retryAfterMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : Number.isFinite(retryAfterDate) ? Math.max(0, retryAfterDate - Date.now()) : undefined;
+      throw new GeminiHttpError(res.status, errText, retryAfterMs);
     }
 
     const json = await res.json();
@@ -1550,7 +1566,7 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
       throw new Error(`Réponse sans audio (finishReason=${finishReason || "absent"})`);
     }
 
-    // FIX TTS-B : audio tronqué → REJET (le niveau supérieur retentera).
+    // Audio incomplet → rejet. Le retry n'est réservé qu'aux erreurs HTTP/réseau temporaires.
     if (finishReason && finishReason !== "STOP") {
       throw new Error(`Audio incomplet (finishReason=${finishReason})`);
     }
@@ -1561,8 +1577,10 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 
     return audio.pcm;
   } catch (err: any) {
-    if (err?.name === "AbortError") {
-      throw new Error(`Timeout Gemini TTS après ${TTS_FETCH_TIMEOUT_MS}ms`);
+    if (err?.name === "AbortError" || err?.name === "TimeoutError") {
+      const timeoutError = new Error(`Timeout Gemini TTS après ${TTS_FETCH_TIMEOUT_MS}ms`);
+      timeoutError.name = "TimeoutError";
+      throw timeoutError;
     }
     throw err;
   } finally {
@@ -1580,7 +1598,7 @@ async function callGeminiTTSNonStreaming(requestBody: any): Promise<Buffer> {
 async function synthesizeWithRetry(
   rawText: string,
   selectedVoiceName: string,
-  maxRetries = 3,
+  maxRetries = GEMINI_TTS_MAX_ATTEMPTS,
   speed = 1.0,
   pitch = 1.0,
   originalVoiceId: string = "",
@@ -1589,9 +1607,22 @@ async function synthesizeWithRetry(
   intensity: "low" | "normal" | "high" = "normal",
   stylePrompt: string = "",
   speechBehavior: { introFiller?: boolean; trailingPause?: boolean } = {}
-): Promise<{ pcmBuffer: Buffer | null; error: string | null; usedStreaming: boolean; chunkCount: number }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { pcmBuffer: null, error: "GEMINI_API_KEY non configurée", usedStreaming: false, chunkCount: 0 };
+): Promise<{ pcmBuffer: Buffer | null; error: string | null; errorStatus?: number | null; usedStreaming: boolean; chunkCount: number }> {
+  const availableKeys = getGeminiApiKeyCandidates(TTS_MODEL);
+  if (!availableKeys.length) {
+    const quotaFallbackMissing = hasAnyGeminiApiKey();
+    return {
+      pcmBuffer: null,
+      error: quotaFallbackMissing
+        ? "Quota Gemini gratuit épuisé; configure GEMINI_API_KEY_PAID pour la relève."
+        : "Aucune clé Gemini configurée (GEMINI_API_KEY_FREE, GEMINI_API_KEY_PAID ou GEMINI_API_KEY).",
+      errorStatus: quotaFallbackMissing ? 429 : null,
+      usedStreaming: false,
+      chunkCount: 0,
+    };
+  }
+  // Même si un ancien appelant demande davantage, le plafond global reste deux essais.
+  const attemptLimit = Math.max(1, Math.min(GEMINI_TTS_MAX_ATTEMPTS, Math.floor(Number(maxRetries) || GEMINI_TTS_MAX_ATTEMPTS)));
 
   const isFemale = FEMALE_GEMINI_VOICES.has(selectedVoiceName);
   const persona = VOICE_PERSONAS[originalVoiceId] || (isFemale
@@ -1698,6 +1729,10 @@ async function synthesizeWithRetry(
       console.warn(`[TTS] Morceau ${ci + 1} — ${built.warnings.join(" | ")}`);
     }
 
+    let activeApiKey = getGeminiApiKeyCandidates(TTS_MODEL)[0];
+    if (!activeApiKey) {
+      throw new GeminiHttpError(429, "Quota gratuit Gemini épuisé et aucune clé payante configurée.");
+    }
     let lastChunkError: any = null;
     // Seuil de plausibilité par morceau : au moins 25% de la durée attendue
     // pour CE morceau (et jamais moins de 0.05s). Avant, le seuil était fixe
@@ -1707,26 +1742,39 @@ async function synthesizeWithRetry(
       2400,
       Math.round((chunkText.length / TTS_CHARS_PER_SECOND_ESTIMATE) * TTS_BYTES_PER_SECOND * 0.25)
     );
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= attemptLimit; attempt++) {
       try {
-        const pcmBuffer = await callGeminiTTSNonStreaming(built.body);
+        const pcmBuffer = await callGeminiTTSNonStreaming(built.body, activeApiKey.apiKey);
         if (!pcmBuffer || pcmBuffer.length <= minPlausibleBytes) {
           throw new Error(`Audio vide ou trop court (${pcmBuffer?.length || 0} octets, minimum plausible ${minPlausibleBytes})`);
         }
-        console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${pcmBuffer.length} bytes PCM`);
+        console.log(`[TTS ✓] Morceau ${ci + 1}/${chunks.length} OK — ${pcmBuffer.length} bytes PCM, Gemini tier=${activeApiKey.tier}`);
         const finalPcm = ci === 0 ? addLeadingSilence(pcmBuffer, 150) : pcmBuffer;
         return finalPcm;
       } catch (err: any) {
         lastChunkError = err;
-        console.error(`[TTS ✗] Morceau ${ci + 1}/${chunks.length} — tentative ${attempt}/${maxRetries} échouée : ${err?.message || err}`);
-        if (attempt < maxRetries) {
-          const delay = 400 * Math.pow(2, attempt - 1) + Math.random() * 150;
-          await new Promise((resolve) => setTimeout(resolve, delay));
+        if (activeApiKey.tier === "free" && isGeminiDailyQuotaError(err)) {
+          const resetAt = markGeminiFreeQuotaExhausted(activeApiKey.apiKey, TTS_MODEL);
+          const paidKey = getGeminiApiKeyCandidates(TTS_MODEL)
+            .find((candidate) => candidate.tier === "paid" && candidate.apiKey !== activeApiKey.apiKey);
+          if (paidKey && attempt < attemptLimit) {
+            activeApiKey = paidKey;
+            console.warn(`[Gemini] Quota gratuite épuisée pour ${TTS_MODEL}; bascule vers la clé payante jusqu'au reset${resetAt ? ` (${new Date(resetAt).toISOString()})` : ""}.`);
+            continue;
+          }
+          console.error(`[Gemini] Quota gratuite épuisée pour ${TTS_MODEL}; ${paidKey ? "limite de tentatives atteinte" : "aucune clé payante de relève n'est configurée"}.`);
+          break;
         }
+
+        const retryable = isRetryableGeminiError(err);
+        console.error(`[TTS ✗] Morceau ${ci + 1}/${chunks.length} — tentative ${attempt}/${attemptLimit} avec tier=${activeApiKey.tier} échouée${retryable ? " (temporaire)" : " (terminal, sans retry)"} : ${err?.message || err}`);
+        if (!retryable || attempt >= attemptLimit) break;
+        const delay = geminiRetryDelayMs(err, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
-    console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${maxRetries} tentatives — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
+    console.error(`[TTS] ═══ Morceau ${ci + 1}/${chunks.length} en échec après ${attemptLimit} tentative(s) maximum — génération ANNULÉE (aucun point débité) ═══ Dernière erreur : ${lastChunkError?.message}`);
     throw lastChunkError || new Error("Erreur de génération audio");
   });
 
@@ -1735,6 +1783,7 @@ async function synthesizeWithRetry(
     return {
       pcmBuffer: null,
       error: `Morceau ${generation.index + 1}/${chunks.length} : ${errFautive?.message || "Erreur de génération audio"}`,
+      errorStatus: getGeminiHttpStatus(errFautive),
       usedStreaming: false,
       chunkCount: chunks.length,
     };
@@ -1882,8 +1931,9 @@ function simpleHash(str: string): string {
 }
 
 async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise<GeminiTextResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Clé GEMINI_API_KEY manquante sur Render");
+  if (!getGeminiApiKeyCandidates(GEMINI_TEXT_MODEL).length) {
+    throw new Error("Aucune clé Gemini active; vérifie les quotas et renseigne GEMINI_API_KEY_FREE/GEMINI_API_KEY_PAID.");
+  }
 
   const cacheKey = `${temperature.toFixed(2)}:${simpleHash(promptText)}`;
   const cached = LLM_RESPONSE_CACHE.get(cacheKey);
@@ -1894,7 +1944,12 @@ async function callGeminiTextAPI(promptText: string, temperature = 0.7): Promise
 
   for (const model of models) {
     try {
-      const response = await appelleGemini(model, apiKey, { contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature, maxOutputTokens: 4096 } }, { timeoutMs: 12000 });
+      const response = await callGeminiRestWithKeyFallback(model, (apiKey) => appelleGemini(
+        model,
+        apiKey,
+        { contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature, maxOutputTokens: 4096 } },
+        { timeoutMs: 12000 },
+      ));
       if (response.ok) {
         const data = await response.json();
         let result = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || data.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -2914,9 +2969,14 @@ async function startServer() {
     const devApi = parseTranscript(text);
     const devTags = devApi.tags.map((t) => t.tag);
     const started = Date.now();
-    const generated = await synthesizeWithRetry(devApi.text.trim(), selectedVoiceName, 3, Number(speed) || 1, Number(pitch) || 1, voice_id, devTags, safeDevRegister, safeDevIntensity);
+    const generated = await synthesizeWithRetry(devApi.text.trim(), selectedVoiceName, GEMINI_TTS_MAX_ATTEMPTS, Number(speed) || 1, Number(pitch) || 1, voice_id, devTags, safeDevRegister, safeDevIntensity);
     const usageCount = await recordGeminiUsage({ userId: key.userId, operation: "tts", characters: text.length, success: Boolean(generated.pcmBuffer), model: TTS_MODEL, metadata: { source: "developer_api", key_id: key.id } });
-    if (!generated.pcmBuffer) return res.status(503).json({ error: "Génération indisponible; aucun point débité." });
+    if (!generated.pcmBuffer) {
+      if (generated.errorStatus === 400 || generated.errorStatus === 404) {
+        return res.status(generated.errorStatus).json({ error: generated.error || `Gemini API ${generated.errorStatus}`, gemini_status: generated.errorStatus });
+      }
+      return res.status(503).json({ error: "Génération indisponible; aucun point débité.", detail: generated.error || undefined });
+    }
     const duration = Math.round((generated.pcmBuffer.length / 48000) * 10) / 10;
     const cost = computePointsCost(duration);
     const wav = pcmToWavBuffer(generated.pcmBuffer, 24000, 1, 16);
@@ -2963,7 +3023,7 @@ async function startServer() {
     const pitch = parseFloat(req.query.pitch as string) || 1.0;
 
     // FIX n°5 : la voix Gemini est dans la clé de cache.
-    // MIGRATION 30 VOIX : plus de « GEMINI_VOICE_MAP[...] || Puck » ici.
+    // MIGRATION 30 VOIX : le mapping partagé résout les IDs avant tout appel Gemini.
     // resolveRequestedVoice() accepte les 9 anciens IDs, les 30 prénoms
     // français, les prénoms arabes, les slugs et les noms techniques.
     const selectedVoiceName = resolveRequestedVoice(voiceId);
@@ -3016,6 +3076,8 @@ async function startServer() {
         const audioUrl = await inflight;
         return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: audioUrl, duration_seconds: 2.5, cached: true, source: "inflight" });
       } catch (err: any) {
+        const status = getGeminiHttpStatus(err);
+        if (status === 400 || status === 404) return res.status(status).json({ error: String(err?.message || err) });
         return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes." });
       }
     }
@@ -3028,7 +3090,7 @@ async function startServer() {
 
     // Texte de l'aperçu : d'abord le texte « vitrine » propre à la voix,
     // sinon l'ancien script pour compatibilité, sinon le script d'audition.
-    const legacyKey = previewTargets().find((t) => t.voice.id === selectedVoiceName)?.legacyId || voiceId;
+    const legacyKey = previewTargets().find((t) => t.geminiVoiceId === selectedVoiceName)?.legacyId || voiceId;
     const sampleScript =
       VOICE_PREVIEW_TEXTS[selectedVoiceName] ||
       VOICE_PREVIEW_SCRIPTS[legacyKey] ||
@@ -3040,17 +3102,21 @@ async function startServer() {
       // FIX COST-3 : ce bloc n'est atteint que sur un vrai cache miss (mémoire +
       // persistant), donc ce log reflète un vrai appel Gemini, pas une requête HTTP.
       const previewStart = Date.now();
-      const { pcmBuffer, error: synthError } = await synthesizeWithRetry(sampleScript, selectedVoiceName, 3, speed, pitch, voiceId, []);
+      const { pcmBuffer, error: synthError, errorStatus: synthStatus } = await synthesizeWithRetry(
+        sampleScript, selectedVoiceName, GEMINI_TTS_MAX_ATTEMPTS, speed, pitch, voiceId, [],
+      );
       logGeminiCall({ userId: previewUserId ?? null, callType: "preview", billable: false, pointsCost: 0, charCount: sampleScript.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - previewStart });
       if (!pcmBuffer || pcmBuffer.length <= 50) {
-        throw new Error(synthError || "Gemini TTS indisponible");
+        const previewError = new Error(synthError || "Gemini TTS indisponible") as Error & { status?: number | null };
+        previewError.status = synthStatus;
+        throw previewError;
       }
       const dataUri = `data:audio/wav;base64,${pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64")}`;
       PREVIEW_AUDIO_CACHE.set(cacheKey, dataUri);
       // Enregistrement sous la clé CANONIQUE : c'est ce qui fait qu'un seul
       // aperçu suffit pour toutes les écritures de la même voix.
       PREVIEW_AUDIO_CACHE.set(canonicalKey, dataUri);
-      await savePersistentPreview(canonicalKey, dataUri);
+      if (await savePersistentPreview(canonicalKey, dataUri)) PREVIEW_STORAGE_KEYS.add(canonicalKey);
       await recordGeminiUsage({ userId: previewUserId, operation: "preview", characters: sampleScript.length, success: true, model: TTS_MODEL, metadata: { voice: voiceId, free: true } });
       return dataUri;
     })();
@@ -3059,6 +3125,8 @@ async function startServer() {
       const dataUri = await generation;
       return res.json({ voice_id: voiceId, voice_name: selectedVoiceName, audio_url: dataUri, duration_seconds: 2.5, cached: false });
     } catch (err: any) {
+      const status = getGeminiHttpStatus(err);
+      if (status === 400 || status === 404) return res.status(status).json({ error: String(err?.message || err) });
       return res.status(503).json({ error: "Aperçu vocal temporairement indisponible, réessaie dans quelques secondes." });
     } finally {
       PREVIEW_INFLIGHT.delete(cacheKey);
@@ -3076,10 +3144,10 @@ async function startServer() {
      =================================================================== */
   const handlePreviewStatus = (_req: express.Request, res: express.Response) => {
     const total = previewTargets().length;
-    const prets = previewTargets().filter((t) => PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.voice.id))).length;
+    const prets = previewTargets().filter((t) => PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.geminiVoiceId))).length;
     const manquants = previewTargets()
-      .filter((t) => !PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.voice.id)))
-      .map((t) => t.voice.id);
+      .filter((t) => !PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.geminiVoiceId)))
+      .map((t) => t.legacyId || t.geminiVoiceId);
     res.set("Cache-Control", "no-store");
     res.json({
       prets,
@@ -3113,7 +3181,10 @@ async function startServer() {
     try {
       const voicePayload: any = { model: "gemini-3.8-flash-tts", type: "prompted", display_name: displayName, language_code: languageCode, prompted: { input: prompt } };
       if (gender !== "unknown") voicePayload.gender = gender;
-      const googleResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/voices", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY }, body: JSON.stringify({ store: true, voice: voicePayload }) });
+      const googleResponse = await callGeminiRestWithKeyFallback("voice-design", (apiKey) => fetch(
+        "https://generativelanguage.googleapis.com/v1beta/voices",
+        { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify({ store: true, voice: voicePayload }) },
+      ));
       const googleData: any = await googleResponse.json().catch(() => ({}));
       if (!googleResponse.ok || !googleData.id) return res.status(502).json({ error: googleData?.error?.message || "Google n’a pas pu créer cette voix." });
       const debit = await deductCredits(userId, 200);
@@ -3141,11 +3212,12 @@ async function startServer() {
     const seulementAvecApercu = req.query.avec_apercu === "1";
 
     let voix = previewTargets().map((t) => {
-      const n = VOICE_NAMES.find((x) => x.id === t.voice.id);
-      const entry = PREVIEW_INDEX.get(t.voice.id);
-      const apercu = getCachedPreviewUrl(t.voice.id);
+      const n = VOICE_NAMES.find((x) => x.id === t.geminiVoiceId);
+      const entry = PREVIEW_INDEX.get(t.geminiVoiceId);
+      const apercu = getCachedPreviewUrl(t.geminiVoiceId);
       return {
-        id: t.voice.id,
+        id: t.geminiVoiceId,
+        gemini_voice_id: t.geminiVoiceId,
         name_fr: t.nameFr,
         name_ar: t.nameAr,
         slug: t.slug,
@@ -3153,7 +3225,7 @@ async function startServer() {
         caractere: lang === "fr" ? n?.caractereFr : n?.caractereAr,
         gender: n?.gender ?? "unknown",
         a_confirmer: Boolean(n?.aConfirmer),
-        preview_url: apercu && !apercu.startsWith("data:") ? apercu : apercu ? `/api/v1/tts/preview?voice_id=${encodeURIComponent(t.voice.id)}` : null,
+        preview_url: apercu && !apercu.startsWith("data:") ? apercu : apercu ? `/api/v1/tts/preview?voice_id=${encodeURIComponent(t.geminiVoiceId)}` : null,
         preview_seconds: entry?.durationSeconds ?? null,
       };
     });
@@ -3294,20 +3366,22 @@ async function startServer() {
       const selectedVoiceName =
         resolveRequestedVoice(requestedVoice);
 
-      // Un voix-off court (~4-7s, sous 100 caractères) coûte le même prix à
-      // retenter : on insiste plus fort (5 tentatives par morceau au lieu de
-      // 3) pour viser un résultat quasi garanti sur ce format très demandé.
-      const maxRetriesForThisCall = textForSpeech.trim().length < 100 ? 5 : 3;
-      const { pcmBuffer, error: synthError, usedStreaming, chunkCount } = await synthesizeWithRetry(textForSpeech, selectedVoiceName, maxRetriesForThisCall, numSpeed, numPitch, requestedVoice, emotionTags, safeRegister, safeIntensity, safeStylePrompt);
+      const { pcmBuffer, error: synthError, errorStatus: synthStatus, usedStreaming, chunkCount } = await synthesizeWithRetry(
+        textForSpeech, selectedVoiceName, GEMINI_TTS_MAX_ATTEMPTS, numSpeed, numPitch,
+        requestedVoice, emotionTags, safeRegister, safeIntensity, safeStylePrompt,
+      );
       // FIX COST-3 : génération payante → billable=true, séparée des previews gratuites (billable=false).
       logGeminiCall({ userId, callType: "tts", billable: true, pointsCost: BASE_POINTS_COST, charCount: text.length, success: Boolean(pcmBuffer), latencyMs: Date.now() - startTime });
       const geminiUsageCount = await recordGeminiUsage({ userId, operation: "tts", characters: text.length, success: Boolean(pcmBuffer), model: TTS_MODEL, metadata: { voice: requestedVoice, chunks: chunkCount } });
-      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, chars: text.length, chunks: chunkCount, success: Boolean(pcmBuffer), daily_calls: geminiUsageCount, maxRetries: 3 }));
+      console.log(JSON.stringify({ event: "gemini_tts", userId, voice: requestedVoice, gemini_voice: selectedVoiceName, chars: text.length, chunks: chunkCount, success: Boolean(pcmBuffer), daily_calls: geminiUsageCount, maxAttempts: GEMINI_TTS_MAX_ATTEMPTS, errorStatus: synthStatus || null }));
 
-      // FIX n°1 + FIX TTS-B : échec Gemini (ou audio tronqué) → 503 explicite.
-      // JAMAIS d'audio partiel ni synthétique facturé comme une vraie génération.
+      // Les erreurs de configuration Gemini remontent immédiatement avec leur
+      // vrai statut; les erreurs temporaires épuisées restent un 503.
       if (!pcmBuffer || pcmBuffer.length <= 50) {
-        return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15 });
+        if (synthStatus === 400 || synthStatus === 404) {
+          return res.status(synthStatus).json({ error: synthError || `Gemini API ${synthStatus}`, gemini_status: synthStatus });
+        }
+        return res.status(503).json({ error: "Le service vocal est temporairement indisponible. Aucun point n'a été débité.", retry_after: 15, detail: synthError || undefined });
       }
 
       const wavBase64 = pcmToWavBuffer(pcmBuffer, 24000, 1, 16).toString("base64");
@@ -4004,14 +4078,16 @@ Le texte de la proposition`;
         maxOutputTokens: 1024,
         tools: [{ functionDeclarations: [functionDeclaration] }],
       };
-      const googleGenAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY, httpOptions: { apiVersion: "v1beta" } });
-      const token = await googleGenAI.authTokens.create({
-        config: {
-          uses: 1,
-          expireTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-          newSessionExpireTime: new Date(Date.now() + 90 * 1000).toISOString(),
-          liveConnectConstraints: { model, config },
-        },
+      const token = await callGeminiSdkWithKeyFallback(model, async (apiKey) => {
+        const googleGenAI = new GoogleGenAI({ apiKey, httpOptions: { apiVersion: "v1beta" } });
+        return googleGenAI.authTokens.create({
+          config: {
+            uses: 1,
+            expireTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            newSessionExpireTime: new Date(Date.now() + 90 * 1000).toISOString(),
+            liveConnectConstraints: { model, config },
+          },
+        });
       });
       if (!token.name) return res.status(502).json({ success: false, error: "La session vocale n’a pas pu démarrer." });
 
@@ -4955,12 +5031,18 @@ Le texte de la proposition`;
      code n'est nécessaire, c'est un simple réglage).
      =================================================================== */
   async function warmMissingVoicePreviews(): Promise<void> {
+    if (PREVIEW_WARMUP_RUNNING) {
+      console.log("[Aperçus] Un préchauffage est déjà en cours; appel dupliqué ignoré.");
+      return;
+    }
     if (process.env.TTS_WARM_PREVIEWS === "0") {
+      PREVIEW_WARM_STATE.demarre = true;
+      PREVIEW_WARM_STATE.en_cours = false;
       console.log("[Aperçus] Préchauffage désactivé (TTS_WARM_PREVIEWS=0).");
       return;
     }
-    if (!process.env.GEMINI_API_KEY) {
-      console.log("[Aperçus] Préchauffage ignoré : GEMINI_API_KEY absente (normal en local).");
+    if (!hasAnyGeminiApiKey()) {
+      console.log("[Aperçus] Préchauffage ignoré : aucune clé Gemini configurée (normal en local).");
       return;
     }
     if (!supabaseClient) {
@@ -4968,23 +5050,34 @@ Le texte de la proposition`;
       return;
     }
 
+    PREVIEW_WARMUP_RUNNING = true;
+    PREVIEW_WARM_STATE.demarre = true;
+    PREVIEW_WARM_STATE.en_cours = true;
+    PREVIEW_WARM_STATE.debut = new Date().toISOString();
+    PREVIEW_WARM_STATE.fin = null;
+    PREVIEW_WARM_STATE.faits = 0;
+    PREVIEW_WARM_STATE.echecs = 0;
+    PREVIEW_WARM_STATE.derniereErreur = null;
+    PREVIEW_WARM_STATE.quota_atteint = false;
+    PREVIEW_WARM_STATE.reprises = 0;
+    PREVIEW_WARM_STATE.prochaineTentative = null;
+
+    let faits = 0;
+    let echecs = 0;
     try {
-      // 1) Que possède-t-on déjà ? (un seul appel réseau)
-      const { data: fichiers } = await supabaseClient.storage.from(PREVIEW_BUCKET).list("", { limit: 1000 });
+      // Une erreur de listage est fatale : ne pas régénérer 30 fichiers à l'aveugle.
+      const { data: fichiers, error: listError } = await supabaseClient.storage
+        .from(PREVIEW_BUCKET)
+        .list("", { limit: 1000 });
+      if (listError) throw new Error(`Lecture du bucket ${PREVIEW_BUCKET} impossible : ${listError.message}`);
+
       for (const f of fichiers || []) {
         const nom = String((f as any).name || "");
         if (nom.endsWith(".wav")) PREVIEW_STORAGE_KEYS.add(nom.replace(/\.wav$/, ""));
       }
       const presents = new Set((fichiers || []).map((f: any) => String(f.name)));
 
-      // ── MÉNAGE : les aperçus au FORMAT PÉRIMÉ ────────────────────────────
-      // Avant le 26/09/2026, un aperçu était enregistré sous la clé de la
-      // requête : « voice_amin_Puck_1.0_1.0.wav ». Ces fichiers contiennent
-      // l'ANCIEN texte (arabe classique) et un ancien mapping de voix
-      // (« voice_yacine » pointait sur Puck — c'est désormais Pulcherrima).
-      // Le nouveau code ne les lit plus ; on les supprime pour ne pas laisser
-      // de faux aperçus dormir dans le stockage. Le format valide aujourd'hui
-      // est « studio_<Voix>.wav » — jamais touché par ce ménage.
+      // Supprime uniquement l'ancien format de clé; jamais les fichiers studio_<voix>.wav.
       const ANCIEN_FORMAT = /^.+_[0-9]+\.[0-9]+_[0-9]+\.[0-9]+\.wav$/;
       const anciens = (fichiers || [])
         .map((f: any) => String(f.name))
@@ -4992,96 +5085,100 @@ Le texte de la proposition`;
       if (anciens.length) {
         const { error: errSupp } = await supabaseClient.storage.from(PREVIEW_BUCKET).remove(anciens);
         if (errSupp) console.warn(`[Aperçus] Ménage impossible : ${errSupp.message}`);
-        else console.log(`[Aperçus] ${anciens.length} ancien(s) aperçu(s) supprimé(s) — format périmé, texte en arabe classique : ${anciens.join(", ")}`);
+        else console.log(`[Aperçus] ${anciens.length} ancien(s) aperçu(s) supprimé(s) — format périmé.`);
       }
-      const manquantes = previewTargets().filter((t) => {
-        // Seul le format CANONIQUE compte : « studio_<voix>.wav ».
-        if (presents.has(`${previewKeyForVoice(t.voice.id)}.wav`)) return false;
-        if (getCachedPreviewUrl(t.voice.id)) return false;  // local ou mémoire
-        return true;
+
+      const targets = previewTargets();
+      const manquantes = targets.filter((t) => {
+        const key = previewKeyForVoice(t.geminiVoiceId);
+        if (PREVIEW_PERMANENT_FAILURES.has(key)) return false;
+        if (presents.has(`${key}.wav`)) return false;
+        return !getCachedPreviewUrl(t.geminiVoiceId);
       });
+      PREVIEW_WARM_STATE.total = targets.length;
+      PREVIEW_WARM_STATE.termines = targets.length - manquantes.length;
 
       if (manquantes.length === 0) {
-        PREVIEW_WARM_STATE.demarre = true;
-        PREVIEW_WARM_STATE.en_cours = false;
-        PREVIEW_WARM_STATE.total = previewTargets().length;
-        PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
         PREVIEW_WARM_STATE.fin = new Date().toISOString();
-        console.log(`[Aperçus] Les ${previewTargets().length} aperçus sont déjà en place — rien à générer.`);
+        console.log(`[Aperçus] ${targets.length}/${targets.length} aperçus déjà disponibles — rien à générer.`);
         return;
       }
-      PREVIEW_WARM_STATE.demarre = true;
-      PREVIEW_WARM_STATE.en_cours = true;
-      PREVIEW_WARM_STATE.total = previewTargets().length;
-      PREVIEW_WARM_STATE.termines = presents.size;
-      PREVIEW_WARM_STATE.debut = new Date().toISOString();
-      console.log(`[Aperçus] ${manquantes.length} aperçu(x) manquant(s) → génération en tâche de fond (le site reste disponible).`);
-      console.log(`[Aperçus] Suivi en direct : /api/v1/tts/preview-status`);
 
-      let faits = 0, echecs = 0;
-      const MAX_TENTATIVES = 4;   // 1 essai, puis 3 reprises espacées
+      console.log(`[Aperçus] ${manquantes.length} aperçu(x) manquant(s) → génération en tâche de fond.`);
+      console.log(`[Aperçus] Suivi : /api/v1/tts/preview-status`);
+
       for (const t of manquantes) {
-        const key = previewKeyForVoice(t.voice.id);
-        let enregistre = false;
-        for (let tentative = 1; tentative <= MAX_TENTATIVES && !enregistre; tentative++) {
-          try {
-            const dataUri = await generateVoicePreviewDataUri(t.voice.id, t.legacyId || t.voice.id);
-            PREVIEW_AUDIO_CACHE.set(key, dataUri);
-            await savePersistentPreview(key, dataUri);
-            PREVIEW_STORAGE_KEYS.add(key);
-            PREVIEW_WARM_STATE.faits = ++faits;
-            PREVIEW_WARM_STATE.quota_atteint = false;
-            enregistre = true;
-            console.log(`[Aperçus ✓] ${t.voice.id} (${t.nameFr}) — ${faits}/${manquantes.length}${tentative > 1 ? ` (réussi à la tentative ${tentative})` : ""}`);
-          } catch (err: any) {
-            const msg = String(err?.message || err);
-            PREVIEW_WARM_STATE.derniereErreur = `${t.voice.id} : ${msg}`;
-            // « 429 / quota / RESOURCE_EXHAUSTED » ne veut PAS dire « échec » :
-            // ça veut dire « tu vas trop vite ». C'est presque toujours une
-            // limite PAR MINUTE — donc on attend et on recommence, au lieu de
-            // laisser la voix sans aperçu pour toujours.
-            const quota = /(^|\D)429(\D|$)|quota|RESOURCE_EXHAUSTED|rate ?limit|too many requests/i.test(msg);
-            PREVIEW_WARM_STATE.quota_atteint = quota;
-            if (quota && tentative < MAX_TENTATIVES) {
-              const attente = 20000 * tentative;   // 20 s, puis 40 s, puis 60 s
-              console.warn(`[Aperçus ⏳] ${t.voice.id} : quota atteint (429) — nouvelle tentative ${tentative + 1}/${MAX_TENTATIVES} dans ${Math.round(attente / 1000)} s.`);
-              await new Promise((r) => setTimeout(r, attente));
-            } else {
-              echecs++;
-              PREVIEW_WARM_STATE.echecs = echecs;
-              console.warn(`[Aperçus ✗] ${t.voice.id} : ${msg}`);
-              // Stockage qui refuse TOUT (bucket absent ou non public) : ce
-              // n'est pas un quota, inutile de gaspiller 30 générations. On
-              // s'arrête tout de suite et on dit exactement quoi faire.
-              if (faits === 0 && echecs === 1 && !quota) {
-                console.warn(`[Aperçus] Arrêt : le 1er enregistrement a échoué. Crée un bucket PUBLIC nommé « ${PREVIEW_BUCKET} » dans Supabase Storage, puis redémarre.`);
-                return;
-              }
-              break;
-            }
+        const key = previewKeyForVoice(t.geminiVoiceId);
+        const legacyId = t.legacyId || t.voice.id;
+        try {
+          // Un appel par voix; le moteur TTS effectue au plus deux tentatives temporaires.
+          // Les IDs historiques sont normalisés avant de construire la requête Gemini.
+          const dataUri = await generateVoicePreviewDataUri(t.geminiVoiceId, legacyId);
+          PREVIEW_AUDIO_CACHE.set(key, dataUri);
+          const saved = await savePersistentPreview(key, dataUri);
+          if (!saved) {
+            PREVIEW_AUDIO_CACHE.delete(key);
+            throw new Error(`Échec d'écriture dans Supabase Storage pour ${key}. Vérifie le bucket « ${PREVIEW_BUCKET} ».`);
+          }
+          PREVIEW_STORAGE_KEYS.add(key);
+          PREVIEW_PERMANENT_FAILURES.delete(key);
+          PREVIEW_WARM_STATE.faits = ++faits;
+          PREVIEW_WARM_STATE.quota_atteint = false;
+          PREVIEW_WARM_STATE.termines++;
+          console.log(`[Aperçus ✓] ${t.geminiVoiceId} (${t.nameFr}) — ${faits}/${manquantes.length}`);
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          const status = getGeminiHttpStatus(err);
+          const quota = status === 429 || /quota|RESOURCE_EXHAUSTED|rate ?limit|too many requests/i.test(msg);
+          const storageFailed = /Échec d'écriture dans Supabase Storage/i.test(msg);
+          const retryable = isRetryableGeminiError(err);
+          const label = `${t.geminiVoiceId}${legacyId !== t.geminiVoiceId ? ` (${legacyId})` : ""}`;
+          PREVIEW_WARM_STATE.derniereErreur = `${label} : ${msg}`;
+          PREVIEW_WARM_STATE.quota_atteint = quota;
+          PREVIEW_WARM_STATE.echecs = ++echecs;
+          if (!retryable && !storageFailed) {
+            PREVIEW_PERMANENT_FAILURES.add(key);
+            PREVIEW_WARM_STATE.echecsPermanents = [...PREVIEW_PERMANENT_FAILURES].map((x) => x.replace(/^studio_/, ""));
+          }
+          console.warn(`[Aperçus ✗] ${label} — ${status ? `HTTP ${status}` : retryable ? "erreur temporaire" : "erreur terminale"} : ${msg}`);
+
+          // Arrêt anticipé sur une panne de bucket/quota commune, au lieu de payer
+          // les autres générations qui ne pourront pas être enregistrées.
+          if (storageFailed) {
+            console.warn(`[Aperçus] Arrêt du préchauffage : corrige le bucket « ${PREVIEW_BUCKET} », puis relance « npm run apercus:voix » ou redémarre le serveur.`);
+            break;
+          }
+          if (quota) {
+            console.warn("[Aperçus] Quota Gemini atteint : arrêt de cette passe; aucun retry automatique en boucle.");
+            break;
+          }
+          if (status !== null && status >= 400 && status < 500) {
+            console.warn(`[Aperçus] Arrêt du préchauffage après HTTP ${status} terminal; les autres voix ne seront pas envoyées avec la même configuration.`);
+            break;
           }
         }
-        await new Promise((r) => setTimeout(r, 2000)); // on ne bouscule pas l'API
+
+        // Petite pause fixe entre voix; les échecs ne déclenchent jamais de boucle.
+        await new Promise((r) => setTimeout(r, 1000));
       }
-      PREVIEW_WARM_STATE.en_cours = false;
+
       PREVIEW_WARM_STATE.fin = new Date().toISOString();
-      PREVIEW_WARM_STATE.termines = PREVIEW_STORAGE_KEYS.size;
-      console.log(`[Aperçus] Préchauffage terminé : ${faits} généré(s), ${echecs} échec(s). Coût ≈ ${(faits * 0.004).toFixed(3)} $ une seule fois.`);
-      // Il manque encore des voix ? On repasse TOUT SEUL dans 10 minutes : un
-      // quota remis à zéro au bout d'une minute suffira, et sinon les reprises
-      // finiront par passer. Rien à relancer à la main. 3 reprises maximum,
-      // pour ne jamais boucler sans fin.
-      if (echecs > 0 && PREVIEW_WARM_STATE.reprises < 3) {
-        PREVIEW_WARM_STATE.reprises += 1;
-        const dans = 10 * 60 * 1000;
-        PREVIEW_WARM_STATE.prochaineTentative = new Date(Date.now() + dans).toISOString();
-        console.log(`[Aperçus] ${echecs} voix encore sans aperçu → nouvelle passe automatique dans 10 min (reprise ${PREVIEW_WARM_STATE.reprises}/3).`);
-        setTimeout(() => { void warmMissingVoicePreviews(); }, dans);
-      } else if (echecs === 0) {
-        PREVIEW_WARM_STATE.prochaineTentative = null;
+      PREVIEW_WARM_STATE.termines = targets.filter((t) =>
+        PREVIEW_STORAGE_KEYS.has(previewKeyForVoice(t.geminiVoiceId)) || Boolean(getCachedPreviewUrl(t.geminiVoiceId)),
+      ).length;
+      PREVIEW_WARM_STATE.prochaineTentative = null;
+      console.log(`[Aperçus] Préchauffage terminé : ${faits} généré(s), ${echecs} échec(s); aucune boucle de reprise automatique.`);
+      if (echecs > 0) {
+        console.warn("[Aperçus] Les voix en échec seront retentées au prochain redémarrage ou via « npm run apercus:voix ». Consulte /api/v1/tts/preview-status.");
       }
     } catch (err: any) {
+      PREVIEW_WARM_STATE.derniereErreur = String(err?.message || err);
+      PREVIEW_WARM_STATE.fin = new Date().toISOString();
       console.warn(`[Aperçus] Préchauffage impossible : ${err?.message || err}`);
+    } finally {
+      PREVIEW_WARM_STATE.en_cours = false;
+      PREVIEW_WARMUP_RUNNING = false;
+      if (!PREVIEW_WARM_STATE.fin) PREVIEW_WARM_STATE.fin = new Date().toISOString();
     }
   }
 

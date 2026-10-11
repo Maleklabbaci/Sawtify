@@ -57,7 +57,7 @@ npm run test:apercus
 
 | Option | Effet |
 |---|---|
-| `--voix=Puck,Kore` | ne générer que certaines voix (répétable : `--voix=Puck --voix=Kore`) |
+| `--voix=Puck,Kore` | ne générer que certaines voix (répétable : `--voix=Puck --voix=Kore`; les anciens IDs comme `voice_amin` sont aussi acceptés) |
 | `--force` | régénère tout, même ce qui existe déjà |
 | `--upload` | envoie les WAV + le manifeste sur **Supabase Storage** |
 | `--simule` | fabrique de faux fichiers muets : teste toute la chaîne **sans appeler Google et sans payer** |
@@ -66,6 +66,19 @@ npm run test:apercus
 
 **Reprise automatique :** si tu relances la commande, les voix déjà générées sont **sautées**.
 Tu ne paies jamais deux fois le même aperçu.
+
+### Mapping et reprises Gemini
+
+Les fichiers, entrées de manifeste et clés de cache utilisent le nom officiel Gemini. Les anciens
+identifiants Sawtify restent acceptés à l'entrée : par exemple, `voice_amin` est converti en
+`Puck` avant chaque requête Gemini. Si `GEMINI_API_KEY_FREE` et `GEMINI_API_KEY_PAID` sont
+configurées, Sawtify utilise d'abord le projet gratuit et bascule vers le projet payant après
+reconnaissance de son quota journalier; un petit quota par minute ne déclenche pas la relève.
+Les deux clés doivent venir de projets différents, car Google calcule les quotas par projet
+(voir `docs/gemini-api-keys.md`). Les erreurs temporaires (timeouts/réseau, HTTP 408/429 et 5xx)
+ont au plus **deux tentatives au total par requête**. Les erreurs HTTP 400/404 sont terminales et
+sont retournées immédiatement. Le préchauffage au démarrage fait une seule passe et ne relance
+pas indéfiniment les voix en échec.
 
 ---
 
@@ -162,7 +175,8 @@ curl "https://ton-domaine/api/v1/tts/voices?lang=ar&avec_apercu=1"
   "gender_valides": 0,
   "voices": [
     {
-      "id": "Puck", "name_fr": "Amine", "name_ar": "أمين", "slug": "amine",
+      "id": "Puck", "gemini_voice_id": "Puck",
+      "name_fr": "Amine", "name_ar": "أمين", "slug": "amine",
       "legacy_id": "voice_amin", "caractere": "مرح وحماسي",
       "gender": "male", "a_confirmer": false,
       "preview_url": "https://…/puck.wav", "preview_seconds": 10.8
@@ -194,7 +208,7 @@ chaque aperçu.
 
 ## 8. Vérifications automatiques
 
-`npm run test:apercus` → **43 vérifications**, dont les plus importantes :
+`npm run test:apercus` → **46 vérifications**, dont les plus importantes :
 
 - ✅ **aucune balise inconnue** dans les 30 textes d'aperçu → rien ne sera jamais lu à voix haute ;
 - ✅ **les 30 noms de fichiers sont distincts** → aucun aperçu n'écrase un autre ;
@@ -208,6 +222,6 @@ chaque aperçu.
 
 ```bash
 npm run apercus:voix     # génère (une fois)
-npm run test:apercus     # vérifie (43 tests)
+npm run test:apercus     # vérifie (46 tests)
 npm run dev              # puis ouvre /audition-voix.html
 ```
