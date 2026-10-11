@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BarChart3, Users, CreditCard, Mic2, ShieldAlert, RefreshCw, X, Mail, Phone, CalendarDays, Clock3, Coins, AudioLines, Loader2, MessageCircle, Send, ChevronLeft, ChevronRight, Star, Bot } from 'lucide-react';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
 import { API_BASE_URL } from '../config/apiBase';
 import { getMyAccessToken } from '../services/supabaseClient';
 import { AGENT_ESTIMATED_COST_PER_MINUTE_DZD, AGENT_PRICING_OFFERS, calculateAgentOfferEconomics } from '../config/agentPricing';
@@ -771,15 +772,18 @@ export const AdminPage: React.FC = () => {
       )}
 
       {adminView === 'voices' && waUser && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) setWaUser(null); }}
+        <ModalShell
+          onClose={() => setWaUser(null)}
+          ariaLabel={waUser.full_name ? `Message WhatsApp à ${waUser.full_name}` : 'Message WhatsApp à un utilisateur'}
+          size="lg"
+          panelClassName="max-h-[85dvh] overflow-hidden p-0"
+          dataModal="admin-whatsapp"
         >
-          <div className="flex w-full max-w-lg max-h-[85vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div className="flex max-h-[85dvh] w-full flex-col overflow-hidden">
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 p-5">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Message WhatsApp</p>
-                <h2 className="mt-1 truncate text-lg font-black text-slate-900">{waUser.full_name || 'Sans nom'}</h2>
+                <ModalTitle className="mt-1 truncate text-lg sm:text-xl">{waUser.full_name || 'Sans nom'}</ModalTitle>
                 <p className="text-sm text-slate-500">{waUser.phone}</p>
               </div>
               <button onClick={() => setWaUser(null)} className="shrink-0 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Fermer">
@@ -820,7 +824,7 @@ export const AdminPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

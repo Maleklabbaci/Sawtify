@@ -3,6 +3,7 @@ import { Code2, Copy, Check, Plus, Trash2, ExternalLink, ShieldCheck, Terminal, 
 import { supabase } from '../services/supabaseClient';
 import { API_BASE_URL } from '../config/apiBase';
 import { useLanguage } from '../context/LanguageContext';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 interface DeveloperKey { id: string; name: string; key_prefix: string; active: boolean; last_used_at?: string | null; created_at: string; }
 interface UsageStats { api_calls: number; characters: number; estimated_minutes: number; active_keys: number; keys: DeveloperKey[]; }
@@ -50,6 +51,8 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
   const [snippetCopied, setSnippetCopied] = useState(false);
   // Connecteur MCP : quel bloc vient d'être copié.
   const [mcpCopied, setMcpCopied] = useState<string | null>(null);
+  const [pendingRevokeKeyId, setPendingRevokeKeyId] = useState<string | null>(null);
+  const pendingRevokeKey = keys.find((key) => key.id === pendingRevokeKeyId) || null;
   // Deux espaces : connecteur MCP (ouvert à tous) et API par clé (débloquée au-dessus de 1 000 points).
   const [tab, setTab] = useState<'mcp' | 'api'>('mcp');
   const apiUnlocked = balance > 1000;
@@ -74,7 +77,6 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
     catch (error: any) { setMessage(error.message || 'Impossible de créer la clé.'); } finally { setBusy(false); }
   };
   const revokeKey = async (id: string) => {
-    if (!window.confirm('Révoquer cette clé API ? Elle ne pourra plus être utilisée.')) return;
     await fetch(`${API_BASE_URL}/api/v1/developer/keys/${id}`, { method: 'DELETE', headers: await authHeaders() }); await loadKeys();
   };
   const copyKey = async () => { if (!newKey) return; await navigator.clipboard.writeText(newKey); setCopied(true); setTimeout(() => setCopied(false), 1800); };
@@ -253,7 +255,7 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
     <section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">URL Media pour les automatisations</h2><p className="mt-1 text-sm text-slate-500">Pour Viasocket, n8n ou un chatbot qui attend un fichier média, utilise une URL publique directement accessible.</p><div className="mt-4 rounded-2xl bg-slate-950 p-4 text-sm text-purple-200"><code>https://sawtify.space/api/v1/developer/tts</code></div><p className="mt-3 text-xs text-slate-500">Types acceptés par les outils d’automatisation : photo, vidéo, audio, document ou GIF. Sawtify retourne un audio WAV ; si ton outil demande un champ <code>media_url</code>, envoie l’URL publique du fichier après avoir reçu la réponse audio.</p></section>
     {newKey && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="font-bold text-amber-900">Copie ta clé maintenant — elle ne sera plus affichée.</p><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-xl bg-white px-3 py-3 text-xs text-slate-800">{newKey}</code><button onClick={copyKey} className="rounded-xl bg-slate-900 px-4 text-white">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div></div>}
     <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]"><section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">Créer une clé</h2><p className="mt-1 text-sm text-slate-500">Une clé par application ou client.</p><label className="mt-5 block text-xs font-bold text-slate-500">Nom de l’intégration</label><input value={name} onChange={e => setName(e.target.value)} maxLength={80} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-purple-500" /><button disabled={busy || !name.trim()} onClick={createKey} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 py-3 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />{busy ? 'Création…' : 'Créer une clé Beta'}</button>{message && <p className="mt-3 text-sm text-rose-600">{message}</p>}<a href="/docs/developer-api-beta.html" target="_blank" rel="noreferrer" className="mt-5 flex items-center gap-2 text-xs font-bold text-purple-600">Voir la documentation <ExternalLink className="h-3 w-3" /></a></section>
-    <section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">Mes clés API</h2>{loading ? <p className="mt-5 text-sm text-slate-500">Chargement…</p> : keys.length === 0 ? <p className="mt-5 text-sm text-slate-500">Aucune clé créée.</p> : <div className="mt-4 space-y-3">{keys.map(key => <div key={key.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{key.name}</p><code className="text-xs text-slate-500">{key.key_prefix}••••••</code><p className="text-[10px] text-slate-400">{key.active ? 'Active' : 'Révoquée'} · créée le {new Date(key.created_at).toLocaleDateString('fr-FR')}</p></div>{key.active && <button onClick={() => revokeKey(key.id)} title="Révoquer" className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>}</section></div>    </> : <>
+    <section className="saw-glass rounded-[26px] p-6"><h2 className="font-black text-slate-900">Mes clés API</h2>{loading ? <p className="mt-5 text-sm text-slate-500">Chargement…</p> : keys.length === 0 ? <p className="mt-5 text-sm text-slate-500">Aucune clé créée.</p> : <div className="mt-4 space-y-3">{keys.map(key => <div key={key.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{key.name}</p><code className="text-xs text-slate-500">{key.key_prefix}••••••</code><p className="text-[10px] text-slate-400">{key.active ? 'Active' : 'Révoquée'} · créée le {new Date(key.created_at).toLocaleDateString('fr-FR')}</p></div>{key.active && <button type="button" onClick={() => setPendingRevokeKeyId(key.id)} title={isAR ? 'إلغاء المفتاح' : 'Révoquer la clé'} aria-label={isAR ? `إلغاء مفتاح ${key.name}` : `Révoquer la clé ${key.name}`} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>}</section></div>    </> : <>
       <section className="saw-glass mx-auto max-w-3xl rounded-[28px] p-8 text-center">
         <Lock className="mx-auto h-12 w-12 text-slate-300" />
         <h2 className="mt-4 text-2xl font-black text-slate-900">{isAR ? 'واجهة API (نسخة تجريبية)' : 'API par clé (Beta)'}</h2>
@@ -270,5 +272,23 @@ export const DeveloperPage: React.FC<{ balance: number }> = ({ balance }) => {
         </button>
       </section>
     </>)}
+    {pendingRevokeKey && (
+      <ConfirmDialog
+        title={isAR ? 'إلغاء هذا المفتاح؟' : 'Révoquer cette clé API ?'}
+        description={isAR
+          ? `سيتم تعطيل المفتاح « ${pendingRevokeKey.name} » ولن يعود قابلاً للاستعمال.`
+          : `La clé « ${pendingRevokeKey.name} » sera désactivée et ne pourra plus être utilisée.`}
+        cancelLabel={isAR ? 'إلغاء' : 'Annuler'}
+        confirmLabel={isAR ? 'إلغاء المفتاح' : 'Révoquer la clé'}
+        dir={isAR ? 'rtl' : 'ltr'}
+        dataModal="developer-revoke-key"
+        onClose={() => setPendingRevokeKeyId(null)}
+        onConfirm={() => {
+          const keyId = pendingRevokeKey.id;
+          setPendingRevokeKeyId(null);
+          void revokeKey(keyId);
+        }}
+      />
+    )}
   </div>;
 };

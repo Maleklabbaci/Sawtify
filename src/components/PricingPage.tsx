@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Zap, ShieldCheck, CreditCard, Check, ArrowRight, Sparkles,
   ExternalLink, RefreshCw, Lock, Phone, User, MapPin, HelpCircle, X, Clock, Gift,
@@ -13,6 +12,7 @@ import { POINTS_PER_VOICEOVER, pricePerVoiceover, type PackOffer } from '../conf
 import { getGrowthCopy } from '../data/growthCopy';
 import { useTicker, type GrowthApi } from '../hooks/useGrowth';
 import { ReferralCard } from './growth/ReferralCard';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
 import { formatRemaining, remainingMs } from './growth/time';
 
 /** Moyens de paiement locaux affichés à côté des boutons de paiement (confiance). */
@@ -645,29 +645,20 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         </div>
 
         {/* Checkout Popup */}
-        {isCheckoutOpen && createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              top: 0, left: 0, right: 0, bottom: 0,
-              zIndex: 9999,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(15, 15, 20, 0.6)',
-              backdropFilter: 'blur(4px)',
-              padding: '16px',
-              overflowY: 'auto',
-            }}
-            onClick={() => setIsCheckoutOpen(false)}
+        {isCheckoutOpen && (
+          <ModalShell
+            onClose={() => setIsCheckoutOpen(false)}
+            ariaLabelledBy="pricing-checkout-title"
+            dir={isRTL ? 'rtl' : 'ltr'}
+            size="wide"
+            panelClassName="max-w-[960px] p-0"
+            dataModal="pricing-checkout"
           >
-            <div
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden relative"
-              style={{ maxWidth: '960px', width: '100%', margin: 'auto' }}
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="relative w-full">
               <button
+                type="button"
                 onClick={() => setIsCheckoutOpen(false)}
+                aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
                 className={`absolute top-4 z-20 w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition ${isRTL ? 'left-4' : 'right-4'}`}
               >
                 <X className="w-5 h-5" />
@@ -678,9 +669,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">
+                    <ModalTitle id="pricing-checkout-title" className="text-xl">
                       {language === 'ar' ? 'إتمام الدفع' : 'Finaliser le paiement'}
-                    </h2>
+                    </ModalTitle>
                     <p className="text-sm text-slate-500">
                       {selectedLabel} • {totalToPay.toLocaleString()} DZD
                     </p>
@@ -991,8 +982,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 </div>
               )}
             </div>
-          </div>,
-          document.body
+          </ModalShell>
         )}
 
         {/* Parrainage viral */}

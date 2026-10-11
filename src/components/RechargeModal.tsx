@@ -4,6 +4,7 @@ import { CreditPack, PurchaseRecord } from '../types';
 import { API_BASE_URL } from '../config/apiBase';
 import { getCreditPacks } from '../data/voices';
 import { useLanguage } from '../context/LanguageContext';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
 
 interface RechargeModalProps {
   isOpen: boolean;
@@ -240,12 +241,20 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border border-slate-200 relative overflow-hidden text-slate-900 max-h-[92vh] flex flex-col">
+    <ModalShell
+      onClose={onClose}
+      ariaLabel={language === 'ar' ? 'إعادة شحن النقاط' : 'Recharger les points Sawtify'}
+      dir={isRTL ? 'rtl' : 'ltr'}
+      size="lg"
+      panelClassName="max-h-[92dvh] flex flex-col overflow-x-hidden p-5 text-slate-900 sm:p-7"
+      dataModal="recharge"
+    >
         
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
+          aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
           className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer z-10`}
         >
           <X className="w-5 h-5" />
@@ -258,12 +267,12 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
               SlickPay • SATIM / CIB / EDAHABIA
             </span>
           </div>
-          <h2 className="text-lg font-bold text-slate-900">
+          <ModalTitle className="text-lg sm:text-xl">
             {step === 'select' && t.choosePackStep}
             {step === 'checkout' && (language === 'ar' ? 'معلومات الدفع والتأكيد' : 'Paiement sécurisé SlickPay')}
             {step === 'slickpay_frame' && (language === 'ar' ? 'بوابة الدفع الإلكتروني SATIM' : 'Portail de Paiement Sécurisé')}
             {step === 'success' && (language === 'ar' ? 'تم الشحن بنجاح' : 'Recharge effectuée')}
-          </h2>
+          </ModalTitle>
           <p className="text-xs text-slate-500">
             {step === 'slickpay_frame' 
               ? (language === 'ar' ? 'يرجى إتمام عملية الدفع عبر البوابة الرسمية' : 'Procédez au règlement officiel via carte Edahabia ou CIB.') 
@@ -541,7 +550,6 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({
           </div>
         )}
 
-      </div>
-    </div>
+    </ModalShell>
   );
 };

@@ -846,7 +846,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
             >
               {t.signup}
             </motion.button>
-            <button onClick={() => setMenuOpen(true)} className="lg:hidden text-white">
+            <button onClick={() => setMenuOpen(true)} className="lg:hidden text-white" aria-label={isRTL ? 'فتح القائمة' : 'Ouvrir le menu'}>
               <Menu className="w-5 h-5" />
             </button>
           </div>
@@ -856,21 +856,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignin
       <AnimatePresence>
         {menuOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[60] bg-black/55 backdrop-blur-md" />
             <motion.div
               initial={{ x: isRTL ? "-100%" : "100%" }}
               animate={{ x: 0 }}
               exit={{ x: isRTL ? "-100%" : "100%" }}
               transition={{ type: "spring", stiffness: 260, damping: 28 }}
-              className="fixed inset-y-0 end-0 z-[70] w-80 p-6"
-              style={{ background: BG_ZINC_900 }}
+              className="fixed inset-y-0 end-0 z-[70] w-80 max-w-[88vw] border-s border-white/10 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl"
+              style={{ background: 'rgba(24, 24, 27, .90)', WebkitBackdropFilter: 'blur(24px)', backdropFilter: 'blur(24px)' }}
             >
-              <button onClick={() => setMenuOpen(false)} className="mb-8 text-white">
+              <button onClick={() => setMenuOpen(false)} className="mb-8 text-white" aria-label={isRTL ? 'إغلاق القائمة' : 'Fermer le menu'}>
                 <X className="w-6 h-6" />
               </button>
-              <nav className="flex flex-col gap-6">
+              <nav className="flex flex-col gap-6" aria-label={isRTL ? 'القائمة الرئيسية' : 'Menu principal'}>
                 {nav.map((item) => (
-                  <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="text-lg font-bold text-white transition-colors" style={{ fontFamily: FR_HEADING_STACK }}>
+                  <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="text-lg font-bold text-white transition-colors" style={{ fontFamily: isRTL ? AR_STACK : FR_HEADING_STACK }}>
                     {item.label}
                   </a>
                 ))}

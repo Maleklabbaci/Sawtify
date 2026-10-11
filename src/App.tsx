@@ -365,7 +365,11 @@ function AppContent() {
     let dismissed = false;
     try { dismissed = sessionStorage.getItem(`sawtify_first_offer_dismissed_${phase}`) === '1'; } catch { /* ignore */ }
     if (dismissed) return;
-    const timer = window.setTimeout(() => setFirstOfferOpen(true), 2500);
+    const timer = window.setTimeout(() => {
+      let freeTrialPromptShown = false;
+      try { freeTrialPromptShown = sessionStorage.getItem('sawtify_free_trial_recharge_offer_shown') === '1'; } catch { /* ignore */ }
+      if (!freeTrialPromptShown) setFirstOfferOpen(true);
+    }, 2500);
     return () => window.clearTimeout(timer);
   }, [isLoggedIn, growth.status, growth.nowMs, balance, isBalanceLoading, isBootstrapping, welcomeUser, needsPasswordSetup, activeTab]);
 
@@ -780,7 +784,11 @@ function AppContent() {
                 balance={balance}
                 onBalanceChange={syncDisplayedBalance}
                 onDeductPoints={handleDeductPoints}
-                onOpenRecharge={() => navigateTo('pricing')}
+                onOpenRecharge={(packId) => { if (packId) setPricingIntent(packId); navigateTo('pricing'); }}
+                onFreeTrialRechargeOffer={() => {
+                  setFirstOfferOpen(false);
+                  try { sessionStorage.setItem('sawtify_free_trial_recharge_offer_shown', '1'); } catch { /* ignore */ }
+                }}
                 recentGenerations={generations}
                 prefillText={studioPrefill}
                 onPrefillConsumed={() => setStudioPrefill(null)}

@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React from 'react';
 import { X, Sparkles, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { ModalShell, ModalTitle, ModalDescription } from '../ui/ModalShell';
 import type { GrowthStatus } from '../../services/growth';
 import type { PackOffer } from '../../config/growth';
 import { pricePerVoiceover } from '../../config/growth';
@@ -42,12 +42,6 @@ export const FirstRechargeModal: React.FC<FirstRechargeModalProps> = ({ language
   useTicker(true);
   const nowMs = growth.nowMs();
   const { flash, entry } = growth.status ? liveFirstRechargeOffers(growth.status, nowMs) : { flash: null, entry: null };
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   if (!flash && !entry) return null;
 
@@ -97,16 +91,15 @@ export const FirstRechargeModal: React.FC<FirstRechargeModalProps> = ({ language
     </div>
   );
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={headline}
-      dir={isRTL ? 'rtl' : 'ltr'}
+  return (
+    <ModalShell
+      onClose={onClose}
+      ariaLabelledBy="first-recharge-title"
+      size="md"
+      panelClassName="growth-pop overflow-x-hidden p-0"
+      dataModal="first-recharge"
     >
-      <div className="relative m-auto w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl growth-pop" onClick={(e) => e.stopPropagation()}>
+      <div dir={isRTL ? 'rtl' : 'ltr'}>
         <button
           type="button"
           onClick={onClose}
@@ -120,8 +113,8 @@ export const FirstRechargeModal: React.FC<FirstRechargeModalProps> = ({ language
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold">
             <Zap className="h-3 w-3" /> {copy.outOfPoints}
           </span>
-          <h2 className="mt-3 text-xl font-black leading-snug sm:text-2xl">{headline}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-white/90">{body}</p>
+          <ModalTitle id="first-recharge-title" className="mt-3 text-white">{headline}</ModalTitle>
+          <ModalDescription className="mt-2 text-white/90">{body}</ModalDescription>
 
           {flash ? (
             <div className="mt-4 rounded-2xl bg-black/25 px-4 py-3 text-center">
@@ -148,7 +141,6 @@ export const FirstRechargeModal: React.FC<FirstRechargeModalProps> = ({ language
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </ModalShell>
   );
 };

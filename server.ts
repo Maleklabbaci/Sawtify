@@ -3401,7 +3401,21 @@ async function startServer() {
       }
       generationId = data.generation_id;
       remainingBalance = data.remaining_balance;
-      if (generationId) await supabaseClient.from("voice_generations").update({ generation_source: paidTransactionCount ? "paid_balance" : "free_trial" }).eq("id", generationId).eq("user_id", userId);
+      const generationSource = paidTransactionCount ? "paid_balance" : "free_trial";
+      if (generationId) {
+        const { error: sourceError } = await supabaseClient.from("voice_generations")
+          .update({ generation_source: generationSource }).eq("id", generationId).eq("user_id", userId);
+        if (sourceError) console.warn("[TTS] Impossible de classer la génération :", sourceError.message);
+      }
+      let freeTrialGenerationCount = 0;
+      if (generationSource === "free_trial") {
+        const { count, error: freeCountError } = await supabaseClient.from("voice_generations")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId).eq("generation_source", "free_trial");
+        if (freeCountError) console.warn("[TTS] Impossible de compter les essais gratuits :", freeCountError.message);
+        else freeTrialGenerationCount = count || 0;
+      }
+      const showFreeTrialRechargeOffer = generationSource === "free_trial" && freeTrialGenerationCount === 2;
       const milestoneBonus = await supabaseClient.rpc("award_generation_milestone_bonus", { p_user_id: userId });
       if (milestoneBonus.data?.awarded) remainingBalance = milestoneBonus.data.new_balance;
 
@@ -3424,6 +3438,8 @@ async function startServer() {
         format: "wav", sample_rate: 24000, generation_id: generationId || `gen_${Date.now()}`,
         duration_seconds: durationSeconds, latency_ms: Date.now() - startTime,
         points_deducted: finalPointsCost, points_cost: finalPointsCost, milestone_bonus: milestoneBonus.data?.awarded ? 30 : 0, referral_reward: referralReward,
+        free_trial_generation_count: freeTrialGenerationCount,
+        show_free_trial_recharge_offer: showFreeTrialRechargeOffer,
         notification: `-${finalPointsCost} Points`,
         remaining_balance: remainingBalance, voice_id: requestedVoice, gemini_voice: selectedVoiceName,
         parsed_tags: emotionTags,

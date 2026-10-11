@@ -167,16 +167,51 @@ export async function generateSyntheticTTS(
 }
 
 let activePreviewAudio: HTMLAudioElement | null = null;
+const PRELOADED_PREVIEW_LIMIT = 6;
+const preloadedPreviewAudio = new Map<string, HTMLAudioElement>();
+
+function rememberPreviewAudio(url: string, audio: HTMLAudioElement) {
+  preloadedPreviewAudio.delete(url);
+  preloadedPreviewAudio.set(url, audio);
+
+  while (preloadedPreviewAudio.size > PRELOADED_PREVIEW_LIMIT) {
+    const candidate = [...preloadedPreviewAudio.entries()].find(([, element]) => element !== activePreviewAudio);
+    if (!candidate) break;
+    const [oldUrl, oldAudio] = candidate;
+    oldAudio.pause();
+    oldAudio.removeAttribute('src');
+    oldAudio.load();
+    preloadedPreviewAudio.delete(oldUrl);
+  }
+}
+
+/** Start fetching/decoding a preview before the user presses Play. */
+export function preloadNaturalAudio(audioUrl: string): void {
+  if (!audioUrl || typeof Audio === 'undefined') return;
+  const cached = preloadedPreviewAudio.get(audioUrl);
+  if (cached) {
+    rememberPreviewAudio(audioUrl, cached);
+    return;
+  }
+
+  const audio = new Audio();
+  audio.preload = 'auto';
+  audio.src = audioUrl;
+  rememberPreviewAudio(audioUrl, audio);
+  try { audio.load(); } catch { /* Some browsers start loading as soon as src is set. */ }
+}
 
 /**
  * Plays a natural, fluid audio snippet through an HTML5 Audio element.
- * Respects custom speed and pitch configurations.
+ * Respects custom speed and pitch configurations. A preloaded element is
+ * reused so selecting a voice does not trigger a second download.
  */
 export function playNaturalAudio(
   audioUrl: string,
   onEnded?: () => void,
   speed: number = 1.0,
-  pitch: number = 1.0
+  pitch: number = 1.0,
+  onStarted?: () => void,
 ): HTMLAudioElement {
   if (activePreviewAudio) {
     try {
@@ -187,8 +222,15 @@ export function playNaturalAudio(
     }
   }
 
-  const audio = new Audio(audioUrl);
+  let audio = preloadedPreviewAudio.get(audioUrl);
+  if (!audio) {
+    audio = new Audio();
+    audio.preload = 'auto';
+    audio.src = audioUrl;
+  }
+  rememberPreviewAudio(audioUrl, audio);
   activePreviewAudio = audio;
+  try { audio.currentTime = 0; } catch { /* The source may still be loading. */ }
 
   // Apply speed of diction
   const effectiveRate = Math.max(0.5, Math.min(2.0, speed));
@@ -206,11 +248,16 @@ export function playNaturalAudio(
     audioEl.webkitPreservesPitch = Math.abs(pitch - 1.0) < 0.05;
   }
 
+  audio.onplaying = () => onStarted?.();
   audio.onended = () => {
     if (activePreviewAudio === audio) {
       activePreviewAudio = null;
     }
-    if (onEnded) onEnded();
+    onEnded?.();
+  };
+  audio.onerror = () => {
+    if (activePreviewAudio === audio) activePreviewAudio = null;
+    onEnded?.();
   };
 
   const playPromise = audio.play();
@@ -220,7 +267,8 @@ export function playNaturalAudio(
       if (err.name !== 'AbortError') {
         console.warn("Audio playback issue:", err);
       }
-      if (onEnded) onEnded();
+      if (activePreviewAudio === audio) activePreviewAudio = null;
+      onEnded?.();
     });
   }
 

@@ -10,6 +10,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import { API_BASE_URL } from '../config/apiBase';
 import { AGENT_PRICING_OFFERS, type AgentPricingOffer } from '../config/agentPricing';
 import { getMyAccessToken } from '../services/supabaseClient';
@@ -57,6 +59,9 @@ export const AgentSawtifyPage: React.FC<{
   const [query, setQuery] = useState('');
   const [orderFilter, setOrderFilter] = useState<'all' | AgentOrderStatus>('all');
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const [pendingDeleteOrderId, setPendingDeleteOrderId] = useState<string | null>(null);
+  const pendingDeleteOrder = store.orders.find((order) => order.id === pendingDeleteOrderId) || null;
+  const pendingDeleteRestoresStock = Boolean(pendingDeleteOrder && (pendingDeleteOrder.requestType || 'order') === 'order' && pendingDeleteOrder.status !== 'delivered');
   const [editingProduct, setEditingProduct] = useState<AgentProduct | null | 'new'>(null);
   const [editingFaq, setEditingFaq] = useState<AgentFAQ | null | 'new'>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -363,11 +368,6 @@ export const AgentSawtifyPage: React.FC<{
     const order = store.orders.find((item) => item.id === id);
     if (!order || deletingOrderId) return;
     const restoresStock = (order.requestType || 'order') === 'order' && order.status !== 'delivered';
-    const confirmation = restoresStock
-      ? bi('Supprimer cette commande ? Les unités réservées seront remises en stock.', 'تحذف هذا الطلب؟ الكمية المحجوزة ترجع للمخزون.')
-      : bi('Supprimer cette demande définitivement ?', 'تحذف هذا الطلب نهائياً؟');
-    if (!window.confirm(confirmation)) return;
-
     setDeletingOrderId(id);
     try {
       if (previewMode) {
@@ -607,7 +607,7 @@ export const AgentSawtifyPage: React.FC<{
           </div>
           {filteredOrders.length ? (
             <div className="space-y-3">
-              {filteredOrders.map((order) => <OrderCard key={order.id} order={order} isArabic={isArabic} deleting={deletingOrderId === order.id} onStatusChange={(status) => changeOrderStatus(order.id, status)} onDelete={() => void deleteOrder(order.id)} />)}
+              {filteredOrders.map((order) => <OrderCard key={order.id} order={order} isArabic={isArabic} deleting={deletingOrderId === order.id} onStatusChange={(status) => changeOrderStatus(order.id, status)} onDelete={() => setPendingDeleteOrderId(order.id)} />)}
             </div>
           ) : <EmptyState icon={ShoppingBag} title={bi('Aucune demande ici', 'ما كاين حتى طلب هنا')} subtitle={bi('Les demandes envoyées depuis votre page client s’afficheront dans cet espace.', 'الطلبات اللي يبعثوها الزبائن من صفحتك يبانوا هنا.')} />}
         </section>
@@ -652,6 +652,24 @@ export const AgentSawtifyPage: React.FC<{
       )}
       {editingFaq && (
         <FaqDialog faq={editingFaq === 'new' ? null : editingFaq} isArabic={isArabic} onClose={() => setEditingFaq(null)} onSave={saveFaq} />
+      )}
+      {pendingDeleteOrder && (
+        <ConfirmDialog
+          title={pendingDeleteRestoresStock ? bi('Supprimer cette commande ?', 'تحذف هذا الطلب؟') : bi('Supprimer cette demande ?', 'تحذف هذا الطلب؟')}
+          description={pendingDeleteRestoresStock
+            ? bi('Les unités réservées seront remises en stock.', 'الكمية المحجوزة ترجع للمخزون.')
+            : bi('Cette action supprimera définitivement la demande.', 'سيتم حذف الطلب نهائياً.')}
+          cancelLabel={bi('Annuler', 'إلغاء')}
+          confirmLabel={bi('Supprimer', 'حذف')}
+          dir={isArabic ? 'rtl' : 'ltr'}
+          dataModal="agent-delete-order"
+          onClose={() => setPendingDeleteOrderId(null)}
+          onConfirm={() => {
+            const orderId = pendingDeleteOrder.id;
+            setPendingDeleteOrderId(null);
+            void deleteOrder(orderId);
+          }}
+        />
       )}
       </section>
     </div>
@@ -1326,12 +1344,21 @@ function FaqDialog({ faq, isArabic, onClose, onSave }: { faq: AgentFAQ | null; i
 
 function DialogShell({ title, isArabic, onClose, children }: { title: string; isArabic: boolean; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label={title} dir={isArabic ? 'rtl' : 'ltr'} className="max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] border border-white bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-[28px] sm:p-6">
-        <div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-lg font-black text-slate-950">{title}</h2><button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200" aria-label={isArabic ? 'إغلاق' : 'Fermer'}><X className="h-4 w-4" /></button></div>
-        {children}
-      </section>
-    </div>
+    <ModalShell
+      onClose={onClose}
+      ariaLabelledBy="agent-editor-dialog-title"
+      dir={isArabic ? 'rtl' : 'ltr'}
+      size="md"
+      placement="sheet"
+      panelClassName="max-w-xl p-5 sm:p-6"
+      dataModal="agent-editor"
+    >
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <ModalTitle id="agent-editor-dialog-title" className="text-lg sm:text-xl">{title}</ModalTitle>
+        <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200" aria-label={isArabic ? 'إغلاق' : 'Fermer'}><X className="h-4 w-4" /></button>
+      </div>
+      {children}
+    </ModalShell>
   );
 }
 
@@ -1405,6 +1432,7 @@ function GatewaySection({ store, previewMode, isArabic, onNotice }: {
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [submittingJob, setSubmittingJob] = useState(false);
   const [revokingId, setRevokingId] = useState('');
+  const [gatewayToRevoke, setGatewayToRevoke] = useState<GatewayDevice | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
 
@@ -1534,7 +1562,6 @@ function GatewaySection({ store, previewMode, isArabic, onNotice }: {
   };
 
   const revokeGateway = async (gateway: GatewayDevice) => {
-    if (!window.confirm(bi(`Révoquer « ${gateway.device_name} » ? Son accès sera immédiatement coupé.`, `إلغاء « ${gateway.device_name} »؟ سيتم قطع الاتصال فوراً.`))) return;
     setRevokingId(gateway.id);
     try {
       const headers = await getHeaders();
@@ -1638,7 +1665,7 @@ function GatewaySection({ store, previewMode, isArabic, onNotice }: {
           {data.gateways.map((gateway) => <article key={gateway.id} className="rounded-2xl border border-violet-100 bg-white/85 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${gateway.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><Smartphone className="h-5 w-5" /></span><div className="min-w-0"><h4 className="truncate text-sm font-extrabold text-slate-900">{gateway.device_name}</h4><p className="mt-0.5 text-[10px] text-slate-500">{bi('Appairé le', 'تم الربط في')} {formatDate(gateway.paired_at)}</p></div></div>
-              <button type="button" onClick={() => void revokeGateway(gateway)} disabled={revokingId === gateway.id} className="rounded-lg border border-rose-100 px-2.5 py-1.5 text-[10px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{revokingId === gateway.id ? '…' : bi('Révoquer', 'إلغاء')}</button>
+              <button type="button" onClick={() => setGatewayToRevoke(gateway)} disabled={revokingId === gateway.id} className="rounded-lg border border-rose-100 px-2.5 py-1.5 text-[10px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{revokingId === gateway.id ? '…' : bi('Révoquer', 'إلغاء')}</button>
             </div>
             <div className="mt-4 flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${gateway.online ? 'bg-emerald-500' : 'bg-slate-400'}`} /><span className={`text-xs font-extrabold ${gateway.online ? 'text-emerald-700' : 'text-slate-500'}`}>{gateway.online ? bi('En ligne', 'متصلة') : bi('Hors ligne', 'غير متصلة')}</span><span className="ms-auto text-[10px] text-slate-400">{bi('Dernier signal :', 'آخر إشارة:')} {formatDate(gateway.last_seen_at)}</span></div>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1686,6 +1713,25 @@ function GatewaySection({ store, previewMode, isArabic, onNotice }: {
       </section>
 
       <p className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-white/60 p-3 text-[10px] leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" />{bi('La clé d’appareil est conservée sous forme hachée dans Supabase et n’est remise qu’une fois au relais. Les SMS entrants et leurs contenus ne sont pas remontés au tableau de bord. Les appels, l’audio et les SMS dépendent des permissions Android, de la version du système et de l’opérateur ; aucun déploiement matériel n’est effectué par cette interface.', 'يُخزّن مفتاح الجهاز بصيغة هاش في Supabase ولا يُسلّم إلا مرة واحدة للمرحّل. لا يتم رفع محتوى SMS الوارد إلى لوحة التحكم. تعتمد المكالمات والصوت والرسائل على أذونات Android وإصدار النظام والمشغّل؛ هذه الواجهة لا تنفذ أي نشر على جهاز حقيقي.')}</p>
+      {gatewayToRevoke && (
+        <ConfirmDialog
+          title={bi('Révoquer cette passerelle ?', 'إلغاء صلاحية البوابة؟')}
+          description={bi(
+            `L’accès de « ${gatewayToRevoke.device_name} » sera immédiatement coupé.`,
+            `سيتم قطع الوصول عن « ${gatewayToRevoke.device_name} » فوراً.`,
+          )}
+          cancelLabel={bi('Annuler', 'إلغاء')}
+          confirmLabel={bi('Révoquer', 'إلغاء الصلاحية')}
+          dir={isArabic ? 'rtl' : 'ltr'}
+          dataModal="agent-revoke-gateway"
+          onClose={() => setGatewayToRevoke(null)}
+          onConfirm={() => {
+            const gateway = gatewayToRevoke;
+            setGatewayToRevoke(null);
+            void revokeGateway(gateway);
+          }}
+        />
+      )}
     </div>
   );
 }

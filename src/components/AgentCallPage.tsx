@@ -5,6 +5,7 @@ import {
   Phone, Plus, ShieldCheck, Store, Volume2, X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiBase';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
 import { answerAgentQuestion } from '../services/agentReply';
 import { connectAgentLive, type AgentLiveSession } from '../services/agentLive';
 import {
@@ -960,9 +961,16 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
       </section>
 
       {orderProduct && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}>
-          <section role="dialog" aria-modal="true" aria-label={bi('Demander un article', 'طلب منتج')} dir={isArabic ? 'rtl' : 'ltr'} className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[28px] border border-white bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
-            <div className="mb-5 flex items-start justify-between gap-3"><div><span className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{bi('Votre demande', 'طلبك')}</span><h2 className="mt-1 text-lg font-black text-slate-950">{orderSaved ? bi('Demande enregistrée !', 'تم تسجيل الطلب!') : orderProduct.name}</h2><p className="mt-1 text-xs text-slate-500">{orderSaved ? isDemoPreview
+        <ModalShell
+          onClose={() => setOrderProduct(null)}
+          ariaLabelledBy="agent-order-title"
+          dir={isArabic ? 'rtl' : 'ltr'}
+          size="lg"
+          placement="sheet"
+          panelClassName="max-w-lg p-5 sm:p-6"
+          dataModal="agent-order"
+        >
+            <div className="mb-5 flex items-start justify-between gap-3"><div><span className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{bi('Votre demande', 'طلبك')}</span><ModalTitle id="agent-order-title" className="mt-1 text-lg sm:text-xl">{orderSaved ? bi('Demande enregistrée !', 'تم تسجيل الطلب!') : orderProduct.name}</ModalTitle><p className="mt-1 text-xs text-slate-500">{orderSaved ? isDemoPreview
               ? bi('Demande de démonstration enregistrée dans ce navigateur.', 'تم حفظ طلب المعاينة في هذا المتصفح.')
               : bi('Demande transmise à la boutique; elle vous contactera pour confirmer.', 'تم إرسال الطلب للمتجر، ويتصل بيك باش يأكد التفاصيل.')
               : `${formatMoney(orderProduct.priceDzd, isArabic)} · ${orderProduct.stock} ${bi('disponibles', 'متوفر')}`}</p></div><button type="button" onClick={() => setOrderProduct(null)} className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-slate-200" aria-label={bi('Fermer', 'إغلاق')}><X className="h-4 w-4" /></button></div>
@@ -975,14 +983,20 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
                 <button type="submit" disabled={isResponding} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-violet-600 disabled:cursor-wait disabled:opacity-60"><Phone className="h-4 w-4" />{isResponding ? bi('Envoi…', 'جاري الإرسال…') : bi('Envoyer ma demande', 'ابعث طلبي')}</button>
               </form>
             )}
-          </section>
-        </div>
+        </ModalShell>
       )}
 
       {businessRequestType && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setBusinessRequestType(null); }}>
-          <section role="dialog" aria-modal="true" aria-label={requestTypeLabel(businessRequestType, isArabic)} dir={isArabic ? 'rtl' : 'ltr'} className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[28px] border border-white bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
-            <div className="mb-5 flex items-start justify-between gap-3"><div><span className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{requestTypeLabel(businessRequestType, isArabic)}</span><h2 className="mt-1 text-lg font-black text-slate-950">{businessRequestSaved ? bi('Demande envoyée !', 'تم إرسال الطلب!') : businessRequestForm.title}</h2><p className="mt-1 text-xs text-slate-500">{businessRequestSaved ? bi('L’activité vous recontactera pour confirmer.', 'النشاط يرجعلك باش يأكد التفاصيل.') : bi('Remplissez ces quelques informations pour transmettre votre demande.', 'عمّر هاذ المعلومات باش تبعث طلبك.')}</p></div><button type="button" onClick={() => setBusinessRequestType(null)} className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-slate-200" aria-label={bi('Fermer', 'إغلاق')}><X className="h-4 w-4" /></button></div>
+        <ModalShell
+          onClose={() => setBusinessRequestType(null)}
+          ariaLabelledBy="agent-business-request-title"
+          dir={isArabic ? 'rtl' : 'ltr'}
+          size="lg"
+          placement="sheet"
+          panelClassName="max-w-lg p-5 sm:p-6"
+          dataModal="agent-business-request"
+        >
+            <div className="mb-5 flex items-start justify-between gap-3"><div><span className="text-[10px] font-black uppercase tracking-[.15em] text-violet-700">{requestTypeLabel(businessRequestType, isArabic)}</span><ModalTitle id="agent-business-request-title" className="mt-1 text-lg sm:text-xl">{businessRequestSaved ? bi('Demande envoyée !', 'تم إرسال الطلب!') : businessRequestForm.title}</ModalTitle><p className="mt-1 text-xs text-slate-500">{businessRequestSaved ? bi('L’activité vous recontactera pour confirmer.', 'النشاط يرجعلك باش يأكد التفاصيل.') : bi('Remplissez ces quelques informations pour transmettre votre demande.', 'عمّر هاذ المعلومات باش تبعث طلبك.')}</p></div><button type="button" onClick={() => setBusinessRequestType(null)} className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-slate-200" aria-label={bi('Fermer', 'إغلاق')}><X className="h-4 w-4" /></button></div>
             {businessRequestSaved ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><CheckCircle2 className="h-6 w-6" /></span><p className="mt-3 text-sm font-extrabold text-emerald-900">{bi('Merci, votre demande a bien été transmise.', 'يعطيك الصحة، وصل طلبك.')}</p><button type="button" onClick={() => setBusinessRequestType(null)} className="mt-4 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-extrabold text-white hover:bg-emerald-800">{bi('Terminé', 'تم')}</button></div>
             ) : (
@@ -1000,8 +1014,7 @@ export const AgentCallPage: React.FC<{ slug: string }> = ({ slug }) => {
                 <button type="submit" disabled={isResponding} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-violet-600 disabled:cursor-wait disabled:opacity-60"><Phone className="h-4 w-4" />{isResponding ? bi('Envoi…', 'جاري الإرسال…') : bi('Envoyer ma demande', 'ابعث طلبي')}</button>
               </form>
             )}
-          </section>
-        </div>
+        </ModalShell>
       )}
     </main>
   );

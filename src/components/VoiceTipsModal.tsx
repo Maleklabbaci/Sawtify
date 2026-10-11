@@ -1,26 +1,20 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Check, Sparkles, X } from 'lucide-react';
+import { ModalEyebrow, ModalShell, ModalTitle } from './ui/ModalShell';
 
 /* ==========================================================================
    ASTUCES « SUPER VOIX »
    --------------------------------------------------------------------------
-   Pop-up affichée automatiquement à la PREMIÈRE entrée dans le studio (après
-   la pop-up « Nouveautés » si elle s'affiche), puis ré-ouvrable à volonté
-   depuis le bouton « i » placé à côté du bouton « + » de l'éditeur.
+   Pop-up affichée à la première entrée dans le studio (après « Nouveautés »)
+   puis ré-ouvrable depuis le bouton « i » de l'éditeur.
 
-   ⚠️ STYLE — MÊME GABARIT QUE WhatsNewV41 / les autres modales du studio :
-       fixed inset-0 z-[70] … bg-slate-950/60 backdrop-blur-sm
-       w-full max-w-sm rounded-3xl border border-purple-200 bg-white p-6 shadow-2xl
-       kicker : text-xs font-black uppercase tracking-[.14em] text-purple-600
-       titre  : text-base font-extrabold text-slate-900
-       texte  : text-xs leading-5 text-slate-500
-   Aucun style personnalisé, aucune animation, aucune police importée.
+   Le rendu utilise le socle partagé `ModalShell` pour rester au-dessus des
+   barres et panneaux de l'application, flouter l'arrière-plan, gérer le focus
+   et s'adapter aux petits écrans. La typographie reste celle de la plateforme.
 
-   ⚠️ ÉTAGE — z-[70] : toujours EN DESSOUS des messages importants.
-
-   Règle de rédaction : uniquement ce que l'utilisateur voit et entend.
-   Aucun nom de modèle, aucune route d'API.
+   Règle de rédaction : uniquement des conseils utiles à la création audio;
+   aucun nom de modèle ni route d'API.
    ========================================================================== */
 
 /** Change cette valeur pour que la pop-up se remontre à tout le monde. */
@@ -92,47 +86,22 @@ interface VoiceTipsModalProps {
 export const VoiceTipsModal: React.FC<VoiceTipsModalProps> = ({ onClose }) => {
   const { language, isRTL } = useLanguage();
   const t = (b: Bilingue) => (language === 'ar' ? b.ar : b.fr);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  // Le focus entre dans la carte (accessibilité clavier).
-  useEffect(() => {
-    cardRef.current?.focus();
-  }, []);
-
-  // Échap ferme, comme partout ailleurs dans la plateforme.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'}
-      dir={isRTL ? 'rtl' : 'ltr'}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <ModalShell
+      onClose={onClose}
+      ariaLabel={language === 'ar' ? 'نصائح للحصول على صوت رائع' : 'Astuces pour une super voix'}
+      size="sm"
+      panelClassName="border-purple-100 p-6"
+      dataModal="voice-tips"
     >
-      <div
-        ref={cardRef}
-        tabIndex={-1}
-        className="max-h-[88vh] w-full max-w-sm overflow-y-auto rounded-3xl border border-purple-200 bg-white p-6 shadow-2xl outline-none"
-      >
+      <div dir={isRTL ? 'rtl' : 'ltr'}>
         {/* ── En-tête ───────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[.14em] text-purple-600">
-              {language === 'ar' ? 'نصائح' : 'Astuces'}
-            </p>
-            <h3 className="mt-1 text-base font-extrabold text-slate-900">
+            <ModalEyebrow>{language === 'ar' ? 'نصائح' : 'Astuces'}</ModalEyebrow>
+            <ModalTitle className="mt-1">
               {language === 'ar' ? 'للحصول على صوت رائع' : 'Pour une super voix'}
-            </h3>
+            </ModalTitle>
           </div>
           <button
             type="button"
@@ -188,7 +157,7 @@ export const VoiceTipsModal: React.FC<VoiceTipsModalProps> = ({ onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };
 

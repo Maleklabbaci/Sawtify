@@ -14,7 +14,7 @@ import { getVoices, getStyleTags } from '../data/voices';
 import { tagsByCategory } from '../../tts/vocalTags';
 import { findStudioVoice } from '../../tts/voices';
 import type { TagCategory } from '../../tts/vocalTags';
-import { playNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
+import { playNaturalAudio, preloadNaturalAudio, stopNaturalAudio } from '../utils/audioGenerator';
 import { requestTTSGeneration, requestVoicePreview, requestEnhanceText, requestGenerateScript, requestSubjectIdeas, sendAIFeedback, type DesignedVoiceResponse } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -30,6 +30,8 @@ import { VoiceBubble, pickPalette, type BubblePalette } from './VoiceBubble';
 import { WhatsNewV41, shouldShowWhatsNew, markWhatsNewSeen } from './WhatsNewV41';
 import { VoiceTipsPanel, shouldShowVoiceTips, markVoiceTipsSeen } from './VoiceTipsPanel';
 import { VoiceDesignPage } from './VoiceDesignPage';
+import { FreeTrialRechargeModal } from './growth/FreeTrialRechargeModal';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
 
 
 // Styles de voix prêts à l'emploi : chaque bouton remplit la zone « Comment veux-tu que ça sonne ? »
@@ -67,25 +69,25 @@ const BURST_SECTIONS: { category: TagCategory; ar: string; fr: string }[] = [
 const chargerConvertisseurMp3 = () => import('../utils/audioConverter');
 
 // ==========================================================================
-// CLASSES COMMUNES DES POPUPS (rendus dans <body> via portail)
-// Fond blanc opaque, au-dessus de tout (z-[300])
+// CLASSES COMMUNES DES POPOVERS (rendus dans <body> via portail)
+// Surface verre et voile flouté partagés (z-[300])
 // ==========================================================================
 const POP_BASE =
-  'saw-pop-fix fixed z-[300] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
+  'saw-pop-fix fixed z-[300] text-slate-900 border rounded-3xl p-3 ' +
   // mobile : panneau en bas de l'écran
   'inset-x-3 top-20 max-h-[calc(100dvh-6rem)] ' +
   // PC : la position exacte (left/top/bottom/width/maxHeight) vient du style inline, calculé depuis la barre
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
-// Popup de changement de balise (pastille cliquable dans le texte)
+// Popover de changement de balise (pastille cliquable dans le texte)
 const CHIP_POP_BASE =
-  'saw-pop-fix fixed z-[310] bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-3xl p-3 ' +
+  'saw-pop-fix fixed z-[310] text-slate-900 border rounded-3xl p-3 ' +
   'overflow-y-auto custom-scrollbar inset-x-3 top-20 max-h-[calc(100dvh-6rem)] ' +
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
-// Popup des voix : compact, style menu (liste à hauteur garantie, réglages repliables)
+// Popover des voix : compact, style menu (liste à hauteur garantie, réglages repliables)
 const VOICES_POP_BASE =
-  'saw-pop-fix fixed z-[300] flex flex-col overflow-hidden bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-1.5 ' +
+  'saw-pop-fix fixed z-[300] flex flex-col overflow-hidden text-slate-900 border rounded-3xl p-1.5 ' +
   'inset-x-3 top-20 max-h-[calc(100dvh-6rem)] ' +
   'lg:inset-x-auto lg:bottom-auto lg:top-auto lg:max-h-none';
 
@@ -228,7 +230,8 @@ interface TTSStudioProps {
   balance: number;
   onBalanceChange: (remainingBalance: number) => void;
   onDeductPoints: (cost: number, record: GenerationRecord, storagePath?: string | null, remainingBalance?: number | null) => Promise<boolean>;
-  onOpenRecharge: () => void;
+  onOpenRecharge: (packId?: string) => void;
+  onFreeTrialRechargeOffer?: () => void;
   recentGenerations?: GenerationRecord[];
   prefillText?: string | null;
   onPrefillConsumed?: () => void;
@@ -278,7 +281,7 @@ type PopoverId = 'tags' | 'voices' | 'region' | null;
 // ==========================================================================
 // COMPOSANT PRINCIPAL
 // ==========================================================================
-export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
+export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, onDeductPoints, onOpenRecharge, onFreeTrialRechargeOffer, recentGenerations = [], prefillText = null, onPrefillConsumed }) => {
   const { t, isRTL, language } = useLanguage();
   const baseVoices = getVoices(language);
   const styleTags = getStyleTags(language);
@@ -321,7 +324,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [copied, setCopied] = useState<boolean>(false);
   const [insufficientAlert, setInsufficientAlert] = useState<boolean>(false);
+  const [showFreeTrialRechargeModal, setShowFreeTrialRechargeModal] = useState<boolean>(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const [loadingPreviewVoiceId, setLoadingPreviewVoiceId] = useState<string | null>(null);
   const [bubblePalette, setBubblePalette] = useState<BubblePalette | null>(null);
   const [isMagicActive, setIsMagicActive] = useState<boolean>(false);
   const [lastGeneratedCost, setLastGeneratedCost] = useState<number>(20);
@@ -442,6 +447,9 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   const previousAudioUrlRef = useRef<string | null>(null);
   const previousMp3UrlRef = useRef<string | null>(null);
   const previewRequestRef = useRef<string | null>(null);
+  const previewTokenRef = useRef(0);
+  const previewSettingsRef = useRef({ speed, pitch });
+  previewSettingsRef.current = { speed, pitch };
   const generationRequestLockRef = useRef(false);
   const enhanceRequestLockRef = useRef(false);
   const scriptRequestLockRef = useRef(false);
@@ -466,9 +474,31 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
   ], [baseVoices, customVoices]);
   const currentVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const playerVoiceName = generatedVoice?.name || currentVoice.name;
-  const filteredVoices = voices
+  const filteredVoices = useMemo(() => voices
     .filter(voice => (categoryFilter === 'all' || voice.category === categoryFilter) && (genderFilter === 'all' || voice.gender === genderFilter))
-    .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id)));
+    .sort((a, b) => Number(favoriteVoiceIds.includes(b.id)) - Number(favoriteVoiceIds.includes(a.id))),
+  [voices, categoryFilter, genderFilter, favoriteVoiceIds]);
+
+  // Prépare l’extrait pendant que la personne choisit sa voix, plutôt qu’après le clic.
+  // On ne précharge que la voix sélectionnée et deux voix visibles sans extrait statique.
+  const warmVoicePreview = useCallback((voice: Voice) => {
+    if (voice.sampleAudioUrl) {
+      preloadNaturalAudio(voice.sampleAudioUrl);
+      return;
+    }
+    const { speed: previewSpeed, pitch: previewPitch } = previewSettingsRef.current;
+    void requestVoicePreview(voice.id, previewSpeed, previewPitch).then(preloadNaturalAudio).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const selected = voices.find((voice) => voice.id === selectedVoiceId);
+    if (selected) warmVoicePreview(selected);
+  }, [voices, selectedVoiceId, warmVoicePreview]);
+
+  useEffect(() => {
+    if (openPop !== 'voices') return;
+    filteredVoices.filter((voice) => !voice.sampleAudioUrl).slice(0, 2).forEach(warmVoicePreview);
+  }, [openPop, filteredVoices, warmVoicePreview]);
 
   // ── PRÉNOM DYNAMIQUE ────────────────────────────────────────────────
   const [firstName, setFirstName] = useState<string>(() => { try { return localStorage.getItem('sawtify_first_name') || ''; } catch { return ''; } });
@@ -815,17 +845,64 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
     setText(text.slice(0, start) + swapped + text.slice(end));
   }, [text, language, showNotif]);
 
+  const stopVoicePreview = useCallback(() => {
+    previewTokenRef.current += 1;
+    previewRequestRef.current = null;
+    stopNaturalAudio();
+    setLoadingPreviewVoiceId(null);
+    setPreviewingVoiceId(null);
+  }, []);
+
+  useEffect(() => () => {
+    previewTokenRef.current += 1;
+    previewRequestRef.current = null;
+    stopNaturalAudio();
+  }, []);
+
   const handlePreviewVoice = useCallback(async (e: React.MouseEvent, voice: Voice) => {
     e.stopPropagation();
-    if (previewingVoiceId === voice.id || previewRequestRef.current === voice.id) { stopNaturalAudio(); setPreviewingVoiceId(null); previewRequestRef.current = null; return; }
-    if (previewRequestRef.current) return;
-    previewRequestRef.current = voice.id; setPreviewingVoiceId(voice.id); setBubblePalette((prev) => pickPalette(prev));
-    if (voice.sampleAudioUrl) { playNaturalAudio(voice.sampleAudioUrl, () => setPreviewingVoiceId(null), 1, 1); previewRequestRef.current = null; return; }
+    if (previewingVoiceId === voice.id || previewRequestRef.current === voice.id) {
+      stopVoicePreview();
+      return;
+    }
+
+    // Un nouvel essai remplace immédiatement l’ancien, même si sa requête réseau traîne.
+    const requestToken = ++previewTokenRef.current;
+    previewRequestRef.current = voice.id;
+    setLoadingPreviewVoiceId(voice.id);
+    setPreviewingVoiceId(null);
+    stopNaturalAudio();
+
     try {
-      const audioUrl = await requestVoicePreview(voice.id, speed, pitch);
-      previewRequestRef.current = null; playNaturalAudio(audioUrl, () => setPreviewingVoiceId(null), speed, pitch);
-    } catch (err: any) { setPreviewingVoiceId(null); previewRequestRef.current = null; showNotif(language === 'ar' ? 'فشل تشغيل المعاينة' : 'Erreur de preview'); }
-  }, [previewingVoiceId, speed, pitch, language, showNotif]);
+      const audioUrl = voice.sampleAudioUrl || await requestVoicePreview(voice.id, speed, pitch);
+      if (previewTokenRef.current !== requestToken) return;
+
+      playNaturalAudio(
+        audioUrl,
+        () => {
+          if (previewTokenRef.current !== requestToken) return;
+          previewRequestRef.current = null;
+          setLoadingPreviewVoiceId(null);
+          setPreviewingVoiceId(null);
+        },
+        speed,
+        pitch,
+        () => {
+          if (previewTokenRef.current !== requestToken) return;
+          previewRequestRef.current = null;
+          setLoadingPreviewVoiceId(null);
+          setPreviewingVoiceId(voice.id);
+          setBubblePalette((previous) => pickPalette(previous));
+        },
+      );
+    } catch (err: any) {
+      if (previewTokenRef.current !== requestToken) return;
+      previewRequestRef.current = null;
+      setLoadingPreviewVoiceId(null);
+      setPreviewingVoiceId(null);
+      showNotif(language === 'ar' ? 'فشل تشغيل المعاينة' : 'Impossible de lancer l’aperçu. Réessaie.');
+    }
+  }, [previewingVoiceId, speed, pitch, language, showNotif, stopVoicePreview]);
 
   async function handleGenerate(retryCount = 0) {
     if (retryCount === 0) { if (generationRequestLockRef.current) return; generationRequestLockRef.current = true; }
@@ -875,6 +952,10 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
         })();
         showNotif(response.milestone_bonus ? `-${realCost} Points · +${response.milestone_bonus} bonus` : (response.notification || `-${realCost} Points`));
         playGenerationChime();
+        if (response.show_free_trial_recharge_offer) {
+          onFreeTrialRechargeOffer?.();
+          window.setTimeout(() => setShowFreeTrialRechargeModal(true), 700);
+        }
       }
 
       try {
@@ -1146,7 +1227,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
         <VoiceBubble
           palette={bubblePalette}
           label={(() => { const v = voices.find((x) => x.id === previewingVoiceId); return language === 'ar' ? `استماع · ${v?.name ?? ''}` : `Écoute · ${v?.name ?? ''}`; })()}
-          onStop={() => { stopNaturalAudio(); setPreviewingVoiceId(null); previewRequestRef.current = null; }}
+          onStop={stopVoicePreview}
         />
       )}
 
@@ -1164,7 +1245,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               <AlertCircle className="w-4 h-4 text-rose-500" />
               <span>{language === 'ar' ? 'رصيدك غير كافٍ.' : 'Solde insuffisant.'}</span>
             </div>
-            <button onClick={onOpenRecharge} className="saw-flat px-3 py-1.5 rounded-full text-[11px] font-semibold text-rose-700 border-rose-200 hover:bg-rose-100 cursor-pointer">
+            <button onClick={() => onOpenRecharge()} className="saw-flat px-3 py-1.5 rounded-full text-[11px] font-semibold text-rose-700 border-rose-200 hover:bg-rose-100 cursor-pointer">
               {language === 'ar' ? 'شحن' : 'Recharger'}
             </button>
           </div>
@@ -1173,7 +1254,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
         <main className="relative z-[1] mx-auto w-[min(800px,calc(100%-2rem))] flex flex-col items-center pt-5 sm:pt-8 lg:pt-14">
 
           <div className="w-full flex flex-col items-center gap-4 sm:gap-6 mb-7 sm:mb-10 lg:mb-14">
-            <button onClick={onOpenRecharge} className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5" title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}>
+            <button onClick={() => onOpenRecharge()} className="saw-flat rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-[#3b2d63] cursor-pointer flex items-center gap-1.5" title={language === 'ar' ? 'شحن الرصيد' : 'Recharger le solde'}>
               <span className="font-num">{language === 'ar' ? `الرصيد ${balance} نقطة` : `Solde ${balance} pts`}</span>
               <span className="text-slate-400">·</span>
               <span className="text-[#6d28d9] font-bold">{language === 'ar' ? 'شحن' : 'Recharger'}</span>
@@ -1284,7 +1365,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 </span>
                 <span className="text-[10px] text-slate-400 font-num"><span className={`font-semibold ${text.length >= maxChars * 0.9 ? 'text-amber-600' : 'text-slate-500'}`}>{text.length}</span> / {maxChars}</span>
               </div>
-              {needsTopUp && ( <button onClick={onOpenRecharge} className="rounded-full bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold px-4 py-2 cursor-pointer transition-colors">{language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer'}</button> )}
+              {needsTopUp && ( <button onClick={() => onOpenRecharge()} className="rounded-full bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold px-4 py-2 cursor-pointer transition-colors">{language === 'ar' ? 'اشحن رصيدك للتوليد' : 'Rechargez pour générer'}</button> )}
             </div>
 
             {balance < TTS_UNLOCK_BALANCE_THRESHOLD && (
@@ -1348,13 +1429,14 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
       </fieldset>
 
       {/* ==================================================================================================== */}
-      {/* = POPUPS BALISES / VOIX / RÉGION — rendus dans <body> (portail) : opaques, toujours au premier plan = */}
+      {/* = Popovers balises / voix / région : panneaux verre dans un portail, calque flouté partagé = */}
       {/* ==================================================================================================== */}
       {openPop && createPortal(
         <>
-          {/* Fond cliquable : ferme le popup (assombri sur mobile, invisible sur PC) */}
+          {/* Le voile flouté ferme aussi le popover au clic extérieur, sur mobile comme sur ordinateur. */}
           <div
-            className="fixed inset-0 z-[299] bg-slate-950/25 lg:bg-transparent"
+            className="saw-popover-backdrop fixed inset-0 z-[299]"
+            aria-hidden="true"
             onClick={() => setOpenPop(null)}
           />
 
@@ -1369,17 +1451,17 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اختر تأثيراً لإدراجه' : 'Choisir un effet'}</span>
               </div>
 
-              <div className="flex items-center gap-1.5 px-1 pt-1 pb-1.5"><SlidersHorizontal className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'نبرة الأداء (كامل النص)' : 'Ton (toute la lecture)'}</span></div>
+              <div className="flex items-center gap-1.5 px-1 pt-1 pb-1.5"><SlidersHorizontal className="w-3.5 h-3.5 text-[#6d28d9]" /><span className="text-[11px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'نبرة الأداء (كامل النص)' : 'Ton (toute la lecture)'}</span></div>
               <div className="grid grid-cols-2 gap-1">
                 {styleTags.map((tagObj) => (
                   <button key={tagObj.tag} onClick={() => handleInsertTag(tagObj.tag)} title={`${tagObj.tag} — ${tagObj.desc}`} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer text-slate-700">
                     <span className="block text-[11px] font-semibold">{`[${tagObj.label}]`}</span>
-                    <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{tagObj.tag}</span>
+                    <span className="block text-[10px] text-slate-500 font-num" dir="ltr">{tagObj.tag}</span>
                   </button>
                 ))}
               </div>
 
-              <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><Type className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'علامات الترقيم والتأكيد' : 'Ponctuation & insistance'}</span></div>
+              <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><Type className="w-3.5 h-3.5 text-[#6d28d9]" /><span className="text-[11px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? 'علامات الترقيم والتأكيد' : 'Ponctuation & insistance'}</span></div>
               <div className="grid grid-cols-3 gap-1">
                 {([
                   { mark: '...', fr: 'Hésitation', ar: 'تردد' },
@@ -1389,24 +1471,24 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 ]).map((p) => (
                   <button key={p.mark} onClick={() => handleInsertPunct(p.mark)} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer" title={`${p.mark} — ${language === 'ar' ? p.ar : p.fr}`}>
                     <span className="block text-[12px] font-bold text-slate-700 font-num" dir="ltr">{p.mark}</span>
-                    <span className="block text-[9px] text-slate-400">{language === 'ar' ? p.ar : p.fr}</span>
+                    <span className="block text-[10px] text-slate-500">{language === 'ar' ? p.ar : p.fr}</span>
                   </button>
                 ))}
                 <button onClick={handleEmphasize} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer" title={language === 'ar' ? 'حدّد كلمة لاتينية ثم اضغط' : 'Sélectionne un mot puis clique'}>
                   <span className="block text-[12px] font-bold text-slate-700" dir="ltr">MAJ</span>
-                  <span className="block text-[9px] text-slate-400">{language === 'ar' ? 'تأكيد كلمة' : 'Insister'}</span>
+                  <span className="block text-[10px] text-slate-500">{language === 'ar' ? 'تأكيد كلمة' : 'Insister'}</span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><AudioLines className="w-3 h-3 text-[#6d28d9]" /><span className="text-[10px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? `أصوات بشرية (${VOCAL_BURST_COUNT})` : `Sons humains (${VOCAL_BURST_COUNT})`}</span></div>
+              <div className="flex items-center gap-1.5 px-1 pt-3 pb-1.5"><AudioLines className="w-3.5 h-3.5 text-[#6d28d9]" /><span className="text-[11px] font-bold text-[#6d28d9] uppercase tracking-wider">{language === 'ar' ? `أصوات بشرية (${VOCAL_BURST_COUNT})` : `Sons humains (${VOCAL_BURST_COUNT})`}</span></div>
               {BURST_SECTIONS.map((section) => (
                 <div key={section.category}>
-                  <div className="text-[10px] font-semibold text-slate-400 px-1 pt-2 pb-1">{language === 'ar' ? section.ar : section.fr}</div>
+                  <div className="text-[11px] font-semibold text-slate-500 px-1 pt-2 pb-1">{language === 'ar' ? section.ar : section.fr}</div>
                   <div className="grid grid-cols-2 gap-1">
                     {(VOCAL_BURSTS[section.category] || []).map((v) => (
                       <button key={v.tag} onClick={() => handleInsertTag(v.tag)} title={`${v.tag} — ${language === 'ar' ? v.ar : v.fr}`} className="saw-flat rounded-xl px-2 py-1.5 text-start cursor-pointer">
                         <span className="block text-[10px] font-semibold text-slate-700">{language === 'ar' ? v.ar : v.fr}</span>
-                        <span className="block text-[9px] text-slate-400 font-num" dir="ltr">{v.tag}</span>
+                        <span className="block text-[10px] text-slate-500 font-num" dir="ltr">{v.tag}</span>
                       </button>
                     ))}
                   </div>
@@ -1437,15 +1519,31 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 {filteredVoices.map((voice) => {
                   const isSelected = voice.id === selectedVoiceId;
                   const isPreviewing = previewingVoiceId === voice.id;
+                  const isLoadingPreview = loadingPreviewVoiceId === voice.id;
                   const isFav = favoriteVoiceIds.includes(voice.id);
+                  const previewLabel = language === 'ar'
+                    ? (isLoadingPreview ? 'إلغاء تحضير المقطع' : isPreviewing ? 'إيقاف الاستماع' : 'استمع إلى الصوت')
+                    : (isLoadingPreview ? 'Annuler la préparation' : isPreviewing ? 'Arrêter l’écoute' : `Écouter ${voice.name}`);
                   return (
                     <div key={voice.id} onClick={() => { setSelectedVoiceId(voice.id); setOpenPop(null); }} className="group flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-100">
                       <span className="w-5 flex items-center justify-center shrink-0 text-slate-500">
                         <VoiceGlyph icon={voice.icon} gender={voice.gender} className="w-[18px] h-[18px]" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{voice.name}{(() => { const sv = findStudioVoice(voice.geminiVoice || ''); return sv ? <span className="ms-1.5 text-[10px] font-normal text-slate-400">{language === 'ar' ? sv.characterAr : sv.characterFr}</span> : null; })()}</span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{voice.name}{(() => { const sv = findStudioVoice(voice.geminiVoice || ''); return sv ? <span className="ms-1.5 text-[11px] font-normal text-slate-500">{language === 'ar' ? sv.characterAr : sv.characterFr}</span> : null; })()}</span>
                       <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavoriteVoice(voice.id); }} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isFav ? 'text-amber-500' : 'text-slate-300 opacity-0 group-hover:opacity-100 hover:text-amber-500'}`} title="Favori" aria-pressed={isFav}><Star className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} /></button>
-                      <button type="button" onClick={(e) => handlePreviewVoice(e, voice)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isPreviewing ? 'text-[#6d28d9]' : 'text-slate-400 hover:text-slate-700'}`}>{isPreviewing ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}</button>
+                      <button
+                        type="button"
+                        onClick={(e) => handlePreviewVoice(e, voice)}
+                        onFocus={() => warmVoicePreview(voice)}
+                        onPointerEnter={(event) => { if (event.pointerType === 'mouse') warmVoicePreview(voice); }}
+                        aria-label={previewLabel}
+                        aria-pressed={isPreviewing}
+                        aria-busy={isLoadingPreview}
+                        title={previewLabel}
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${isPreviewing || isLoadingPreview ? 'text-[#6d28d9]' : 'text-slate-400 hover:bg-violet-50 hover:text-slate-700'}`}
+                      >
+                        {isLoadingPreview ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : isPreviewing ? <Volume2 className="h-3.5 w-3.5 animate-pulse" /> : <Play className="h-3.5 w-3.5" />}
+                      </button>
                       <span className="w-4 flex items-center justify-center shrink-0">{isSelected && <Check className="w-4 h-4 text-[#6d28d9]" />}</span>
                     </div>
                   );
@@ -1484,7 +1582,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
               style={popStyle}
               className={`${POP_BASE} overflow-y-auto custom-scrollbar`}
             >
-              <div className="px-1 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}</div>
+              <div className="px-1 pb-2 text-xs font-bold text-slate-600 uppercase tracking-wide">{language === 'ar' ? 'اللهجة / المنطقة' : 'Lahdja / Région'}</div>
               <div className="flex flex-wrap gap-1.5">
                 {regionButtons.map(r => (
                   <button key={r.id} onClick={() => { setSelectedRegion(r.id); setOpenPop(null); }} className={`px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors ${selectedRegion === r.id ? 'saw-chip-active' : 'saw-flat text-slate-700'}`}>{language === 'ar' ? r.ar : r.fr}</button>
@@ -1499,11 +1597,11 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
 
       {chipPop && chipMeta && createPortal(
         <>
-          <div className="fixed inset-0 z-[309] bg-slate-950/25 lg:bg-transparent" onClick={() => setChipPop(null)} />
+          <div className="saw-popover-backdrop fixed inset-0 z-[309]" aria-hidden="true" onClick={() => setChipPop(null)} />
           <div dir={isRTL ? 'rtl' : 'ltr'} style={chipPopStyle} className={CHIP_POP_BASE}>
             <div className="flex items-center justify-between px-1 pb-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{language === 'ar' ? 'غيّر التأثير' : 'Changer l’effet'}</span>
-              <button type="button" onClick={handleChipRemove} className="flex items-center gap-1 text-[10px] font-semibold text-rose-500 hover:text-rose-600 cursor-pointer"><X className="w-3 h-3" />{language === 'ar' ? 'حذف' : 'Supprimer'}</button>
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{language === 'ar' ? 'غيّر التأثير' : 'Changer l’effet'}</span>
+              <button type="button" onClick={handleChipRemove} className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"><X className="w-3 h-3" />{language === 'ar' ? 'حذف' : 'Supprimer'}</button>
             </div>
             <div className="grid grid-cols-2 gap-1">
               {chipOptions.map((o) => {
@@ -1511,7 +1609,7 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 return (
                   <button key={o.tag} type="button" onClick={() => handleChipPick(o.tag)} className={`rounded-xl px-2 py-1.5 text-start cursor-pointer border ${active ? 'bg-[#6d28d9] text-white border-transparent' : 'saw-flat text-slate-700'}`}>
                     <span className="block text-[11px] font-semibold">{o.label}</span>
-                    <span className={`block text-[9px] font-num ${active ? 'text-white/70' : 'text-slate-400'}`} dir="ltr">{o.tag}</span>
+                    <span className={`block text-[10px] font-num ${active ? 'text-white/75' : 'text-slate-500'}`} dir="ltr">{o.tag}</span>
                   </button>
                 );
               })}
@@ -1523,15 +1621,20 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
 
       {/* POPUPS ET MODALES CI-DESSOUS */}
       {pendingDownload && (
-        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" onMouseDown={(e) => { if (e.target === e.currentTarget) setPendingDownload(null); }}>
-          <div className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-xl">
-            <button onClick={() => setPendingDownload(null)} className="float-end -me-2 -mt-2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" /></button>
-            <p className="text-sm font-extrabold text-slate-900">{language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت' : 'Tu as écouté ? Dis-nous c’était comment'}</p>
-            <div className="mt-3 flex justify-center"><StarRating rating={0} onRate={handleModalRate} size="lg" /></div>
-            <button onClick={handleModalSkip} className="mt-5 w-full rounded-2xl bg-[#6d28d9] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#8b5cf6] cursor-pointer">{language === 'ar' ? 'تحميل بدون تقييم' : 'Télécharger sans noter'}</button>
-            <button onClick={() => setPendingDownload(null)} className="mt-1 w-full rounded-2xl px-3 py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:text-slate-600 cursor-pointer">{language === 'ar' ? 'إلغاء' : 'Annuler'}</button>
-          </div>
-        </div>
+        <ModalShell
+          onClose={() => setPendingDownload(null)}
+          ariaLabelledBy="generation-rating-title"
+          dir={isRTL ? 'rtl' : 'ltr'}
+          size="sm"
+          panelClassName="p-6 text-center"
+          dataModal="generation-rating"
+        >
+          <button type="button" onClick={() => setPendingDownload(null)} className="absolute end-4 top-4 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600" aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}><X className="h-4 w-4" /></button>
+          <ModalTitle id="generation-rating-title" className="px-6 text-base sm:text-lg">{language === 'ar' ? 'استمعت؟ قولنا كيفاش كانت' : 'Tu as écouté ? Dis-nous c’était comment'}</ModalTitle>
+          <div className="mt-3 flex justify-center"><StarRating rating={0} onRate={handleModalRate} size="lg" /></div>
+          <button type="button" onClick={handleModalSkip} className="mt-5 w-full rounded-2xl bg-[#6d28d9] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#8b5cf6] cursor-pointer">{language === 'ar' ? 'تحميل بدون تقييم' : 'Télécharger sans noter'}</button>
+          <button type="button" onClick={() => setPendingDownload(null)} className="mt-1 w-full rounded-2xl px-3 py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:text-slate-600 cursor-pointer">{language === 'ar' ? 'إلغاء' : 'Annuler'}</button>
+        </ModalShell>
       )}
 
       {isGenerating && (
@@ -1546,14 +1649,20 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
       )}
 
       {showStartToneModal && (
-        <div className="fixed inset-0 z-[310] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowStartToneModal(false); }}>
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+        <ModalShell
+          onClose={() => setShowStartToneModal(false)}
+          ariaLabelledBy="start-tone-title"
+          dir={isRTL ? 'rtl' : 'ltr'}
+          size="md"
+          panelClassName="max-w-lg p-5 sm:p-6"
+          dataModal="start-tone"
+        >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d28d9]">{language === 'ar' ? 'قبل التوليد' : 'Avant de générer'}</p>
-                <h3 className="mt-1 text-base font-extrabold text-slate-900">{ttsStep === 'tone' ? (language === 'ar' ? 'كيف يبدأ الصوت؟' : 'Comment la voix doit-elle commencer ?') : (language === 'ar' ? 'اللغة والشدة' : 'Langue et intensité')}</h3>
+                <ModalTitle id="start-tone-title" className="mt-1 text-base sm:text-lg">{ttsStep === 'tone' ? (language === 'ar' ? 'كيف يبدأ الصوت؟' : 'Comment la voix doit-elle commencer ?') : (language === 'ar' ? 'اللغة والشدة' : 'Langue et intensité')}</ModalTitle>
               </div>
-              <button onClick={() => setShowStartToneModal(false)} className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setShowStartToneModal(false)} className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}><X className="h-4 w-4" /></button>
             </div>
             {ttsStep === 'tone' ? (
               <>
@@ -1588,11 +1697,18 @@ export const TTSStudio: React.FC<TTSStudioProps> = ({ balance, onBalanceChange, 
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {showWhatsNew && ( <WhatsNewV41 onClose={() => setShowWhatsNew(false)} onStart={() => setShowWhatsNew(false)} onSupport={() => { setShowWhatsNew(false); onOpenRecharge(); }} /> )}
+      {showFreeTrialRechargeModal && (
+        <FreeTrialRechargeModal
+          language={language}
+          isRTL={isRTL}
+          onClose={() => setShowFreeTrialRechargeModal(false)}
+          onRecharge={() => { setShowFreeTrialRechargeModal(false); onOpenRecharge('pack_starter'); }}
+        />
+      )}
     </div>
   );
 };

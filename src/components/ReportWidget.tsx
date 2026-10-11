@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { ModalShell, ModalTitle } from './ui/ModalShell';
 
 const WHATSAPP_NUMBER = '213697660969';
 const PHONE_DISPLAY = '+213 697 660 969';
@@ -78,14 +79,6 @@ export const ReportWidget: React.FC = () => {
     setDetail(t.detailDefault);
   }, [language]);
 
-  // Escape pour fermer
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-
   useEffect(() => {
     const onDetectedError = (event: Event) => {
       const diagnostic = (event as CustomEvent<{ detail?: string; description?: string }>).detail || {};
@@ -156,16 +149,18 @@ export const ReportWidget: React.FC = () => {
       {detectedIssue && !open && <button type="button" onClick={() => { setCollapsed(false); setOpen(true); }} className="fixed z-[76] bottom-[9.5rem] end-4 max-w-[240px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold text-amber-900 shadow-lg sm:bottom-20"><span className="block">Problème détecté</span><span className="mt-0.5 block truncate font-normal">{detectedIssue.detail} · ouvrir le rapport</span></button>}
 
       {open && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center bg-slate-950/50 backdrop-blur-sm">
-          {/* Clic à l'extérieur pour fermer */}
-          <div className="absolute inset-0" onClick={() => setOpen(false)} />
-
-          {/* Bottom-sheet mobile / carte centrée desktop — rien ne déborde :
-              largeur contrôlée, hauteur max 88dvh, seul le corps scrolle */}
+        <ModalShell
+          onClose={() => setOpen(false)}
+          ariaLabelledBy="report-modal-title"
+          size="md"
+          placement="sheet"
+          panelClassName="max-h-[88dvh] overflow-hidden border-slate-100 p-0"
+          dataModal="report"
+        >
           <form
             onSubmit={sendReport}
             dir={isRTL ? 'rtl' : 'ltr'}
-            className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 max-h-[88dvh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-2 duration-200"
+            className="flex max-h-[88dvh] w-full flex-col overflow-hidden"
           >
             {/* Poignée (mobile) */}
             <div className="sm:hidden pt-2.5 flex justify-center shrink-0">
@@ -175,7 +170,7 @@ export const ReportWidget: React.FC = () => {
             {/* Header compact */}
             <div className="px-5 pt-3 pb-3.5 border-b border-slate-100 flex items-start justify-between gap-3 shrink-0">
               <div className="min-w-0">
-                <h2 className="text-base font-extrabold text-slate-900 truncate">{t.title}</h2>
+                <ModalTitle id="report-modal-title" className="truncate text-lg sm:text-xl">{t.title}</ModalTitle>
                 <p className="mt-0.5 text-[11px] text-slate-400 flex items-center gap-1.5">
                   <MessageCircle className="w-3 h-3 text-[#25D366] shrink-0" />
                   <span dir="ltr" className="font-num">{PHONE_DISPLAY}</span>
@@ -236,7 +231,7 @@ export const ReportWidget: React.FC = () => {
               </button>
             </div>
           </form>
-        </div>
+        </ModalShell>
       )}
     </>
   );

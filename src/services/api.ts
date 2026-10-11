@@ -30,6 +30,9 @@ export interface TTSApiResponse {
   notice?: string;
   notification?: string;
   milestone_bonus?: number;
+  /** Offre de recharge affichée après la 2e génération offerte du compte. */
+  free_trial_generation_count?: number;
+  show_free_trial_recharge_offer?: boolean;
   /** true = audio de secours généré localement (offline/panne serveur), pas la vraie voix, jamais facturé */
   degraded?: boolean;
 }
@@ -96,44 +99,56 @@ function dataUriToBlob(dataUri: string): { blob: Blob; url: string } {
 }
 
 /**
- * Récupère un aperçu vocal naturel instantané pour une voix donnée (sans coût).
+ * Récupère un aperçu vocal naturel pour une voix donnée (sans coût).
+ * L’extrait est fixe par voix : vitesse et hauteur sont appliquées à la lecture,
+ * ce qui évite de refaire une requête et une génération pour chaque réglage.
  */
 const voicePreviewCache = new Map<string, string>();
-const voicePreviewInflight = new Map<string, Promise<string>>();
+const voicePreviewInflight = new Map<string, Promise<string | null>>();
 
 export async function requestVoicePreview(voiceId: string, speed: number = 1.0, pitch: number = 1.0, uploadedAudioUrl?: string): Promise<string> {
   // Les échantillons uploadés sont gratuits et ne doivent jamais réveiller Render/Gemini.
   if (uploadedAudioUrl) return uploadedAudioUrl;
-  const cacheKey = `${voiceId}:${speed.toFixed(1)}:${pitch.toFixed(1)}`;
-  const cached = voicePreviewCache.get(cacheKey);
+  const cacheKey = voiceId;
+  const fallbackCacheKey = `${voiceId}:fallback:${speed.toFixed(1)}:${pitch.toFixed(1)}`;
+  const cached = voicePreviewCache.get(cacheKey) || voicePreviewCache.get(fallbackCacheKey);
   if (cached) return cached;
-  const pending = voicePreviewInflight.get(cacheKey);
-  if (pending) return pending;
-  const request = (async () => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/tts/preview?voice_id=${encodeURIComponent(voiceId)}&speed=${speed}&pitch=${pitch}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.audio_url) {
-        if (data.audio_url.startsWith('data:audio/wav;base64,')) {
-          const { url } = dataUriToBlob(data.audio_url);
-          voicePreviewCache.set(cacheKey, url);
-          return url;
-        }
-        voicePreviewCache.set(cacheKey, data.audio_url);
-        return data.audio_url;
-      }
-    }
-  } catch (err) {
-    console.warn('Erreur récupération aperçu vocal backend:', err);
-  }
 
-  const synth = await generateSyntheticTTS("Bonjour et bienvenue sur Sawtify", getLocaleForVoice(voiceId), speed, pitch);
-  voicePreviewCache.set(cacheKey, synth.url);
-  return synth.url;
+  // Une seule requête backend par voix; chaque appelant garde son propre fallback
+  // afin de respecter ses réglages de vitesse et de hauteur si le serveur échoue.
+  const pending = voicePreviewInflight.get(cacheKey);
+  const request = pending || (async (): Promise<string | null> => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/tts/preview?voice_id=${encodeURIComponent(voiceId)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.audio_url) return null;
+      if (data.audio_url.startsWith('data:audio/wav;base64,')) {
+        return dataUriToBlob(data.audio_url).url;
+      }
+      return data.audio_url;
+    } catch (err) {
+      console.warn('Erreur récupération aperçu vocal backend:', err);
+      return null;
+    }
   })();
-  voicePreviewInflight.set(cacheKey, request);
-  try { return await request; } finally { voicePreviewInflight.delete(cacheKey); }
+  if (!pending) voicePreviewInflight.set(cacheKey, request);
+
+  try {
+    const audioUrl = await request;
+    if (audioUrl) {
+      voicePreviewCache.set(cacheKey, audioUrl);
+      return audioUrl;
+    }
+
+    const fallbackCached = voicePreviewCache.get(fallbackCacheKey);
+    if (fallbackCached) return fallbackCached;
+    const synth = await generateSyntheticTTS("Bonjour et bienvenue sur Sawtify", getLocaleForVoice(voiceId), speed, pitch);
+    voicePreviewCache.set(fallbackCacheKey, synth.url);
+    return synth.url;
+  } finally {
+    if (voicePreviewInflight.get(cacheKey) === request) voicePreviewInflight.delete(cacheKey);
+  }
 }
 
 /**
