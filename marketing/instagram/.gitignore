@@ -1,0 +1,3 @@
+slides/**/*.png
+!slides/**/contact-sheet.png
+__pycache__/
