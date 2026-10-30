@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 import sawtify_ig as ig
 from sawtify_ig import (AR_BOLD, AR_REG, AR_SEMI, LATIN_BOLD, LATIN_MED, LATIN_REG,
-                        M, P, SS, W, H, ar_para, dot, font, lat_line, rrect,
+                        M, P, SS, W, ar_para, dot, font, lat_line, rrect,
                         sparkle, visual)
 
 ROOT = Path(__file__).resolve().parent
@@ -335,7 +335,7 @@ def button(base, x: float, y: float, w: float, h: float, label: str,
 def card(base, x, y, w, h, radius=28, accent=False, flat=False):
     """Carte premium : ombre douce, fond net, filet fin."""
     if not flat and P["shadow"]:
-        sh = Image.new("RGBA", ig.CW and (W * SS, H * SS), (0, 0, 0, 0))
+        sh = Image.new("RGBA", (W * SS, ig.H * SS), (0, 0, 0, 0))
         ImageDraw.Draw(sh).rounded_rectangle(
             [(x + 3) * SS, (y + 14) * SS, (x + w - 3) * SS, (y + h + 14) * SS],
             radius=radius * SS, fill=P["shadow"])

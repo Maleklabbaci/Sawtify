@@ -23,10 +23,11 @@ from PIL import Image, ImageDraw, ImageFilter
 
 import sawtify_ig as ig
 import premium as px
-from sawtify_ig import (AR_BOLD, AR_REG, AR_SEMI, H, LATIN_BOLD, LATIN_MED, LATIN_REG,
+from sawtify_ig import (AR_BOLD, AR_REG, AR_SEMI, LATIN_BOLD, LATIN_MED, LATIN_REG,
                         M, P, SS, W, ar_para, font, lat_line, rrect, sparkle, visual)
 
 ROOT = Path(__file__).resolve().parent
+DESIGN_H = 1350          # hauteur du canevas de référence des gabarits
 R = W - M            # bord droit utile
 
 
@@ -61,7 +62,7 @@ def violet_bg(seed: int = 0) -> Image.Image:
 
 
 def footer_dark(base, index, total, hint="اسحب  →"):
-    y = H - M - 26
+    y = ig.H - M - 26
     dw, gap = 8, 12
     total_w = total * dw + (total - 1) * gap
     x0 = (W - total_w) / 2
@@ -782,8 +783,8 @@ CARROUSELS = [
 
 
 # ── Rendu ─────────────────────────────────────────────────────────────────
-def render(carousel, only_slides=None):
-    out = ROOT / "slides" / carousel["slug"]
+def render(carousel, only_slides=None, out_dir=None):
+    out = Path(out_dir) if out_dir else (ROOT / "slides" / carousel["slug"])
     out.mkdir(parents=True, exist_ok=True)
     slides = carousel["slides"]
     total = len(slides)
@@ -796,20 +797,31 @@ def render(carousel, only_slides=None):
         ig.set_theme("dark" if dark else "light")
         img = violet_bg(i) if dark else ig.background()
 
-        content = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        RENDERERS[slide["type"]](content, slide, i, total)
-
-        top_limit = 176 if dark else 172
-        bottom_limit = H - M - 54
-        bbox = content.getbbox()
+        # 1) le design est toujours dessiné sur le canevas de référence 1080×1350
+        #    (les gabarits utilisent des y absolus : on ne les déforme pas)
+        design = Image.new("RGBA", (ig.CW, DESIGN_H * SS), (0, 0, 0, 0))
+        RENDERERS[slide["type"]](design, slide, i, total)
+        # bbox sur un alpha seuillé : ignore les ombres quasi transparentes
+        alpha = design.getchannel("A").point(lambda a: 255 if a > 72 else 0)
+        bbox = alpha.getbbox()
         if bbox:
-            c_top, c_bottom = bbox[1] / SS, bbox[3] / SS
-            h_content = c_bottom - c_top
-            free = bottom_limit - top_limit
-            shift = (top_limit + (free - h_content) / 2 - c_top) if h_content < free \
-                else max(top_limit - c_top, bottom_limit - c_bottom)
-            content = content.transform(content.size, Image.AFFINE, (1, 0, 0, 0, 1, -shift * SS),
-                                        resample=Image.BICUBIC)
+            design = design.crop(bbox)
+
+        # 2) on l'adapte au canevas cible : mise à l'échelle si besoin, puis centrage
+        top_limit = 176 if dark else 172
+        bottom_limit = ig.H - M - 54
+        avail_w = ig.W - 2 * M
+        avail_h = bottom_limit - top_limit
+        # design est en px supersamplés, avail_* en px finaux -> on compare en px finaux
+        k = min(1.18, (avail_w * SS) / design.width, (avail_h * SS) / design.height)
+        if abs(k - 1.0) > 0.01:
+            design = design.resize((max(1, int(design.width * k)), max(1, int(design.height * k))),
+                                   Image.LANCZOS)
+        dw, dh = design.width / SS, design.height / SS      # taille en px finaux
+        x = (ig.W - dw) / 2
+        y = top_limit + (avail_h - dh) / 2
+        content = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        content.alpha_composite(design, (int(x * SS), int(y * SS)))
 
         layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
         layer.alpha_composite(content)
@@ -822,9 +834,13 @@ def render(carousel, only_slides=None):
         img.alpha_composite(layer)
 
         path = out / f"{i:02d}.png"
-        img.convert("RGB").resize((W, H), Image.LANCZOS).save(path, optimize=True)
+        img.convert("RGB").resize((ig.W, ig.H), Image.LANCZOS).save(path, optimize=True)
         paths.append(path)
-        print(f"  ✓ {path.relative_to(ROOT)}")
+        try:
+            shown = path.relative_to(ROOT)
+        except ValueError:
+            shown = path
+        print(f"  ✓ {shown}")
 
     if paths:
         thumbs = [Image.open(p).resize((360, 450), Image.LANCZOS) for p in paths]

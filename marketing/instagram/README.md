@@ -39,6 +39,26 @@ Deux autres séries existent aussi :
 `generate_carousels.py` (version sombre, 1 carrousel FR) et
 `generate_ar_carousel.py` (version crème simple, 100 % darija).
 
+## Formats (feed + story)
+
+Chaque carrousel est décliné en trois formats :
+
+| Dossier | Format | Usage |
+|---|---|---|
+| `slides/<slug>/01.png…` | 1080×1350 (4:5) | feed — occupe le plus de place |
+| `slides/<slug>/square/` | 1080×1080 (1:1) | feed carré / reposts |
+| `slides/<slug>/story/` | 1080×1920 (9:16) | story & reel, slide posée sur un fond de marque |
+
+```bash
+python3 export_formats.py                        # carré + story pour toute la série
+python3 export_formats.py --only 5 --formats story
+python3 export_formats.py --only 3 --slides 1,6
+```
+
+Le carré réutilise les mêmes gabarits : le design est dessiné sur le canevas de
+référence 1080×1350 puis mis à l'échelle pour remplir le canevas cible
+(constante `DESIGN_H` dans `generate_premium.py`).
+
 ## Structure du code
 
 | Fichier | Rôle |
@@ -47,6 +67,7 @@ Deux autres séries existent aussi :
 | `premium.py` | kit premium : 22 icônes vectorielles, tuiles, boutons, cartes, badges, lockup logo |
 | `generate_premium.py` | les contenus + les types de slides (`cover`, `errors`, `features`, `steps`, `grid`, `list`, `stats`, `compare`, `quotes`, `pricing`, `cta`) |
 | `prepare_logo.py` | détourage du logo mascotte |
+| `export_formats.py` | déclinaisons 1:1 et 9:16 |
 | `overview.py` | planche d'aperçu |
 | `fonts/` | Space Grotesk (latin) + IBM Plex Sans Arabic (darija) |
 

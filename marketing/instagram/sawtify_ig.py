@@ -35,6 +35,14 @@ SS = 2
 CW, CH = W * SS, H * SS
 M = 84
 
+
+def set_canvas(w: int, h: int) -> None:
+    """Change la taille du canevas (4:5, 1:1, 9:16…). Marge recalculée au prorata."""
+    global W, H, CW, CH, M
+    W, H = w, h
+    CW, CH = W * SS, H * SS
+    M = 84 if w >= 1000 else 60
+
 LATIN_BOLD = "SpaceGrotesk-Bold.ttf"
 LATIN_MED = "SpaceGrotesk-Medium.ttf"
 LATIN_REG = "SpaceGrotesk-Regular.ttf"
