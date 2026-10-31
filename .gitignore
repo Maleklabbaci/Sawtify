@@ -15,3 +15,6 @@ marketing/instagram/slides/bank-*/
 !marketing/instagram/slides/bank-002/
 !marketing/instagram/slides/bank-057/
 !marketing/instagram/slides/bank-140/
+
+# archives extras reconstruites par zip_extras.py (dérivées des dossiers square/ et story/)
+marketing/instagram/slides/*/extras-*.zip
