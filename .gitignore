@@ -6,3 +6,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# exports temporaires pour Google Drive (générés localement)
+marketing/instagram/drive_export/
