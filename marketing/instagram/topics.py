@@ -507,8 +507,18 @@ def to_carousel(topic: dict) -> dict:
         ],
     }
     slides = [cover, listing, steps, cta] if topic["shape"] == 4 else [cover, listing, cta]
+    # style visuel : 6 combinaisons en rotation, jamais deux jours identiques
+    STYLES = [
+        {"dark_bg": "violet", "cover": "classic", "body": "light"},
+        {"dark_bg": "ink",    "cover": "poster",  "body": "ice"},
+        {"dark_bg": "violet", "cover": "split",   "body": "light"},
+        {"dark_bg": "night",  "cover": "classic", "body": "ice"},
+        {"dark_bg": "ink",    "cover": "split",   "body": "light"},
+        {"dark_bg": "night",  "cover": "poster",  "body": "ice"},
+    ]
     return {
         "slug": slug,
+        "style": STYLES[(topic["id"] - 1) % len(STYLES)],
         "name": f"[{topic['id']:03d}] {topic['cat']} — {topic['audience']}",
         "caption": (
             f"{topic['hook']}\n\n"

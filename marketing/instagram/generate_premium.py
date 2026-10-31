@@ -32,12 +32,21 @@ R = W - M            # bord droit utile
 
 
 # ── Fonds ─────────────────────────────────────────────────────────────────
-def violet_bg(seed: int = 0) -> Image.Image:
-    """Fond violet premium (dégradé profond + halos + grain)."""
-    img = ig.gradient((ig.CW, ig.CH), (128, 45, 226), (58, 20, 118)).convert("RGBA")
-    ig.glow(img, ig.CW * 0.92, ig.CH * 0.06, 720 * SS, (196, 66, 240), 150)
-    ig.glow(img, ig.CW * 0.06, ig.CH * 0.34, 560 * SS, (255, 100, 44), 46)
-    ig.glow(img, ig.CW * 0.46, ig.CH * 1.04, 700 * SS, (86, 28, 170), 170)
+# Palettes des fonds sombres : (haut, bas, halo A, halo B, halo C)
+DARK_BG = {
+    "violet": ((128, 45, 226), (58, 20, 118), (196, 66, 240), (255, 100, 44), (86, 28, 170)),
+    "ink":    ((46, 42, 50), (11, 11, 14), (255, 100, 44), (124, 45, 200), (26, 24, 30)),
+    "night":  ((36, 22, 72), (7, 5, 14), (124, 45, 200), (217, 70, 239), (18, 10, 40)),
+}
+
+
+def dark_bg(kind: str = "violet", seed: int = 0) -> Image.Image:
+    """Fond sombre premium : violet, graphite (ink) ou indigo (night)."""
+    top, bottom, ga, gb, gc = DARK_BG.get(kind, DARK_BG["violet"])
+    img = ig.gradient((ig.CW, ig.CH), top, bottom).convert("RGBA")
+    ig.glow(img, ig.CW * 0.92, ig.CH * 0.06, 720 * SS, ga, 150)
+    ig.glow(img, ig.CW * 0.06, ig.CH * 0.34, 560 * SS, gb, 46)
+    ig.glow(img, ig.CW * 0.46, ig.CH * 1.04, 700 * SS, gc, 170)
 
     # texture : fines lignes diagonales
     stripes = Image.new("RGBA", (ig.CW, ig.CH), (0, 0, 0, 0))
@@ -59,6 +68,11 @@ def violet_bg(seed: int = 0) -> Image.Image:
     dark.putalpha(vig.point(lambda v: int(90 * (1 - v / 255.0))))
     img.alpha_composite(dark)
     return img
+
+
+def violet_bg(seed: int = 0) -> Image.Image:
+    """Compatibilité : fond violet historique."""
+    return dark_bg("violet", seed)
 
 
 def footer_dark(base, index, total, hint="اسحب  →"):
@@ -150,6 +164,75 @@ def s_cover(base, s, i, n):
     y += h + 34
 
     ar_text(base, s["ar"], 25, (235, 225, 250), y, font_name=AR_REG, leading=1.6)
+
+
+def s_cover_poster(base, s, i, n):
+    """Couverture « affiche » : chiffre fantôme, filet, typographie plein cadre."""
+    mark = px.logo(int(86 * SS))
+    base.alpha_composite(mark, (int((R - 86) * SS), int(200 * SS)))
+    ig.ghost_number(base, f"{i:02d}", M + 128, 458, size=430)
+
+    d = ImageDraw.Draw(base)
+    d.line([(M * SS, 616 * SS), (R * SS, 616 * SS)], fill=(255, 255, 255, 64), width=int(1.4 * SS))
+    white_badge(base, R, 652, s.get("chip", "Sawtify"), size=18)
+
+    y = ar_text(base, s["title"], 94, (255, 255, 255), 742, max_w=W - 2 * M, leading=1.24,
+                hi_color=HI_ON_VIOLET) + 26
+    d.line([(R * SS, y * SS), ((R - 132) * SS, y * SS)], fill=(*HI_ON_VIOLET, 255), width=int(4 * SS))
+    y += 34
+    y = ar_text(base, s["sub"], 27, (236, 228, 250), y, max_w=W - 2 * M - 40,
+                font_name=AR_REG, leading=1.72) + 34
+    d.text((R * SS, y * SS), "SAWTIFY  ·  DARJA DZ  ·  1080×1350",
+           font=font(LATIN_MED, 17), fill=(255, 255, 255, 130), anchor="rm")
+
+
+def s_cover_split(base, s, i, n):
+    """Couverture « split » : bandeau crème vertical + accroche sur fond sombre."""
+    cw = 300
+    x0 = M - 4
+    rrect(base, (x0, 208, x0 + cw, 1128), 32, fill=(250, 246, 238, 255))
+    mark = px.logo(int(104 * SS))
+    base.alpha_composite(mark, (int((x0 + cw / 2 - 52) * SS), int(258 * SS)))
+
+    d = ImageDraw.Draw(base)
+    ig.play_badge(base, x0 + cw / 2, 486, 38)
+    d.text(((x0 + cw / 2) * SS, 604 * SS), visual(s.get("player", "نموذج صوت")), font=font(AR_SEMI, 20),
+           fill=(26, 15, 46), anchor="mm")
+    d.text(((x0 + cw / 2) * SS, 640 * SS), "00:12", font=font(LATIN_MED, 18),
+           fill=(126, 112, 146), anchor="mm")
+    ig.waveform(base, x0 + 40, 712, cw - 80, 44, bars=16)
+    d.text(((x0 + cw / 2) * SS, 812 * SS), visual("جودة استوديو"), font=font(AR_SEMI, 19),
+           fill=(74, 60, 96), anchor="mm")
+    d.line([((x0 + 54) * SS, 872 * SS), ((x0 + cw - 54) * SS, 872 * SS)],
+           fill=(26, 15, 46, 34), width=int(1.2 * SS))
+    d.text(((x0 + cw / 2) * SS, 928 * SS), "30", font=font(LATIN_BOLD, 62),
+           fill=(124, 45, 200), anchor="mm")
+    d.text(((x0 + cw / 2) * SS, 972 * SS), visual("ثانية"), font=font(AR_SEMI, 20),
+           fill=(74, 60, 96), anchor="mm")
+    d.text(((x0 + cw / 2) * SS, 1042 * SS), "sawtify.space", font=font(LATIN_MED, 17),
+           fill=(126, 112, 146), anchor="mm")
+
+    xr = R
+    max_w = xr - (x0 + cw) - 46
+    white_badge(base, xr, 236, s.get("chip", "Sawtify"), size=16)
+    y = ar_text(base, s["title"], 62, (255, 255, 255), 320, max_w=max_w, x_right=xr,
+                leading=1.26, hi_color=HI_ON_VIOLET) + 26
+    y = ar_text(base, s["sub"], 24, (236, 228, 250), y, max_w=max_w, x_right=xr,
+                font_name=AR_REG, leading=1.66) + 24
+    y = ar_text(base, s.get("ar", "اسحب باش تشوف."), 21, (225, 214, 245), y, max_w=max_w,
+                x_right=xr, font_name=AR_REG, leading=1.55) + 40
+
+    # rangée de preuves, alignée à droite sous l'accroche
+    dy = min(y, 980)
+    for k, label in enumerate(("30 صوت", "50 نقطة", "بلا ميكرو")):
+        f = font(AR_SEMI, 17)
+        tw = d.textlength(visual(label), font=f) / SS + 34
+        x1 = xr - k * 0
+        rrect(base, (xr - tw, dy, xr, dy + 44), 22, fill=(255, 255, 255, 30),
+              outline=(255, 255, 255, 78), width=1.1)
+        d.text(((xr - tw / 2) * SS, (dy + 23) * SS), visual(label), font=f,
+               fill=(255, 255, 255), anchor="mm")
+        xr -= tw + 12
 
 
 def s_errors(base, s, i, n):
@@ -397,6 +480,18 @@ RENDERERS = {
     "grid": s_grid, "stats": s_stats, "compare": s_compare, "quotes": s_quotes,
     "pricing": s_pricing, "list": s_list, "cta": s_cta,
 }
+COVERS = {"classic": s_cover, "poster": s_cover_poster, "split": s_cover_split}
+
+# Styles visuels : fond sombre + gabarit de couverture + palette du corps de page.
+# Le cycle garantit que deux jours consécutifs ne se ressemblent pas.
+STYLES = [
+    {"dark_bg": "violet", "cover": "classic", "body": "light"},
+    {"dark_bg": "ink",    "cover": "poster",  "body": "ice"},
+    {"dark_bg": "violet", "cover": "split",   "body": "light"},
+    {"dark_bg": "night",  "cover": "classic", "body": "ice"},
+    {"dark_bg": "ink",    "cover": "split",   "body": "light"},
+    {"dark_bg": "night",  "cover": "poster",  "body": "ice"},
+]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -782,6 +877,23 @@ CARROUSELS = [
 ]
 
 
+# Style visuel de la série éditoriale : jamais deux carrousels voisins identiques.
+SERIES_STYLE = {
+    "03-3-erreurs-pub":            {"dark_bg": "violet", "cover": "classic", "body": "light"},
+    "04-faire-une-pub-en-5-min":   {"dark_bg": "ink",    "cover": "poster",  "body": "ice"},
+    "05-preuves-clients":          {"dark_bg": "night",  "cover": "split",   "body": "ice"},
+    "06-5-idees-videos-darija":    {"dark_bg": "violet", "cover": "split",   "body": "light"},
+    "07-choisir-la-bonne-voix":    {"dark_bg": "ink",    "cover": "classic", "body": "light"},
+    "08-darija-ou-fusha":          {"dark_bg": "night",  "cover": "poster",  "body": "ice"},
+    "09-premieres-secondes":       {"dark_bg": "violet", "cover": "classic", "body": "ice"},
+    "10-de-3-jours-a-30-secondes": {"dark_bg": "ink",    "cover": "split",   "body": "light"},
+    "11-droits-commerciaux":       {"dark_bg": "night",  "cover": "classic", "body": "light"},
+    "12-semaine-de-contenu":       {"dark_bg": "violet", "cover": "poster",  "body": "ice"},
+    "13-une-seule-erreur":         {"dark_bg": "ink",    "cover": "classic", "body": "ice"},
+}
+for _c in CARROUSELS:
+    _c.setdefault("style", SERIES_STYLE.get(_c["slug"], {}))
+
 # ── Rendu ─────────────────────────────────────────────────────────────────
 def render(carousel, only_slides=None, out_dir=None):
     out = Path(out_dir) if out_dir else (ROOT / "slides" / carousel["slug"])
@@ -794,13 +906,21 @@ def render(carousel, only_slides=None, out_dir=None):
         if only_slides and i not in only_slides:
             continue
         dark = slide["type"] in DARK
-        ig.set_theme("dark" if dark else "light")
-        img = violet_bg(i) if dark else ig.background()
+        style = carousel.get("style") or SERIES_STYLE.get(carousel.get("slug", ""), {})
+        if dark:
+            ig.set_theme("dark")
+            img = dark_bg(style.get("dark_bg", "violet"), i)
+        else:
+            ig.set_theme(style.get("body", "light"))
+            img = ig.background()
 
         # 1) le design est toujours dessiné sur le canevas de référence 1080×1350
         #    (les gabarits utilisent des y absolus : on ne les déforme pas)
         design = Image.new("RGBA", (ig.CW, DESIGN_H * SS), (0, 0, 0, 0))
-        RENDERERS[slide["type"]](design, slide, i, total)
+        fn = RENDERERS[slide["type"]]
+        if slide["type"] == "cover":
+            fn = COVERS.get(style.get("cover", "classic"), s_cover)
+        fn(design, slide, i, total)
         # bbox sur un alpha seuillé : ignore les ombres quasi transparentes
         alpha = design.getchannel("A").point(lambda a: 255 if a > 72 else 0)
         bbox = alpha.getbbox()
