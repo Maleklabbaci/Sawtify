@@ -476,6 +476,180 @@ def s_cta(base, s, i, n):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  Corps de page v3 — deux squelettes de plus, pour casser la répétition
+# ═══════════════════════════════════════════════════════════════════════════
+def s_rail(base, s, i, n):
+    """RAIL : pastilles d'icônes reliées par un filet, texte posé à droite.
+    Aucune carte : la page respire, ce qui casse le rythme « pile de cartes »."""
+    px.badge(base, R, 236, s["chip"])
+    y = ar_text(base, s["title"], 64, P["text"], 300, leading=1.32) + 66
+    items = s["items"]
+    rail = M + 46
+    rrect(base, (rail - 1.6, y - 14, rail + 1.6, y + (len(items) - 1) * 196 + 14), 2,
+          fill=(*P["primary"], 80))
+    for k, item in enumerate(items):
+        cy = y + k * 196
+        rrect(base, (rail - 34, cy - 34, rail + 34, cy + 34), 34, fill=(*P["primary"], 24),
+              outline=(*P["primary"], 120), width=1.4)
+        px.icon(base, item["icon"], rail, cy, 32, P["primary"], 2.1)
+        ar_para(base, R - 4, cy - 44, item["t"], 32, AR_BOLD, P["text"],
+                max_w=R - M - 146, leading=1.26)
+        ar_para(base, R - 4, cy + 6, item["v"], 20, AR_REG, P["muted"],
+                max_w=R - M - 146, leading=1.5)
+
+
+def s_index(base, s, i, n):
+    """INDEX : gros numéros en filigrane, filets fins, zéro carte.
+    Le pendant « éditorial / magazine » des listes à cartes."""
+    px.badge(base, R, 236, s["chip"])
+    y = ar_text(base, s["title"], 62, P["text"], 300, leading=1.32) + 46
+    items = s["items"]
+    row_h = 168
+    d = ImageDraw.Draw(base)
+    for k, item in enumerate(items):
+        cy = y + k * row_h
+        d.text(((M - 8) * SS, (cy + 50) * SS), f"{k + 1:02d}", font=font(LATIN_BOLD, 84),
+               fill=(*P["primary"], 58), anchor="lm")
+        rrect(base, (M, cy + row_h - 10, R, cy + row_h - 8), 1, fill=(*P["text"], 34))
+        px.icon(base, item["icon"], R - 20, cy + 50, 26, P["primary"], 2.0)
+        ar_para(base, R - 58, cy + 14, item["t"], 31, AR_BOLD, P["text"],
+                max_w=R - M - 176, leading=1.26)
+        ar_para(base, R - 58, cy + 62, item["v"], 20, AR_REG, P["muted"],
+                max_w=R - M - 176, leading=1.5)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CTA v3 — quatre nouveaux objets de fin (le CTA n'est plus un gabarit unique)
+# ═══════════════════════════════════════════════════════════════════════════
+def _cta_title(base, s, y, size=78, max_w=None, color=(255, 255, 255), hi=None,
+               font_name=AR_BOLD, leading=1.28):
+    mw = max_w or (W - 2 * M - 60)
+    return ar_text(base, s["title"], size, color, y, max_w=mw, align="center",
+                   x_right=W / 2 + mw / 2, leading=leading,
+                   hi_color=hi or HI_ON_VIOLET, font_name=font_name)
+
+
+def _cta_sub(base, s, y, size=24, max_w=None, color=(238, 228, 255)):
+    mw = max_w or (W - 2 * M - 120)
+    return ar_text(base, s["sub"], size, color, y, max_w=mw, font_name=AR_REG,
+                   align="center", x_right=W / 2 + mw / 2, leading=1.66)
+
+
+def _cta_note(base, y, text, color=(240, 232, 255), size=19):
+    ImageDraw.Draw(base).text((W / 2 * SS, y * SS), text,
+                              font=font(LATIN_MED if not ig.ARABIC_RE.search(text) else AR_REG,
+                                        size),
+                              fill=color, anchor="mm")
+
+
+def _cta_chips(base, y, guarantees, fill=(255, 255, 255, 30), line=(255, 255, 255, 80),
+               color=(255, 255, 255)):
+    d = ImageDraw.Draw(base)
+    n = len(guarantees)
+    for k, g in enumerate(guarantees):
+        cx = W / 2 + (k - (n - 1) / 2) * 232
+        rrect(base, (cx - 106, y - 30, cx + 106, y + 34), 22, fill=fill, outline=line, width=1.1)
+        px.icon(base, g["icon"], cx - 74, y + 2, 24, color, 1.9)
+        d.text(((cx - 50) * SS, (y + 3) * SS), visual(g["t"]), font=font(AR_SEMI, 19),
+               fill=color, anchor="lm")
+
+
+def s_cta_ticket(base, s, i, n):
+    """CTA « carte de démarrage » : ticket crème, points, bouton violet."""
+    fx.halftone(base, W - 30, 220, 280, alpha=20)
+    fx.ticket(base, (M - 4, 250, R + 4, 1156), radius=40, fill=CREAM)
+    base.alpha_composite(px.logo(int(108 * SS)), (int((W / 2 - 54) * SS), int(300 * SS)))
+    d = ImageDraw.Draw(base)
+    d.text((W / 2 * SS, 452 * SS), "SAWTIFY  ·  CARTE DE DÉMARRAGE",
+           font=font(LATIN_BOLD, 15), fill=(158, 134, 186), anchor="mm")
+
+    y = _cta_title(base, s, 486, size=72, max_w=W - 2 * M - 96,
+                   color=(58, 20, 118), hi=(255, 100, 44))
+    _cta_sub(base, s, y + 14, size=22, max_w=W - 2 * M - 130, color=(96, 80, 116))
+
+    # pointillés de découpe
+    xx = M + 34
+    while xx < R - 34:
+        d.line([(xx * SS, 812 * SS), ((xx + 13) * SS, 812 * SS)],
+               fill=(160, 140, 180, 130), width=int(1.6 * SS))
+        xx += 26
+
+    yy = 848
+    for k, g in enumerate(s["guarantees"]):
+        px.icon(base, g["icon"], R - 58, yy, 24, (124, 45, 200), 2.0)
+        d.text(((R - 96) * SS, yy * SS), visual(g["t"]), font=font(AR_SEMI, 22),
+               fill=(58, 20, 118), anchor="rm")
+        if k < len(s["guarantees"]) - 1:
+            rrect(base, (M + 34, yy + 40, R - 34, yy + 41), 1, fill=(90, 60, 130, 34))
+        yy += 62
+
+    bw, bh = 452, 90
+    px.button(base, (W - bw) / 2, 1032, bw, bh, s["cta"], style="violet")
+    _cta_note(base, 1150, s["cta_note"], color=(128, 108, 152), size=18)
+    fx.sticker(base, R - 30, 274, 46, "50", "POINTS", color=(255, 100, 44), rot=-11)
+
+
+def s_cta_marquee(base, s, i, n):
+    """CTA « affiche » : bandeau presse orange, titre géant, bouton crème."""
+    fx.marquee(base, 296, 64, "SAWTIFY  ·  50 POINTS  ·  30 SECONDES  ·  DARJA DZ  ·",
+               font_size=19)
+    base.alpha_composite(px.logo(int(124 * SS)), (int((W / 2 - 62) * SS), int(372 * SS)))
+    y = _cta_title(base, s, 542, size=80)
+    y = _cta_sub(base, s, y + 22)
+    bw, bh = 452, 92
+    px.button(base, (W - bw) / 2, y + 34, bw, bh, s["cta"], style="white")
+    _cta_note(base, y + 34 + bh + 40, s["cta_note"])
+    _cta_chips(base, y + 34 + bh + 138, s["guarantees"])
+    fx.sticker(base, M + 40, 330, 44, f"{n:02d}", "SLIDES", color=(255, 100, 44), rot=10)
+
+
+def s_cta_glass(base, s, i, n):
+    """CTA « panneau verre » : bloc dépoli, liste de garanties, bouton violet."""
+    fx.glass_panel(base, (M - 8, 300, R + 8, 1150), 46, alpha=34)
+    fx.corner_brackets(base, (36, 168, W - 36, H_BOT - 24), 54, color=(255, 255, 255))
+    base.alpha_composite(px.logo(int(96 * SS)), (int((W / 2 - 48) * SS), int(336 * SS)))
+    d = ImageDraw.Draw(base)
+    d.text((W / 2 * SS, 458 * SS), "PREMIUM  ·  DARJA  ·  DZ", font=font(LATIN_BOLD, 14),
+           fill=(255, 255, 255, 160), anchor="mm")
+    y = _cta_title(base, s, 492, size=74, max_w=W - 2 * M - 120)
+    y = _cta_sub(base, s, y + 18, size=23)
+    yy = y + 42
+    for g in s["guarantees"]:
+        px.icon(base, g["icon"], R - 62, yy + 16, 24, (255, 255, 255), 2.0)
+        d.text(((R - 100) * SS, (yy + 16) * SS), visual(g["t"]), font=font(AR_SEMI, 22),
+               fill=(255, 255, 255), anchor="rm")
+        yy += 54
+    bw, bh = 452, 92
+    px.button(base, (W - bw) / 2, max(yy + 22, 940), bw, bh, s["cta"], style="white")
+    _cta_note(base, max(yy + 22, 940) + bh + 38, s["cta_note"])
+
+
+def s_cta_polaroid(base, s, i, n):
+    """CTA « souvenir » : polaroïd crème penché, tampon prix, bouton violet."""
+    fx.dotgrid(base, 48, (255, 255, 255), alpha=20, box=(0, 170, W, 1200))
+    fx.polaroid(base, (W / 2 - 132, 322, W / 2 + 132, 664), rot=-6)
+    base.alpha_composite(px.logo(int(172 * SS)), (int((W / 2 - 86) * SS), int(352 * SS)))
+    d = ImageDraw.Draw(base)
+    d.text((W / 2 * SS, 596 * SS), "sawtify.space", font=font(LATIN_MED, 15),
+           fill=(150, 136, 170), anchor="mm")
+    y = _cta_title(base, s, 736, size=76, max_w=W - 2 * M - 40)
+    y = _cta_sub(base, s, y + 18, size=23)
+    bw, bh = 452, 92
+    px.button(base, (W - bw) / 2, y + 34, bw, bh, s["cta"], style="white")
+    _cta_note(base, y + 34 + bh + 38, s["cta_note"])
+    _cta_chips(base, y + 34 + bh + 134, s["guarantees"])
+    fx.sticker(base, W / 2 + 132, 690, 44, "50", "POINTS", color=(255, 100, 44), rot=14)
+
+
+CTA_RENDERERS = {"hero": s_cta, "ticket": s_cta_ticket, "marquee": s_cta_marquee,
+                 "glass": s_cta_glass, "polaroid": s_cta_polaroid}
+_CTA_ORDER = ["hero", "ticket", "marquee", "glass", "polaroid"]
+# Corps interchangeables (même donnée : une liste d'items) → rotation jour par jour
+BODY_CYCLE = ["list", "steps", "rail", "index", "features"]
+BODY_SWAPPABLE = {"list", "steps", "features"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  Couvertures premium v2 — trois objets graphiques différents
 # ═══════════════════════════════════════════════════════════════════════════
 def s_cover_glass(base, s, i, n):
@@ -821,6 +995,7 @@ RENDERERS = {
     "cover": s_cover, "errors": s_errors, "features": s_features, "steps": s_steps,
     "grid": s_grid, "stats": s_stats, "compare": s_compare, "quotes": s_quotes,
     "pricing": s_pricing, "list": s_list, "cta": s_cta,
+    "rail": s_rail, "index": s_index,
 }
 FULLBLEED = {"glass", "editorial", "diagonal", "polaroid", "grid", "marquee"}
 COVERS = {"classic": s_cover, "poster": s_cover_poster, "split": s_cover_split,
@@ -1243,12 +1418,16 @@ _BG_ORDER = ["violet", "ink", "night"]
 
 def style_for_day(day: int) -> dict:
     """Style du jour `day` (1-based) : 6 couvertures × 3 palettes, sans répétition
-    consécutive, et le corps de page alterne clair / glacé."""
+    consécutive, corps de page clair / glacé en alternance, CTA tournant sur
+    5 gabarits et corps de page tournant sur 5 squelettes."""
     k = max(0, day - 1)
     return {
+        "day": day,
         "dark_bg": _BG_ORDER[(k + k // 6) % 3],
         "cover": _COVER_ORDER[k % 6],
         "body": "light" if (k // 3) % 2 == 0 else "ice",
+        "cta": _CTA_ORDER[k % len(_CTA_ORDER)],
+        "body_start": k % len(BODY_CYCLE),
     }
 
 
@@ -1262,12 +1441,25 @@ def render(carousel, only_slides=None, out_dir=None):
     slides = carousel["slides"]
     total = len(slides)
     paths = []
+    body_seen = 0            # rang de la slide de corps déjà traitée (rotation)
 
     for i, slide in enumerate(slides, start=1):
         if only_slides and i not in only_slides:
             continue
-        dark = slide["type"] in DARK
         style = carousel.get("style") or SERIES_STYLE.get(carousel.get("slug", ""), {})
+        day = int(style.get("day", 1))
+
+        # ── quelle variante de corps / de CTA pour cette slide ?
+        base_type = slide["type"]
+        if base_type in BODY_SWAPPABLE:
+            start = int(style.get("body_start", (day - 1) % len(BODY_CYCLE)))
+            kind = BODY_CYCLE[(start + body_seen) % len(BODY_CYCLE)]
+            body_seen += 1
+        elif base_type == "cta":
+            kind = style.get("cta") or _CTA_ORDER[(day - 1) % len(_CTA_ORDER)]
+        else:
+            kind = base_type
+        dark = base_type in DARK or kind in CTA_RENDERERS
         if dark:
             ig.set_theme("dark")
             img = dark_bg(style.get("dark_bg", "violet"), i)
@@ -1278,12 +1470,12 @@ def render(carousel, only_slides=None, out_dir=None):
         # 1) le design est toujours dessiné sur le canevas de référence 1080×1350
         #    (les gabarits utilisent des y absolus : on ne les déforme pas)
         design = Image.new("RGBA", (ig.CW, DESIGN_H * SS), (0, 0, 0, 0))
-        fn = RENDERERS[slide["type"]]
+        fn = CTA_RENDERERS.get(kind) or RENDERERS[kind]
         cover_key = style.get("cover", "classic")
-        if slide["type"] == "cover":
+        if base_type == "cover":
             fn = COVERS.get(cover_key, s_cover)
         fn(design, slide, i, total)
-        if slide["type"] == "cover" and cover_key in FULLBLEED:
+        if base_type == "cover" and cover_key in FULLBLEED:
             # ces gabarits gèrent leur propre mise en page plein cadre : aucun recadrage
             layer0 = Image.new("RGBA", img.size, (0, 0, 0, 0))
             layer0.alpha_composite(design)
@@ -1293,7 +1485,11 @@ def render(carousel, only_slides=None, out_dir=None):
             path = out / f"{i:02d}.png"
             img.convert("RGB").resize((ig.W, ig.H), Image.LANCZOS).save(path, optimize=True)
             paths.append(path)
-            print(f"  ✓ {path.relative_to(ROOT)}")
+            try:
+                shown = path.relative_to(ROOT)
+            except ValueError:
+                shown = path
+            print(f"  ✓ {shown}")
             continue
         # bbox sur un alpha seuillé : ignore les ombres quasi transparentes
         alpha = design.getchannel("A").point(lambda a: 255 if a > 72 else 0)
@@ -1345,7 +1541,11 @@ def render(carousel, only_slides=None, out_dir=None):
         for k, t in enumerate(thumbs):
             sheet.paste(t, (16 + (k % cols) * (360 + 16), 16 + (k // cols) * (450 + 16)))
         sheet.save(out / "contact-sheet.png", optimize=True)
-        print(f"  ✓ {(out / 'contact-sheet.png').relative_to(ROOT)}")
+        try:
+            shown = (out / "contact-sheet.png").relative_to(ROOT)
+        except ValueError:
+            shown = out / "contact-sheet.png"
+        print(f"  ✓ {shown}")
 
 
 def main():
