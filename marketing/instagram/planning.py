@@ -88,6 +88,7 @@ def build_plan(start: date, days: int, bank_count: int) -> list[dict]:
             "date": d.isoformat(),
             "semaine": WEEKDAYS_FR[d.weekday()],
             "semaine_ar": WEEKDAYS_AR[d.weekday()],
+            "dossier": f"J{i + 1:02d} · {d.strftime('%d-%m')} · {e['slug']}",
             "heure": SLOTS[i % len(SLOTS)],
             "type": e["kind"],
             "slug": e["slug"],
@@ -99,7 +100,7 @@ def build_plan(start: date, days: int, bank_count: int) -> list[dict]:
 
 
 def write_csv(plan: list[dict], path: Path) -> None:
-    cols = ["jour", "date", "semaine", "heure", "type", "slug", "titre", "slides", "legende"]
+    cols = ["jour", "date", "semaine", "heure", "type", "slug", "dossier", "titre", "slides", "legende"]
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
@@ -117,12 +118,12 @@ def write_md(plan: list[dict], path: Path) -> None:
         "- Heure : rotation sur les créneaux de pointe algériens (12:30 / 18:30 → 21:30)",
         "- Fichiers : dossier Drive du carrousel = `01.png` → `0N.png` dans l'ordre + `legende-instagram.txt`",
         "",
-        "| # | Date | Jour | Heure | Carrousel | Slides |",
+        "| # | Date | Jour | Heure | Dossier Drive | Slides |",
         "|---|---|---|---|---|---|",
     ]
     for r in plan:
         lines.append(
-            f"| {r['jour']} | {r['date']} | {r['semaine']} | {r['heure']} | `{r['slug']}` | {r['slides']} |"
+            f"| {r['jour']} | {r['date']} | {r['semaine']} | {r['heure']} | `{r['dossier']}` | {r['slides']} |"
         )
 
     lines += ["", "---", "", "## Légendes prêtes à copier-coller", ""]

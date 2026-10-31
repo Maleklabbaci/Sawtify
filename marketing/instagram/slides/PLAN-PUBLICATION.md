@@ -6,38 +6,38 @@
 - Heure : rotation sur les créneaux de pointe algériens (12:30 / 18:30 → 21:30)
 - Fichiers : dossier Drive du carrousel = `01.png` → `0N.png` dans l'ordre + `legende-instagram.txt`
 
-| # | Date | Jour | Heure | Carrousel | Slides |
+| # | Date | Jour | Heure | Dossier Drive | Slides |
 |---|---|---|---|---|---|
-| 1 | 2026-11-01 | dimanche | 20:00 | `bank-001` | 4 |
-| 2 | 2026-11-02 | lundi | 19:30 | `bank-014` | 3 |
-| 3 | 2026-11-03 | mardi | 21:00 | `bank-027` | 4 |
-| 4 | 2026-11-04 | mercredi | 12:30 | `bank-040` | 3 |
-| 5 | 2026-11-05 | jeudi | 20:30 | `bank-043` | 3 |
-| 6 | 2026-11-06 | vendredi | 18:30 | `bank-056` | 4 |
-| 7 | 2026-11-07 | samedi | 21:30 | `bank-069` | 3 |
-| 8 | 2026-11-08 | dimanche | 20:00 | `bank-072` | 3 |
-| 9 | 2026-11-09 | lundi | 19:30 | `bank-085` | 4 |
-| 10 | 2026-11-10 | mardi | 21:00 | `bank-098` | 3 |
-| 11 | 2026-11-11 | mercredi | 12:30 | `bank-101` | 4 |
-| 12 | 2026-11-12 | jeudi | 20:30 | `bank-114` | 3 |
-| 13 | 2026-11-13 | vendredi | 18:30 | `bank-127` | 4 |
-| 14 | 2026-11-14 | samedi | 21:30 | `bank-140` | 3 |
-| 15 | 2026-11-15 | dimanche | 20:00 | `bank-143` | 4 |
-| 16 | 2026-11-16 | lundi | 19:30 | `bank-156` | 3 |
-| 17 | 2026-11-17 | mardi | 21:00 | `bank-169` | 4 |
-| 18 | 2026-11-18 | mercredi | 12:30 | `bank-172` | 3 |
-| 19 | 2026-11-19 | jeudi | 20:30 | `bank-185` | 4 |
-| 20 | 2026-11-20 | vendredi | 18:30 | `03-3-erreurs-pub` | 6 |
-| 21 | 2026-11-21 | samedi | 21:30 | `04-faire-une-pub-en-5-min` | 6 |
-| 22 | 2026-11-22 | dimanche | 20:00 | `06-5-idees-videos-darija` | 5 |
-| 23 | 2026-11-23 | lundi | 19:30 | `07-choisir-la-bonne-voix` | 5 |
-| 24 | 2026-11-24 | mardi | 21:00 | `08-darija-ou-fusha` | 3 |
-| 25 | 2026-11-25 | mercredi | 12:30 | `09-premieres-secondes` | 4 |
-| 26 | 2026-11-26 | jeudi | 20:30 | `10-de-3-jours-a-30-secondes` | 3 |
-| 27 | 2026-11-27 | vendredi | 18:30 | `11-droits-commerciaux` | 4 |
-| 28 | 2026-11-28 | samedi | 21:30 | `12-semaine-de-contenu` | 4 |
-| 29 | 2026-11-29 | dimanche | 20:00 | `13-une-seule-erreur` | 3 |
-| 30 | 2026-11-30 | lundi | 19:30 | `05-preuves-clients` | 6 |
+| 1 | 2026-11-01 | dimanche | 20:00 | `J01 · 01-11 · bank-001` | 4 |
+| 2 | 2026-11-02 | lundi | 19:30 | `J02 · 02-11 · bank-014` | 3 |
+| 3 | 2026-11-03 | mardi | 21:00 | `J03 · 03-11 · bank-027` | 4 |
+| 4 | 2026-11-04 | mercredi | 12:30 | `J04 · 04-11 · bank-040` | 3 |
+| 5 | 2026-11-05 | jeudi | 20:30 | `J05 · 05-11 · bank-043` | 3 |
+| 6 | 2026-11-06 | vendredi | 18:30 | `J06 · 06-11 · bank-056` | 4 |
+| 7 | 2026-11-07 | samedi | 21:30 | `J07 · 07-11 · bank-069` | 3 |
+| 8 | 2026-11-08 | dimanche | 20:00 | `J08 · 08-11 · bank-072` | 3 |
+| 9 | 2026-11-09 | lundi | 19:30 | `J09 · 09-11 · bank-085` | 4 |
+| 10 | 2026-11-10 | mardi | 21:00 | `J10 · 10-11 · bank-098` | 3 |
+| 11 | 2026-11-11 | mercredi | 12:30 | `J11 · 11-11 · bank-101` | 4 |
+| 12 | 2026-11-12 | jeudi | 20:30 | `J12 · 12-11 · bank-114` | 3 |
+| 13 | 2026-11-13 | vendredi | 18:30 | `J13 · 13-11 · bank-127` | 4 |
+| 14 | 2026-11-14 | samedi | 21:30 | `J14 · 14-11 · bank-140` | 3 |
+| 15 | 2026-11-15 | dimanche | 20:00 | `J15 · 15-11 · bank-143` | 4 |
+| 16 | 2026-11-16 | lundi | 19:30 | `J16 · 16-11 · bank-156` | 3 |
+| 17 | 2026-11-17 | mardi | 21:00 | `J17 · 17-11 · bank-169` | 4 |
+| 18 | 2026-11-18 | mercredi | 12:30 | `J18 · 18-11 · bank-172` | 3 |
+| 19 | 2026-11-19 | jeudi | 20:30 | `J19 · 19-11 · bank-185` | 4 |
+| 20 | 2026-11-20 | vendredi | 18:30 | `J20 · 20-11 · 03-3-erreurs-pub` | 6 |
+| 21 | 2026-11-21 | samedi | 21:30 | `J21 · 21-11 · 04-faire-une-pub-en-5-min` | 6 |
+| 22 | 2026-11-22 | dimanche | 20:00 | `J22 · 22-11 · 06-5-idees-videos-darija` | 5 |
+| 23 | 2026-11-23 | lundi | 19:30 | `J23 · 23-11 · 07-choisir-la-bonne-voix` | 5 |
+| 24 | 2026-11-24 | mardi | 21:00 | `J24 · 24-11 · 08-darija-ou-fusha` | 3 |
+| 25 | 2026-11-25 | mercredi | 12:30 | `J25 · 25-11 · 09-premieres-secondes` | 4 |
+| 26 | 2026-11-26 | jeudi | 20:30 | `J26 · 26-11 · 10-de-3-jours-a-30-secondes` | 3 |
+| 27 | 2026-11-27 | vendredi | 18:30 | `J27 · 27-11 · 11-droits-commerciaux` | 4 |
+| 28 | 2026-11-28 | samedi | 21:30 | `J28 · 28-11 · 12-semaine-de-contenu` | 4 |
+| 29 | 2026-11-29 | dimanche | 20:00 | `J29 · 29-11 · 13-une-seule-erreur` | 3 |
+| 30 | 2026-11-30 | lundi | 19:30 | `J30 · 30-11 · 05-preuves-clients` | 6 |
 
 ---
 
