@@ -12,6 +12,8 @@ pip3 install --break-system-packages pillow arabic-reshaper python-bidi
 python3 prepare_logo.py         # une fois : détoure assets/sawtify-logo-source.jpg
 python3 generate_premium.py     # les 5 carrousels de la série premium
 python3 overview.py             # planche d'aperçu de toute la série
+python3 planning.py             # plan de publication 1 carrousel/jour (30 j)
+python3 dialect.py --check       # audit darija algéroise (العاصمة)
 ```
 
 Cibler un carrousel / quelques slides :
@@ -122,6 +124,8 @@ référence 1080×1350 puis mis à l'échelle pour remplir le canevas cible
 | `topics.py` | banque de 300 sujets + export du plan de contenu |
 | `qa.py` | contrôle qualité (glyphes, emoji, longueurs, types) |
 | `export_formats.py` | déclinaisons 1:1 et 9:16 |
+| `planning.py` | calendrier de publication quotidien → `slides/PLAN-PUBLICATION.*` |
+| `dialect.py` | passe darija algéroise : lexique + audit (`--check` / `--fix`) |
 | `overview.py` | planche d'aperçu |
 | `fonts/` | Space Grotesk (latin) + IBM Plex Sans Arabic (darija) |
 
