@@ -39,6 +39,57 @@ Deux autres séries existent aussi :
 `generate_carousels.py` (version sombre, 1 carrousel FR) et
 `generate_ar_carousel.py` (version crème simple, 100 % darija).
 
+## Carrousels courts (3 ou 4 slides)
+
+Le format qui se lit en 3 secondes : 1 accroche + 1–2 slides de valeur + 1 CTA.
+
+```bash
+python3 generate_shorts.py              # carrousels 8 à 13
+python3 generate_shorts.py --only 12
+python3 generate_shorts.py --bank 57    # depuis la banque de sujets
+```
+
+| # | Carrousel | Slides |
+|---|---|---|
+| 8 | دارجة ولا فصحى | 3 |
+| 9 | أول 3 ثواني | 4 |
+| 10 | من 3 أيام لـ30 ثانية | 3 |
+| 11 | حقوق الأوديو | 4 |
+| 12 | أسبوع محتوى في ساعة | 4 |
+| 13 | الغلطة الوحيدة | 3 |
+
+## Banque de sujets : 300 angles prêts à produire
+
+`topics.py` combine **30 angles éditoriaux × 10 types de clients = 300 sujets**
+(1040 slides au total), chacun avec son accroche, sa promesse et ses 3 arguments.
+
+```bash
+python3 topics.py                                  # régénère le plan de contenu
+python3 generate_shorts.py --bank 12,57,140        # produit 3 carrousels
+python3 generate_shorts.py --bank all --limit 20   # produit les 20 premiers
+```
+
+Plan lisible et exploitable :
+- `slides/PLAN-CONTENU.csv` — id, catégorie, audience, accroche, arguments
+- `slides/PLAN-CONTENU.md` — version lisible pour valider les sujets
+
+Angles couverts : خطأ · قبل/بعد · دليل · مقارنة · أرقام · قائمة · نصيحة · أسطورة ·
+عملية · ثقة · عرض · توقيت.
+Audiences : متاجر الملابس، التجميل، الأكل والتوصيل، الإلكترونيات، العقارات،
+التكوين، الصحة، السيارات، الأطفال، الخدمات الرقمية.
+
+## Contrôle qualité (aucun rendu sans QA)
+
+```bash
+python3 qa.py          # carrousels premium
+python3 qa.py --bank   # + les 300 sujets
+```
+
+`qa.py` bloque le rendu si : glyphe absent de la police (carré à l'écran), emoji,
+caractère de contrôle bidi, texte trop long, slide vide, type de slide inconnu,
+légende manquante. `generate_shorts.py` appelle ce contrôle **avant** de dessiner
+et vérifie ensuite que chaque PNG fait bien 1080×1350.
+
 ## Formats (feed + story)
 
 Chaque carrousel est décliné en trois formats :
@@ -67,6 +118,9 @@ référence 1080×1350 puis mis à l'échelle pour remplir le canevas cible
 | `premium.py` | kit premium : 22 icônes vectorielles, tuiles, boutons, cartes, badges, lockup logo |
 | `generate_premium.py` | les contenus + les types de slides (`cover`, `errors`, `features`, `steps`, `grid`, `list`, `stats`, `compare`, `quotes`, `pricing`, `cta`) |
 | `prepare_logo.py` | détourage du logo mascotte |
+| `generate_shorts.py` | carrousels courts 3–4 slides + rendu depuis la banque |
+| `topics.py` | banque de 300 sujets + export du plan de contenu |
+| `qa.py` | contrôle qualité (glyphes, emoji, longueurs, types) |
 | `export_formats.py` | déclinaisons 1:1 et 9:16 |
 | `overview.py` | planche d'aperçu |
 | `fonts/` | Space Grotesk (latin) + IBM Plex Sans Arabic (darija) |

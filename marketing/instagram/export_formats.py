@@ -44,6 +44,7 @@ def render_square(carousel, only=None) -> list[Path]:
 # ── 9:16 ──────────────────────────────────────────────────────────────────
 def story_canvas(dark: bool) -> Image.Image:
     """Fond de story 1080×1920 (dégradé de marque + halos + grain), en résolution finale."""
+    ig.set_theme("dark" if dark else "light")      # sinon le thème de la slide précédente fuit
     ig.set_canvas(STORY_W, STORY_H)
     big = gp.violet_bg(1) if dark else ig.background()
     ig.set_canvas(1080, 1350)
@@ -157,9 +158,11 @@ def main():
     args = ap.parse_args()
 
     formats = {f.strip() for f in args.formats.split(",")}
-    selection = gp.CARROUSELS
+    from generate_shorts import SHORTS
+    ALL = list(gp.CARROUSELS) + list(SHORTS)
+    selection = ALL
     if args.only:
-        selection = [c for c in gp.CARROUSELS if c["slug"].startswith(args.only.strip().zfill(2))]
+        selection = [c for c in ALL if c["slug"].startswith(args.only.strip().zfill(2))]
         if not selection:
             raise SystemExit(f"Carrousel {args.only} introuvable")
     only = {int(x) for x in args.slides.split(",")} if args.slides else None

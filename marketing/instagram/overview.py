@@ -6,10 +6,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent
 SLIDES = ROOT / "slides"
-PREFIXES = ("03", "04", "05", "06", "07")
+PREFIXES = tuple(f"{n:02d}" for n in range(3, 14))
 TW, TH, GAP, PAD, LB = 236, 295, 12, 26, 34
 
-groups = [d for d in sorted(SLIDES.iterdir()) if d.is_dir() and d.name[:2] in PREFIXES]
+groups = [d for d in sorted(SLIDES.iterdir()) if d.is_dir() and d.name[:2].isdigit() and d.name[:2] in PREFIXES]
 cols = max(len(list(g.glob("[0-9][0-9].png"))) for g in groups)
 Wt = PAD * 2 + cols * TW + (cols - 1) * GAP
 Ht = PAD * 2 + len(groups) * (TH + LB + 16) - 16
