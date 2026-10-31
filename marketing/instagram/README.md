@@ -11,7 +11,9 @@ cd marketing/instagram
 pip3 install --break-system-packages pillow arabic-reshaper python-bidi
 python3 prepare_logo.py         # une fois : détoure assets/sawtify-logo-source.jpg
 python3 generate_premium.py     # les 5 carrousels de la série premium
+python3 premium_fx.py --pack     # génère les textures PNG (grain, halftone, ticket…)
 python3 overview.py             # planche d'aperçu de toute la série
+python3 apercu_jours.py         # planche des 30 couvertures (1 par jour)
 python3 planning.py             # plan de publication 1 carrousel/jour (30 j)
 python3 dialect.py --check       # audit darija algéroise (العاصمة)
 ```
@@ -118,6 +120,7 @@ référence 1080×1350 puis mis à l'échelle pour remplir le canevas cible
 |---|---|
 | `sawtify_ig.py` | moteur : fonds, dégradés, halos, thèmes clair/sombre, texte arabe (`ar_para`) |
 | `premium.py` | kit premium : 22 icônes vectorielles, tuiles, boutons, cartes, badges, lockup logo |
+| `premium_fx.py` | kit « matière » : grain, light leak, halftone, dotgrid, filets, panneau verre, ticket à encoches, perforation, autocollant dentelé, équerres, bandeau presse, barre chromée, polaroïd + `--pack` (textures PNG) |
 | `generate_premium.py` | les contenus + les types de slides (`cover`, `errors`, `features`, `steps`, `grid`, `list`, `stats`, `compare`, `quotes`, `pricing`, `cta`) |
 | `prepare_logo.py` | détourage du logo mascotte |
 | `generate_shorts.py` | carrousels courts 3–4 slides + rendu depuis la banque |
@@ -127,7 +130,23 @@ référence 1080×1350 puis mis à l'échelle pour remplir le canevas cible
 | `planning.py` | calendrier de publication quotidien → `slides/PLAN-PUBLICATION.*` |
 | `dialect.py` | passe darija algéroise : lexique + audit (`--check` / `--fix`) |
 | `overview.py` | planche d'aperçu |
+| `apercu_jours.py` | planche des 30 couvertures du calendrier |
 | `fonts/` | Space Grotesk (latin) + IBM Plex Sans Arabic (darija) |
+
+### Couvertures : 6 identités, jamais deux fois la même
+
+| clé `cover` | Objet graphique |
+|---|---|
+| `glass` | grande carte ticket crème à encoches + autocollant dentelé + lecteur |
+| `editorial` | filets de presse, bandeau de chiffres crème pleine largeur, numéro en médaillon |
+| `diagonal` | ruban crème incliné avec ombre portée, mascotte et lecteur posés dessus |
+| `polaroid` | photo mascotte en cadre polaroïd incliné + bandeau presse orange |
+| `grid` | grille technique, équerres d'impression, titre centré, lecteur en panneau verre |
+| `marquee` | bandeau orange incliné plein cadre + carte ticket + pastilles violettes |
+
+Le habillage des pages intérieures suit le style (`decorate()`) : trame de points et
+équerres pour `glass`, filets et libellé vertical pour `editorial`, filet orange
+incliné et fuite de lumière pour `diagonal` / `polaroid` / `grid` / `marquee`.
 
 `**mot**` met un mot en couleur d'accent (orange sur fond violet, violet sur fond clair).
 

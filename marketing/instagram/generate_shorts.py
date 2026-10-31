@@ -381,15 +381,46 @@ def render_all(carousels, only_slides=None) -> list[Path]:
     return done
 
 
+def render_plan(only_slides=None) -> None:
+    """Rend les 30 jours du calendrier : un style visuel différent par jour."""
+    import csv
+    from pathlib import Path as _P
+
+    from generate_premium import CARROUSELS, STYLES, render, style_for_day
+    from topics import BANK, to_carousel
+
+    rows = list(csv.DictReader(open(_P(__file__).resolve().parent / "slides"
+                                    / "PLAN-PUBLICATION.csv", encoding="utf-8")))
+    by_id = {t["id"]: t for t in BANK}
+    series = {c["slug"]: c for c in SHORTS}
+    total = len(rows)
+    for k, r in enumerate(rows, start=1):
+        slug = r["slug"]
+        style = style_for_day(int(r["jour"]))
+        if slug.startswith("bank-"):
+            car = to_carousel(by_id[int(slug.split("-")[1])], style=style)
+        else:
+            car = dict(series.get(slug) or next(c for c in CARROUSELS if c["slug"] == slug))
+            car["style"] = style
+        print(f"[{k:02d}/{total}] {r['jour']} {slug} · {car['style']['cover']}")
+        render(car, only_slides=only_slides)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Carrousels courts Sawtify (3-4 slides)")
     ap.add_argument("--only", default=None, help="numéro du carrousel court (8 … 13)")
     ap.add_argument("--bank", default=None, help="ids de la banque : 12,57 ou all")
     ap.add_argument("--limit", type=int, default=12, help="nombre max de sujets de la banque")
     ap.add_argument("--slides", default=None, help="ex: 1,3")
+    ap.add_argument("--plan", action="store_true",
+                    help="rendre les 30 jours de PLAN-PUBLICATION.csv avec un style par jour")
     args = ap.parse_args()
 
     only_slides = {int(x) for x in args.slides.split(",")} if args.slides else None
+
+    if args.plan:
+        render_plan(only_slides)
+        return
 
     if args.bank:
         from topics import BANK, to_carousel

@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 import sawtify_ig as ig
 import premium as px
+import premium_fx as fx
 from sawtify_ig import (AR_BOLD, AR_REG, AR_SEMI, LATIN_BOLD, LATIN_MED, LATIN_REG,
                         M, P, SS, W, ar_para, font, lat_line, rrect, sparkle, visual)
 
@@ -474,23 +475,368 @@ def s_cta(base, s, i, n):
                fill=(255, 255, 255), anchor="lm")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  Couvertures premium v2 — trois objets graphiques différents
+# ═══════════════════════════════════════════════════════════════════════════
+def s_cover_glass(base, s, i, n):
+    """TICKET : grande carte crème à encoches, autocollant dentelé, lecteur intégré."""
+    d = ImageDraw.Draw(base)
+    white_badge(base, R, 206, s.get("chip", "Sawtify"), size=17)
+
+    y = ar_text(base, s["title"], 80, (255, 255, 255), 268, max_w=W - 2 * M,
+                leading=1.28, hi_color=HI_ON_VIOLET) + 22
+    ar_text(base, s["sub"], 25, (236, 228, 250), y, max_w=W - 2 * M - 30,
+            font_name=AR_REG, leading=1.64)
+
+    top, bottom = 700, 1150
+    fx.ticket(base, (M, top, R, bottom), radius=38)
+    # encoches : percement réel dans le fond
+    for hx in (M, R):
+        ig.dot(base, hx, (top + bottom) / 2, 15, (24, 10, 42, 255))
+        ig.dot(base, hx, (top + bottom) / 2, 15, (255, 255, 255, 0))
+    fx.perforation(base, M + 232, top + 30, bottom - 30, color=(26, 15, 46, 55))
+
+    # ── souche ───────────────────────────────────────────────────────────
+    d.text(((M + 116) * SS, (top + 96) * SS), f"{i:02d}", font=font(LATIN_BOLD, 88),
+           fill=(*VIOLET, 255), anchor="mm")
+    d.text(((M + 116) * SS, (top + 156) * SS), "SAWTIFY", font=font(LATIN_BOLD, 15),
+           fill=(120, 104, 140), anchor="mm")
+    d.text(((M + 116) * SS, (top + 182) * SS), "PREMIUM  ·  DZ", font=font(LATIN_MED, 12),
+           fill=(160, 146, 178), anchor="mm")
+    ig.waveform(base, M + 42, top + 232, 148, 32, bars=13, seed=i)
+    d.text(((M + 116) * SS, (top + 312) * SS), visual("30 ثانية"), font=font(AR_SEMI, 19),
+           fill=(74, 60, 96), anchor="mm")
+
+    # ── zone droite ──────────────────────────────────────────────────────
+    X0, X1 = M + 264, R - 30
+    px.logo_tile(base, X0, top + 34, 64, radius_ratio=0.30,
+                 grad=((96, 34, 176), (128, 45, 226)))
+    ig.play_badge(base, X1 - 4, top + 68, 24)
+    d.text(((X1 - 52) * SS, (top + 54) * SS), visual(s.get("player", "نموذج صوت")),
+           font=font(AR_SEMI, 22), fill=INK, anchor="rm")
+    d.text(((X1 - 52) * SS, (top + 88) * SS), visual("00:12  ·  جودة استوديو"),
+           font=font(AR_REG, 16), fill=(126, 112, 146), anchor="rm")
+
+    ig.waveform(base, X0, top + 146, X1 - X0 - 10, 42, bars=32, seed=i + 3)
+    d.line([(X0 * SS, (top + 238) * SS), (X1 * SS, (top + 238) * SS)],
+           fill=(26, 15, 46, 32), width=int(1.2 * SS))
+
+    # pastilles de preuve : violettes pleines, texte blanc, padding généreux
+    cx = X0
+    fchip = font(AR_SEMI, 15)
+    for label in ("بلا ميكرو", "دارجة", "50 نقطة"):
+        shown = visual(label)
+        tw = d.textlength(shown, font=fchip) / SS
+        pw = tw + 52
+        rrect(base, (cx, top + 262, cx + pw, top + 312), 25, fill=(124, 45, 200, 255))
+        d.text(((cx + pw / 2) * SS, (top + 289) * SS), shown, font=fchip,
+               fill=(255, 255, 255), anchor="mm")
+        cx += pw + 10
+
+    d.text(((X1) * SS, (top + 356) * SS), "sawtify.space", font=font(LATIN_MED, 17),
+           fill=(126, 112, 146), anchor="rm")
+    d.text(((X1) * SS, (top + 390) * SS), visual("من 500 دج · بلا التزام"),
+           font=font(AR_REG, 16), fill=(140, 126, 160), anchor="rm")
+
+    fx.sticker(base, M - 2, top + 4, 48, f"{i}", "JOUR", rot=-12)
+
+
+def s_cover_editorial(base, s, i, n):
+    """ÉDITORIAL : filets, chiffre fantôme débordant, bandeau de chiffres crème."""
+    d = ImageDraw.Draw(base)
+
+    white_badge(base, R, 206, s.get("chip", "Sawtify"), size=17)
+
+    # filets d'édition
+    d.line([(M * SS, 300 * SS), (R * SS, 300 * SS)], fill=(255, 255, 255, 70), width=int(1.3 * SS))
+    d.line([(M * SS, 308 * SS), (M + 120 * SS, 308 * SS)], fill=(*HI_ON_VIOLET, 255), width=int(3 * SS))
+
+    y = ar_text(base, s["title"], 92, (255, 255, 255), 358, max_w=W - 2 * M,
+                leading=1.24, hi_color=HI_ON_VIOLET) + 26
+    rrect(base, (R - 150, y, R, y + 5), 3, fill=(*HI_ON_VIOLET, 255))
+    y += 34
+    ar_text(base, s["sub"], 26, (232, 222, 248), y, max_w=W - 2 * M - 44,
+            font_name=AR_REG, leading=1.66)
+
+    # bandeau crème de chiffres
+    top = 1000
+    rrect(base, (-30, top, W + 30, top + 176), 0, fill=(*CREAM, 255))
+    cols = [("30", "ثانية"), ("50", "نقطة"), ("∞", "بلا ميكرو")]
+    for k, (big, small) in enumerate(cols):
+        cx = (k + 0.5) * (W / 3)
+        d.text((cx * SS, (top + 62) * SS), big, font=font(LATIN_BOLD, 56),
+               fill=(*VIOLET, 255), anchor="mm")
+        d.text((cx * SS, (top + 112) * SS), visual(small), font=font(AR_SEMI, 17),
+               fill=(88, 74, 108), anchor="mm")
+        if k:
+            xsep = k * (W / 3)
+            d.line([(xsep * SS, (top + 34) * SS), (xsep * SS, (top + 134) * SS)],
+                   fill=(26, 15, 46, 34), width=int(1.2 * SS))
+
+
+    fx.sticker(base, M + 46, top - 26, 44, f"{i}", "", color=VIOLET, rot=-14)
+
+
+def s_cover_diagonal(base, s, i, n):
+    """DIAGONALE : ruban crème incliné posé en travers du cadre, titre au-dessus."""
+    d = ImageDraw.Draw(base)
+    white_badge(base, R, 250, s.get("chip", "Sawtify"), size=17)
+
+    y = ar_text(base, s["title"], 78, (255, 255, 255), 262, max_w=W - 2 * M,
+                leading=1.30, hi_color=HI_ON_VIOLET) + 20
+    ar_text(base, s["sub"], 25, (234, 226, 250), y, max_w=W - 2 * M - 40,
+            font_name=AR_REG, leading=1.62)
+
+    # ── ruban incliné ────────────────────────────────────────────────────
+    ang = -8.0
+    band_h = 300
+    cy = 906
+    layer = Image.new("RGBA", (int(1500 * SS), int(band_h * SS)), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(layer)
+    ld.rectangle([0, 0, layer.size[0], layer.size[1]], fill=(*CREAM, 255))
+    ld.rectangle([0, 0, layer.size[0], int(6 * SS)], fill=(*VIOLET, 255))
+    ld.rectangle([0, layer.size[1] - int(3 * SS), layer.size[0], layer.size[1]],
+                 fill=(26, 15, 46, 26))
+    # ombre portée du ruban
+    sh = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+    sh.paste((0, 0, 0, 26), (0, 0), layer)
+    sh = sh.filter(ImageFilter.GaussianBlur(30 * SS))
+    sh = sh.rotate(ang, resample=Image.BICUBIC, expand=False)
+    base.alpha_composite(sh, (int(-176 * SS), int((cy - band_h / 2 + 30) * SS)))
+    layer = layer.rotate(ang, resample=Image.BICUBIC, expand=False)
+    base.alpha_composite(layer, (int(-176 * SS), int((cy - band_h / 2) * SS)))
+
+    # ── contenu posé sur le ruban (suit l'inclinaison) ───────────────────
+    slope = math.tan(math.radians(-ang))
+    band_cx = 574.0
+
+    def by(x, dy):
+        """ordonnée réelle d'un point à distance dy du centre du ruban en x."""
+        return cy + (x - band_cx) * slope + dy
+
+    px.logo_tile(base, M + 6, by(M + 100, -78), 88, radius_ratio=0.30,
+                 grad=((96, 34, 176), (128, 45, 226)))
+    xt = M + 104
+    ig.play_badge(base, xt + 26, by(xt + 26, 12), 30)
+    d.text(((xt + 74) * SS, by(xt + 200, -18) * SS), visual(s.get("player", "نموذج صوت")),
+           font=font(AR_SEMI, 24), fill=INK, anchor="lm")
+    d.text(((xt + 74) * SS, by(xt + 200, 16) * SS), visual("00:12 · 3 أصوات جاهزة"),
+           font=font(AR_REG, 17), fill=(120, 104, 140), anchor="lm")
+    ig.waveform(base, xt + 74, by(xt + 290, 60), 400, 30, bars=25, seed=i + 5)
+
+    # colonne des 30 secondes
+    xr = R - 30
+    d.text((xr * SS, by(xr, -46) * SS), "30", font=font(LATIN_BOLD, 86),
+           fill=(*VIOLET, 255), anchor="rm")
+    d.text((xr * SS, by(xr, -6) * SS), visual("ثانية"), font=font(AR_SEMI, 21),
+           fill=(74, 60, 96), anchor="rm")
+    d.text((xr * SS, by(xr, 22) * SS), "PREMIUM", font=font(LATIN_MED, 13),
+           fill=(158, 144, 178), anchor="rm")
+
+    # ── rangée de preuves + signature ────────────────────────────────────
+    dy = 1084
+    xr = R
+    for label in ("30 صوت", "50 نقطة", "بلا ميكرو"):
+        f = font(AR_SEMI, 17)
+        tw = d.textlength(visual(label), font=f) / SS + 34
+        rrect(base, (xr - tw, dy, xr, dy + 44), 22, fill=(255, 255, 255, 30),
+              outline=(255, 255, 255, 80), width=1.1)
+        d.text(((xr - tw / 2) * SS, (dy + 23) * SS), visual(label), font=f,
+               fill=(255, 255, 255), anchor="mm")
+        xr -= tw + 12
+    d.text(((xr - 18) * SS, (dy + 23) * SS), visual(s.get("ar", "اسحب باش تشوف.")),
+           font=font(AR_REG, 20), fill=(226, 216, 248), anchor="rm")
+    d.text((M * SS, (dy + 23) * SS), "SAWTIFY  ·  DARJA DZ", font=font(LATIN_MED, 15),
+           fill=(255, 255, 255, 110), anchor="lm")
+
+    fx.dotgrid(base, 44, (255, 255, 255), alpha=14, box=(0, 150, W, 700))
+    fx.sticker(base, M + 40, 300, 52, f"{i}", "JOUR", rot=-13)
+
+
+def _chips(base, x_right, y, labels, size=17, fill=(255, 255, 255, 32),
+           line=(255, 255, 255, 84), color=(255, 255, 255)):
+    """Rangée de pastilles alignée à droite ; renvoie le bord gauche atteint."""
+    d = ImageDraw.Draw(base)
+    xr = x_right
+    for label in labels:
+        f = font(AR_SEMI, size)
+        tw = d.textlength(visual(label), font=f) / SS + 34
+        rrect(base, (xr - tw, y, xr, y + 44), 22, fill=fill, outline=line, width=1.1)
+        d.text(((xr - tw / 2) * SS, (y + 23) * SS), visual(label), font=f,
+               fill=color, anchor="mm")
+        xr -= tw + 10
+    return xr
+
+
+def s_cover_polaroid(base, s, i, n):
+    """POLAROÏD : bandeau presse, photo de la mascotte, chiffre géant, titre dessous."""
+    d = ImageDraw.Draw(base)
+    white_badge(base, R, 206, s.get("chip", "Sawtify"), size=17)
+    fx.marquee(base, 292, 46, "SAWTIFY  ·  30 SECONDES  ·  DARJA DZ  ·",
+               bg=(255, 100, 44), fg=(255, 255, 255), font_size=16)
+
+    # photo de la mascotte dans un cadre crème incliné
+    fx.polaroid(base, (M + 8, 336, M + 288, 664), rot=-5)
+    base.alpha_composite(px.logo(int(188 * SS)), (int((M + 56) * SS), int((362) * SS)))
+    d.text(((M + 148) * SS, 596 * SS), "sawtify.space", font=font(LATIN_MED, 14),
+           fill=(150, 136, 170), anchor="mm")
+
+    # colonne chiffres + preuves, alignée à droite du polaroïd
+    xr = R - 16
+    d.text((xr * SS, 452 * SS), "30", font=font(LATIN_BOLD, 122), fill=(255, 255, 255),
+           anchor="rm")
+    d.text((xr * SS, 520 * SS), visual("ثانية"), font=font(AR_SEMI, 24),
+           fill=HI_ON_VIOLET, anchor="rm")
+    d.text((xr * SS, 556 * SS), "STUDIO  ·  DARJA  ·  50 POINTS",
+           font=font(LATIN_BOLD, 13), fill=(255, 255, 255, 150), anchor="rm")
+    _chips(base, xr, 582, ("بلا ميكرو", "بلا مونتاج", "دارجة"))
+
+    y = 742
+    y = ar_text(base, s["title"], 74, (255, 255, 255), y, max_w=W - 2 * M,
+                leading=1.30, hi_color=HI_ON_VIOLET)
+    ar_text(base, s["sub"], 24, (234, 226, 250), y + 24, max_w=W - 2 * M - 20,
+            font_name=AR_REG, leading=1.62)
+
+    d.line([(M * SS, 1148 * SS), (R * SS, 1148 * SS)], fill=(255, 255, 255, 60),
+           width=int(1.2 * SS))
+    _chips(base, R, 1170, ("30 صوت", "50 نقطة", "بلا ميكرو"), size=16)
+    fx.sticker(base, M + 24, 700, 44, f"{i}", "", color=(255, 100, 44), rot=11)
+
+
+def s_cover_grid(base, s, i, n):
+    """AFFICHE : grille technique, équerres, titre centré, gros lecteur."""
+    d = ImageDraw.Draw(base)
+    fx.rule_grid(base, 90, (255, 255, 255), alpha=12, box=(0, 150, W, 1270))
+    fx.corner_brackets(base, (46, 180, W - 46, 1216), 58, color=(255, 255, 255))
+    white_badge(base, R, 206, s.get("chip", "Sawtify"), size=17)
+    d.text((M * SS, 216 * SS), f"N°{i:02d}", font=font(LATIN_BOLD, 22),
+           fill=(255, 255, 255, 150), anchor="lm")
+
+    d.text((W / 2 * SS, 356 * SS), "CARROUSEL PREMIUM", font=font(LATIN_BOLD, 16),
+           fill=(255, 255, 255, 110), anchor="mm")
+
+    tw_max = W - 2 * M - 60
+    y = ar_text(base, s["title"], 80, (255, 255, 255), 400, max_w=tw_max,
+                leading=1.26, hi_color=HI_ON_VIOLET, align="center",
+                x_right=W / 2 + tw_max / 2)
+    sw_max = W - 2 * M - 120
+    ar_text(base, s["sub"], 25, (226, 216, 246), y + 18, max_w=sw_max,
+            font_name=AR_REG, leading=1.62, align="center",
+            x_right=W / 2 + sw_max / 2)
+
+    # lecteur central
+    pw, ph = 720, 190
+    pxn, pyn = (W - pw) / 2, 900
+    fx.glass_panel(base, (pxn, pyn, pxn + pw, pyn + ph), 30, alpha=30)
+    px.logo_tile(base, pxn + 26, pyn + 56, 64, radius_ratio=0.30,
+                 grad=((96, 34, 176), (128, 45, 226)))
+    ig.play_badge(base, pxn + pw - 60, pyn + ph / 2, 27)
+    d.text(((pxn + 112) * SS, (pyn + 52) * SS), visual(s.get("player", "نموذج صوت")),
+           font=font(AR_SEMI, 22), fill=(255, 255, 255), anchor="lm")
+    d.text(((pxn + 112) * SS, (pyn + 84) * SS), visual("00:12 · جودة استوديو"),
+           font=font(AR_REG, 16), fill=(222, 212, 244), anchor="lm")
+    ig.waveform(base, pxn + 112, pyn + 108, pw - 190, 34, bars=30, seed=i + 2)
+
+    _chips(base, R, 1150, ("30 صوت", "50 نقطة", "بلا ميكرو"))
+
+
+def s_cover_marquee(base, s, i, n):
+    """RUBAN : titre haut, bandeau orange incliné, carte lecteur crème."""
+    d = ImageDraw.Draw(base)
+    white_badge(base, R, 206, s.get("chip", "Sawtify"), size=17)
+
+    y = ar_text(base, s["title"], 80, (255, 255, 255), 268, max_w=W - 2 * M,
+                leading=1.28, hi_color=HI_ON_VIOLET) + 18
+    ar_text(base, s["sub"], 25, (234, 226, 250), y, max_w=W - 2 * M - 30,
+            font_name=AR_REG, leading=1.62)
+
+    fx.marquee(base, max(700, y + 44), 74, "30 SECONDES  ·  DARJA DZ  ·  SAWTIFY  ·",
+               bg=(255, 100, 44), fg=(255, 255, 255), angle=-5, font_size=26)
+
+    top, bottom = 800, 1200
+    fx.ticket(base, (M, top, R, bottom), radius=34)
+    fx.perforation(base, M + 232, top + 28, bottom - 28, color=(26, 15, 46, 55))
+    d.text(((M + 116) * SS, (top + 92) * SS), f"{i:02d}", font=font(LATIN_BOLD, 84),
+           fill=(*VIOLET, 255), anchor="mm")
+    d.text(((M + 116) * SS, (top + 150) * SS), "SAWTIFY", font=font(LATIN_BOLD, 15),
+           fill=(120, 104, 140), anchor="mm")
+    d.text(((M + 116) * SS, (top + 176) * SS), "PREMIUM · DZ", font=font(LATIN_MED, 12),
+           fill=(160, 146, 178), anchor="mm")
+    ig.waveform(base, M + 44, top + 216, 148, 30, bars=13, seed=i + 1)
+
+    X0, X1 = M + 264, R - 30
+    px.logo_tile(base, X0, top + 36, 64, radius_ratio=0.30,
+                 grad=((96, 34, 176), (128, 45, 226)))
+    ig.play_badge(base, X1 - 4, top + 70, 24)
+    d.text(((X1 - 52) * SS, (top + 56) * SS), visual(s.get("player", "نموذج صوت")),
+           font=font(AR_SEMI, 22), fill=INK, anchor="rm")
+    d.text(((X1 - 52) * SS, (top + 90) * SS), visual("00:12 · جودة استوديو"),
+           font=font(AR_REG, 16), fill=(126, 112, 146), anchor="rm")
+    ig.waveform(base, X0, top + 150, X1 - X0 - 10, 42, bars=32, seed=i + 4)
+    _chips(base, X1, top + 230, ("بلا ميكرو", "دارجة", "50 نقطة"),
+           fill=(124, 45, 200, 255), line=(124, 45, 200, 255))
+
+    fx.sticker(base, M - 4, 790, 44, f"{i}", "", color=(255, 100, 44), rot=-13)
+
+
+VIOLET = (124, 45, 200)
+CREAM = (250, 246, 238)
+INK = (26, 15, 46)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Habillage des pages intérieures — un chrome par style
+# ═══════════════════════════════════════════════════════════════════════════
+def decorate(base, chrome: str, i: int, total: int, dark: bool) -> None:
+    """Ajoute la couche « matière » propre à chaque style (au-dessus du contenu)."""
+    if chrome == "glass":
+        fx.dotgrid(base, 46, (255, 255, 255) if dark else (26, 15, 46),
+                   alpha=16 if dark else 12,
+                   box=(0, 150, W, 1310))
+        fx.corner_brackets(base, (38, 38, W - 38, H_BOT), 52, color=(255, 255, 255))
+        if dark:
+            fx.halftone(base, 60, 120, 260, alpha=22)
+    elif chrome == "editorial":
+        fx.rule_grid(base, 96, (255, 255, 255) if dark else (26, 15, 46),
+                     alpha=10, box=(0, 150, W, 1300))
+        fx.rot_label(base, 30, 700, f"SAWTIFY · N°{i:02d} · NOV 2026", 13,
+                     (255, 255, 255) if dark else (26, 15, 46), 110)
+        if dark:
+            fx.halftone(base, W - 40, 150, 230, alpha=18)
+    elif chrome == "diagonal":
+        layer = Image.new("RGBA", (int(1500 * SS), int(160 * SS)), (0, 0, 0, 0))
+        ImageDraw.Draw(layer).rectangle([0, 0, layer.size[0], int(4 * SS)],
+                                        fill=(*HI_ON_VIOLET, 150))
+        layer = layer.rotate(-7, resample=Image.BICUBIC, expand=False)
+        base.alpha_composite(layer, (int(-180 * SS), int(1188 * SS)))
+        if dark:
+            fx.light_leak(base, W * 0.15, H_BOT - 40, 380, (255, 120, 60), 42)
+
+
+H_BOT = 1350
+
+
 DARK = {"cover", "stats", "cta"}
 RENDERERS = {
     "cover": s_cover, "errors": s_errors, "features": s_features, "steps": s_steps,
     "grid": s_grid, "stats": s_stats, "compare": s_compare, "quotes": s_quotes,
     "pricing": s_pricing, "list": s_list, "cta": s_cta,
 }
-COVERS = {"classic": s_cover, "poster": s_cover_poster, "split": s_cover_split}
+FULLBLEED = {"glass", "editorial", "diagonal", "polaroid", "grid", "marquee"}
+COVERS = {"classic": s_cover, "poster": s_cover_poster, "split": s_cover_split,
+          "glass": s_cover_glass, "editorial": s_cover_editorial,
+          "diagonal": s_cover_diagonal, "polaroid": s_cover_polaroid,
+          "grid": s_cover_grid, "marquee": s_cover_marquee}
 
 # Styles visuels : fond sombre + gabarit de couverture + palette du corps de page.
 # Le cycle garantit que deux jours consécutifs ne se ressemblent pas.
 STYLES = [
-    {"dark_bg": "violet", "cover": "classic", "body": "light"},
-    {"dark_bg": "ink",    "cover": "poster",  "body": "ice"},
-    {"dark_bg": "violet", "cover": "split",   "body": "light"},
-    {"dark_bg": "night",  "cover": "classic", "body": "ice"},
-    {"dark_bg": "ink",    "cover": "split",   "body": "light"},
-    {"dark_bg": "night",  "cover": "poster",  "body": "ice"},
+    {"dark_bg": "violet", "cover": "glass",     "body": "light"},
+    {"dark_bg": "ink",    "cover": "editorial", "body": "ice"},
+    {"dark_bg": "violet", "cover": "diagonal",  "body": "light"},
+    {"dark_bg": "night",  "cover": "polaroid",  "body": "ice"},
+    {"dark_bg": "ink",    "cover": "grid",      "body": "light"},
+    {"dark_bg": "night",  "cover": "marquee",   "body": "ice"},
 ]
 
 
@@ -879,18 +1225,33 @@ CARROUSELS = [
 
 # Style visuel de la série éditoriale : jamais deux carrousels voisins identiques.
 SERIES_STYLE = {
-    "03-3-erreurs-pub":            {"dark_bg": "violet", "cover": "classic", "body": "light"},
-    "04-faire-une-pub-en-5-min":   {"dark_bg": "ink",    "cover": "poster",  "body": "ice"},
-    "05-preuves-clients":          {"dark_bg": "night",  "cover": "split",   "body": "ice"},
-    "06-5-idees-videos-darija":    {"dark_bg": "violet", "cover": "split",   "body": "light"},
-    "07-choisir-la-bonne-voix":    {"dark_bg": "ink",    "cover": "classic", "body": "light"},
-    "08-darija-ou-fusha":          {"dark_bg": "night",  "cover": "poster",  "body": "ice"},
-    "09-premieres-secondes":       {"dark_bg": "violet", "cover": "classic", "body": "ice"},
-    "10-de-3-jours-a-30-secondes": {"dark_bg": "ink",    "cover": "split",   "body": "light"},
-    "11-droits-commerciaux":       {"dark_bg": "night",  "cover": "classic", "body": "light"},
-    "12-semaine-de-contenu":       {"dark_bg": "violet", "cover": "poster",  "body": "ice"},
-    "13-une-seule-erreur":         {"dark_bg": "ink",    "cover": "classic", "body": "ice"},
+    "03-3-erreurs-pub":            {"dark_bg": "violet", "cover": "glass",     "body": "light"},
+    "04-faire-une-pub-en-5-min":   {"dark_bg": "ink",    "cover": "editorial", "body": "ice"},
+    "05-preuves-clients":          {"dark_bg": "night",  "cover": "diagonal",  "body": "ice"},
+    "06-5-idees-videos-darija":    {"dark_bg": "violet", "cover": "editorial", "body": "light"},
+    "07-choisir-la-bonne-voix":    {"dark_bg": "ink",    "cover": "glass",     "body": "light"},
+    "08-darija-ou-fusha":          {"dark_bg": "night",  "cover": "editorial", "body": "ice"},
+    "09-premieres-secondes":       {"dark_bg": "violet", "cover": "diagonal",  "body": "ice"},
+    "10-de-3-jours-a-30-secondes": {"dark_bg": "ink",    "cover": "glass",     "body": "light"},
+    "11-droits-commerciaux":       {"dark_bg": "night",  "cover": "editorial", "body": "light"},
+    "12-semaine-de-contenu":       {"dark_bg": "violet", "cover": "diagonal",  "body": "ice"},
+    "13-une-seule-erreur":         {"dark_bg": "ink",    "cover": "glass",     "body": "ice"},
 }
+_COVER_ORDER = ["glass", "editorial", "diagonal", "polaroid", "grid", "marquee"]
+_BG_ORDER = ["violet", "ink", "night"]
+
+
+def style_for_day(day: int) -> dict:
+    """Style du jour `day` (1-based) : 6 couvertures × 3 palettes, sans répétition
+    consécutive, et le corps de page alterne clair / glacé."""
+    k = max(0, day - 1)
+    return {
+        "dark_bg": _BG_ORDER[(k + k // 6) % 3],
+        "cover": _COVER_ORDER[k % 6],
+        "body": "light" if (k // 3) % 2 == 0 else "ice",
+    }
+
+
 for _c in CARROUSELS:
     _c.setdefault("style", SERIES_STYLE.get(_c["slug"], {}))
 
@@ -918,9 +1279,22 @@ def render(carousel, only_slides=None, out_dir=None):
         #    (les gabarits utilisent des y absolus : on ne les déforme pas)
         design = Image.new("RGBA", (ig.CW, DESIGN_H * SS), (0, 0, 0, 0))
         fn = RENDERERS[slide["type"]]
+        cover_key = style.get("cover", "classic")
         if slide["type"] == "cover":
-            fn = COVERS.get(style.get("cover", "classic"), s_cover)
+            fn = COVERS.get(cover_key, s_cover)
         fn(design, slide, i, total)
+        if slide["type"] == "cover" and cover_key in FULLBLEED:
+            # ces gabarits gèrent leur propre mise en page plein cadre : aucun recadrage
+            layer0 = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            layer0.alpha_composite(design)
+            header_dark(layer0, i, total)
+            footer_dark(layer0, i, total, hint=None if i == total else "اسحب  →")
+            img.alpha_composite(layer0)
+            path = out / f"{i:02d}.png"
+            img.convert("RGB").resize((ig.W, ig.H), Image.LANCZOS).save(path, optimize=True)
+            paths.append(path)
+            print(f"  ✓ {path.relative_to(ROOT)}")
+            continue
         # bbox sur un alpha seuillé : ignore les ombres quasi transparentes
         alpha = design.getchannel("A").point(lambda a: 255 if a > 72 else 0)
         bbox = alpha.getbbox()
@@ -933,7 +1307,7 @@ def render(carousel, only_slides=None, out_dir=None):
         avail_w = ig.W - 2 * M
         avail_h = bottom_limit - top_limit
         # design est en px supersamplés, avail_* en px finaux -> on compare en px finaux
-        k = min(1.18, (avail_w * SS) / design.width, (avail_h * SS) / design.height)
+        k = min(1.34, (avail_w * SS) / design.width, (avail_h * SS) / design.height)
         if abs(k - 1.0) > 0.01:
             design = design.resize((max(1, int(design.width * k)), max(1, int(design.height * k))),
                                    Image.LANCZOS)
@@ -945,6 +1319,7 @@ def render(carousel, only_slides=None, out_dir=None):
 
         layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
         layer.alpha_composite(content)
+        decorate(layer, style.get("cover", "classic"), i, total, dark)
         if dark:
             header_dark(layer, i, total)
             footer_dark(layer, i, total, hint=None if i == total else "اسحب  →")

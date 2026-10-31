@@ -459,7 +459,7 @@ BANK = build_bank()
 
 
 # ── Transformation en carrousel (3 ou 4 slides) ───────────────────────────
-def to_carousel(topic: dict) -> dict:
+def to_carousel(topic: dict, style: dict | None = None) -> dict:
     """Construit un carrousel prêt à rendre à partir d'un sujet de la banque."""
     slug = f"bank-{topic['id']:03d}"
     points = topic["points"]
@@ -507,18 +507,11 @@ def to_carousel(topic: dict) -> dict:
         ],
     }
     slides = [cover, listing, steps, cta] if topic["shape"] == 4 else [cover, listing, cta]
-    # style visuel : 6 combinaisons en rotation, jamais deux jours identiques
-    STYLES = [
-        {"dark_bg": "violet", "cover": "classic", "body": "light"},
-        {"dark_bg": "ink",    "cover": "poster",  "body": "ice"},
-        {"dark_bg": "violet", "cover": "split",   "body": "light"},
-        {"dark_bg": "night",  "cover": "classic", "body": "ice"},
-        {"dark_bg": "ink",    "cover": "split",   "body": "light"},
-        {"dark_bg": "night",  "cover": "poster",  "body": "ice"},
-    ]
+    # style visuel : rotation pilotée par generate_premium (source unique)
+    from generate_premium import STYLES as _STYLES
     return {
         "slug": slug,
-        "style": STYLES[(topic["id"] - 1) % len(STYLES)],
+        "style": dict(style or _STYLES[(topic["id"] - 1) % len(_STYLES)]),
         "name": f"[{topic['id']:03d}] {topic['cat']} — {topic['audience']}",
         "caption": (
             f"{topic['hook']}\n\n"
