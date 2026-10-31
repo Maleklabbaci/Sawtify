@@ -9,3 +9,7 @@ dist/
 
 # exports temporaires pour Google Drive (générés localement)
 marketing/instagram/drive_export/
+marketing/instagram/slides/bank-*/
+!marketing/instagram/slides/bank-002/
+!marketing/instagram/slides/bank-057/
+!marketing/instagram/slides/bank-140/
