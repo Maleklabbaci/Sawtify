@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Sawtify · carrousel darija + français</title>
 <style>
   :root{
@@ -86,7 +88,7 @@
 <body>
 <header>
   <b>SAWTIFY</b>
-  <span class="sub">carrousel 1080 × 1350 · darija algéroise + français</span>
+  <span class="sub">carrousel 1080 × 1350 · darija algéroise + français · <span id="stamp"></span></span>
   <div class="tabs" role="tablist" aria-label="langue">
     <button role="tab" data-lang="dz" aria-selected="true">DARIJA</button>
     <button role="tab" data-lang="fr" aria-selected="false">FRANÇAIS</button>
@@ -110,6 +112,7 @@
 
 <script>
 const ROLES = ["couverture","le mécanisme","les 3 gestes","le chiffre","CTA"];
+const V = Date.now();          // cache-buster : toujours les derniers JPG
 const state = { lang: "dz", i: 0 };
 const img = document.getElementById("slide");
 const thumbs = document.getElementById("thumbs");
@@ -123,7 +126,7 @@ function buildThumbs(){
   thumbs.innerHTML = "";
   for (let i=0;i<5;i++){
     const b = document.createElement("button");
-    b.innerHTML = `<img src="${state.lang}/${pad(i+1)}.jpg" alt=""><span class="num">${pad(i+1)}</span>`;
+    b.innerHTML = `<img src="${state.lang}/${pad(i+1)}.jpg?v=${V}" alt=""><span class="num">${pad(i+1)}</span>`;
     b.setAttribute("aria-current", i === state.i ? "true" : "false");
     b.onclick = () => go(i);
     thumbs.appendChild(b);
@@ -131,7 +134,7 @@ function buildThumbs(){
 }
 
 function paint(){
-  img.src = `${state.lang}/${pad(state.i+1)}.jpg`;
+  img.src = `${state.lang}/${pad(state.i+1)}.jpg?v=${V}`;
   img.alt = `${state.lang} ${pad(state.i+1)}`;
   cap.textContent = `${state.lang} ${pad(state.i+1)}`;
   role.textContent = ROLES[state.i];
@@ -164,6 +167,8 @@ addEventListener("keydown", e=>{
 });
 
 buildThumbs(); paint();
+document.getElementById("stamp").textContent =
+  "version " + new Date(V).toLocaleTimeString("fr-FR");
 </script>
 </body>
 </html>

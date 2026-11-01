@@ -1,59 +1,174 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8">
+<html lang="fr">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Sawtify · carrousel darija + français</title>
 <style>
- :root{--vio:#6D27EA;--ink:#181028;--orange:#FD6029;--cream:#F4F1E9}
- *{box-sizing:border-box}
- body{margin:0;background:var(--cream);color:var(--ink);
-  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
- header{position:sticky;top:0;z-index:9;background:var(--ink);color:#fff;
-  padding:14px 20px;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
- header b{font-size:15px;letter-spacing:.06em}
- header span{font-size:12px;color:#cbbdf0}
- main{padding:22px 18px 70px;max-width:1560px;margin:0 auto}
- h2{display:flex;gap:12px;align-items:center;font-size:14px;margin:34px 0 4px}
- .tag{background:var(--orange);color:#fff;font-size:11px;letter-spacing:.08em;
-  border-radius:99px;padding:4px 11px;text-transform:uppercase}
- p.desc{font-size:13px;color:#5b4b7a;margin:8px 0 16px;max-width:860px;line-height:1.55}
- .row{display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;scroll-snap-type:x mandatory}
- figure{margin:0;flex:0 0 auto;scroll-snap-align:start;background:#fff;
-  border-radius:18px;overflow:hidden;box-shadow:0 12px 34px #18102822;position:relative}
- figure img{display:block;width:min(76vw,392px);height:auto}
- figcaption{position:absolute;left:10px;bottom:10px;background:#181028CC;color:#fff;
-  font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;letter-spacing:.04em}
- .board img{width:100%;max-width:1500px}
-</style></head>
+  :root{
+    --vio:#6D27EA; --ink:#181028; --orange:#FD6029; --cream:#F4F1E9;
+    --mut:#8B7CA8;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:#14101F;color:#fff;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+  }
+  header{
+    flex:0 0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:12px 18px;background:#0F0C18;border-bottom:1px solid #2A2340;
+  }
+  header b{font-size:13px;letter-spacing:.14em}
+  header .sub{font-size:11.5px;color:var(--mut)}
+  .tabs{margin-left:auto;display:flex;gap:8px}
+  .tabs button{
+    font:inherit;font-size:12px;font-weight:700;letter-spacing:.06em;
+    padding:7px 14px;border-radius:99px;cursor:pointer;
+    border:1px solid #3A3155;background:#1C1730;color:#CFC4E8;
+  }
+  .tabs button[aria-selected="true"]{
+    background:var(--orange);border-color:var(--orange);color:#fff;
+  }
+
+  main{flex:1 1 auto;display:flex;min-height:0}
+
+  .stage{
+    flex:1 1 auto;display:flex;align-items:center;justify-content:center;
+    gap:18px;padding:16px;min-width:0;position:relative;
+  }
+  .stage img{
+    max-width:100%;max-height:calc(100dvh - 210px);height:auto;
+    border-radius:14px;box-shadow:0 24px 60px #000a;display:block;
+    background:#1C1730;
+  }
+  .arrow{
+    flex:0 0 auto;width:44px;height:44px;border-radius:50%;
+    border:1px solid #3A3155;background:#1C1730;color:#fff;cursor:pointer;
+    font-size:19px;line-height:1;display:grid;place-items:center;
+  }
+  .arrow:hover{background:#2A2340}
+
+  aside{
+    flex:0 0 auto;width:118px;border-left:1px solid #2A2340;
+    background:#0F0C18;overflow-y:auto;padding:12px 10px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  aside button{
+    padding:0;border:0;background:none;cursor:pointer;border-radius:8px;
+    overflow:hidden;position:relative;outline-offset:2px;
+  }
+  aside img{display:block;width:100%;height:auto;border-radius:8px;opacity:.55;
+    transition:opacity .15s, transform .15s}
+  aside button[aria-current="true"] img{opacity:1;transform:scale(1);box-shadow:0 0 0 2px var(--orange)}
+  aside .num{
+    position:absolute;left:5px;bottom:5px;font-size:9.5px;font-weight:800;
+    letter-spacing:.08em;background:#0F0C18cc;padding:1px 5px;border-radius:99px;
+  }
+
+  footer{
+    flex:0 0 auto;display:flex;align-items:center;gap:14px;
+    padding:9px 18px;background:#0F0C18;border-top:1px solid #2A2340;
+    font-size:11.5px;color:var(--mut);letter-spacing:.05em;
+  }
+  footer .cap{color:#fff;font-weight:700;letter-spacing:.08em}
+  footer a{color:#CFC4E8}
+
+  @media (max-width:760px){
+    aside{display:none}
+    .stage{padding:10px;gap:8px}
+    .stage img{max-height:calc(100dvh - 190px)}
+    .arrow{width:34px;height:34px;font-size:16px}
+  }
+</style>
+</head>
 <body>
-<header><b>SAWTIFY · CARROUSEL NOVEMBRE</b>
- <span>1080 × 1350 · darija algéroise puis français · 5 slides par langue</span></header>
+<header>
+  <b>SAWTIFY</b>
+  <span class="sub">carrousel 1080 × 1350 · darija algéroise + français · <span id="stamp"></span></span>
+  <div class="tabs" role="tablist" aria-label="langue">
+    <button role="tab" data-lang="dz" aria-selected="true">DARIJA</button>
+    <button role="tab" data-lang="fr" aria-selected="false">FRANÇAIS</button>
+  </div>
+</header>
+
 <main>
-<section>
- <h2><span class="tag">darija</span> ما تشريش السوم، بدّل الترتيب · 01 → 05</h2>
- <p class="desc">Papier clair, halo violet, wordmark centré, surligneurs pastel, stickers pilules orientés, lignes de titre justifiées au tatweel (même largeur),
-  pagination en cercles. Un seul message par slide, CTA hors zone des masques Instagram.</p>
- <div class="row">
-  <figure><img src="dz/01.jpg" alt=""><figcaption>dz 01 · couverture</figcaption></figure>
-  <figure><img src="dz/02.jpg" alt=""><figcaption>dz 02 · le mécanisme</figcaption></figure>
-  <figure><img src="dz/03.jpg" alt=""><figcaption>dz 03 · les 3 gestes</figcaption></figure>
-  <figure><img src="dz/04.jpg" alt=""><figcaption>dz 04 · le chiffre</figcaption></figure>
-  <figure><img src="dz/05.jpg" alt=""><figcaption>dz 05 · CTA</figcaption></figure>
- </div>
-</section>
-<section>
- <h2><span class="tag">français</span> ne baissez pas le prix, changez l'ordre · 01 → 05</h2>
- <p class="desc">Même système, version française : Anton / Cairo pour le display, Space Grotesk pour les micro-labels.</p>
- <div class="row">
-  <figure><img src="fr/01.jpg" alt=""><figcaption>fr 01 · couverture</figcaption></figure>
-  <figure><img src="fr/02.jpg" alt=""><figcaption>fr 02 · le mécanisme</figcaption></figure>
-  <figure><img src="fr/03.jpg" alt=""><figcaption>fr 03 · les 3 gestes</figcaption></figure>
-  <figure><img src="fr/04.jpg" alt=""><figcaption>fr 04 · le chiffre</figcaption></figure>
-  <figure><img src="fr/05.jpg" alt=""><figcaption>fr 05 · CTA</figcaption></figure>
- </div>
-</section>
-<section>
- <h2><span class="tag">planches</span> les 10 slides d'un coup</h2>
- <div class="row board"><figure style="flex:1 1 auto"><img src="board.jpg" alt="">
-  <figcaption>board · dz + fr</figcaption></figure></div>
-</section>
-</main></body></html>
+  <div class="stage">
+    <button class="arrow" id="prev" aria-label="slide précédente">‹</button>
+    <img id="slide" alt="">
+    <button class="arrow" id="next" aria-label="slide suivante">›</button>
+  </div>
+  <aside id="thumbs" aria-label="slides"></aside>
+</main>
+
+<footer>
+  <span class="cap" id="caption">dz 01</span>
+  <span id="role">couverture</span>
+  <span id="count" style="margin-left:auto">1 / 5</span>
+</footer>
+
+<script>
+const ROLES = ["couverture","le mécanisme","les 3 gestes","le chiffre","CTA"];
+const V = Date.now();          // cache-buster : toujours les derniers JPG
+const state = { lang: "dz", i: 0 };
+const img = document.getElementById("slide");
+const thumbs = document.getElementById("thumbs");
+const cap = document.getElementById("caption");
+const role = document.getElementById("role");
+const count = document.getElementById("count");
+
+function pad(n){ return String(n).padStart(2,"0"); }
+
+function buildThumbs(){
+  thumbs.innerHTML = "";
+  for (let i=0;i<5;i++){
+    const b = document.createElement("button");
+    b.innerHTML = `<img src="${state.lang}/${pad(i+1)}.jpg?v=${V}" alt=""><span class="num">${pad(i+1)}</span>`;
+    b.setAttribute("aria-current", i === state.i ? "true" : "false");
+    b.onclick = () => go(i);
+    thumbs.appendChild(b);
+  }
+}
+
+function paint(){
+  img.src = `${state.lang}/${pad(state.i+1)}.jpg?v=${V}`;
+  img.alt = `${state.lang} ${pad(state.i+1)}`;
+  cap.textContent = `${state.lang} ${pad(state.i+1)}`;
+  role.textContent = ROLES[state.i];
+  count.textContent = `${state.i+1} / 5`;
+  [...thumbs.children].forEach((b,i)=>b.setAttribute("aria-current", i===state.i?"true":"false"));
+  const active = thumbs.children[state.i];
+  if (active) active.scrollIntoView({block:"nearest"});
+}
+
+function go(i){
+  state.i = (i + 5) % 5;
+  paint();
+}
+
+document.getElementById("prev").onclick = () => go(state.i - 1);
+document.getElementById("next").onclick = () => go(state.i + 1);
+
+document.querySelectorAll(".tabs button").forEach(b=>{
+  b.onclick = () => {
+    state.lang = b.dataset.lang;
+    document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected", String(x===b)));
+    buildThumbs(); paint();
+  };
+});
+
+addEventListener("keydown", e=>{
+  if (e.key === "ArrowLeft") go(state.i - 1);
+  if (e.key === "ArrowRight") go(state.i + 1);
+  if (e.key === "ArrowUp") go(0);
+});
+
+buildThumbs(); paint();
+document.getElementById("stamp").textContent =
+  "version " + new Date(V).toLocaleTimeString("fr-FR");
+</script>
+</body>
+</html>
