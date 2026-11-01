@@ -671,8 +671,14 @@ def plan_pub(pub, i):
 
 
 def render(pub, i):
-    from editorial_slides import build
+    """v6 : une direction artistique par publication (10 directions en
+    rotation), et des photos différentes d'un slide à l'autre."""
+    import direction as DIR
     slides, pals, n = plan_pub(pub, i)
+    key = DIR.direction_for(i)
+    photos = DIR.PHOTO_BY_DIR.get(key, ["studio-voice.jpg"])
+    rot = (i // len(DIR.ORDER)) % len(photos)      # jamais la même photo d'une série à l'autre
+    photos = photos[rot:] + photos[:rot]
     folder = OUT / pub["slug"]
     folder.mkdir(parents=True, exist_ok=True)
     for old in folder.glob("*.jpg"):
@@ -680,7 +686,10 @@ def render(pub, i):
             old.unlink()
     paths = []
     for k, (kind, payload) in enumerate(slides):
-        base = build(kind, payload, pub, i, pals[k], k, n)
+        if isinstance(payload, dict):
+            payload = dict(payload)
+            payload["photo"] = photos[k % len(photos)]
+        base = DIR.draw(key, kind, payload, k, n, i, pub)
         p = folder / f"{k + 1:02d}.jpg"
         base.convert("RGB").resize((W, H), Image.LANCZOS).save(
             p, quality=93, subsampling=0, optimize=True)
