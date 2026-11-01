@@ -105,24 +105,52 @@ def _shape(text: str, name: str, size: float, rtl: bool):
     return out, width
 
 
+TOK = re.compile(
+    r"(?P<ar>[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u060C\u061B\u061F]+)"
+    r"|(?P<num>[0-9]+(?:[ .,\u060C][0-9]+)*)"
+    r"|(?P<lat>[A-Za-z\u00C0-\u024F'\u2019]+)"
+    r"|(?P<ws>\s+)"
+    r"|(?P<other>.)", re.S)
+
+
+def _runs(text, rtl):
+    """Découpe en runs directionnels (sans espaces de bord), ordre logique."""
+    runs, cur, kind = [], "", None
+    for m in TOK.finditer(text):
+        k = m.lastgroup
+        if k in ("ws", "other"):
+            cur += m.group(0)
+            continue
+        d = "ar" if k == "ar" else "lt"
+        if kind is None:
+            kind, cur = d, cur + m.group(0)
+        elif d == kind:
+            cur += m.group(0)
+        else:
+            runs.append((cur, kind))
+            cur, kind = m.group(0), d
+    if cur:
+        runs.append((cur, kind))
+    runs = [(r, k) for r, k in runs if r.strip()]
+    runs = [(r.strip(), k) for r, k in runs]
+    return runs
+
+
 def layout(text: str, name: str, size: float):
-    """Mise en page bidirectionnelle (python-bidi + HarfBuzz par segment)."""
     if not ARABC.search(text):
         return _shape(text, name, size, False)
-    from bidi.algorithm import get_display
-    vis = get_display(text, base_dir="R")
-    segments, i = [], 0
-    for m in re.finditer(r"[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF"
-                         r"\uFE70-\uFEFF]+", vis):
-        if m.start() > i:
-            segments.append((vis[i:m.start()], False))
-        segments.append((m.group(0)[::-1], True))
-        i = m.end()
-    if i < len(vis):
-        segments.append((vis[i:], False))
+    runs = _runs(text, True)
+    if not runs:
+        return [], 0.0
+    sp, _ = _shape(" ", name, size, False)
+    spw = sum(g[3] for g in sp)
+    vis = list(reversed(runs))
     glyphs, total = [], 0.0
-    for seg, rtl in segments:
-        g, w = _shape(seg, name, size, rtl)
+    for i, (run, kind) in enumerate(vis):
+        if i:
+            glyphs += sp
+            total += spw
+        g, w = _shape(run, name, size, kind == "ar")
         glyphs += g
         total += w
     return glyphs, total
