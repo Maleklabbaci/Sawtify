@@ -671,7 +671,7 @@ def plan_pub(pub, i):
 
 
 def render(pub, i):
-    from premium_slides import build
+    from editorial_slides import build
     slides, pals, n = plan_pub(pub, i)
     folder = OUT / pub["slug"]
     folder.mkdir(parents=True, exist_ok=True)
