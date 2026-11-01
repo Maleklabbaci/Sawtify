@@ -287,6 +287,15 @@ def tri(base, cx, cy, size=20, color=ORANGE, rot=0):
                               int((cy - ic.height / 2 / SS) * SS)))
 
 
+def sticker_size(text, size=22, name=BOLD, icon=None, pad=(26, 20), num=None):
+    tw_ = twidth(text, name, size)
+    h = size * 1.5 + pad[1] * 2
+    ic = int(size * 1.28) if icon else 0
+    gap = int(size * 0.42) if icon else 0
+    w = pad[0] * 2 + tw_ + (ic + gap if icon else 0)
+    return w, h
+
+
 def sticker(base, text, cx, cy, rot=-6, fill=ORANGE, fg=CREAM, icon=None,
             size=22, name=BOLD, pad=(26, 20), num=None):
     tw_ = twidth(text, name, size)
@@ -381,6 +390,11 @@ def build(spec, seed, rtl=True):
     # titre ancré par le haut : toutes les slides démarrent à la même hauteur
     while size > 56 and TITLE_TOP + (len(lines_n) - 1) * size * 1.44 > 918:
         size -= 2
+    # montée en taille limitée : les pilules doivent pouvoir se poser à côté
+    while (size < spec.get("maxsize", size)
+           and TITLE_TOP + (len(lines_n) - 1) * (size + 4) * 1.44 <= 918
+           and line_w(size + 4) <= spec.get("fitw", 640)):
+        size += 4
     lead = size * spec.get("lead", 1.44)
     lines = [list(map(tuple, toks)) for toks in lines_n]
     gaps = [size * 0.26] * len(lines)
@@ -393,11 +407,27 @@ def build(spec, seed, rtl=True):
         gaps = [g for _, g in out]
 
     y = TITLE_TOP
+    geo = []
     for tokens, gp in zip(lines, gaps):
+        wl = sum(twidth(t, WEIGHT[w], size) for t, w, _ in tokens) \
+            + gp * (len(tokens) - 1)
+        geo.append((y, W / 2 - wl / 2, W / 2 + wl / 2))
         hline(base, tokens, W / 2, y, size, rtl=rtl, gap=gp)
         y += lead
     for st in spec.get("stickers", ()):
-        sticker(base, st["text"], st["x"], st["y"], st.get("rot", -6),
+        cx, cy = st.get("x", 0), st.get("y", 0)
+        anc = st.get("anchor")
+        if anc:
+            idx, side = anc
+            idx = min(idx, len(geo) - 1)
+            ly, lx0, lx1 = geo[idx]
+            sw, sh = sticker_size(st["text"], st.get("size", 21),
+                                  st.get("name", BOLD), st.get("icon"))
+            off = st.get("dx", 14)
+            cx = (lx1 + off + sw / 2) if side == "right" \
+                else (lx0 - off - sw / 2)
+            cy = ly + st.get("dy", -size * 0.12)
+        sticker(base, st["text"], cx, cy, st.get("rot", -6),
                 st.get("fill", ORANGE), CREAM, st.get("icon"),
                 st.get("size", 21), st.get("name", BOLD),
                 num=st.get("num"))
@@ -476,8 +506,8 @@ def proof(p):
           align="center")
     tdraw(base, s4["lab_b"], W / 2 + 168, y + 62, 22, MUT, BLACK,
           align="center")
-    para(base, s4["body"], W / 2, BODY_Y, 27, MUT, REG, 800, 1.55)
-    tdraw(base, s4["note"], W / 2, BODY_Y + 58, 22, INK, BOLD, align="center")
+    yy = para(base, s4["body"], W / 2, BODY_Y, 27, MUT, REG, 800, 1.55)
+    tdraw(base, s4["note"], W / 2, yy + 40, 22, INK, BOLD, align="center")
     finish(base, p["n"], 3)
     return base
 
@@ -508,173 +538,159 @@ def cta(p):
 DZ = {
     "id": "dz", "n": 5, "seed": 11, "rtl": True,
     "s1": {
-        "kicker": "شكون احنا:", "size": 88, "justify": False,
+        "kicker": "المشكل:", "size": 88, "justify": False,
         "lines": [
-            [("نصنعو", "r", None), ("أصوات", "b", "v"), ("تبيع،", "b", None)],
-            [("بالدارجة", "r", None), ("تاع", "b", None),
-             ("البلاد", "b", None)],
-            [("من", "r", None), ("الأول", "r", None), ("حتى", "r", None),
-             ("الآخر.", "r", None)],
+            [("كل", "r", None), ("نهار", "b", None)],
+            [("بلا", "r", None), ("صوت،", "b", "v")],
+            [("نهار", "b", None), ("ضايع.", "r", None)],
         ],
         "stickers": [
-            dict(text="دارجة بلادنا", x=140, y=515, rot=6, fill=VIO,
-                 icon="target", size=19),
-            dict(text="500 دج", x=925, y=515, rot=-5, fill=ORANGE,
-                 icon="sound", size=19),
-            dict(text="24 ساعة", x=254, y=760, rot=-4, fill=ORANGE,
-                 icon="spark", size=19),
+            dict(text="فيديو بلا صوت", anchor=(0, "right"), fill=VIO,
+                 icon="sound", size=19, rot=6),
+            dict(text="ما يوقّف حتى واحد", anchor=(2, "left"), fill=ORANGE,
+                 icon="spark", size=17, rot=-6),
         ],
-        "body": "خمس مية دج، بالدارجة، و تسليم في 24 ساعة. تسمعها قبل ما تخلّص.",
+        "body": "الفيديو مليح، بصح بلا صوت ما يوقّف حتى واحد.",
         "marks": [],
     },
     "s2": {
-        "kicker": "علاه هكّاك:", "size": 88, "justify": False,
+        "kicker": "علاش؟", "size": 88, "justify": False,
         "lines": [
-            [("دماغك", "b", None), ("ياخذ", "r", None)],
-            [("أول", "b", "o"), ("سوم", "b", None), ("و", "r", None)],
-            [("يوقف", "b", None), ("عليه.", "r", None)],
+            [("اللي", "b", None), ("ما", "r", None), ("يسمعش", "b", None)],
+            [("ما", "r", None), ("يبيعش.", "b", "o")],
         ],
         "stickers": [
-            dict(text="المرجع", x=813, y=515, rot=6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="الأنكوراج", x=242, y=642, rot=-6, fill=VIO,
-                 icon="sound", size=19),
+            dict(text="3 ثواني", anchor=(1, "right"), fill=ORANGE,
+                 icon="target", size=19, rot=6),
+            dict(text="و الزبون يفوت", anchor=(1, "left"), fill=VIO,
+                 icon="sound", size=18, rot=-6),
         ],
+        "body": "ثلاث ثواني بلا صوت، و الزبون يفوت و ما يرجعش.",
         "marks": [],
-        "body": "كل سوم بعدو يتقاس بيه، ماشي بالسوق. بدّل بلاصة السوم، "
-                "ماشي السوم.",
     },
     "s3": {
         "kicker": "واش تدير:", "size": 88, "justify": False,
         "lines": [
-            [("ثلاثة", "b", "v"), ("حوايج،", "r", None)],
-            [("و", "r", None), ("السوم", "b", "o"), ("يولي", "r", None)],
-            [("يهدر", "b", None), ("وحدو.", "r", None)],
+            [("ابعت،", "b", None)],
+            [("ختر،", "b", "v")],
+            [("و خود في 24 ساعة.", "r", None)],
         ],
         "stickers": [
-            dict(text="بيّن المرجع", x=855, y=515, rot=6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="فسّر السوم", x=203, y=642, rot=-6, fill=VIO,
-                 icon="sound", size=19),
-            dict(text="قارن بوضوح", x=830, y=760, rot=-4, fill=ORANGE,
-                 icon="spark", size=19),
+            dict(text="السكريبت", anchor=(0, "right"), fill=ORANGE,
+                 icon="target", size=19, rot=6),
+            dict(text="الصوت", anchor=(0, "left"), fill=VIO,
+                 icon="sound", size=19, rot=-6),
+            dict(text="الملف", anchor=(1, "right"), fill=ORANGE,
+                 icon="spark", size=19, rot=6),
         ],
-        "body": "خدّمهم بالترتيب، ما تخلطش ما بيناتهم: المرجع، التفسير، و من "
-                "بعد المقارنة.",
+        "body": "ابعت السكريبت، ختر الصوت، و الملف يوصلك غدوة.",
         "marks": [],
     },
     "s4": {
         "kicker": "الفرق:",
-        "num_a": "3 000", "num_b": "500",
-        "lab_a": "سوم السوق", "lab_b": "سومنا",
-        "body": "كري المرجع قبل ما تقول السوم، الزبون وحدو يفهم بلي 500 دج "
-                "صفقة.",
-        "note": "3 000 دج سوم السوق، 500 دج تاعنا، و الفرق يبان من الأول.",
+        "num_a": "24", "num_b": "21",
+        "lab_a": "ساعة تاعنا", "lab_b": "يوم استوديو",
+        "body": "الاستوديو يخليك تستنى، احنا نسلّموك قبل ما يبرد الخبر.",
+        "note": "24 ساعة تاعنا، 21 يوم في الاستوديو، و الفرق يبان من الأول.",
     },
     "s5": {
         "kicker": "و من بعد؟", "size": 88, "justify": False,
         "lines": [
-            [("الترتيب", "b", "v"), ("يبيع", "r", None), ("أكثر", "b", None)],
-            [("من", "r", None), ("أي", "r", None), ("تخفيض.", "r", None)],
+            [("ما", "r", None), ("تبقاش", "b", None)],
+            [("تستنى،", "r", None)],
+            [("ابدا", "b", None), ("درك.", "b", "v")],
         ],
         "stickers": [
-            dict(text="ما تنقصش السوم", x=806, y=676, rot=6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="الترتيب هو الحل", x=250, y=642, rot=-6, fill=VIO,
-                 icon="spark", size=19),
+            dict(text="24 ساعة", anchor=(1, "right"), fill=ORANGE,
+                 icon="spark", size=19, rot=6),
+            dict(text="بلا ما تستنى", anchor=(1, "left"), fill=VIO,
+                 icon="target", size=18, rot=-6),
         ],
         "marks": [],
     },
-    "cta": "خود الصوت تاعك في 24 ساعة",
+    "cta": "خود الصوت تاعك درك",
     "url": "sawtify.space",
-    "end_note": "صوت واحد، دارجة جزايرية، 500 دج. تسمع قبل ما تخلّص.",
+    "end_note": "صوت واحد، دارجة جزايرية، 500 دج، في 24 ساعة.",
 }
 
 FR = {
-    "id": "fr", "n": 5, "seed": 12, "rtl": False,
+    "id": "fr", "n": 5, "seed": 23, "rtl": False,
     "s1": {
-        "kicker": "Qui on est :", "ksize": 44, "size": 92,
+        "kicker": "Le problème :", "ksize": 40, "size": 92,
         "lines": [
-            [("On crée", "r", None)],
-            [("des voix", "b", "v"), ("qui vendent,", "b", None)],
-            [("en darija,", "r", None)],
-            [("du premier mot", "b", None)],
-            [("à la livraison.", "r", None)],
+            [("Chaque", "b", None), ("jour", "r", None)],
+            [("sans", "r", None), ("voix,", "b", "v")],
+            [("est", "r", None), ("perdu.", "b", None)],
         ],
         "stickers": [
-            dict(text="darija algérienne", x=825, y=676, rot=6, fill=VIO,
-                 icon="target", size=19),
-            dict(text="500 DA", x=304, y=676, rot=-5, fill=ORANGE,
-                 icon="sound", size=19),
-            dict(text="24 h", x=822, y=906, rot=-4, fill=ORANGE,
-                 icon="spark", size=19),
+            dict(text="vidéo muette", anchor=(0, "right"), fill=VIO,
+                 icon="sound", size=18, rot=6),
+            dict(text="personne ne s’arrête", anchor=(2, "left"), fill=ORANGE,
+                 icon="spark", size=16, rot=-6),
         ],
-        "body": "Cinq cents dinars, en darija, livrés en 24 h. Vous écoutez "
-                "avant de payer.",
+        "body": "La vidéo est bonne, mais sans son personne ne s’arrête.",
         "marks": [],
     },
     "s2": {
-        "kicker": "Pourquoi :", "ksize": 44, "size": 92,
+        "kicker": "Pourquoi :", "ksize": 40, "size": 92,
         "lines": [
-            [("Votre cerveau", "b", None)],
-            [("retient", "r", None), ("le premier", "b", "o")],
-            [("chiffre.", "r", None)],
+            [("Ce qu’on", "r", None), ("n’écoute", "b", None),
+             ("pas", "r", None)],
+            [("ne se", "r", None), ("vend", "b", "o"), ("pas.", "r", None)],
         ],
         "stickers": [
-            dict(text="ancrage", x=762, y=710, rot=6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="la référence", x=282, y=710, rot=-6, fill=VIO,
-                 icon="sound", size=19),
+            dict(text="3 secondes", anchor=(1, "right"), fill=ORANGE,
+                 icon="target", size=18, rot=6),
+            dict(text="il passe, il ne revient pas", anchor=(1, "left"), fill=VIO,
+                 icon="sound", size=15, rot=-6),
         ],
+        "body": "Trois secondes sans son, le client passe et ne revient pas.",
         "marks": [],
-        "body": "Chaque prix se juge par rapport au précédent, pas par rapport "
-                "au marché. Changez l'ordre, pas le prix.",
     },
     "s3": {
-        "kicker": "Quoi faire :", "ksize": 44, "size": 92,
+        "kicker": "Quoi faire :", "ksize": 40, "size": 92,
         "lines": [
-            [("Trois", "b", "v"), ("gestes,", "r", None)],
-            [("et le prix", "r", None)],
-            [("devient", "b", None), ("évident.", "r", None)],
+            [("Envoyez,", "b", None)],
+            [("choisissez,", "b", "v")],
+            [("recevez en 24 h.", "r", None)],
         ],
         "stickers": [
-            dict(text="la réf.", x=777, y=578, rot=6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="le détail", x=277, y=578, rot=-6, fill=VIO,
-                 icon="sound", size=19),
-            dict(text="l’écart", x=936, y=710, rot=-4, fill=ORANGE,
-                 icon="spark", size=19),
+            dict(text="le script", anchor=(0, "right"), fill=ORANGE,
+                 icon="target", size=18, rot=6),
+            dict(text="la voix", anchor=(1, "left"), fill=VIO,
+                 icon="sound", size=18, rot=-6),
+            dict(text="le fichier", anchor=(1, "right"), fill=ORANGE,
+                 icon="spark", size=18, rot=6),
         ],
-        "body": "Dans cet ordre, sans mélanger : la référence, l'explication, "
-                "puis la comparaison.",
+        "body": "Le script, la voix, le fichier livré le lendemain.",
         "marks": [],
     },
     "s4": {
-        "kicker": "Le chiffre :",
-        "num_a": "3 000", "num_b": "500",
-        "lab_a": "le marché", "lab_b": "notre prix",
-        "body": "Annoncez la référence avant votre prix : 500 DA devient "
-                "une évidence.",
-        "note": "3 000 DA le marché, 500 DA chez nous, et l’écart saute aux yeux.",
+        "kicker": "L’écart :",
+        "num_a": "24", "num_b": "21",
+        "lab_a": "heures chez nous", "lab_b": "jours en studio",
+        "body": "Le studio vous fait attendre ; nous livrons avant que la "
+                "nouvelle refroidisse.",
+        "note": "24 h chez nous, 21 jours en studio : l’écart saute aux yeux.",
     },
     "s5": {
-        "kicker": "Et après ?", "ksize": 44, "size": 92,
+        "kicker": "Et après ?", "ksize": 40, "size": 92,
         "lines": [
-            [("L’ordre", "b", "v"), ("vend", "r", None)],
-            [("plus", "b", None)],
-            [("qu’une remise.", "r", None)],
+            [("N’attendez", "b", None), ("plus,", "r", None)],
+            [("commencez", "r", None)],
+            [("maintenant.", "b", "v")],
         ],
         "stickers": [
-            dict(text="ne baissez pas le prix", x=296, y=578, rot=6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="l’ordre gagne", x=748, y=578, rot=-6, fill=VIO,
-                 icon="spark", size=19),
+            dict(text="24 h", anchor=(1, "right"), fill=ORANGE,
+                 icon="spark", size=18, rot=6),
+            dict(text="sans attendre", anchor=(2, "left"), fill=VIO,
+                 icon="target", size=18, rot=-6),
         ],
         "marks": [],
     },
-    "cta": "Votre voix en 24 h",
+    "cta": "Prenez votre voix maintenant",
     "url": "sawtify.space",
-    "end_note": "Une voix, darija algérienne, 500 DA. Vous écoutez avant de payer.",
+    "end_note": "Une voix, darija algérienne, 500 DA, livrée en 24 h.",
 }
 
 PUBS = [DZ, FR]
