@@ -18,6 +18,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from PIL import Image, ImageDraw
 
 from carousel import P_AURA, P_DEEP, P_INK, P_LILA, P_PAPER, P_VIO, P_VIO_L, \
@@ -102,6 +104,19 @@ def mono(base, text, x, y, size=13, color=SOFT_L, anchor="ls", track=1.6):
 
 SCRATCH = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
 
+_AR = re.compile(r"[\u0600-\u06FF]")
+
+
+def has_ar(text) -> bool:
+    return bool(_AR.search(str(text)))
+
+
+def ar_h(text, xr, max_w, size, floor=14, fname=CAIRO_M, leading=1.22) -> float:
+    """Hauteur RÉELLE d'un bloc arabe, mesurée en le dessinant sur SCRATCH."""
+    s = ar_fit(SCRATCH, str(text), max_w, size, fname, floor)
+    return ar(SCRATCH, str(text), xr, 0, s, P_WHITE, fname, max_w=max_w,
+              leading=leading, hi_color=P_WHITE)
+
 
 def _draw_title(canvas, lines, xr, y, max_w, size, color, hi, leading, gap=0):
     yy = y
@@ -170,7 +185,12 @@ def footer(base, k, n, dark=False, right_label="sawtify.space"):
         else:
             d.ellipse([(cx_i - 2.6) * SS, (y + 39.4) * SS, (cx_i + 2.6) * SS,
                        (y + 44.6) * SS], fill=(*col, 235))
-    lat(base, right_label, RIGHT, y + 46, 12, col, MONO, anchor="rs", tracking=1.4)
+    if has_ar(right_label):
+        ar(base, str(right_label), RIGHT, y + 34, 17, col, CAIRO_B, max_w=220,
+           leading=1.0, hi_color=col)
+    else:
+        lat(base, right_label, RIGHT, y + 46, 12, col, MONO, anchor="rs",
+            tracking=1.4)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -186,13 +206,13 @@ def cov_magazine(s, pal, k, n, seed=0):
     # plaque chiffre posée sur la photo (plaque pleine → contraste garanti)
     disp = str(s.get("display", "")).strip()
     if disp:
-        plate(base, (RIGHT - 300, 706, RIGHT, 838), DEEP, 14)
-        mono(base, "chiffre clé", RIGHT - 274, 742, 11, LIL, anchor="ls")
-        lat(base, disp, RIGHT - 26, 816, 52, P_WHITE, ANTON, anchor="rs",
-            tracking=-1)
-        note = s.get("display_note", "")
+        plate(base, (RIGHT - 392, 668, RIGHT, 842), DEEP, 14)
+        mono(base, "chiffre clé", RIGHT - 366, 700, 11, LIL, track=1.8)
+        note = str(s.get("display_note", "")).strip()
         if note:
-            arfit(base, note, RIGHT - 26, 758, 250, 14, LIL, hi=LIL, floor=10)
+            arfit(base, note, RIGHT - 24, 694, 250, 13, LIL, hi=LIL, floor=10)
+        lat(base, disp, RIGHT - 24, 832, 60, P_WHITE, ANTON, anchor="rs",
+            tracking=-1)
 
     plate(base, (0, 862, W, BOT), PAPER, 0)
     rule(base, SAFE, SAFE + 116, 900, AURA, 4)
@@ -255,17 +275,19 @@ def slide_statement(s, pal, k, n, seed=0):
     y_end = title(base, s.get("lines", []), RIGHT, 212, 936, 300, 86, P_WHITE,
                   hi=AURA, leading=1.08)
     its = [str(x) for x in s.get("items", [])[:3]]
-    gap = 58 if y_end < 560 else 50
-    yy = max(y_end + 34, 546)
-    if yy + gap * len(its) > 800:
-        gap = max(40, (800 - yy) // max(1, len(its)))
+    yy = max(y_end + 40, 556)
+    hs = [ar_h(it, RIGHT, 840, 26, floor=17) for it in its] or [0]
+    gap = max(56, max(hs) + 26)                    # la ligne respire SOUS le texte
+    if yy + gap * len(its) > 812:
+        gap = max(max(hs) + 14, (812 - yy) // max(1, len(its)))
     for j, it in enumerate(its):
-        lat(base, f"{j + 1:02d}", SAFE, yy + 22, 22, AURA, ANTON, anchor="ls",
+        ty = yy + max(0, (gap - hs[j]) / 2)
+        lat(base, f"{j + 1:02d}", SAFE, ty + 21, 22, AURA, ANTON, anchor="ls",
             tracking=0)
-        arfit(base, it, RIGHT, yy, 840, 26, P_WHITE, hi=AURA, floor=17)
+        arfit(base, it, RIGHT, ty, 840, 26, P_WHITE, hi=AURA, floor=17)
         yy += gap
         if j < len(its) - 1:
-            hair(base, SAFE + 46, RIGHT, yy - 32, P_WHITE, 34)
+            hair(base, SAFE + 46, RIGHT, ty + hs[j] + (gap - hs[j]) / 2, P_WHITE, 34)
     photo(base, s.get("photo", "man-studio.jpg"), (0, 858, W, BOT), duo=(seed + 2) % 3,
           fy=0.30)
     pull = str(s.get("pull", "")).strip()
@@ -300,15 +322,23 @@ def slide_item(text, pal, k, n, seed=0, photo_name=None, ordinal=1):
 #  étapes
 # ═══════════════════════════════════════════════════════════════════════════
 def _rows(base, steps, x0, x1, y0, gap, ncol=None):
+    w = (x1 - x0) - 76
     yy = y0
     for i, st in enumerate(steps):
         num, lab, sub = (list(st) + ["", "", ""])[:3]
+        h = ar_h(str(lab), x1, w, 32, floor=20) - 6
         lat(base, str(num), x0, yy + 34, 40, VIO, ANTON, anchor="ls", tracking=-1)
-        arfit(base, str(lab), x1, yy + 6, (x1 - x0) - 76, 32, INK, hi=VIO, floor=20)
-        mono(base, str(sub), x0 + 76, yy + 62, 12, SOFT_L)
+        arfit(base, str(lab), x1, yy + 6, w, 32, INK, hi=VIO, floor=20)
+        sub = str(sub).strip()
+        if sub:
+            sy = yy + 6 + h + 10
+            if has_ar(sub):
+                arfit(base, sub, x1, sy, w, 15, SOFT_L, hi=SOFT_L, floor=11)
+            else:
+                mono(base, sub, x0 + 6, sy + 15, 12, SOFT_L)
         yy += gap
         if i < len(steps) - 1:
-            hair(base, x0, x1, yy - 44, INK, 40)
+            hair(base, x0, x1, yy - 30, INK, 40)
     return yy
 
 
@@ -316,13 +346,16 @@ def slide_steps(steps, pal, k, n, seed=0):
     base = bg(pal)
     header(base, k, n)
     mono(base, "la méthode", SAFE, 176, 12.5, VIO, track=2.2)
-    lat(base, "3 / 3", RIGHT, 190, 30, P_LILA, ANTON, anchor="rs", tracking=0)
+    lat(base, f"{len(steps[:3])} étapes", RIGHT, 186, 15, VIO, MONO, anchor="rs",
+        tracking=1.4)
     photo(base, "phone-hand.jpg", (616, 232, RIGHT, 1150), duo=seed % 3, fy=0.35,
           radius=16)
-    _rows(base, steps[:3], SAFE, 560, 240, 226)
-    plate(base, (SAFE, 1080, 560, 1150), LIL, 14)
+    by = 1054                                        # bandeau collé au bas de la photo
+    gap = (by - 30 - 248) / max(1, len(steps[:3]))   # les 3 lignes remplissent la colonne
+    _rows(base, steps[:3], SAFE, 560, 248, gap)
+    plate(base, (SAFE, by, 560, 1150), LIL, 14)
     arfit(base, "الخطوات بالترتيب — كل خطوة عندها ثانية محدودة.",
-          SAFE + 260, 1094, 480, 18, DEEP, hi=VIO, floor=13)
+          538, by + 18, 444, 18, DEEP, hi=VIO, floor=13)
     footer(base, k, n)
     return base
 
@@ -357,8 +390,12 @@ def slide_recap(meth, pal, k, n, seed=0):
     steps = meth.get("steps", [])[:3]
     _rows(base, steps, SAFE, RIGHT, 470, 168)
     plate(base, (SAFE, 1040, RIGHT - 380, 1150), AURA, 14)
-    lat(base, "500 دج", SAFE + 26, 1112, 42, INK, ANTON, anchor="ls", tracking=-1)
     mono(base, "30 secondes · livré en 24 h", SAFE + 26, 1078, 11.5, INK)
+    lat(base, "500", SAFE + 26, 1112, 42, INK, ANTON, anchor="ls", tracking=-1)
+    d0 = ImageDraw.Draw(base)
+    w500 = d0.textlength("500", font=font(ANTON, 42)) / SS - 3
+    ar(base, "دج", SAFE + 26 + w500 + 16, 1064, 40, INK, CAIRO_B, max_w=140,
+       leading=1.0, hi_color=INK)
     plate(base, (RIGHT - 356, 1040, RIGHT, 1150), DEEP, 14)
     lat(base, "sawtify.space", RIGHT - 26, 1104, 24, P_WHITE, MONO, anchor="rs",
         tracking=0)
@@ -373,7 +410,7 @@ def slide_end(e, pal, k, n, seed=0):
     base = bg(pal)
     photo(base, e.get("photo", "studio-voice.jpg"), (0, 0, W, 742), duo=seed % 3,
           fy=0.32)
-    plate(base, (0, 742, W, BOT), DEEP, 0)
+    plate(base, (0, 742, W, H), DEEP, 0)          # le pied repose sur le violet
     logo_tile(base, SAFE, 790, 40, 0.30, grad=((139, 92, 246), (196, 181, 253)))
     lat(base, "SAWTIFY", SAFE + 52, 806, 20, P_WHITE, ANTON, anchor="ls", tracking=1.2)
     lat(base, f"{k + 1:02d}/{n:02d}", RIGHT, 812, 22, LIL, ANTON, anchor="rs")

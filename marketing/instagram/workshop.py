@@ -295,6 +295,8 @@ def lat(base, text, x, y, size, color, fname=ANTON, anchor="ls", rot=0.0,
             d0.text((x * SS, y * SS), text, font=f, fill=color, anchor=anchor)
         return
     tw = d0.textlength(text, font=f) / SS
+    if tracking and len(text) > 1:
+        tw += tracking * (len(text) - 1)      # largeur RÉELLE avec interlettrage
     if anchor.startswith("r"):
         x = x - tw
     asc, desc = f.getmetrics()
