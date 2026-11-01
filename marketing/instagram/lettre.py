@@ -118,6 +118,17 @@ def latin(base, text, x, y, size, fill=MUT, name=WORD, align="left",
     return total
 
 
+def ink_box(text, name, size):
+    w = twidth(text, name, size)
+    pad, bs = size * 0.7, size * 2.0
+    im = Image.new("L", (int((w + 2 * pad) * SS), int(3.0 * size * SS)), 0)
+    tdraw(im, text, pad, bs, size, 255, name, align="left")
+    bb = im.getbbox()
+    if not bb:
+        return 0.0, w, -size * 0.7, 0.0
+    return (bb[0] / SS - pad, bb[2] / SS - pad, bb[1] / SS - bs, bb[3] / SS - bs)
+
+
 def hline(base, tokens, cx, y, size, rtl=True, gap=None):
     """Ligne de titre. tokens = [(texte, poids, surligneur)].
 
@@ -125,7 +136,7 @@ def hline(base, tokens, cx, y, size, rtl=True, gap=None):
     Les tokens sont posés de droite à gauche si rtl (arabe), sinon de
     gauche à droite.
     """
-    gap = gap if gap is not None else size * 0.20
+    gap = gap if gap is not None else size * 0.26
     widths = [twidth(t, WEIGHT[w], size) for t, w, _ in tokens]
     total = sum(widths) + gap * (len(tokens) - 1)
     if rtl:
@@ -137,20 +148,19 @@ def hline(base, tokens, cx, y, size, rtl=True, gap=None):
     for (t, w, mark), tw_ in order:
         if mark:
             col = VIO_SOFT if mark == "v" else ORANGE_SOFT
-            bw, bh = tw_ + size * 0.13, size * 0.80
+            il, ir, it, ib = ink_box(t, WEIGHT[w], size)
+            px, py = size * 0.13, size * 0.11
+            base_x = (x - tw_) if rtl else x
+            cxi = base_x + (il + ir) / 2
+            half = (ir - il) / 2 + px
+            bw, bh = (2 * half), (ib - it + 2 * py)
             bar = Image.new("RGBA", (int(bw * SS), int(bh * SS)), (0, 0, 0, 0))
             ImageDraw.Draw(bar).rounded_rectangle(
                 [0, 0, bar.width - 1, bar.height - 1],
-                radius=int(size * 0.09 * SS), fill=(*col, 255))
-            rx, ry = bar.width, bar.height
+                radius=int(size * 0.07 * SS), fill=(*col, 255))
             bar = bar.rotate(-1.2, expand=True, resample=Image.BICUBIC)
-            if rtl:
-                bx = x - tw_ - size * 0.065
-            else:
-                bx = x - size * 0.065
-            # la rotation agrandit l'image : on recentre le rectangle
-            bx -= (bar.width / SS - rx / SS) / 2
-            by = y - size * 0.64 - (bar.height / SS - ry / SS) / 2
+            bx = cxi - half - (bar.width / SS - bw) / 2
+            by = y + (it + ib) / 2 - bh / 2 - (bar.height / SS - bh) / 2
             base.alpha_composite(bar, (int(bx * SS), int(by * SS)))
         if rtl:
             tdraw(base, t, x, y, size, INK, WEIGHT[w], align="right")
@@ -205,17 +215,25 @@ def tri(base, cx, cy, size=20, color=ORANGE, rot=0):
 
 
 def sticker(base, text, cx, cy, rot=-6, fill=ORANGE, fg=CREAM, icon=None,
-            size=22, name=BOLD, pad=(26, 20)):
+            size=22, name=BOLD, pad=(26, 20), num=None):
     tw_ = twidth(text, name, size)
+    nsize = size * 0.92
+    ntxt = (num + " ·") if num else ""
+    nw = (sum(tk._pil(WORD, nsize).getlength(c) for c in ntxt) / SS
+          + 1.8 * (len(ntxt) - 1)) if ntxt else 0
+    ngap = size * 0.30 if ntxt else 0
     h = size * 1.5 + pad[1] * 2
-    ic = int(size * 1.1) if icon else 0
+    ic = int(size * 1.28) if icon else 0
     gap = int(size * 0.42) if icon else 0
-    w = pad[0] * 2 + tw_ + (ic + gap if icon else 0)
+    w = pad[0] * 2 + tw_ + nw + ngap + (ic + gap if icon else 0)
     card = Image.new("RGBA", (int(w * SS), int(h * SS)), (0, 0, 0, 0))
     ImageDraw.Draw(card).rounded_rectangle(
         [0, 0, card.width - 1, card.height - 1], radius=int(h * 0.34 * SS),
         fill=(*fill, 255))
     x = pad[0]
+    if ntxt:
+        latin(card, ntxt, x, h / 2 + nsize * 0.34, nsize, fg, WORD, "left", 1.8)
+        x += nw + ngap
     if icon:
         card.alpha_composite(_icon(icon, int(ic * SS), fg),
                              (int(x * SS), int((h * SS - ic * SS) / 2)))
@@ -260,6 +278,13 @@ def finish(base, n, k, last=False):
     latin(base, "SAWTIFY.SPACE", M, H - 60, 9.5, MUT, WORD, "left", 2.6)
     if not last:
         latin(base, "SWIPE", W - M, H - 60, 9.5, MUT, WORD, "right", 2.6)
+        ax = W - M - 52
+        d.line([(ax - 12) * SS, (H - 63) * SS, ax * SS, (H - 63) * SS],
+               fill=(*MUT, 255), width=int(1.4 * SS))
+        d.line([(ax - 12) * SS, (H - 63) * SS, (ax - 6) * SS, (H - 66) * SS],
+               fill=(*MUT, 255), width=int(1.4 * SS))
+        d.line([(ax - 12) * SS, (H - 63) * SS, (ax - 6) * SS, (H - 60) * SS],
+               fill=(*MUT, 255), width=int(1.4 * SS))
     return base
 
 
@@ -277,7 +302,7 @@ def build(spec, seed, rtl=True):
     # ajustement automatique : aucune ligne ne dépasse la marge
     def line_w(sz):
         return max(sum(twidth(t, WEIGHT[w], sz) for t, w, _ in toks)
-                   + sz * 0.20 * (len(toks) - 1) for toks in spec["lines"])
+                   + sz * 0.26 * (len(toks) - 1) for toks in spec["lines"])
     while line_w(size) > 936 and size > 56:
         size -= 2
     # remplit la hauteur quand les lignes sont courtes
@@ -293,7 +318,8 @@ def build(spec, seed, rtl=True):
     for st in spec.get("stickers", ()):
         sticker(base, st["text"], st["x"], st["y"], st.get("rot", -6),
                 st.get("fill", ORANGE), CREAM, st.get("icon"),
-                st.get("size", 21), st.get("name", BOLD))
+                st.get("size", 21), st.get("name", BOLD),
+                num=st.get("num"))
     for (tx, ty, sz, rot, col) in spec.get("marks", ()):
         tri(base, tx, ty, sz, col, rot)
     return base, y
@@ -310,13 +336,15 @@ def cover(p):
 
 def meca(p):
     base, y = build(p["s2"], seed=p["seed"] + 1, rtl=p["rtl"])
-    para(base, p["s2"]["body"], W / 2, y + 40, 25, MUT, REG, 780, 1.55)
+    para(base, p["s2"]["body"], W / 2, y + 26, 26, MUT, REG, 790, 1.55)
     finish(base, p["n"], 1)
     return base
 
 
 def steps(p):
     base, y = build(p["s3"], seed=p["seed"] + 2, rtl=p["rtl"])
+    if p["s3"].get("body"):
+        para(base, p["s3"]["body"], W / 2, y + 34, 25, MUT, REG, 800, 1.55)
     finish(base, p["n"], 2)
     return base
 
@@ -325,31 +353,32 @@ def proof(p):
     s4 = p["s4"]
     base = paper(seed=p["seed"] + 3)
     wordmark(base)
-    tdraw(base, s4["kicker"], W / 2, 352, 40, INK, REG, align="center")
-    y = 552
-    for txt, cx, col in ((s4["num_a"], W / 2 - 152, VIO_SOFT),
-                         (s4["num_b"], W / 2 + 152, ORANGE_SOFT)):
-        w_ = tk.width(txt, BLACK, 112)
-        bar = Image.new("RGBA", (int((w_ + 44) * SS), int(122 * SS)),
+    tdraw(base, s4["kicker"], W / 2, 360, 42, INK, REG, align="center")
+    y = 604
+    nsz = 120
+    for txt, cx, col in ((s4["num_a"], W / 2 - 168, VIO_SOFT),
+                         (s4["num_b"], W / 2 + 168, ORANGE_SOFT)):
+        w_ = tk.width(txt, BLACK, nsz)
+        bar = Image.new("RGBA", (int((w_ + 46) * SS), int(nsz * 1.12 * SS)),
                         (0, 0, 0, 0))
         ImageDraw.Draw(bar).rounded_rectangle(
-            [0, 0, bar.width - 1, bar.height - 1], radius=12 * SS,
+            [0, 0, bar.width - 1, bar.height - 1], radius=14 * SS,
             fill=(*col, 255))
         rx, ry = bar.width, bar.height
         bar = bar.rotate(-1.2, expand=True, resample=Image.BICUBIC)
-        bx = cx - w_ / 2 - 22 - (bar.width - rx) / 2 / SS
-        by = y - 92 - (bar.height - ry) / 2 / SS
+        bx = cx - w_ / 2 - 23 - (bar.width - rx) / 2 / SS
+        by = y - nsz * 0.78 - (bar.height - ry) / 2 / SS
         base.alpha_composite(bar, (int(bx * SS), int(by * SS)))
-        tdraw(base, txt, cx, y, 112, INK, BLACK, align="center")
-    tdraw(base, s4["lab_a"], W / 2 - 152, y + 54, 21, MUT, BLACK,
+        tdraw(base, txt, cx, y, nsz, INK, BLACK, align="center")
+    tdraw(base, s4["lab_a"], W / 2 - 168, y + 62, 22, MUT, BLACK,
           align="center")
-    tdraw(base, s4["lab_b"], W / 2 + 152, y + 54, 21, MUT, BLACK,
+    tdraw(base, s4["lab_b"], W / 2 + 168, y + 62, 22, MUT, BLACK,
           align="center")
-    yy = para(base, s4["body"], W / 2, y + 156, 25, MUT, REG, 780, 1.55)
-    tdraw(base, s4["note"], W / 2, yy + 34, 21, INK, BOLD, align="center")
-    tri(base, 168, 552, 18, ORANGE, 180)
-    tri(base, 912, 700, 16, VIO, 0)
-    mascot(base, W / 2, 1000, 92)
+    yy = para(base, s4["body"], W / 2, y + 176, 27, MUT, REG, 800, 1.55)
+    tdraw(base, s4["note"], W / 2, yy + 30, 22, INK, BOLD, align="center")
+    tri(base, 150, 600, 18, ORANGE, 180)
+    tri(base, 928, 940, 16, VIO, 0)
+    mascot(base, W / 2, 1108, 104)
     finish(base, p["n"], 3)
     return base
 
@@ -357,7 +386,7 @@ def proof(p):
 def cta(p):
     base, y = build(p["s5"], seed=p["seed"] + 4, rtl=p["rtl"])
     top = y + 60
-    band = Image.new("RGBA", (int((W - 2 * M) * SS), int(178 * SS)),
+    band = Image.new("RGBA", (int((W - 2 * M) * SS), int(186 * SS)),
                      (0, 0, 0, 0))
     ImageDraw.Draw(band).rounded_rectangle(
         [0, 0, band.width - 1, band.height - 1], radius=28 * SS,
@@ -367,9 +396,9 @@ def cta(p):
     base.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(22)),
                          (int(M * SS), int((top + 10) * SS)))
     base.alpha_composite(band, (int(M * SS), int(top * SS)))
-    tdraw(base, p["cta"], W / 2, top + 58, 32, CREAM, BLACK, align="center")
-    latin(base, p["url"], W / 2, top + 120, 24, CREAM, WORD, "center", 0.4)
-    para(base, p["end_note"], W / 2, top + 250, 22, MUT, REG, 740, 1.5)
+    tdraw(base, p["cta"], W / 2, top + 92, 38, CREAM, BLACK, align="center")
+    latin(base, p["url"], W / 2, top + 152, 25, CREAM, WORD, "center", 0.4)
+    para(base, p["end_note"], W / 2, top + 258, 23, MUT, REG, 760, 1.5)
     finish(base, p["n"], 4, last=True)
     return base
 
@@ -390,9 +419,9 @@ DZ = {
         ],
         "stickers": [
             dict(text="500 دج", x=296, y=316, rot=-7, fill=VIO, icon="sound"),
-            dict(text="دارجة بلادنا", x=848, y=596, rot=7, fill=ORANGE,
+            dict(text="دارجة بلادنا", x=892, y=436, rot=7, fill=ORANGE,
                  icon="target"),
-            dict(text="24 ساعة", x=926, y=930, rot=5, fill=ORANGE,
+            dict(text="24 ساعة", x=232, y=1096, rot=-5, fill=ORANGE,
                  icon="spark"),
         ],
         "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
@@ -421,13 +450,15 @@ DZ = {
             [("يهدر.", "b", None)],
         ],
         "stickers": [
-            dict(text="01 · بيّن المرجع", x=296, y=838, rot=-6, fill=ORANGE,
-                 icon="target", size=20),
-            dict(text="02 · فسّر السوم", x=818, y=958, rot=6, fill=VIO,
-                 icon="sound", size=20),
-            dict(text="03 · قارن بوضوح", x=306, y=1082, rot=-5, fill=ORANGE,
-                 icon="spark", size=20),
+            dict(text="بيّن المرجع", num="01", x=268, y=1088, rot=-5, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="فسّر السوم", num="02", x=562, y=1088, rot=3, fill=VIO,
+                 icon="sound", size=19),
+            dict(text="قارن بوضوح", num="03", x=858, y=1088, rot=-4, fill=ORANGE,
+                 icon="spark", size=19),
         ],
+        "body": "خدّمهم بالترتيب، ما تخلطش ما بيناتهم: المرجع، التفسير، و من "
+                "بعد المقارنة.",
         "marks": [(150, 470, 18, 180, VIO)],
     },
     "s4": {
@@ -449,7 +480,7 @@ DZ = {
             dict(text="ما تنقصش السوم", x=846, y=606, rot=6, fill=ORANGE,
                  icon="target"),
         ],
-        "marks": [(222, 470, 18, 180, ORANGE)],
+        "marks": [(164, 900, 18, 180, ORANGE)],
     },
     "cta": "خود الصوت تاعك في 24 ساعة",
     "url": "sawtify.space",
@@ -469,9 +500,9 @@ FR = {
         ],
         "stickers": [
             dict(text="500 DA", x=286, y=316, rot=-7, fill=VIO, icon="sound"),
-            dict(text="darija algérienne", x=852, y=706, rot=7, fill=ORANGE,
+            dict(text="darija algérienne", x=888, y=436, rot=7, fill=ORANGE,
                  icon="target", size=19),
-            dict(text="24 h", x=932, y=932, rot=5, fill=ORANGE, icon="spark"),
+            dict(text="24 h", x=214, y=1096, rot=-5, fill=ORANGE, icon="spark"),
         ],
         "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
     },
@@ -498,13 +529,15 @@ FR = {
             [("devient", "b", None), ("évident.", "r", None)],
         ],
         "stickers": [
-            dict(text="01 · la référence", x=286, y=940, rot=-6, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="02 · le détail", x=828, y=1032, rot=6, fill=VIO,
-                 icon="sound", size=19),
-            dict(text="03 · la comparaison", x=316, y=1124, rot=-5,
-                 fill=ORANGE, icon="spark", size=19),
+            dict(text="la réf.", num="01", x=222, y=1092, rot=-5, fill=ORANGE,
+                 icon="target", size=18),
+            dict(text="le détail", num="02", x=544, y=1092, rot=3, fill=VIO,
+                 icon="sound", size=18),
+            dict(text="l’écart", num="03", x=856, y=1092, rot=-4,
+                 fill=ORANGE, icon="spark", size=18),
         ],
+        "body": "Dans cet ordre, sans mélanger : la référence, l'explication, "
+                "puis la comparaison.",
         "marks": [(150, 470, 18, 180, VIO)],
     },
     "s4": {
@@ -513,20 +546,20 @@ FR = {
         "lab_a": "le marché", "lab_b": "notre prix",
         "body": "Annoncez la référence avant votre prix : 500 DA devient "
                 "une évidence.",
-        "note": "3 000 DA le marché, 500 DA chez nous, et l'écart saute aux yeux.",
+        "note": "3 000 DA le marché, 500 DA chez nous, et l’écart saute aux yeux.",
     },
     "s5": {
         "kicker": "Et après ?", "ksize": 44, "size": 88, "kgap": 118,
         "lines": [
-            [("L'ordre", "b", "v"), ("vend", "r", None)],
+            [("L’ordre", "b", "v"), ("vend", "r", None)],
             [("plus", "b", None)],
-            [("qu'une remise.", "r", None)],
+            [("qu’une remise.", "r", None)],
         ],
         "stickers": [
-            dict(text="ne baissez pas le prix", x=238, y=706, rot=-6,
+            dict(text="ne baissez pas le prix", x=822, y=604, rot=-6,
                  fill=ORANGE, icon="target", size=18),
         ],
-        "marks": [(222, 470, 18, 180, ORANGE)],
+        "marks": [(164, 900, 18, 180, ORANGE)],
     },
     "cta": "Votre voix en 24 h",
     "url": "sawtify.space",
