@@ -320,19 +320,45 @@ def mid_statement(s, pal, k, n, seed=0, photo_name="studio-voice.jpg"):
     return base
 
 
-def mid_item(item, num, pal, k, n, seed=0, photo_name="mic-hero.jpg"):
-    """Un constat par slide : gros numéro + la phrase."""
+def mid_item(item, num, pal, k, n, seed=0, photo_name="mic-hero.jpg", total=3):
+    """Un constat par slide — 3 mises en page différentes selon le constat."""
+    v = (num - 1) % 3
+    idx_lbl = f"{num:02d} / {total:02d}"
     base = ground(pal, seed, 13)
     thread(base, k, n, pal)
-    lat(base, "LE CONSTAT", M + 26, 100, 17,
-        pal["soft"] if not light(pal) else (124, 108, 156), MONO, anchor="ls")
     num_dot(base, k, n, pal)
-    pano(base, photo_name, (M + 24, 190, W - M + 40, 700), k, n, seed=51 + seed,
-         t0=0.34, t1=0.56, zoom=1.5, k_duo=seed // 3, torn=(True, True, False, True), shadow=20)
-    lat(base, f"0{num}", M + 20, 1010, 210, num_col(pal), ANTON, anchor="ls",
-        tracking=-6)
-    ar(base, item, R - 6, 880, 40 if len(item) < 46 else 34, pal["txt"], CAIRO_B,
-       max_w=W - 2 * M - 250, leading=1.2)
+    soft = pal["soft"] if not light(pal) else (124, 108, 156)
+    lat(base, "LE CONSTAT", M + 26 if v != 2 else R - 6, 100, 17, soft, MONO,
+        anchor="ls" if v != 2 else "rs")
+
+    if v == 0:                                     # photo en haut, numéro en bas
+        pano(base, photo_name, (M + 24, 190, W - M + 40, 700), k, n,
+             seed=51 + seed, t0=0.34, t1=0.56, zoom=1.5,
+             k_duo=seed // 3, torn=(True, True, False, True), shadow=20)
+        lat(base, f"0{num}", M + 20, 1010, 210, num_col(pal), ANTON, anchor="ls",
+            tracking=-6)
+        lat(base, idx_lbl, M + 26, 1052, 16, soft, MONO, anchor="ls")
+        ar(base, item, R - 6, 880, 40 if len(item) < 46 else 34, pal["txt"], CAIRO_B,
+           max_w=W - 2 * M - 250, leading=1.2)
+    elif v == 1:                                   # photo en bas, texte en haut
+        ar(base, item, R - 6, 170, 46 if len(item) < 46 else 38, pal["txt"], CAIRO_B,
+           max_w=W - 2 * M - 60, leading=1.24)
+        lat(base, f"0{num}", M + 20, 640, 190, num_col(pal), ANTON, anchor="ls",
+            tracking=-6)
+        lat(base, idx_lbl, M + 24, 682, 16, soft, MONO, anchor="ls")
+        pano(base, photo_name, (M + 24, 700, W - M + 40, H + 50), k, n,
+             seed=51 + seed, t0=0.34, t1=0.56, zoom=1.5,
+             k_duo=seed // 3, torn=(True, False, True, True), shadow=20)
+    else:                                          # photo pleine hauteur à gauche
+        pano(base, photo_name, (-60, -40, 540, H + 50), k, n,
+             seed=51 + seed, t0=0.34, t1=0.56, zoom=1.6,
+             k_duo=seed // 3, torn=(False, True, True, True), shadow=18)
+        ar(base, item, R - 6, 200, 38 if len(item) < 46 else 32, pal["txt"], CAIRO_B,
+           max_w=W - 580, leading=1.26)
+        lat(base, f"0{num}", R - 6, 1080, 170, num_col(pal), ANTON, anchor="rs",
+            tracking=-6)
+        lat(base, idx_lbl, R - 6, 1120, 16, soft, MONO, anchor="rs")
+
     swipe_hint(base, pal)
     return base
 
@@ -566,34 +592,79 @@ def length_for(i: int) -> int:
     return 4 + (i * 3 + (i // 7)) % 5          # 4..8, jamais le même rythme deux fois
 
 
+# Composition exacte du milieu, en jetons :
+#   S = statement (le choc)      I = un item (fait / douleur)
+#   P = une étape seule (gros numéro)   L = toutes les étapes dans une seule slide
+#   R = récap checklist
+# Σ jetons = n − 2, donc le carrousel fait TOUJOURS exactement n slides.
+RECIPES = {
+    4: ["S", "L"],
+    5: ["S", "L", "I"],
+    6: ["S", "I", "I", "I"],
+    7: ["S", "P", "P", "P", "I"],
+    8: ["S", "I", "I", "I", "P", "P"],
+}
+RECIPES_ALT = {
+    8: ["S", "I", "I", "P", "P", "R"],
+}
+
+
+def _assemble(tokens, diag, meth):
+    items = list(diag["items"])
+    steps = list(meth["steps"])
+    ii = pi = 0
+    used_list = False
+    out = []
+    for tok in tokens:
+        if tok == "S":
+            out.append(("statement", diag))
+        elif tok == "R":
+            out.append(("recap", meth))
+        elif tok == "I" and ii < len(items):
+            out.append(("item", items[ii]))
+            ii += 1
+        elif tok == "P" and pi < len(steps):
+            out.append(("step", (steps[pi], pi, len(steps))))
+            pi += 1
+        elif tok == "L" and not used_list:
+            out.append(("steps", steps))
+            used_list = True
+        elif ii < len(items):
+            out.append(("item", items[ii]))
+            ii += 1
+        elif pi < len(steps):
+            out.append(("step", (steps[pi], pi, len(steps))))
+            pi += 1
+        elif not used_list:
+            out.append(("steps", steps))
+            used_list = True
+        else:
+            out.append(("recap", meth))
+    return out
+
+
 def plan_pub(pub, i):
-    """Liste [(fonction, payload)] + palettes, pour un carrousel de 4 à 8 slides."""
+    """Liste [(nature, payload)] + palettes — exactement `n` slides, 4 ≤ n ≤ 8."""
     sl = pub["slides"]
     cover, diag, meth, end = sl[0], sl[1], sl[2], sl[3]
     n = length_for(i)
-    photo = cover.get("photo", "studio-voice.jpg")
+    tokens = RECIPES[n]
+    if n in RECIPES_ALT and (i // 3) % 2 == 0:
+        tokens = RECIPES_ALT[n]
+    middles = _assemble(tokens, diag, meth)
 
-    middles = []
-    if n == 4:
-        middles = [("statement", diag), ("steps", meth["steps"])]
-    elif n == 5:
-        middles = [("statement", diag), ("steps", meth["steps"]), ("item", diag["items"][0])]
-    elif n == 6:
-        middles = [("statement", diag)] + [("item", it) for it in diag["items"]]
-    elif n == 7:
-        middles = ([("statement", diag)] + [("step", (st, j, len(meth["steps"])))
-                                            for j, st in enumerate(meth["steps"])]
-                   + [("item", diag["items"][0])])
-    else:
-        middles = ([("statement", diag)] + [("item", it) for it in diag["items"]]
-                   + [("step", (st, j, len(meth["steps"])))
-                      for j, st in enumerate(meth["steps"])] + [("recap", meth)])
+    # filet de sécurité : on ne descend jamais sous 4 ni au-dessus de 8
+    while len(middles) > n - 2:
+        middles.pop()
+    while len(middles) < n - 2:
+        middles.append(("recap", meth))
 
     seq_keys = SEQUENCES[i % len(SEQUENCES)]
     slides = [("cover", cover)]
     for kind, payload in middles:
         slides.append((kind, payload))
     slides.append(("end", end))
+    assert len(slides) == n, f"{pub['slug']}: {len(slides)} slides au lieu de {n}"
 
     pals = [PALETTES[seq_keys[j % len(seq_keys)]] for j in range(len(slides))]
     return slides, pals, n
@@ -603,6 +674,9 @@ def render(pub, i):
     slides, pals, n = plan_pub(pub, i)
     folder = OUT / pub["slug"]
     folder.mkdir(parents=True, exist_ok=True)
+    for old in folder.glob("*.jpg"):
+        if old.name != "planche.jpg":
+            old.unlink()
     photo = pub["slides"][0].get("photo", "studio-voice.jpg")
     paths = []
     for k, (kind, payload) in enumerate(slides):
@@ -613,8 +687,9 @@ def render(pub, i):
         elif kind == "statement":
             base = mid_statement(payload, pal, k, n, seed=seed, photo_name=photo)
         elif kind == "item":
-            idx = pub["slides"][1]["items"].index(payload)
-            base = mid_item(payload, idx + 1, pal, k, n, seed=seed,
+            items = pub["slides"][1]["items"]
+            idx = items.index(payload)
+            base = mid_item(payload, idx + 1, pal, k, n, seed=seed, total=len(items),
                             photo_name=("mic-hero.jpg" if i % 2 else "phone-hand.jpg"))
         elif kind == "steps":
             base = mid_steps(payload, pal, k, n, seed=seed)
@@ -644,7 +719,7 @@ def main() -> int:
         if a.only and a.only not in pub["slug"]:
             continue
         slides, _, n = plan_pub(pub, i)
-        print(f"▶ {pub['titre']}  ·  {n} slides  ·  "
+        print(f"▶ {pub['titre']}  ·  {len(slides)} slides  ·  "
               f"{[k for k, _ in slides]}")
         for p in render(pub, i):
             print(f"  ✓ {p.relative_to(ROOT)}")
