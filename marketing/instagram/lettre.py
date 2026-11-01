@@ -1,93 +1,250 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-lettre.py — reproduction du poster de référence (papier texturé, gros titre
-mixte, mot surligné, stickers à icônes, petits triangles).
+lettre.py — gabarit « poster » reproduit de la référence client.
 
- Le gabarit « lettre » :
-   · wordmark sawtify centré en haut (petit, interlettré)
-   · une ligne d'attaque  (« شكون احنا: »)
-   · le bloc de titre, 4 à 6 lignes centrées, mélange Regular / Black,
-     un mot surligné par une barre, triangles de repère
-   · 2 à 3 stickers inclinés avec icône, posés dans les blancs
+ papier texturé · ligne d'attaque · bloc de titre en 3 graisses (Cairo
+ Regular / Bold / Black) avec un mot surligné · stickers inclinés à icônes
+ vectorielles · mascotte en pastille · logo texte centré en haut.
 
-    python3 lettre.py            → slides/lettre/<id>/01..05.jpg
-    python3 lettre.py --only l1
+ Rendu du texte arabe : typekit.py (HarfBuzz) — plus de reshaper, donc
+ n'importe quelle police moderne fonctionne.
+
+    python3 lettre.py              → slides/lettre/{dz,fr}/01..05.jpg
+    python3 lettre.py --only dz
     python3 lettre.py --planches
 """
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
-from kinetic import (BODY, CREAM, GROT_B, GROT_M, H, HEAD, INK, MUT, ORANGE,
-                     ORANGE_SOFT, SERIF_IT, SS, VIO, VIO_D, VIO_SOFT, W,
-                     _icon, ar_center, latin, logo, paper, sticker, tri, tw)
+import typekit as tk
+from typekit import draw as tdraw
+from typekit import width as twidth
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "slides" / "lettre"
+LOGO = ROOT / "assets" / "logo-mark-trim.png"
 
-REG = "NotoSansArabic-Regular.ttf"
-MID = "NotoSansArabic-SemiBold.ttf"
-BLK = "NotoSansArabic-Black.ttf"
-
+W, H = 1080, 1350
+SS = 2
 M = 84
 
+VIO = (109, 39, 234)
+VIO_D = (78, 22, 172)
+VIO_SOFT = (223, 210, 255)
+ORANGE = (253, 96, 41)
+ORANGE_SOFT = (255, 203, 180)
+CREAM = (244, 241, 233)
+INK = (24, 16, 40)
+MUT = (108, 95, 138)
 
-def wordmark(base, color=VIO, y=104, size=22):
-    latin(base, "sawtify", W / 2, y, size, color, GROT_B, anchor="ms",
-          track=7.5)
+BLACK = "Cairo-Black.ttf"
+BOLD = "Cairo-Bold.ttf"
+REG = "Cairo-Regular.ttf"
+WORD = "SpaceGrotesk-Bold.ttf"
+
+WEIGHT = {"b": BLACK, "m": BOLD, "r": REG}
+
+_logo_cache: dict = {}
 
 
-def block(base, tokens, cx, y, size, gap=None, bar_default=True):
-    """Une ligne : tokens = [(texte, poids, surligneur)].
+# ── papier ────────────────────────────────────────────────────────────────
+def paper(warm=(255, 255, 255), seed=7, glow=True):
+    import random
 
-    poids ∈ "b" (Black) · "m" (SemiBold) · "r" (Regular)
-    surligneur ∈ None | "v" | "o"
+    rnd = random.Random(seed)
+    base = Image.new("RGB", (W * SS, H * SS), CREAM)
+    noise = Image.new("L", (W // 2, H // 2))
+    noise.putdata([rnd.randint(120, 136) for _ in range(W // 2 * H // 2)])
+    grain = Image.merge("RGB", [noise] * 3).resize((W * SS, H * SS),
+                                                   Image.BILINEAR)
+    base = Image.blend(base, grain, 0.05).filter(ImageFilter.GaussianBlur(0.4))
+    d = ImageDraw.Draw(base, "RGBA")
+    for x in range(0, W, 54):
+        d.line([(x * SS, 0), (x * SS, H * SS)], fill=(120, 100, 160, 8), width=2)
+    for y in range(0, H, 54):
+        d.line([(0, y * SS), (W * SS, y * SS)], fill=(120, 100, 160, 8), width=2)
+    if glow:
+        g = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
+        gd = ImageDraw.Draw(g)
+        gd.ellipse([-280 * SS, -260 * SS, 440 * SS, 380 * SS], fill=(*VIO, 62))
+        gd.ellipse([680 * SS, 1020 * SS, 1380 * SS, 1640 * SS],
+                   fill=(*ORANGE, 42))
+        base = Image.alpha_composite(base.convert("RGBA"),
+                                     g.filter(ImageFilter.GaussianBlur(200)))
+    return base
+
+
+def logo(size):
+    if size not in _logo_cache:
+        src = Image.open(LOGO).convert("RGBA")
+        h = int(round(src.height * size / src.width))
+        _logo_cache[size] = src.resize((size, h), Image.LANCZOS)
+    return _logo_cache[size]
+
+
+# ── primitives de composition ─────────────────────────────────────────────
+def wordmark(base, y=104, size=22):
+    d = ImageDraw.Draw(base)
+    f = tk._pil(WORD, size)
+    txt = "sawtify"
+    track = 7.5
+    total = sum(d.textlength(c, font=f) / SS for c in txt) + track * (len(txt) - 1)
+    x = W / 2 - total / 2
+    for c in txt:
+        d.text((x * SS, y * SS), c, font=f, fill=VIO, anchor="ls")
+        x += d.textlength(c, font=f) / SS + track
+
+
+def latin(base, text, x, y, size, fill=MUT, name=WORD, align="left",
+          track=2.4):
+    d = ImageDraw.Draw(base)
+    f = tk._pil(name, size)
+    total = sum(d.textlength(c, font=f) / SS for c in text) + track * (len(text) - 1)
+    if align == "center":
+        px = x - total / 2
+    elif align == "right":
+        px = x - total
+    else:
+        px = x
+    for c in text:
+        d.text((px * SS, y * SS), c, font=f, fill=fill, anchor="ls")
+        px += d.textlength(c, font=f) / SS + track
+    return total
+
+
+def hline(base, tokens, cx, y, size, rtl=True, gap=None):
+    """Ligne de titre. tokens = [(texte, poids, surligneur)].
+
+    poids ∈ b/m/r ; surligneur ∈ None | "v" | "o".
+    Les tokens sont posés de droite à gauche si rtl (arabe), sinon de
+    gauche à droite.
     """
-    fmap = {"b": BLK, "m": MID, "r": REG}
-    gap = gap if gap is not None else size * 0.22
-    widths = [tw(t, fmap[w], size) for t, w, _ in tokens]
+    gap = gap if gap is not None else size * 0.20
+    widths = [twidth(t, WEIGHT[w], size) for t, w, _ in tokens]
     total = sum(widths) + gap * (len(tokens) - 1)
-    x = cx + total / 2
-    for (t, weight, mark), w in zip(tokens, widths):
-        if mark and bar_default:
+    if rtl:
+        x = cx + total / 2
+        order = list(zip(tokens, widths))
+    else:
+        x = cx - total / 2
+        order = list(zip(tokens, widths))
+    for (t, w, mark), tw_ in order:
+        if mark:
             col = VIO_SOFT if mark == "v" else ORANGE_SOFT
-            bw, bh = w + size * 0.14, size * 0.86
+            bw, bh = tw_ + size * 0.13, size * 0.80
             bar = Image.new("RGBA", (int(bw * SS), int(bh * SS)), (0, 0, 0, 0))
             ImageDraw.Draw(bar).rounded_rectangle(
                 [0, 0, bar.width - 1, bar.height - 1],
-                radius=int(size * 0.10 * SS), fill=(*col, 255))
+                radius=int(size * 0.09 * SS), fill=(*col, 255))
+            rx, ry = bar.width, bar.height
             bar = bar.rotate(-1.2, expand=True, resample=Image.BICUBIC)
-            base.alpha_composite(bar, (int((x - w - size * 0.07) * SS),
-                                       int((y - size * 0.72) * SS)))
-        ImageDraw.Draw(base).text(
-            ((x - w) * SS, y * SS), latin_visual(t), font=_f(fmap[weight], size),
-            fill=INK, anchor="ls")
-        x -= w + gap
+            if rtl:
+                bx = x - tw_ - size * 0.065
+            else:
+                bx = x - size * 0.065
+            # la rotation agrandit l'image : on recentre le rectangle
+            bx -= (bar.width / SS - rx / SS) / 2
+            by = y - size * 0.64 - (bar.height / SS - ry / SS) / 2
+            base.alpha_composite(bar, (int(bx * SS), int(by * SS)))
+        if rtl:
+            tdraw(base, t, x, y, size, INK, WEIGHT[w], align="right")
+            x -= tw_ + gap
+        else:
+            tdraw(base, t, x, y, size, INK, WEIGHT[w], align="left")
+            x += tw_ + gap
     return y
 
 
-_f_cache: dict = {}
+def para(base, text, cx, y, size, fill=MUT, name=REG, max_w=780, leading=1.55):
+    return tk.paragraph(base, text, cx, y, size, fill, name, max_w, leading)
 
 
-def _f(name, size):
-    from sawtify_ig import font
-    key = (name, size)
-    if key not in _f_cache:
-        _f_cache[key] = font(name, size)
-    return _f_cache[key]
+# ── stickers ──────────────────────────────────────────────────────────────
+def _icon(kind, size, color):
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    s = size
+    if kind == "target":
+        d.ellipse([s * .10, s * .10, s * .90, s * .90], outline=(*color, 255),
+                  width=max(2, int(s * .09)))
+        d.ellipse([s * .36, s * .36, s * .64, s * .64], fill=(*color, 255))
+        d.line([s * .55, s * .55, s * .92, s * .92], fill=(*color, 255),
+               width=max(2, int(s * .09)))
+    elif kind == "spark":
+        pts = []
+        for i in range(8):
+            r = s * (0.46 if i % 2 == 0 else 0.17)
+            a = math.pi / 4 * i - math.pi / 2
+            pts.append((s / 2 + r * math.cos(a), s / 2 + r * math.sin(a)))
+        d.polygon(pts, fill=(*color, 255))
+    elif kind == "sound":
+        d.rounded_rectangle([s * .12, s * .40, s * .34, s * .60],
+                            radius=s * .05, fill=(*color, 255))
+        d.polygon([(s * .34, s * .50), (s * .62, s * .22),
+                   (s * .62, s * .78)], fill=(*color, 255))
+        d.arc([s * .58, s * .26, s * .96, s * .74], -60, 60,
+              fill=(*color, 255), width=max(2, int(s * .08)))
+    elif kind == "tri":
+        d.polygon([(s * .15, s * .22), (s * .85, s * .22), (s / 2, s * .82)],
+                  fill=(*color, 255))
+    return im
 
 
-def latin_visual(t):
-    from sawtify_ig import visual
-    return visual(t)
+def tri(base, cx, cy, size=20, color=ORANGE, rot=0):
+    ic = _icon("tri", int(size * SS), color)
+    if rot:
+        ic = ic.rotate(rot, expand=True, resample=Image.BICUBIC)
+    base.alpha_composite(ic, (int((cx - ic.width / 2 / SS) * SS),
+                              int((cy - ic.height / 2 / SS) * SS)))
+
+
+def sticker(base, text, cx, cy, rot=-6, fill=ORANGE, fg=CREAM, icon=None,
+            size=22, name=BOLD, pad=(26, 20)):
+    tw_ = twidth(text, name, size)
+    h = size * 1.5 + pad[1] * 2
+    ic = int(size * 1.1) if icon else 0
+    gap = int(size * 0.42) if icon else 0
+    w = pad[0] * 2 + tw_ + (ic + gap if icon else 0)
+    card = Image.new("RGBA", (int(w * SS), int(h * SS)), (0, 0, 0, 0))
+    ImageDraw.Draw(card).rounded_rectangle(
+        [0, 0, card.width - 1, card.height - 1], radius=int(h * 0.34 * SS),
+        fill=(*fill, 255))
+    x = pad[0]
+    if icon:
+        card.alpha_composite(_icon(icon, int(ic * SS), fg),
+                             (int(x * SS), int((h * SS - ic * SS) / 2)))
+        x += ic + gap
+    tdraw(card, text, x + tw_ / 2, h / 2 + size * 0.36, size, fg, name,
+          align="center")
+    card = card.rotate(rot, expand=True, resample=Image.BICUBIC)
+    shadow = Image.new("RGBA", card.size, (0, 0, 0, 0))
+    shadow.paste((26, 12, 52, 88), (0, 0), card.split()[-1])
+    shadow = shadow.filter(ImageFilter.GaussianBlur(4.5 * SS))
+    px = int((cx - card.width / 2 / SS) * SS)
+    py = int((cy - card.height / 2 / SS) * SS)
+    base.alpha_composite(shadow, (px + int(2 * SS), py + int(6 * SS)))
+    base.alpha_composite(card, (px, py))
+    return cy + h / 2
+
+
+def mascot(base, cx, cy, r):
+    lay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ImageDraw.Draw(lay).ellipse([(cx - r) * SS, (cy - r) * SS,
+                                 (cx + r) * SS, (cy + r) * SS],
+                                fill=(*VIO, 255))
+    base.alpha_composite(lay)
+    img = logo(int(r * 1.26))
+    base.alpha_composite(img, (int((cx - img.width / 2 / SS) * SS),
+                               int((cy - img.height / 2 / SS) * SS)))
 
 
 def finish(base, n, k, last=False):
-    """Pagination discrète + crédit, sans casser le poster."""
     d = ImageDraw.Draw(base)
     step, r = 24, 4.5
     x0 = W / 2 - (n - 1) * step / 2
@@ -100,207 +257,307 @@ def finish(base, n, k, last=False):
             d.ellipse([(cx - r) * SS, (H - 66 - r) * SS, (cx + r) * SS,
                        (H - 66 + r) * SS], fill=(*CREAM, 255),
                       outline=(178, 160, 208, 255), width=2)
-    latin(base, "SAWTIFY.SPACE", M, H - 62, 9.5, MUT, GROT_M, anchor="ls",
-          track=2.6)
+    latin(base, "SAWTIFY.SPACE", M, H - 60, 9.5, MUT, WORD, "left", 2.6)
     if not last:
-        latin(base, "SWIPE", W - M, H - 62, 9.5, MUT, GROT_M, anchor="rs",
-              track=2.6)
+        latin(base, "SWIPE", W - M, H - 60, 9.5, MUT, WORD, "right", 2.6)
     return base
 
 
-def poster(kicker, lines, size, stickers=(), marks=(), seed=3):
-    """Compose une page complète du gabarit « lettre »."""
+# ═══════════════════════════════════════════════════════════════════════════
+#  construction d'une slide
+# ═══════════════════════════════════════════════════════════════════════════
+def build(spec, seed, rtl=True):
     base = paper(seed=seed)
     wordmark(base)
-    y = 322
-    ar_center(base, kicker, W / 2, y, 42, INK, BLK, 800, 1.3)
-    y += 132
-    lead = size * 1.28
-    for tokens in lines:
-        block(base, tokens, W / 2, y, size)
+    kicker_name = REG
+    tdraw(base, spec["kicker"], W / 2, 348, spec.get("ksize", 40), INK,
+          kicker_name, align="center")
+    y = 348 + spec.get("kgap", 130)
+    size = spec.get("size", 106)
+    # ajustement automatique : aucune ligne ne dépasse la marge
+    def line_w(sz):
+        return max(sum(twidth(t, WEIGHT[w], sz) for t, w, _ in toks)
+                   + sz * 0.20 * (len(toks) - 1) for toks in spec["lines"])
+    while line_w(size) > 936 and size > 56:
+        size -= 2
+    # remplit la hauteur quand les lignes sont courtes
+    while size < 124:
+        h = (len(spec["lines"]) - 1) * size * 1.28 + size * 1.1
+        if h >= 560 or line_w(size + 4) > 936:
+            break
+        size += 4
+    lead = size * spec.get("lead", 1.28)
+    for tokens in spec["lines"]:
+        hline(base, tokens, W / 2, y, size, rtl=rtl)
         y += lead
-    for st in stickers:
+    for st in spec.get("stickers", ()):
         sticker(base, st["text"], st["x"], st["y"], st.get("rot", -6),
-                st.get("fill", ORANGE), CREAM, st.get("icon"), st.get("size", 22))
-    for (tx, ty, sz, rot, col) in marks:
+                st.get("fill", ORANGE), CREAM, st.get("icon"),
+                st.get("size", 21), st.get("name", BOLD))
+    for (tx, ty, sz, rot, col) in spec.get("marks", ()):
         tri(base, tx, ty, sz, col, rot)
     return base, y
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  publication 01 — « شكون احنا »
-# ═══════════════════════════════════════════════════════════════════════════
-def l1(p):
-    base, y = poster(
-        "شكون احنا:",
-        [
-            [("نصنعو", "r", None)],
-            [("أصوات", "b", "v"), ("تبيع،", "b", None)],
-            [("بالدارجة", "r", None)],
-            [("من الفكرة", "b", None)],
-            [("حتى التسليم.", "r", None)],
-        ],
-        106,
-        stickers=[
-            dict(text="500 دج", x=312, y=320, rot=-7, fill=VIO, icon="sound",
-                 size=21),
-            dict(text="دارجة جزايرية", x=842, y=606, rot=7, fill=ORANGE,
-                 icon="target", size=21),
-            dict(text="24 ساعة", x=918, y=862, rot=5, fill=ORANGE,
-                 icon="spark", size=21),
-        ],
-        marks=[(150, 520, 20, 180, ORANGE), (952, 726, 16, 0, VIO)],
-    )
+# ── 01 · couverture ───────────────────────────────────────────────────────
+def cover(p):
+    base, y = build(p["s1"], seed=p["seed"], rtl=p["rtl"])
+    if p["s1"].get("mascot"):
+        mascot(base, W / 2, p["s1"]["mascot"][0], p["s1"]["mascot"][1])
     finish(base, p["n"], 0)
     return base
 
 
-def l2(p):
-    base, y = poster(
-        "الميكانيزم:",
-        [
-            [("دماغك", "b", None), ("ياخذ", "r", None)],
-            [("أول", "b", "o"), ("رقم", "b", None)],
-            [("و يوقف", "r", None)],
-            [("عليه.", "b", None)],
-        ],
-        106,
-        stickers=[
-            dict(text="anchoring", x=196, y=700, rot=-7, fill=VIO,
-                 icon="spark", size=22),
-            dict(text="كل سوم بعدو", x=846, y=672, rot=6, fill=ORANGE,
-                 icon="target", size=21),
-        ],
-        marks=[(902, 452, 16, 0, ORANGE)],
-        seed=4,
-    )
-    ar_center(base, p["b2"], W / 2, y + 60, 25, MUT, BODY, 780, 1.55)
+def meca(p):
+    base, y = build(p["s2"], seed=p["seed"] + 1, rtl=p["rtl"])
+    para(base, p["s2"]["body"], W / 2, y + 40, 25, MUT, REG, 780, 1.55)
     finish(base, p["n"], 1)
     return base
 
 
-def l3(p):
-    base, y = poster(
-        "كيفاش:",
-        [
-            [("ثلاثة", "b", "v"), ("حركات،", "r", None)],
-            [("و", "r", None), ("الترتيب", "b", "o"), ("يبيع.", "b", None)],
-        ],
-        84,
-        stickers=[
-            dict(text="01 · بيّن المرجع", x=286, y=700, rot=-6, fill=ORANGE,
-                 icon="target", size=20),
-            dict(text="02 · فسّر السوم", x=806, y=838, rot=6, fill=VIO,
-                 icon="sound", size=20),
-            dict(text="03 · قارن بوضوح", x=300, y=976, rot=-5, fill=ORANGE,
-                 icon="spark", size=20),
-        ],
-        marks=[(150, 470, 18, 180, VIO)],
-        seed=5,
-    )
+def steps(p):
+    base, y = build(p["s3"], seed=p["seed"] + 2, rtl=p["rtl"])
     finish(base, p["n"], 2)
     return base
 
 
-def l4(p):
-    base = paper(seed=6)
+def proof(p):
+    s4 = p["s4"]
+    base = paper(seed=p["seed"] + 3)
     wordmark(base)
-    ar_center(base, "الفرق:", W / 2, 352, 42, INK, BLK, 800, 1.3)
-    # deux nombres géants surlignés, comme le bloc de titre
+    tdraw(base, s4["kicker"], W / 2, 352, 40, INK, REG, align="center")
     y = 552
-    for txt, cx, fname, col in ((p["num_a"], W / 2 - 152, "Playfair-Bold.ttf",
-                                 VIO_SOFT),
-                                (p["num_b"], W / 2 + 152, "Playfair-Bold.ttf",
-                                 ORANGE_SOFT)):
-        w = tw(txt, fname, 116)
-        bar = Image.new("RGBA", (int((w + 46) * SS), int(126 * SS)), (0, 0, 0, 0))
+    for txt, cx, col in ((s4["num_a"], W / 2 - 152, VIO_SOFT),
+                         (s4["num_b"], W / 2 + 152, ORANGE_SOFT)):
+        w_ = tk.width(txt, BLACK, 112)
+        bar = Image.new("RGBA", (int((w_ + 44) * SS), int(122 * SS)),
+                        (0, 0, 0, 0))
         ImageDraw.Draw(bar).rounded_rectangle(
             [0, 0, bar.width - 1, bar.height - 1], radius=12 * SS,
             fill=(*col, 255))
+        rx, ry = bar.width, bar.height
         bar = bar.rotate(-1.2, expand=True, resample=Image.BICUBIC)
-        base.alpha_composite(bar, (int((cx - w / 2 - 23) * SS),
-                                   int((y - 96) * SS)))
-        ImageDraw.Draw(base).text((cx * SS, y * SS), txt,
-                                  font=_f(fname, 116), fill=INK, anchor="ms")
-    ar_center(base, p["lab_a"], W / 2 - 152, y + 52, 21, MUT, MID, 320, 1.2)
-    ar_center(base, p["lab_b"], W / 2 + 152, y + 52, 21, MUT, MID, 320, 1.2)
-    yy = ar_center(base, p["b4"], W / 2, y + 150, 25, MUT, BODY, 780, 1.55)
-    ar_center(base, p["note4"], W / 2, yy + 64, 21, INK, MID, 720, 1.5)
+        bx = cx - w_ / 2 - 22 - (bar.width - rx) / 2 / SS
+        by = y - 92 - (bar.height - ry) / 2 / SS
+        base.alpha_composite(bar, (int(bx * SS), int(by * SS)))
+        tdraw(base, txt, cx, y, 112, INK, BLACK, align="center")
+    tdraw(base, s4["lab_a"], W / 2 - 152, y + 54, 21, MUT, BLACK,
+          align="center")
+    tdraw(base, s4["lab_b"], W / 2 + 152, y + 54, 21, MUT, BLACK,
+          align="center")
+    yy = para(base, s4["body"], W / 2, y + 156, 25, MUT, REG, 780, 1.55)
+    tdraw(base, s4["note"], W / 2, yy + 34, 21, INK, BOLD, align="center")
     tri(base, 168, 552, 18, ORANGE, 180)
     tri(base, 912, 700, 16, VIO, 0)
-    from kinetic import _mascot
-    _mascot(base, W / 2, 992, 92)
+    mascot(base, W / 2, 1000, 92)
     finish(base, p["n"], 3)
     return base
 
 
-def l5(p):
-    base, y = poster(
-        "و بعد؟",
-        [
-            [("الترتيب", "b", "v"), ("يبيع", "r", None)],
-            [("أكثر", "b", None)],
-            [("من التخفيض.", "r", None)],
-        ],
-        88,
-        stickers=[
-            dict(text="ما تنقصش السوم", x=846, y=566, rot=6, fill=ORANGE,
-                 icon="target"),
-        ],
-        marks=[(852, 830, 18, 0, ORANGE)],
-        seed=7,
-    )
-    hi = Image.new("RGBA", (int((W - 2 * M) * SS), int(176 * SS)), (0, 0, 0, 0))
-    ImageDraw.Draw(hi).rounded_rectangle(
-        [0, 0, hi.width - 1, hi.height - 1], radius=28 * SS,
+def cta(p):
+    base, y = build(p["s5"], seed=p["seed"] + 4, rtl=p["rtl"])
+    top = y + 60
+    band = Image.new("RGBA", (int((W - 2 * M) * SS), int(178 * SS)),
+                     (0, 0, 0, 0))
+    ImageDraw.Draw(band).rounded_rectangle(
+        [0, 0, band.width - 1, band.height - 1], radius=28 * SS,
         fill=(*ORANGE, 255))
-    top = y + 70
-    base.alpha_composite(hi, (int(M * SS), int(top * SS)))
-    ar_center(base, p["cta"], W / 2, top + 58, 32, CREAM, BLK, 720, 1.25)
-    latin(base, p["url"], W / 2, top + 122, 24, CREAM, GROT_B, anchor="ms",
-          track=0.4)
-    ar_center(base, p["end_note"], W / 2, top + 240, 21, MUT, BODY, 740, 1.5)
+    shadow = Image.new("RGBA", band.size, (0, 0, 0, 0))
+    shadow.paste((40, 16, 80, 46), (0, 0), band.split()[-1])
+    base.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(22)),
+                         (int(M * SS), int((top + 10) * SS)))
+    base.alpha_composite(band, (int(M * SS), int(top * SS)))
+    tdraw(base, p["cta"], W / 2, top + 58, 32, CREAM, BLACK, align="center")
+    latin(base, p["url"], W / 2, top + 120, 24, CREAM, WORD, "center", 0.4)
+    para(base, p["end_note"], W / 2, top + 250, 22, MUT, REG, 740, 1.5)
     finish(base, p["n"], 4, last=True)
     return base
 
 
-PUBS = [
-    {
-        "id": "l1-sawtify", "n": 5,
-        "b2": "كل سوم بعدو يتقاس بيه، ماشي بالسوق. بدّل الترتيب، ماشي السوم.",
-        "num_a": "3 000", "num_b": "500",
-        "lab_a": "المرجع", "lab_b": "سومنا",
-        "b4": "حطيت المرجع قبل السوم، الزبون وحدو يفهم بلي 500 دج صفقة.",
-        "note4": "3 000 دج سوم السوق، 500 دج سومنا، و الفرق يبان في الأول.",
-        "cta": "خود الصوت تاعك في 24 ساعة",
-        "url": "sawtify.space",
-        "end_note": "صوت واحد، دارجة جزايرية، 500 دج. تجربة قبل ما تخلّص.",
-        "skel": [l1, l2, l3, l4, l5],
+# ═══════════════════════════════════════════════════════════════════════════
+#  copy
+# ═══════════════════════════════════════════════════════════════════════════
+DZ = {
+    "id": "dz", "n": 5, "seed": 11, "rtl": True,
+    "s1": {
+        "kicker": "شكون احنا:", "size": 104,
+        "lines": [
+            [("نصنعو", "r", None)],
+            [("أصوات", "b", "v"), ("تبيع،", "b", None)],
+            [("بالدارجة", "r", None)],
+            [("تاع البلاد", "b", None)],
+            [("من الأول حتى الآخر.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="500 دج", x=296, y=316, rot=-7, fill=VIO, icon="sound"),
+            dict(text="دارجة بلادنا", x=848, y=596, rot=7, fill=ORANGE,
+                 icon="target"),
+            dict(text="24 ساعة", x=926, y=930, rot=5, fill=ORANGE,
+                 icon="spark"),
+        ],
+        "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
     },
-]
+    "s2": {
+        "kicker": "علاه هكّاك:", "size": 106, "kgap": 126,
+        "lines": [
+            [("دماغك", "b", None), ("ياخذ", "r", None)],
+            [("أول", "b", "o"), ("سوم", "b", None)],
+            [("و", "r", None), ("يوقف", "b", None)],
+            [("عليه.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="المرجع", x=838, y=812, rot=6, fill=ORANGE,
+                 icon="target"),
+        ],
+        "marks": [(908, 452, 16, 0, ORANGE)],
+        "body": "كل سوم بعدو يتقاس بيه، ماشي بالسوق. بدّل بلاصة السوم، "
+                "ماشي السوم.",
+    },
+    "s3": {
+        "kicker": "واش تدير:", "size": 92, "kgap": 118,
+        "lines": [
+            [("ثلاثة", "b", "v"), ("حوايج،", "r", None)],
+            [("و", "r", None), ("السوم", "b", "o"), ("يولي", "r", None)],
+            [("يهدر.", "b", None)],
+        ],
+        "stickers": [
+            dict(text="01 · بيّن المرجع", x=296, y=838, rot=-6, fill=ORANGE,
+                 icon="target", size=20),
+            dict(text="02 · فسّر السوم", x=818, y=958, rot=6, fill=VIO,
+                 icon="sound", size=20),
+            dict(text="03 · قارن بوضوح", x=306, y=1082, rot=-5, fill=ORANGE,
+                 icon="spark", size=20),
+        ],
+        "marks": [(150, 470, 18, 180, VIO)],
+    },
+    "s4": {
+        "kicker": "الفرق:",
+        "num_a": "3 000", "num_b": "500",
+        "lab_a": "سوم السوق", "lab_b": "سومنا",
+        "body": "كري المرجع قبل ما تقول السوم، الزبون وحدو يفهم بلي 500 دج "
+                "صفقة.",
+        "note": "3 000 دج سوم السوق، 500 دج تاعنا، و الفرق يبان من الأول.",
+    },
+    "s5": {
+        "kicker": "و من بعد؟", "size": 92, "kgap": 118,
+        "lines": [
+            [("الترتيب", "b", "v"), ("يبيع", "r", None)],
+            [("أكثر", "b", None)],
+            [("من التخفيض.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="ما تنقصش السوم", x=846, y=606, rot=6, fill=ORANGE,
+                 icon="target"),
+        ],
+        "marks": [(222, 470, 18, 180, ORANGE)],
+    },
+    "cta": "خود الصوت تاعك في 24 ساعة",
+    "url": "sawtify.space",
+    "end_note": "صوت واحد، دارجة جزايرية، 500 دج. تسمع قبل ما تخلّص.",
+}
+
+FR = {
+    "id": "fr", "n": 5, "seed": 12, "rtl": False,
+    "s1": {
+        "kicker": "Qui on est :", "ksize": 44, "size": 96,
+        "lines": [
+            [("On crée", "r", None)],
+            [("des voix", "b", "v"), ("qui vendent,", "b", None)],
+            [("en darija,", "r", None)],
+            [("du premier mot", "b", None)],
+            [("à la livraison.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="500 DA", x=286, y=316, rot=-7, fill=VIO, icon="sound"),
+            dict(text="darija algérienne", x=852, y=706, rot=7, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="24 h", x=932, y=932, rot=5, fill=ORANGE, icon="spark"),
+        ],
+        "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
+    },
+    "s2": {
+        "kicker": "Pourquoi :", "ksize": 44, "size": 96, "kgap": 126,
+        "lines": [
+            [("Votre cerveau", "b", None)],
+            [("retient", "r", None), ("le premier", "b", "o")],
+            [("chiffre.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="ancrage", x=838, y=812, rot=6, fill=ORANGE,
+                 icon="target", size=20),
+        ],
+        "marks": [(908, 452, 16, 0, ORANGE)],
+        "body": "Chaque prix se juge par rapport au précédent, pas par rapport "
+                "au marché. Changez l'ordre, pas le prix.",
+    },
+    "s3": {
+        "kicker": "Quoi faire :", "ksize": 44, "size": 88, "kgap": 118,
+        "lines": [
+            [("Trois", "b", "v"), ("gestes,", "r", None)],
+            [("et le prix", "r", None)],
+            [("devient", "b", None), ("évident.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="01 · la référence", x=286, y=940, rot=-6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="02 · le détail", x=828, y=1032, rot=6, fill=VIO,
+                 icon="sound", size=19),
+            dict(text="03 · la comparaison", x=316, y=1124, rot=-5,
+                 fill=ORANGE, icon="spark", size=19),
+        ],
+        "marks": [(150, 470, 18, 180, VIO)],
+    },
+    "s4": {
+        "kicker": "Le chiffre :",
+        "num_a": "3 000", "num_b": "500",
+        "lab_a": "le marché", "lab_b": "notre prix",
+        "body": "Annoncez la référence avant votre prix : 500 DA devient "
+                "une évidence.",
+        "note": "3 000 DA le marché, 500 DA chez nous, et l'écart saute aux yeux.",
+    },
+    "s5": {
+        "kicker": "Et après ?", "ksize": 44, "size": 88, "kgap": 118,
+        "lines": [
+            [("L'ordre", "b", "v"), ("vend", "r", None)],
+            [("plus", "b", None)],
+            [("qu'une remise.", "r", None)],
+        ],
+        "stickers": [
+            dict(text="ne baissez pas le prix", x=238, y=706, rot=-6,
+                 fill=ORANGE, icon="target", size=18),
+        ],
+        "marks": [(222, 470, 18, 180, ORANGE)],
+    },
+    "cta": "Votre voix en 24 h",
+    "url": "sawtify.space",
+    "end_note": "Une voix, darija algérienne, 500 DA. Vous écoutez avant de payer.",
+}
+
+PUBS = [DZ, FR]
 
 
 def render(pub):
     d = OUT / pub["id"]
     d.mkdir(parents=True, exist_ok=True)
-    for i, fn in enumerate(pub["skel"]):
+    for i, fn in enumerate((cover, meca, steps, proof, cta)):
         img = fn(pub).convert("RGB").resize((W, H), Image.LANCZOS)
         img.save(d / f"{i + 1:02d}.jpg", quality=95, optimize=True,
                  subsampling=1)
-        print("  ✓", d.name, f"{i + 1:02d}")
+        print("  ✓", pub["id"], f"{i + 1:02d}")
 
 
 def planches():
-    files = sorted((OUT / PUBS[0]["id"]).glob("*.jpg"))
-    tw_, th_ = 500, 625
-    sheet = Image.new("RGB", (len(files) * (tw_ + 8) + 8, th_ + 16),
-                      (30, 18, 56))
-    for i, f in enumerate(files):
-        sheet.paste(Image.open(f).convert("RGB").resize((tw_, th_),
-                                                        Image.LANCZOS),
-                    (8 + i * (tw_ + 8), 8))
-    sheet.save(OUT / "planche-l1.jpg", quality=93, optimize=True)
-    print("  ✓ planche-l1.jpg")
+    for pub in PUBS:
+        files = sorted((OUT / pub["id"]).glob("*.jpg"))
+        tw_, th_ = 500, 625
+        sheet = Image.new("RGB", (len(files) * (tw_ + 8) + 8, th_ + 16),
+                          (30, 18, 56))
+        for i, f in enumerate(files):
+            sheet.paste(Image.open(f).convert("RGB").resize((tw_, th_),
+                                                            Image.LANCZOS),
+                        (8 + i * (tw_ + 8), 8))
+        sheet.save(OUT / f"planche-{pub['id']}.jpg", quality=93, optimize=True)
+        print("  ✓", f"planche-{pub['id']}.jpg")
 
 
 def main():
@@ -313,7 +570,7 @@ def main():
         planches()
         return
     for pub in PUBS:
-        if a.only and a.only not in pub["id"]:
+        if a.only and a.only != pub["id"]:
             continue
         print("·", pub["id"])
         render(pub)
