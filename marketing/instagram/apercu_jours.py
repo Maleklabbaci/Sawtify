@@ -51,8 +51,8 @@ def main() -> int:
 
     d.text((PAD, 30), "SAWTIFY · 30 JOURS · 1 CARROUSEL PAR JOUR", font=load_font(40),
            fill=(255, 255, 255))
-    d.text((PAD, 82), "novembre 2026 — 6 identités visuelles : ticket crème, éditorial graphite, "
-           "ruban diagonal, + variantes jour/nuit", font=load_font(19, bold=False),
+    d.text((PAD, 82), "chaque couverture = 1 levier marketing + 1 chiffre + 1 mot en orange · "
+           "4 mises en page en rotation", font=load_font(19, bold=False),
            fill=(178, 160, 205))
 
     x0 = PAD

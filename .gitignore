@@ -18,3 +18,5 @@ marketing/instagram/slides/bank-*/
 
 # archives extras reconstruites par zip_extras.py (dérivées des dossiers square/ et story/)
 marketing/instagram/slides/*/extras-*.zip
+# caches python générés localement
+marketing/instagram/__pycache__/

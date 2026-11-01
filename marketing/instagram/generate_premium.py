@@ -24,6 +24,7 @@ from PIL import Image, ImageDraw, ImageFilter
 import sawtify_ig as ig
 import premium as px
 import premium_fx as fx
+import hooks_cover as hc
 from sawtify_ig import (AR_BOLD, AR_REG, AR_SEMI, LATIN_BOLD, LATIN_MED, LATIN_REG,
                         M, P, SS, W, ar_para, font, lat_line, rrect, sparkle, visual)
 
@@ -997,8 +998,11 @@ RENDERERS = {
     "pricing": s_pricing, "list": s_list, "cta": s_cta,
     "rail": s_rail, "index": s_index,
 }
-FULLBLEED = {"glass", "editorial", "diagonal", "polaroid", "grid", "marquee"}
-COVERS = {"classic": s_cover, "poster": s_cover_poster, "split": s_cover_split,
+FULLBLEED = {"glass", "editorial", "diagonal", "polaroid", "grid", "marquee",
+             "numeral", "statement", "hookticket", "hooksplit"}
+COVERS = {"numeral": hc.numeral, "statement": hc.statement,
+          "hookticket": hc.hookticket, "hooksplit": hc.hooksplit,
+          "classic": s_cover, "poster": s_cover_poster, "split": s_cover_split,
           "glass": s_cover_glass, "editorial": s_cover_editorial,
           "diagonal": s_cover_diagonal, "polaroid": s_cover_polaroid,
           "grid": s_cover_grid, "marquee": s_cover_marquee}
@@ -1421,10 +1425,18 @@ def style_for_day(day: int) -> dict:
     consécutive, corps de page clair / glacé en alternance, CTA tournant sur
     5 gabarits et corps de page tournant sur 5 squelettes."""
     k = max(0, day - 1)
+    try:
+        import hooks as _hooks
+        h = _hooks.for_day(day) if day in _hooks.HOOKS else None
+    except Exception:            # pas d'accroche écrite → on garde les anciennes couvertures
+        h = None
+    _LAY = {"numeral": "numeral", "statement": "statement",
+            "ticket": "hookticket", "split": "hooksplit"}
     return {
         "day": day,
         "dark_bg": _BG_ORDER[(k + k // 6) % 3],
-        "cover": _COVER_ORDER[k % 6],
+        "cover": (_LAY[h["layout"]] if h else _COVER_ORDER[k % 6]),
+        "hook": h,
         "body": "light" if (k // 3) % 2 == 0 else "ice",
         "cta": _CTA_ORDER[k % len(_CTA_ORDER)],
         "body_start": k % len(BODY_CYCLE),
@@ -1472,9 +1484,12 @@ def render(carousel, only_slides=None, out_dir=None):
         design = Image.new("RGBA", (ig.CW, DESIGN_H * SS), (0, 0, 0, 0))
         fn = CTA_RENDERERS.get(kind) or RENDERERS[kind]
         cover_key = style.get("cover", "classic")
+        view = slide
         if base_type == "cover":
             fn = COVERS.get(cover_key, s_cover)
-        fn(design, slide, i, total)
+            if style.get("hook"):
+                view = dict(slide, hook=style["hook"])
+        fn(design, view, i, total)
         if base_type == "cover" and cover_key in FULLBLEED:
             # ces gabarits gèrent leur propre mise en page plein cadre : aucun recadrage
             layer0 = Image.new("RGBA", img.size, (0, 0, 0, 0))
