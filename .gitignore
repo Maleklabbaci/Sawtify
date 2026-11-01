@@ -22,3 +22,6 @@ marketing/instagram/slides/*/extras-*.zip
 marketing/instagram/__pycache__/
 # banque de photos de travail (stock libre, remplaçables par les photos de la marque)
 marketing/instagram/image-search/
+
+# les slides sont livrées en JPG (PNG source ~1,5 Mo × 120 : trop lourd pour git)
+marketing/instagram/slides/workshop/**/*.png

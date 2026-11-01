@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import math
 import random
+import re
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
@@ -293,8 +294,14 @@ def lat(base, text, x, y, size, color, fname=ANTON, anchor="ls", rot=0.0,
                                  int((cyp - layer.height / SS / 2) * SS)))
 
 
+_PUNCT_FIX = re.compile(r"\*\*([^*]+)\*\*([،.:؛؟!])")
+
+
 def ar(base, text, x_right, y, size, color, fname=CAIRO, max_w=None,
        leading=1.28, align="right", hi=None, hi_color=ORANGE):
+    # la ponctuation qui suit un mot surligné reste collée : sinon elle part
+    # à l'autre bout de la ligne (run isolé + espace ajouté par ar_para)
+    text = _PUNCT_FIX.sub(r"**\1\2**", text)
     return ar_para(base, x_right, y, text, size, fname, color,
                    max_w=max_w or (W - 2 * M), align=align, leading=leading,
                    hi_color=hi_color)
@@ -306,6 +313,22 @@ def ar_fit(base, text, max_w, size, fname=CAIRO, floor=26):
     while size > floor and d.textlength(visual(plain), font=font(fname, size)) / SS > max_w:
         size -= 2
     return size
+
+
+def fit_block(base, lines, max_w, max_h, size, fname=CAIRO, leading=1.16,
+              floor=28, step=2):
+    """Réduit la taille d'un bloc de lignes jusqu'à ce qu'il tienne dans max_h."""
+    d = ImageDraw.Draw(base)
+    s = size
+    while s > floor:
+        tot = 0.0
+        for ln in lines:
+            w = d.textlength(visual(ln.replace("**", "")), font=font(fname, s)) / SS
+            tot += max(1, math.ceil(w / max_w)) * s * leading
+        if tot <= max_h:
+            break
+        s -= step
+    return s
 
 
 def rule(base, x0, x1, y, color=(0, 0, 0), width=2.0, alpha=255):
@@ -478,14 +501,20 @@ def slide_1(base, s, idx, total):
     # accroche : 3 lignes, calées à droite, sous la photo
     y = 748
     for ln in s["lines"]:
-        size = ar_fit(base, ln, W - 2 * M - 40, 86)
+        size = ar_fit(base, ln, W - 2 * M - 80, 86)
         y = ar(base, ln, R, y, size, CREAM, CAIRO, max_w=W - 2 * M - 40,
                leading=1.12, hi_color=ORANGE) + 6
     ar(base, s["promise"], R, y + 10, 26, LILAC, CAIRO_M, max_w=740)
 
     # le chiffre, entier, posé sur le bandeau violet (pas de doublon avec le sticker)
-    lat(base, s["display"], M - 4, 1192, 178, CREAM, ANTON, anchor="ls", tracking=-4)
-    ar(base, s["display_note"], 300, 1160, 24, LILAC, CAIRO_B, max_w=330)
+    disp = s["display"]
+    if any("\u0600" <= ch <= "\u06ff" for ch in disp):
+        dsize = ar_fit(base, disp, 400, 120)
+        ar(base, disp, M + 400, 1010, dsize, CREAM, CAIRO)
+        ar(base, s["display_note"], M + 400, 1140, 24, LILAC, CAIRO_M, max_w=400)
+    else:
+        lat(base, disp, M - 4, 1192, 178, CREAM, ANTON, anchor="ls", tracking=-4)
+        ar(base, s["display_note"], 300, 1160, 24, LILAC, CAIRO_B, max_w=330)
 
     # sticker sur la photo
     sticker(base, s["sticker"], 928, 262, 122, ORANGE, CREAM, rot=-9)
@@ -507,17 +536,22 @@ def slide_2(base, s, idx, total):
     lat(base, s["pull"], M - 2, 806, 112, INK, PF_IT, anchor="ls", rot=-1.2)
     rule(base, M, R, 834, (60, 40, 80), 2.0, 110)
 
+    hmax = fit_block(base, s["lines"], W - 2 * M - 40, 1000 - 858 - 44, 48)
     y = 858
     for ln in s["lines"]:
-        size = ar_fit(base, ln, W - 2 * M, 48)
+        size = min(hmax, ar_fit(base, ln, W - 2 * M - 40, hmax))
         y = ar(base, ln, R, y, size, INK, CAIRO, leading=1.16, hi_color=VIOLET) + 2
 
     yy = y + 22
+    # le bloc doit finir au-dessus de la bande de scotch (y≈1215)
+    step = min(68, max(44, (1200 - (y + 22)) / max(1, len(s["items"]))))
+    isize = 26 if step >= 62 else 22
     for k, item in enumerate(s["items"]):
-        lat(base, f"{k + 1}", M - 8, yy + 28, 42, ORANGE, ANTON, anchor="ls")
-        ar(base, item, R - 6, yy + 2, 26, (38, 24, 52), CAIRO_B, max_w=740)
-        rule(base, M + 40, R, yy + 46, (60, 40, 80), 1.3, 70)
-        yy += 68
+        lat(base, f"{k + 1}", M - 8, yy + 6 + isize * 0.82, 38 if step < 62 else 42,
+            ORANGE, ANTON, anchor="ls")
+        ar(base, item, R - 6, yy + 2, isize, (38, 24, 52), CAIRO_B, max_w=740)
+        rule(base, M + 40, R, yy + step - 20, (60, 40, 80), 1.3, 70)
+        yy += step
 
     _chevrons(base, 1206)
     _tape_line(base, s["tape"], 1268, dark=False, tone=(255, 255, 255), size=30)
@@ -535,7 +569,7 @@ def slide_3(base, s, idx, total):
 
     y = 150
     for ln in s["lines"]:
-        size = ar_fit(base, ln, 640, 80)
+        size = ar_fit(base, ln, 596, 80)
         y = ar(base, ln, R, y, size, CREAM, CAIRO, max_w=640, leading=1.14,
                hi_color=ORANGE) + 4
     ar(base, s["promise"], R, y + 10, 27, LILAC, CAIRO_M, max_w=620)
@@ -575,7 +609,7 @@ def slide_4(base, s, idx, total):
 
     y = 148
     for ln in s["lines"]:
-        size = ar_fit(base, ln, 560, 84)
+        size = ar_fit(base, ln, 512, 84)
         y = ar(base, ln, R, y, size, CREAM, CAIRO, max_w=560, leading=1.12,
                hi_color=ORANGE) + 4
 
@@ -649,68 +683,7 @@ BACKGROUNDS = [bg_violet, bg_cream, bg_ink, bg_violet]
 # ═══════════════════════════════════════════════════════════════════════════
 #  6. LA PUBLICATION
 # ═══════════════════════════════════════════════════════════════════════════
-PUBS = [
-    {
-        "slug": "workshop-01-la-voix-qui-vend",
-        "titre": "الإعلان اللي يبيع",
-        "slides": [
-            dict(photo="studio-voice.jpg",
-                 lines=["**90%** من الإعلانات", "ما يشوفهاش", "حتى واحد."],
-                 display="90%", display_note="خسارة فلوس، ماشي إعلان.",
-                 promise="4 slides، و كيفاش تخرج من هاد الرقم.",
-                 tape="الغلطة ماهيش في الصورة…", sticker="اسحب"),
-            dict(photo="studio-voice.jpg", pull="3 secondes",
-                 lines=["واش يوقفك على إعلانك؟", "**3 ثواني**، ماشي أكثر."],
-                 items=["الناس تقرّر قبل ما تقرّا",
-                        "الصورة بوحدها ما تكفي",
-                        "الصوت هو اللي يحبس الإبهام"],
-                 tape="…و ماهيش في المنتوج…"),
-            dict(photo="mic-hero.jpg",
-                 lines=["الغلطة **راهي**", "في الصوت."],
-                 promise="3 خطوات، من التيليفون، بلا ستوديو:",
-                 steps=[("01", "كتب 20 كلمة", "بلا مقدمة، ادخل ديركت"),
-                        ("02", "اختار نبرة دارجة", "قريبة، ماشي معلنة"),
-                        ("03", "حمّل و انشر", "1080×1350، جاهز")],
-                 tape="…راهي في الصوت."),
-            dict(photo="phone-hand.jpg",
-                 lines=["و **الصوت**", "عندنا."],
-                 caption="من التيليفون · 30 ثانية",
-                 guarantees=["بلا ميكرو، بلا مونتاج", "صوت دارجة أصلي",
-                             "من 500 دج · بلا التزام"],
-                 cta="sawtify.space", tape="و الصوت، عندنا. دورك درك →"),
-        ],
-    },
-    {
-        "slug": "workshop-02-script-3-joumla",
-        "titre": "سكريبت في 3 جمل",
-        "slides": [
-            dict(photo="script-notebook.jpg",
-                 lines=["**3 جمل**", "و إعلانك", "يتباع."],
-                 display="3", display_note="جمل، ماشي محاضرة.",
-                 promise="لا مونتاج، لا ميكرو. غير الورقة و الصوت.",
-                 tape="السكريبت هو نصف الإعلان…", sticker="اسحب"),
-            dict(photo="script-notebook.jpg", pull="20 mots",
-                 lines=["أول جملة،", "**20 كلمة**، و خلاص."],
-                 items=["ما تقولش «مرحبا بكم»",
-                        "ما تعرّفش الشركة",
-                        "ادخل ديركت في الوجع"],
-                 tape="…و النصف الآخر هو الصوت…"),
-            dict(photo="mic-hero.jpg",
-                 lines=["3 جمل:", "ألم، **حل**، حركة."],
-                 promise="هاك الهيكل، انسخو حرف بحرف:",
-                 steps=[("01", "جملة الألم", "شنو يوجع العميل اليوم"),
-                        ("02", "جملة الحل", "شنو تبدّل عندو"),
-                        ("03", "جملة الحركة", "واش يدير درك")],
-                 tape="…و الصوت هو اللي يكمّلها."),
-            dict(photo="studio-voice.jpg",
-                 lines=["خود الهيكل.", "و **الصوت**", "علينا."],
-                 caption="3 جمل · 30 ثانية",
-                 guarantees=["هيكل 3 جمل، جاهز للنسخ", "صوت دارجة في 30 ثانية",
-                             "من 500 دج · بلا التزام"],
-                 cta="sawtify.space", tape="اكتبها، و احنا نسمعوها →"),
-        ],
-    },
-]
+from workshop_pubs import PUBS  # noqa: E402  (30 publications, contenu séparé)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -736,10 +709,12 @@ def render_pub(pub):
     total = len(pub["slides"])
     paths = []
     for i, s in enumerate(pub["slides"]):
-        img = BACKGROUNDS[i % 4](i + 1)
+        bgs = pub.get("bgs", BACKGROUNDS)
+        img = bgs[i % 4](i + 1)
         LAYOUTS[i % 4](img, s, i, total)
-        p = folder / f"{i + 1:02d}.png"
-        img.convert("RGB").resize((W, H), Image.LANCZOS).save(p, optimize=True)
+        p = folder / f"{i + 1:02d}.jpg"
+        img.convert("RGB").resize((W, H), Image.LANCZOS).save(
+            p, quality=94, subsampling=0, optimize=True)
         paths.append(p)
         print(f"  ✓ {p.relative_to(ROOT)}")
     contact_sheet(paths, folder / "contact-sheet.jpg")
