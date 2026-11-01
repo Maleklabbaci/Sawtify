@@ -240,7 +240,7 @@ def s1(p):
     ital(lay, p["kicker"], W / 2, 196, 22, ORANGE)
     y = marker(lay, p["tag"], W / 2, 300, 19, AM_B, (36, 14), mode=p["mark"])
     y = ar_center(lay, p["cover"], W / 2, y + 82, p["cover_size"], INK, 880,
-                  AM_B, leading=1.2, hi=VIO_D)
+                  AM_B, leading=1.32, hi=VIO_D)
     lat(lay, p["en"], W / 2, y + 56, 30, VIO_D, SERIF_IT, anchor="ms")
     rule(lay, W / 2 - 46, W / 2 + 46, y + 98, VIO_D, 80, 1.4)
     y = ar_center(lay, p["sub"], W / 2, y + 140, 21, MUT, 690, AM_R,
@@ -258,7 +258,7 @@ def s2(p):
     lay = layer()
     y = marker(lay, p["tag2"], W / 2, 286, 19, AM_B, (36, 14), mode=p["mark"])
     y = ar_center(lay, p["t2"], W / 2, y + 80, p["t2_size"], INK, 880, AM_B,
-                  leading=1.2, hi=VIO_D)
+                  leading=1.32, hi=VIO_D)
     bottom = mascot(lay, W / 2, y + 66, 350)
     y2 = ar_center(lay, p["b2"], W / 2, bottom + 58, 22, MUT, 700, AM_R,
                    leading=1.72, hi=INK)
@@ -274,7 +274,7 @@ def s3(p):
     lay = layer()
     y = marker(lay, p["tag3"], W / 2, 286, 19, AM_B, (36, 14), mode=p["mark"])
     y = ar_center(lay, p["t3"], W / 2, y + 78, p["t3_size"], INK, 880, AM_B,
-                  leading=1.22, hi=VIO_D)
+                  leading=1.32, hi=VIO_D)
     items = p["items3"]
     top = y + 84
     for i, (head, body) in enumerate(items):
@@ -296,7 +296,7 @@ def s4(p):
     lay = layer()
     y = marker(lay, p["tag4"], W / 2, 300, 19, AM_B, (36, 14), mode=p["mark"])
     y = ar_center(lay, p["t4"], W / 2, y + 78, p["t4_size"], INK, 880, AM_B,
-                  leading=1.2, hi=VIO_D)
+                  leading=1.32, hi=VIO_D)
     cy = y + 176
     ns = p.get("num_size", 112)
     gap = 62
@@ -327,7 +327,7 @@ def s5(p):
     base = page(p["n"], 4)
     lay = layer()
     y = ar_center(lay, p["t5"], W / 2, 330, p["t5_size"], INK, 880, AM_B,
-                  leading=1.2, hi=VIO_D)
+                  leading=1.32, hi=VIO_D)
     y = ar_center(lay, p["b5"], W / 2, y + 46, 22, MUT, 690, AM_R,
                   leading=1.72)
     top = y + 96
