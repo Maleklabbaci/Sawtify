@@ -671,41 +671,19 @@ def plan_pub(pub, i):
 
 
 def render(pub, i):
+    from premium_slides import build
     slides, pals, n = plan_pub(pub, i)
     folder = OUT / pub["slug"]
     folder.mkdir(parents=True, exist_ok=True)
     for old in folder.glob("*.jpg"):
         if old.name != "planche.jpg":
             old.unlink()
-    photo = pub["slides"][0].get("photo", "studio-voice.jpg")
     paths = []
     for k, (kind, payload) in enumerate(slides):
-        pal = pals[k]
-        seed = i * 5 + k
-        if kind == "cover":
-            base = COVERS[i % 4](payload, pal, k, n, seed=seed, photo_name=photo)
-        elif kind == "statement":
-            base = mid_statement(payload, pal, k, n, seed=seed, photo_name=photo)
-        elif kind == "item":
-            items = pub["slides"][1]["items"]
-            idx = items.index(payload)
-            base = mid_item(payload, idx + 1, pal, k, n, seed=seed, total=len(items),
-                            photo_name=("mic-hero.jpg" if i % 2 else "phone-hand.jpg"))
-        elif kind == "steps":
-            base = mid_steps(payload, pal, k, n, seed=seed)
-        elif kind == "step":
-            st, j, tot = payload
-            base = mid_step(st, j, tot, pal, k, n, seed=seed,
-                            photo_name=("mic-hero.jpg" if i % 2 else "man-studio.jpg"))
-        elif kind == "recap":
-            base = mid_recap(payload, pal, k, n, seed=seed)
-        elif kind == "quote":
-            base = mid_quote(payload, pal, k, n, seed=seed)
-        else:
-            base = ENDS[i % 4](payload, pal, k, n, seed=seed)
+        base = build(kind, payload, pub, i, pals[k], k, n)
         p = folder / f"{k + 1:02d}.jpg"
         base.convert("RGB").resize((W, H), Image.LANCZOS).save(
-            p, quality=94, subsampling=0, optimize=True)
+            p, quality=93, subsampling=0, optimize=True)
         paths.append(p)
     return paths
 
