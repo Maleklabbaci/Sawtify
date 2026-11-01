@@ -75,12 +75,20 @@ _HALFTONE = {}
 
 
 def paper_noise(base, strength=13, scale=1.0):
-    """Grain de papier : bruit doux en résolution finale (rapide)."""
+    """Grain de papier : bruit doux AUTOUR de la couleur du fond.
+
+    (Le grain était centré sur du gris moyen : il salissait le blanc #faf9ff
+    de la plateforme. On le centre maintenant sur la teinte réelle du fond,
+    donc la texture reste, la valeur ne bouge plus.)
+    """
     global _NOISE
     if _NOISE is None or _NOISE.size != base.size:
         _NOISE = Image.effect_noise(base.size, 26).convert("RGB")
-    grain = Image.blend(Image.new("RGB", base.size, (128, 128, 128)), _NOISE, 0.5)
-    base.paste(Image.blend(base.convert("RGB"), grain, 0.12).convert("RGBA"), (0, 0))
+    centre = ImageStat.Stat(base.convert("RGB").resize((16, 16), Image.BILINEAR)).mean
+    grain = Image.blend(Image.new("RGB", base.size, tuple(int(c) for c in centre)),
+                        _NOISE, 0.5)
+    amount = min(1.0, 0.12 * (strength / 13.0))
+    base.paste(Image.blend(base.convert("RGB"), grain, amount).convert("RGBA"), (0, 0))
 
 
 def halftone(base, box, step=9, angle=27, color=(0, 0, 0), alpha=52, phase=0.0):
