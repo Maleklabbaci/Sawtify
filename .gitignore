@@ -20,3 +20,5 @@ marketing/instagram/slides/bank-*/
 marketing/instagram/slides/*/extras-*.zip
 # caches python générés localement
 marketing/instagram/__pycache__/
+# banque de photos de travail (stock libre, remplaçables par les photos de la marque)
+marketing/instagram/image-search/
