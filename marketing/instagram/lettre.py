@@ -371,338 +371,279 @@ def finish(base, n, k, last=False):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  construction d'une slide
+#  système « numéroté » — une grille, deux fonds, dossier de 5 slides
 # ═══════════════════════════════════════════════════════════════════════════
-def build(spec, seed, rtl=True):
-    base = paper(seed=seed)
-    wordmark(base)
-    tdraw(base, spec["kicker"], W / 2, KICK_Y, spec.get("ksize", 40), INK,
-          REG, align="center")
-    size = spec.get("size", 100)
-    lines_n = spec["lines"]
+PAD = 84
+BADGE_Y = 132      # ligne de base du badge de pagination
+NUM_Y = 496        # ligne de base du grand numéro
+NUM_SIZE = 248
+LAB_Y = 360        # micro-label (au-dessus du numéro)
+T1 = 646           # ligne de base de la 1re ligne de titre
+BODY_Y = 1030
+RULE_Y = 1206
+FOOT_Y = 1254
 
-    def line_w(sz):
-        return max(sum(twidth(t, WEIGHT[w], sz) for t, w, _ in toks)
-                   + sz * 0.26 * (len(toks) - 1) for toks in lines_n)
-    while line_w(size) > 936 and size > 56:
+
+def mix(a, b, t):
+    return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
+
+
+def plate(bg, grain=0.05):
+    import random
+    rnd = random.Random(5)
+    im = Image.new("RGB", (W * SS, H * SS), bg)
+    n = Image.new("L", (W // 2, H // 2))
+    n.putdata([rnd.randint(118, 138) for _ in range(W // 2 * H // 2)])
+    g = Image.merge("RGB", [n] * 3).resize((W * SS, H * SS), Image.BILINEAR)
+    return Image.blend(im, g, grain).convert("RGBA")
+
+
+def _theme(bg):
+    if bg == "cream":
+        return dict(bg=CREAM, fg=INK, sub=mix(CREAM, INK, 0.60),
+                    soft=mix(CREAM, VIO_SOFT, 0.75), accent=VIO,
+                    num=mix(CREAM, VIO, 0.34), badge_bg=VIO_SOFT,
+                    badge_fg=VIO_D, rule=mix(CREAM, INK, 0.20),
+                    card=VIO)
+    if bg == "violet":
+        return dict(bg=VIO, fg=CREAM, sub=mix(VIO, CREAM, 0.70),
+                    soft=mix(VIO, CREAM, 0.16), accent=ORANGE_SOFT,
+                    num=mix(VIO, CREAM, 0.30), badge_bg=CREAM,
+                    badge_fg=VIO_D, rule=mix(VIO, CREAM, 0.28), card=CREAM)
+    return dict(bg=INK, fg=CREAM, sub=mix(INK, CREAM, 0.66),
+                soft=mix(INK, VIO_SOFT, 0.40), accent=ORANGE,
+                num=mix(INK, VIO_SOFT, 0.34), badge_bg=CREAM,
+                badge_fg=INK, rule=mix(INK, CREAM, 0.24), card=CREAM)
+
+
+def badge(im, text, th):
+    d = ImageDraw.Draw(im)
+    size, track = 14.0, 2.9
+    f = tk._pil(WORD, size)
+    total = sum(d.textlength(c, font=f) / SS for c in text) + track * (len(text) - 1)
+    w, h = total + size * 3.0, size * 2.7
+    x0, y0 = W / 2 - w / 2, BADGE_Y - h * 0.70
+    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(lay).rounded_rectangle(
+        [x0 * SS, y0 * SS, (x0 + w) * SS, (y0 + h) * SS],
+        radius=h / 2 * SS, fill=(*th["badge_bg"], 255))
+    im.alpha_composite(lay)
+    latin(im, text, W / 2, y0 + h * 0.685, size, th["badge_fg"], WORD, "center", track)
+
+
+def brand(im, th):
+    """Wordmark en haut à gauche (la mascotte vit dans le pied de page)."""
+    latin(im, "sawtify", PAD, BADGE_Y - 2, 21, th["accent"], WORD, "left", 5.4)
+
+
+def big_num(im, num, th):
+    latin(im, num, PAD - 6, NUM_Y, NUM_SIZE, th["num"], WORD, "left", -NUM_SIZE * 0.045)
+
+
+def label(im, text, th, arabic=False, y=LAB_Y):
+    if arabic:
+        tdraw(im, text, W - PAD, y, 30, th["accent"], BOLD, align="right")
+    else:
+        latin(im, text.upper(), W - PAD, y, 15, th["accent"], WORD, "right", 5.2)
+
+
+def fit_title(lines, maxw=900, size=84, floor=48, name=BLACK):
+    while max(twidth(t, name, size) for t in lines) > maxw and size > floor:
         size -= 2
-
-    # titre ancré par le haut : toutes les slides démarrent à la même hauteur
-    while size > 56 and TITLE_TOP + (len(lines_n) - 1) * size * 1.44 > 918:
-        size -= 2
-    # montée en taille limitée : les pilules doivent pouvoir se poser à côté
-    while (size < spec.get("maxsize", size)
-           and TITLE_TOP + (len(lines_n) - 1) * (size + 4) * 1.44 <= 918
-           and line_w(size + 4) <= spec.get("fitw", 640)):
-        size += 4
-    lead = size * spec.get("lead", 1.44)
-    lines = [list(map(tuple, toks)) for toks in lines_n]
-    gaps = [size * 0.26] * len(lines)
-    if rtl and spec.get("justify", True) and len(lines) > 1:
-        w_of = [sum(twidth(t, WEIGHT[w], size) for t, w, _ in toks)
-                + size * 0.26 * (len(toks) - 1) for toks in lines]
-        target = min(max(w_of), 936)
-        out = [justify(toks, size, target) for toks in lines]
-        lines = [t for t, _ in out]
-        gaps = [g for _, g in out]
-
-    y = TITLE_TOP
-    geo = []
-    for tokens, gp in zip(lines, gaps):
-        wl = sum(twidth(t, WEIGHT[w], size) for t, w, _ in tokens) \
-            + gp * (len(tokens) - 1)
-        geo.append((y, W / 2 - wl / 2, W / 2 + wl / 2))
-        hline(base, tokens, W / 2, y, size, rtl=rtl, gap=gp)
-        y += lead
-    for st in spec.get("stickers", ()):
-        cx, cy = st.get("x", 0), st.get("y", 0)
-        anc = st.get("anchor")
-        if anc:
-            idx, side = anc
-            idx = min(idx, len(geo) - 1)
-            ly, lx0, lx1 = geo[idx]
-            sw, sh = sticker_size(st["text"], st.get("size", 21),
-                                  st.get("name", BOLD), st.get("icon"))
-            off = st.get("dx", 14)
-            cx = (lx1 + off + sw / 2) if side == "right" \
-                else (lx0 - off - sw / 2)
-            cy = ly + st.get("dy", -size * 0.12)
-        sticker(base, st["text"], cx, cy, st.get("rot", -6),
-                st.get("fill", ORANGE), CREAM, st.get("icon"),
-                st.get("size", 21), st.get("name", BOLD),
-                num=st.get("num"))
-    for (tx, ty, sz, rot, col) in spec.get("marks", ()):
-        tri(base, tx, ty, sz, col, rot)
-    return base, y
+    return size
 
 
-# ── 01 · couverture ───────────────────────────────────────────────────────
-def cover(p):
-    base, y = build(p["s1"], seed=p["seed"], rtl=p["rtl"])
-    if p["s1"].get("body"):
-        para(base, p["s1"]["body"], W / 2, BODY_Y, 26, MUT, REG, 790, 1.55)
-    if p["s1"].get("mascot"):
-        mascot(base, W / 2, p["s1"]["mascot"][0], p["s1"]["mascot"][1])
-    finish(base, p["n"], 0)
-    return base
+def title(im, lines, th, top=T1, size=None, lead=1.34, col=None):
+    size = size or fit_title(lines)
+    y = top
+    for ln in lines:
+        tdraw(im, ln, W / 2, y, size, col or th["fg"], BLACK, align="center")
+        y += size * lead
+    return y - size * lead
 
 
-def meca(p):
-    base, y = build(p["s2"], seed=p["seed"] + 1, rtl=p["rtl"])
-    para(base, p["s2"]["body"], W / 2, BODY_Y, 26, MUT, REG, 790, 1.55)
-    finish(base, p["n"], 1)
-    return base
+def body(im, text, th, y=BODY_Y, size=27, maxw=780):
+    para(im, text, W / 2, y, size, th["sub"], REG, maxw, 1.58)
 
 
-def steps(p):
-    base, y = build(p["s3"], seed=p["seed"] + 2, rtl=p["rtl"])
-    if p["s3"].get("body"):
-        para(base, p["s3"]["body"], W / 2, BODY_Y, 25, MUT, REG, 800, 1.55)
-    finish(base, p["n"], 2)
-    return base
+def rule(im, th, y=RULE_Y, x0=PAD, x1=W - PAD):
+    ImageDraw.Draw(im).line([x0 * SS, y * SS, x1 * SS, y * SS],
+                            fill=(*th["rule"], 255), width=int(1.3 * SS))
 
 
-def _bar_chart(y):
-    """Deux barres proportionnelles 3 000 / 500 posées sur la grille."""
-    lay = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(lay)
-    x0, x1 = M, W - M
-    span = x1 - x0
-    rows = ((3000, (223, 210, 255)), (500, (255, 203, 180)))
-    for i, (val, col) in enumerate(rows):
-        yy = y + i * 54
-        w = span * val / 3000
-        dd.rounded_rectangle([x0 * SS, yy * SS, (x0 + w) * SS,
-                              (yy + 26) * SS], radius=13 * SS,
-                             fill=(*col, 255))
-        dd.text(((x0 + 10) * SS, (yy + 33) * SS), "", fill=(0, 0, 0, 0))
-    dd.line([x0 * SS, (y - 16) * SS, x1 * SS, (y - 16) * SS],
-            fill=(24, 16, 40, 30), width=int(1.2 * SS))
-    return lay
+def footer(im, th, page="", seal=True):
+    """Filet + url + sceau mascotte (remplace la flèche « swipe »)."""
+    rule(im, th)
+    latin(im, "SAWTIFY.SPACE", PAD, FOOT_Y, 11.5, th["sub"], WORD, "left", 3.4)
+    if page:
+        latin(im, page, W / 2, FOOT_Y, 11.5, th["sub"], WORD, "center", 3.0)
+    if seal:
+        r = 27
+        cx, cy = W - PAD - r + 6, FOOT_Y - 24
+        dark = th["bg"] != CREAM
+        if not dark:
+            disc(im, cx, cy, r, VIO)
+        img = logo(int(r * 1.5))
+        im.alpha_composite(img, (int((cx - img.width / 2 / SS) * SS),
+                                 int((cy - img.height / 2 / SS) * SS)))
 
 
-def proof(p):
-    s4 = p["s4"]
-    base = paper(seed=p["seed"] + 3)
-    wordmark(base)
-    tdraw(base, s4["kicker"], W / 2, KICK_Y, 42, INK, REG, align="center")
-    y = 700
-    nsz = 120
-    for txt, cx, col in ((s4["num_a"], W / 2 - 168, VIO_SOFT),
-                         (s4["num_b"], W / 2 + 168, ORANGE_SOFT)):
-        w_ = tk.width(txt, BLACK, nsz)
-        bar = Image.new("RGBA", (int((w_ + 46) * SS), int(nsz * 1.12 * SS)),
-                        (0, 0, 0, 0))
-        ImageDraw.Draw(bar).rounded_rectangle(
-            [0, 0, bar.width - 1, bar.height - 1], radius=14 * SS,
-            fill=(*col, 255))
-        rx, ry = bar.width, bar.height
-        bar = bar.rotate(-1.2, expand=True, resample=Image.BICUBIC)
-        bx = cx - w_ / 2 - 23 - (bar.width - rx) / 2 / SS
-        by = y - nsz * 0.78 - (bar.height - ry) / 2 / SS
-        base.alpha_composite(bar, (int(bx * SS), int(by * SS)))
-        tdraw(base, txt, cx, y, nsz, INK, BLACK, align="center")
-    tdraw(base, s4["lab_a"], W / 2 - 168, y + 62, 22, MUT, BLACK,
-          align="center")
-    tdraw(base, s4["lab_b"], W / 2 + 168, y + 62, 22, MUT, BLACK,
-          align="center")
-    yy = para(base, s4["body"], W / 2, BODY_Y, 27, MUT, REG, 800, 1.55)
-    tdraw(base, s4["note"], W / 2, yy + 40, 22, INK, BOLD, align="center")
-    finish(base, p["n"], 3)
-    return base
+def disc(im, cx, cy, r, fill):
+    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(lay).ellipse([(cx - r) * SS, (cy - r) * SS,
+                                 (cx + r) * SS, (cy + r) * SS],
+                                fill=(*fill, 255))
+    im.alpha_composite(lay)
 
 
-def cta(p):
-    base, y = build(p["s5"], seed=p["seed"] + 4, rtl=p["rtl"])
-    top = 966.0
-    band = Image.new("RGBA", (int((W - 2 * M) * SS), int(186 * SS)),
-                     (0, 0, 0, 0))
-    ImageDraw.Draw(band).rounded_rectangle(
-        [0, 0, band.width - 1, band.height - 1], radius=28 * SS,
-        fill=(*ORANGE, 255))
-    shadow = Image.new("RGBA", band.size, (0, 0, 0, 0))
-    shadow.paste((40, 16, 80, 46), (0, 0), band.split()[-1])
-    base.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(22)),
-                         (int(M * SS), int((top + 10) * SS)))
-    base.alpha_composite(band, (int(M * SS), int(top * SS)))
-    tdraw(base, p["cta"], W / 2, top + 92, 38, CREAM, BLACK, align="center")
-    latin(base, p["url"], W / 2, top + 152, 25, CREAM, WORD, "center", 0.4)
-    para(base, p["end_note"], W / 2, 1218, 23, MUT, REG, 760, 1.5)
-    finish(base, p["n"], 4, last=True)
-    return base
+def rows(im, items, th, y0=760, step=162, num_size=19):
+    """Liste numérotée : pastille à droite, texte à gauche, filet de séparation."""
+    for i, (num, head, note) in enumerate(items):
+        cy = y0 + i * step
+        if i:
+            rule(im, th, cy - 68)
+        cx = W - PAD - 33
+        disc(im, cx, cy, 33, th["soft"])
+        latin(im, num, cx, cy + 7, num_size, th["fg"], WORD, "center", 1.2)
+        xr = cx - 33 - 26
+        tdraw(im, head, xr, cy + 6, 38, th["fg"], BOLD, align="right")
+        if note:
+            tdraw(im, note, xr, cy + 46, 22, th["sub"], REG, align="right")
+
+
+def cta(im, p, th, top=1024):
+    """Bouton plein + url, posé sur la grille basse."""
+    x0, x1, h = PAD, W - PAD, 126
+    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(lay).rounded_rectangle([x0 * SS, top * SS, x1 * SS, (top + h) * SS],
+                                          radius=h / 2 * SS, fill=(*ORANGE, 255))
+    im.alpha_composite(lay)
+    tdraw(im, p["cta"], W / 2, top + h * 0.60, 38, CREAM, BLACK, align="center")
+
+
+# ── slides ────────────────────────────────────────────────────────────────
+def s01(p, th):
+    im = plate(th["bg"])
+    badge(im, "01 / 05", th)
+    brand(im, th)
+    big_num(im, "01", th)
+    label(im, p["lab1"], th, p["rtl"])
+    title(im, p["t1"], th)
+    body(im, p["b1"], th)
+    footer(im, th)
+    return im
+
+
+def s02(p, th):
+    im = plate(th["bg"])
+    badge(im, "02 / 05", th)
+    brand(im, th)
+    big_num(im, "02", th)
+    label(im, p["lab2"], th, p["rtl"])
+    title(im, p["t2"], th)
+    body(im, p["b2"], th)
+    footer(im, th)
+    return im
+
+
+def s03(p, th):
+    im = plate(th["bg"])
+    badge(im, "03 / 05", th)
+    brand(im, th)
+    big_num(im, "03", th)
+    label(im, p["lab3"], th, p["rtl"])
+    title(im, p["t3"], th, top=606, size=fit_title(p["t3"], 880, 68), lead=1.30)
+    rows(im, p["steps"], th, y0=800, step=150)
+    footer(im, th)
+    return im
+
+
+def s04(p, th):
+    im = plate(th["bg"])
+    badge(im, "04 / 05", th)
+    brand(im, th)
+    big_num(im, "04", th)
+    label(im, p["lab4"], th, p["rtl"])
+    cy = 752
+    for txt, lab, cx, fill in ((p["a"], p["la"], W / 2 - 132, mix(th["bg"], VIO_SOFT, 0.92)),
+                               (p["b"], p["lb"], W / 2 + 132, mix(th["bg"], ORANGE_SOFT, 0.92))):
+        disc(im, cx, cy, 112, fill)
+        tdraw(im, txt, cx, cy + 40, 96, INK, BLACK, align="center")
+        tdraw(im, lab, cx, cy + 158, 23, th["sub"], BOLD, align="center")
+    body(im, p["b4"], th, y=1046, size=26)
+    footer(im, th)
+    return im
+
+
+def s05(p, th):
+    im = plate(th["bg"])
+    badge(im, "05 / 05", th)
+    brand(im, th)
+    big_num(im, "05", th)
+    label(im, p["lab5"], th, p["rtl"])
+    title(im, p["t5"], th, size=fit_title(p["t5"], 880, 78))
+    cta(im, p, th, top=878)
+    latin(im, p["url"], W / 2, 1058, 22, th["fg"], WORD, "center", 1.0)
+    para(im, p["note"], W / 2, 1104, 21, th["sub"], REG, 700, 1.45)
+    footer(im, th)
+    return im
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  copy
 # ═══════════════════════════════════════════════════════════════════════════
 DZ = {
-    "id": "dz", "n": 5, "seed": 11, "rtl": True,
-    "s1": {
-        "kicker": "المشكل:", "size": 88, "justify": False,
-        "lines": [
-            [("كل", "r", None), ("نهار", "b", None)],
-            [("بلا", "r", None), ("صوت،", "b", "v")],
-            [("نهار", "b", None), ("ضايع.", "r", None)],
-        ],
-        "stickers": [
-            dict(text="فيديو بلا صوت", anchor=(0, "right"), fill=VIO,
-                 icon="sound", size=19, rot=6),
-            dict(text="ما يوقّف حتى واحد", anchor=(2, "left"), fill=ORANGE,
-                 icon="spark", size=17, rot=-6),
-        ],
-        "body": "الفيديو مليح، بصح بلا صوت ما يوقّف حتى واحد.",
-        "marks": [],
-    },
-    "s2": {
-        "kicker": "علاش؟", "size": 88, "justify": False,
-        "lines": [
-            [("اللي", "b", None), ("ما", "r", None), ("يسمعش", "b", None)],
-            [("ما", "r", None), ("يبيعش.", "b", "o")],
-        ],
-        "stickers": [
-            dict(text="3 ثواني", anchor=(1, "right"), fill=ORANGE,
-                 icon="target", size=19, rot=6),
-            dict(text="و الزبون يفوت", anchor=(1, "left"), fill=VIO,
-                 icon="sound", size=18, rot=-6),
-        ],
-        "body": "ثلاث ثواني بلا صوت، و الزبون يفوت و ما يرجعش.",
-        "marks": [],
-    },
-    "s3": {
-        "kicker": "واش تدير:", "size": 88, "justify": False,
-        "lines": [
-            [("ابعت،", "b", None)],
-            [("ختر،", "b", "v")],
-            [("و خود في 24 ساعة.", "r", None)],
-        ],
-        "stickers": [
-            dict(text="السكريبت", anchor=(0, "right"), fill=ORANGE,
-                 icon="target", size=19, rot=6),
-            dict(text="الصوت", anchor=(0, "left"), fill=VIO,
-                 icon="sound", size=19, rot=-6),
-            dict(text="الملف", anchor=(1, "right"), fill=ORANGE,
-                 icon="spark", size=19, rot=6),
-        ],
-        "body": "ابعت السكريبت، ختر الصوت، و الملف يوصلك غدوة.",
-        "marks": [],
-    },
-    "s4": {
-        "kicker": "الفرق:",
-        "num_a": "24", "num_b": "21",
-        "lab_a": "ساعة تاعنا", "lab_b": "يوم استوديو",
-        "body": "الاستوديو يخليك تستنى، احنا نسلّموك قبل ما يبرد الخبر.",
-        "note": "24 ساعة تاعنا، 21 يوم في الاستوديو، و الفرق يبان من الأول.",
-    },
-    "s5": {
-        "kicker": "و من بعد؟", "size": 88, "justify": False,
-        "lines": [
-            [("ما", "r", None), ("تبقاش", "b", None)],
-            [("تستنى،", "r", None)],
-            [("ابدا", "b", None), ("درك.", "b", "v")],
-        ],
-        "stickers": [
-            dict(text="24 ساعة", anchor=(1, "right"), fill=ORANGE,
-                 icon="spark", size=19, rot=6),
-            dict(text="بلا ما تستنى", anchor=(1, "left"), fill=VIO,
-                 icon="target", size=18, rot=-6),
-        ],
-        "marks": [],
-    },
+    "id": "dz", "rtl": True, "theme3": "cream",
+    "lab1": "المشكل", "lab2": "علاش", "lab3": "واش تدير", "lab4": "الفرق",
+    "lab5": "و من بعد",
+    "t1": ["كل نهار", "بلا صوت،", "نهار ضايع."],
+    "t2": ["اللي ما يسمعش،", "ما يبيعش."],
+    "t3": ["ثلاثة خطوات", "و السوم يهدر."],
+    "t5": ["ما تبقاش تستنى،", "ابدا درك."],
+    "b1": "الفيديو مليح، بصح بلا صوت ما يوقّف حتى واحد.",
+    "b2": "ثلاث ثواني بلا صوت، و الزبون يفوت و ما يرجعش.",
+    "b4": "الاستوديو يخليك تستنى، احنا نسلّموك قبل ما يبرد الخبر.",
+    "steps": [("01", "ابعت السكريبت", "نص جاهز و لا فكرة، تكفي."),
+              ("02", "ختر الصوت", "رجال، نسا، و نبرة على ذوقك."),
+              ("03", "خود الملف", "24 ساعة و الملف في يدك.")],
+    "a": "24", "b": "21", "la": "ساعة تاعنا", "lb": "يوم استوديو",
     "cta": "خود الصوت تاعك درك",
     "url": "sawtify.space",
-    "end_note": "صوت واحد، دارجة جزايرية، 500 دج، في 24 ساعة.",
+    "note": "صوت واحد، دارجة جزايرية، 500 دج، في 24 ساعة.",
 }
 
 FR = {
-    "id": "fr", "n": 5, "seed": 23, "rtl": False,
-    "s1": {
-        "kicker": "Le problème :", "ksize": 40, "size": 92,
-        "lines": [
-            [("Chaque", "b", None), ("jour", "r", None)],
-            [("sans", "r", None), ("voix,", "b", "v")],
-            [("est", "r", None), ("perdu.", "b", None)],
-        ],
-        "stickers": [
-            dict(text="vidéo muette", anchor=(0, "right"), fill=VIO,
-                 icon="sound", size=18, rot=6),
-            dict(text="personne ne s’arrête", anchor=(2, "left"), fill=ORANGE,
-                 icon="spark", size=16, rot=-6),
-        ],
-        "body": "La vidéo est bonne, mais sans son personne ne s’arrête.",
-        "marks": [],
-    },
-    "s2": {
-        "kicker": "Pourquoi :", "ksize": 40, "size": 92,
-        "lines": [
-            [("Ce qu’on", "r", None), ("n’écoute", "b", None),
-             ("pas", "r", None)],
-            [("ne se", "r", None), ("vend", "b", "o"), ("pas.", "r", None)],
-        ],
-        "stickers": [
-            dict(text="3 secondes", anchor=(1, "right"), fill=ORANGE,
-                 icon="target", size=18, rot=6),
-            dict(text="il passe, il ne revient pas", anchor=(1, "left"), fill=VIO,
-                 icon="sound", size=15, rot=-6),
-        ],
-        "body": "Trois secondes sans son, le client passe et ne revient pas.",
-        "marks": [],
-    },
-    "s3": {
-        "kicker": "Quoi faire :", "ksize": 40, "size": 92,
-        "lines": [
-            [("Envoyez,", "b", None)],
-            [("choisissez,", "b", "v")],
-            [("recevez en 24 h.", "r", None)],
-        ],
-        "stickers": [
-            dict(text="le script", anchor=(0, "right"), fill=ORANGE,
-                 icon="target", size=18, rot=6),
-            dict(text="la voix", anchor=(1, "left"), fill=VIO,
-                 icon="sound", size=18, rot=-6),
-            dict(text="le fichier", anchor=(1, "right"), fill=ORANGE,
-                 icon="spark", size=18, rot=6),
-        ],
-        "body": "Le script, la voix, le fichier livré le lendemain.",
-        "marks": [],
-    },
-    "s4": {
-        "kicker": "L’écart :",
-        "num_a": "24", "num_b": "21",
-        "lab_a": "heures chez nous", "lab_b": "jours en studio",
-        "body": "Le studio vous fait attendre ; nous livrons avant que la "
-                "nouvelle refroidisse.",
-        "note": "24 h chez nous, 21 jours en studio : l’écart saute aux yeux.",
-    },
-    "s5": {
-        "kicker": "Et après ?", "ksize": 40, "size": 92,
-        "lines": [
-            [("N’attendez", "b", None), ("plus,", "r", None)],
-            [("commencez", "r", None)],
-            [("maintenant.", "b", "v")],
-        ],
-        "stickers": [
-            dict(text="24 h", anchor=(1, "right"), fill=ORANGE,
-                 icon="spark", size=18, rot=6),
-            dict(text="sans attendre", anchor=(2, "left"), fill=VIO,
-                 icon="target", size=18, rot=-6),
-        ],
-        "marks": [],
-    },
+    "id": "fr", "rtl": False, "theme3": "cream",
+    "lab1": "Le problème", "lab2": "Pourquoi", "lab3": "Quoi faire",
+    "lab4": "L’écart", "lab5": "Et après",
+    "t1": ["Chaque jour", "sans voix,", "est perdu."],
+    "t2": ["Ce qu’on n’écoute pas,", "ne se vend pas."],
+    "t3": ["Trois étapes,", "et le prix parle."],
+    "t5": ["N’attendez plus,", "commencez maintenant."],
+    "b1": "La vidéo est bonne, mais sans son personne ne s’arrête.",
+    "b2": "Trois secondes sans son : le client passe et ne revient pas.",
+    "b4": "Le studio vous fait attendre ; nous livrons avant que la nouvelle refroidisse.",
+    "steps": [("01", "Envoyez le script", "Un texte prêt ou juste une idée."),
+              ("02", "Choisissez la voix", "Homme, femme, le ton que vous voulez."),
+              ("03", "Recevez le fichier", "24 heures, prêt à publier.")],
+    "a": "24", "b": "21", "la": "heures chez nous", "lb": "jours en studio",
     "cta": "Prenez votre voix maintenant",
     "url": "sawtify.space",
-    "end_note": "Une voix, darija algérienne, 500 DA, livrée en 24 h.",
+    "note": "Une voix, darija algérienne, 500 DA, livrée en 24 h.",
 }
 
 PUBS = [DZ, FR]
+THEMES = ["cream", "violet", "cream", "cream", "ink"]
+SLIDES = [s01, s02, s03, s04, s05]
 
 
 def render(pub):
     d = OUT / pub["id"]
     d.mkdir(parents=True, exist_ok=True)
-    for i, fn in enumerate((cover, meca, steps, proof, cta)):
-        img = fn(pub).convert("RGB").resize((W, H), Image.LANCZOS)
-        img.save(d / f"{i + 1:02d}.jpg", quality=95, optimize=True,
-                 subsampling=1)
+    for i, fn in enumerate(SLIDES):
+        th = _theme(THEMES[i])
+        img = fn(pub, th).convert("RGB").resize((W, H), Image.LANCZOS)
+        img.save(d / f"{i + 1:02d}.jpg", quality=95, optimize=True, subsampling=1)
         print("  ✓", pub["id"], f"{i + 1:02d}")
 
 
@@ -710,11 +651,9 @@ def planches():
     for pub in PUBS:
         files = sorted((OUT / pub["id"]).glob("*.jpg"))
         tw_, th_ = 500, 625
-        sheet = Image.new("RGB", (len(files) * (tw_ + 8) + 8, th_ + 16),
-                          (30, 18, 56))
+        sheet = Image.new("RGB", (len(files) * (tw_ + 8) + 8, th_ + 16), (30, 18, 56))
         for i, f in enumerate(files):
-            sheet.paste(Image.open(f).convert("RGB").resize((tw_, th_),
-                                                            Image.LANCZOS),
+            sheet.paste(Image.open(f).convert("RGB").resize((tw_, th_), Image.LANCZOS),
                         (8 + i * (tw_ + 8), 8))
         sheet.save(OUT / f"planche-{pub['id']}.jpg", quality=93, optimize=True)
         print("  ✓", f"planche-{pub['id']}.jpg")
