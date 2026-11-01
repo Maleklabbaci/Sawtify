@@ -37,12 +37,15 @@ VIO_D = (86, 26, 196)
 ORANGE = (253, 96, 41)
 CREAM = (244, 241, 233)
 CREAM_S = (198, 188, 238)          # (archive v8)
-MUT = (126, 112, 156)              # texte secondaire sur crème
+MUT = (112, 98, 143)               # texte secondaire sur crème
 LINE = (206, 195, 220)             # filets sur crème
 INK = (26, 14, 46)
 
+AM_B = "Amiri-Bold.ttf"
+AM_R = "Amiri-Regular.ttf"
 SERIF = "Playfair-Bold.ttf"
 SERIF_IT = "Playfair-BoldItalic.ttf"
+INST_IT = "InstrumentSerif-Italic.ttf"
 GROT_M = "SpaceGrotesk-Medium.ttf"
 GROT_B = "SpaceGrotesk-Bold.ttf"
 AR_B = "IBMPlexSansArabic-Bold.ttf"
@@ -136,7 +139,7 @@ def rule(base, x0, x1, y, color=CREAM, alpha=70, w=1.2):
                               fill=(*color, alpha), width=max(1, int(w * SS)))
 
 
-def marker(base, text, cx, y, size=19, fname=AR_S, pad=(34, 13),
+def marker(base, text, cx, y, size=19, fname=AM_B, pad=(34, 13),
            mode="orange"):
     """Étiquette du haut : plein orange, contour orange, ou plein violet."""
     w = tw(text, fname, size) + pad[0] * 2
@@ -161,6 +164,27 @@ def marker(base, text, cx, y, size=19, fname=AR_S, pad=(34, 13),
         img = lay.crop(bb)
         base.alpha_composite(img, (int((cx - img.width / 2 / SS) * SS), bb[1]))
     return y + 6
+
+
+def ital(base, text, cx, y, size=24, color=VIO_D, fname=SERIF_IT, track=0.0):
+    """Petite accroche latine en italique, centrée sur l'axe."""
+    w = tw(text, fname, size, track)
+    lat(base, text, cx - w / 2, y, size, color, fname, "ls", track)
+    return y
+
+
+def place(lay, base, cy=690, top_min=205, bot_max=1160):
+    """Colle un calque de contenu en le centrant verticalement sur cy."""
+    bb = lay.getbbox()
+    if bb is None:
+        return base
+    h = (bb[3] - bb[1]) / SS
+    off = cy - h / 2 - bb[1] / SS
+    off = max(off, top_min - bb[1] / SS)
+    off = min(off, bot_max - bb[3] / SS)
+    base.alpha_composite(lay.crop(bb),
+                        (int(bb[0]), int((bb[1] / SS + off) * SS)))
+    return base
 
 
 def dots(base, n, k):
@@ -194,7 +218,7 @@ def credit(base, text="500 DA · 30 SECONDES"):
 def page(n, k, mascot=True):
     base = Image.new("RGBA", (W * SS, H * SS), (*CREAM, 255))
     if mascot:
-        lat(base, "sawtify", W / 2, 114, 25, VIO, GROT_B, anchor="ms",
+        lat(base, "sawtify", W / 2, 108, 23, VIO, GROT_B, anchor="ms",
             track=7.5)
     dots(base, n, k)
     return base
@@ -212,100 +236,113 @@ def signature(base, last=False):
 # ═══════════════════════════════════════════════════════════════════════════
 def s1(p):
     base = page(p["n"], 0)
-    y = marker(base, p["tag"], W / 2, 292, 18, mode=p["mark"])
-    y = ar_center(base, p["cover"], W / 2, y + 74, p["cover_size"], INK, 800,
-                  AR_B, leading=1.26, hi=VIO_D)
-    rule(base, W / 2 - 44, W / 2 + 44, y + 44, VIO_D, 90, 1.4)
-    y = ar_center(base, p["sub"], W / 2, y + 86, 20, MUT, 660, AR_R,
-                  leading=1.85, hi=INK)
-    bottom = mascot(base, W / 2, max(y + 66, 762), 320)
-    lat(base, p["ill_label"], W / 2, bottom + 40, 9, MUT, GROT_M,
-        anchor="ms", track=3.0)
+    lay = layer()
+    ital(lay, p["kicker"], W / 2, 196, 22, ORANGE)
+    y = marker(lay, p["tag"], W / 2, 300, 19, AM_B, (36, 14), mode=p["mark"])
+    y = ar_center(lay, p["cover"], W / 2, y + 82, p["cover_size"], INK, 880,
+                  AM_B, leading=1.2, hi=VIO_D)
+    lat(lay, p["en"], W / 2, y + 56, 30, VIO_D, SERIF_IT, anchor="ms")
+    rule(lay, W / 2 - 46, W / 2 + 46, y + 98, VIO_D, 80, 1.4)
+    y = ar_center(lay, p["sub"], W / 2, y + 140, 21, MUT, 690, AM_R,
+                  leading=1.72, hi=INK)
+    bottom = mascot(lay, W / 2, y + 74, 300)
+    lat(lay, p["ill_label"], W / 2, bottom + 40, 9.5, MUT, GROT_M,
+        anchor="ms", track=3.2)
+    place(lay, base, 700)
     signature(base)
     return base
 
 
 def s2(p):
     base = page(p["n"], 1)
-    y = marker(base, p["tag2"], W / 2, 286, 18, mode=p["mark"])
-    y = ar_center(base, p["t2"], W / 2, y + 74, p["t2_size"], INK, 820, AR_B,
-                  leading=1.28, hi=VIO_D)
-    bottom = mascot(base, W / 2, y + 64, 356)
-    y2 = ar_center(base, p["b2"], W / 2, bottom + 54, 20, MUT, 640, AR_R,
-                   leading=1.85, hi=INK)
-    lat(base, p["ill_label"], W / 2, y2 + 56, 9, MUT, GROT_M, anchor="ms",
-        track=3.0)
+    lay = layer()
+    y = marker(lay, p["tag2"], W / 2, 286, 19, AM_B, (36, 14), mode=p["mark"])
+    y = ar_center(lay, p["t2"], W / 2, y + 80, p["t2_size"], INK, 880, AM_B,
+                  leading=1.2, hi=VIO_D)
+    bottom = mascot(lay, W / 2, y + 66, 350)
+    y2 = ar_center(lay, p["b2"], W / 2, bottom + 58, 22, MUT, 700, AM_R,
+                   leading=1.72, hi=INK)
+    lat(lay, p["ill_label"], W / 2, y2 + 56, 9.5, MUT, GROT_M, anchor="ms",
+        track=3.2)
+    place(lay, base, 690)
     signature(base)
     return base
 
 
 def s3(p):
     base = page(p["n"], 2)
-    y = marker(base, p["tag3"], W / 2, 292, 18, mode=p["mark"])
-    y = ar_center(base, p["t3"], W / 2, y + 74, p["t3_size"], INK, 820, AR_B,
-                  leading=1.30, hi=VIO_D)
+    lay = layer()
+    y = marker(lay, p["tag3"], W / 2, 286, 19, AM_B, (36, 14), mode=p["mark"])
+    y = ar_center(lay, p["t3"], W / 2, y + 78, p["t3_size"], INK, 880, AM_B,
+                  leading=1.22, hi=VIO_D)
     items = p["items3"]
-    top = y + 78
-    gap = 46
-    hrow = ((H - 210) - top - gap * (len(items) - 1)) / len(items)
+    top = y + 84
     for i, (head, body) in enumerate(items):
-        yy = top + i * (hrow + gap)
-        d = ImageDraw.Draw(base)
-        cx = W / 2
-        d.ellipse([(cx - 5.5) * SS, (yy + hrow * 0.08) * SS,
-                   (cx + 5.5) * SS, (yy + hrow * 0.08 + 11) * SS],
-                  fill=(*ORANGE, 255))
-        yy2 = ar_center(base, head, W / 2, yy + hrow * 0.16 + 26, 27, INK,
-                        700, AR_S, leading=1.3)
-        ar_center(base, body, W / 2, yy2 + 16, 19, MUT, 640, AR_R,
-                  leading=1.8)
+        lat(lay, f"{i + 1:02d}", W / 2, top, 25, ORANGE, SERIF_IT, anchor="ms")
+        yy2 = ar_center(lay, head, W / 2, top + 30, 31, INK, 780, AM_B,
+                        leading=1.2)
+        yb = ar_center(lay, body, W / 2, yy2 + 18, 20, MUT, 680, AM_R,
+                       leading=1.62)
+        top = yb + 62
         if i < len(items) - 1:
-            rule(base, W / 2 - 34, W / 2 + 34, yy + hrow + gap / 2, VIO_D, 70)
+            rule(lay, W / 2 - 30, W / 2 + 30, top - 31, VIO_D, 60)
+    place(lay, base, 700)
     signature(base)
     return base
 
 
 def s4(p):
     base = page(p["n"], 3)
-    y = marker(base, p["tag4"], W / 2, 330, 18, mode=p["mark"])
-    y = ar_center(base, p["t4"], W / 2, y + 74, p["t4_size"], INK, 820, AR_B,
-                  leading=1.28, hi=VIO_D)
+    lay = layer()
+    y = marker(lay, p["tag4"], W / 2, 300, 19, AM_B, (36, 14), mode=p["mark"])
+    y = ar_center(lay, p["t4"], W / 2, y + 78, p["t4_size"], INK, 880, AM_B,
+                  leading=1.2, hi=VIO_D)
     cy = y + 176
-    lat(base, p["num_a"], W / 2 - 132, cy, 104, INK, SERIF, anchor="ms")
-    lat(base, p["num_b"], W / 2 + 132, cy, 104, ORANGE, SERIF, anchor="ms")
-    ImageDraw.Draw(base).line([W / 2 * SS, (cy - 82) * SS, W / 2 * SS,
-                               (cy + 14) * SS], fill=(*LINE, 255), width=2)
-    ar_center(base, p["lab_a"], W / 2 - 132, cy + 34, 17, MUT, 300, AR_S,
+    ns = p.get("num_size", 112)
+    gap = 62
+    wa = tw(p["num_a"], SERIF, ns)
+    wb = tw(p["num_b"], SERIF, ns)
+    left = W / 2 - (wa + gap + wb) / 2
+    xa, xb = left + wa, left + wa + gap
+    lat(lay, p["num_a"], xa, cy, ns, INK, SERIF, anchor="rs")
+    lat(lay, p["num_b"], xb, cy, ns, ORANGE, SERIF, anchor="ls")
+    xm = left + wa + gap / 2
+    ImageDraw.Draw(lay).line([xm * SS, (cy - 92) * SS, xm * SS,
+                              (cy + 18) * SS], fill=(*LINE, 255), width=2)
+    ar_center(lay, p["lab_a"], xa - wa / 2, cy + 40, 19, MUT, 320, AM_R,
               leading=1.2)
-    ar_center(base, p["lab_b"], W / 2 + 132, cy + 34, 17, MUT, 300, AR_S,
+    ar_center(lay, p["lab_b"], xb + wb / 2, cy + 40, 19, MUT, 320, AM_R,
               leading=1.2)
-    y2 = ar_center(base, p["b4"], W / 2, cy + 132, 20, MUT, 660, AR_R,
-                   leading=1.85, hi=INK)
-    rule(base, W / 2 - 40, W / 2 + 40, y2 + 66, VIO_D, 70, 1.3)
-    ar_center(base, p["note4"], W / 2, y2 + 108, 17, INK, 620, AR_R,
-              leading=1.8, hi=VIO_D)
+    y2 = ar_center(lay, p["b4"], W / 2, cy + 128, 22, MUT, 700, AM_R,
+                   leading=1.72, hi=INK)
+    rule(lay, W / 2 - 34, W / 2 + 34, y2 + 64, VIO_D, 60, 1.3)
+    ar_center(lay, p["note4"], W / 2, y2 + 104, 19, INK, 660, AM_R,
+              leading=1.68, hi=VIO_D)
+    place(lay, base, 690)
     signature(base)
     return base
 
 
 def s5(p):
     base = page(p["n"], 4)
-    y = ar_center(base, p["t5"], W / 2, 372, p["t5_size"], INK, 820, AR_B,
-                  leading=1.26, hi=VIO_D)
-    y = ar_center(base, p["b5"], W / 2, y + 40, 20, MUT, 640, AR_R,
-                  leading=1.85)
-    top = y + 92
+    lay = layer()
+    y = ar_center(lay, p["t5"], W / 2, 330, p["t5_size"], INK, 880, AM_B,
+                  leading=1.2, hi=VIO_D)
+    y = ar_center(lay, p["b5"], W / 2, y + 46, 22, MUT, 690, AM_R,
+                  leading=1.72)
+    top = y + 96
     band = VIO if p["mark"] == "outline" else ORANGE
-    ImageDraw.Draw(base).rounded_rectangle(
-        [M * SS, top * SS, (W - M) * SS, (top + 190) * SS], radius=28 * SS,
+    ImageDraw.Draw(lay).rounded_rectangle(
+        [M * SS, top * SS, (W - M) * SS, (top + 196) * SS], radius=28 * SS,
         fill=(*band, 255))
-    yy = ar_center(base, p["cta"], W / 2, top + 46, 30, CREAM, 740, AR_B,
-                   leading=1.3)
-    lat(base, p["url"], W / 2, yy + 52, 24, CREAM, GROT_B, anchor="ms",
+    yy = ar_center(lay, p["cta"], W / 2, top + 50, 32, CREAM, 760, AM_B,
+                   leading=1.25)
+    lat(lay, p["url"], W / 2, yy + 56, 24, CREAM, GROT_B, anchor="ms",
         track=0.4)
-    bottom = mascot(base, W / 2, top + 244, 236)
-    ar_center(base, p["end_note"], W / 2, bottom + 40, 17, MUT, 620, AR_R,
-              leading=1.75, hi=INK)
+    bottom = mascot(lay, W / 2, top + 254, 236)
+    ar_center(lay, p["end_note"], W / 2, bottom + 42, 19, MUT, 660, AM_R,
+              leading=1.68, hi=INK)
+    place(lay, base, 690)
     signature(base, last=True)
     return base
 
@@ -316,29 +353,31 @@ def s5(p):
 PUBS = [
     {
         "id": "s1-ancrage", "n": 5, "mark": "orange",
+        "kicker": "n° 01 — le premier chiffre",
+        "en": "anchoring.",
         "tag": "سلسلة البيع 01",
         "cover": "أول سوم تسمعو، هو اللي يبقى في راسك.",
-        "cover_size": 52, "hi": "أول سوم",
+        "cover_size": 62, "hi": "أول سوم",
         "sub": "علاش 500 دج تبان رخيصة كي تجي بعد 3 000، و تبان غالية كي تجي بوحدها.",
         "tag2": "الميكانيزم",
-        "t2": "دماغك ياخذ أول رقم و يوقف عليه.", "t2_size": 44,
+        "t2": "دماغك ياخذ أول رقم و يوقف عليه.", "t2_size": 52,
         "hi2": "أول رقم",
         "b2": "كل سوم بعدو يتقاس بيه، ماشي بالسوق. بدّل الترتيب، ماشي السوم.",
         "ill_size": 330, "ill_label": "ANCHORING · KAHNEMAN 1974",
         "tag3": "كيفاش تطبّقها",
-        "t3": "ثلاثة حركات، و الترتيب يولي يبيع.", "t3_size": 40,
+        "t3": "ثلاثة حركات، و الترتيب يولي يبيع.", "t3_size": 46,
         "hi3": "الترتيب",
         "items3": [("بيّن المرجع قبل سومك", "سوم السوق، سوم الوكالة، سوم الاستوديو."),
                    ("فسّر واش كاين في السوم", "30 ثانية، دارجة، تعديل مرتين، تسليم 24 ساعة."),
                    ("خلّي المقارنة واضحة", "قبل / بعد، بلا صوت / بالصوت.")],
         "tag4": "في الجزائر",
-        "t4": "نفس الصوت، الفرق في الترتيب.", "t4_size": 42,
+        "t4": "نفس الصوت، الفرق في الترتيب.", "t4_size": 48,
         "hi4": "الترتيب",
         "num_a": "3 000", "num_b": "500",
         "lab_a": "المرجع", "lab_b": "سومنا",
         "b4": "حطيت المرجع قبل السوم، الزبون وحدو يفهم بلي 500 دج صفقة.",
         "note4": "3 000 دج سوم السوق، 500 دج سومنا، و الفرق يبان في الأول.",
-        "t5": "الترتيب يبيع أكثر من التخفيض.", "t5_size": 44,
+        "t5": "الترتيب يبيع أكثر من التخفيض.", "t5_size": 52,
         "hi5": "أكثر من التخفيض",
         "b5": "ما تنقصش السوم. بدّل البلاصة اللي تحطو فيها.",
         "cta": "خود الصوت تاعك في 24 ساعة",
@@ -348,29 +387,31 @@ PUBS = [
     },
     {
         "id": "s2-perte", "n": 5, "mark": "outline",
+        "kicker": "n° 02 — ce qui se perd",
+        "en": "loss aversion.",
         "tag": "سلسلة البيع 02",
         "cover": "الصمت تاعك يعمّر جيب غيرك.",
-        "cover_size": 54, "hi": "الصمت تاعك",
+        "cover_size": 60, "hi": "الصمت تاعك",
         "sub": "الزبون ما يقلكش «ما فهمتش». يمشي بصمت، يشري عند صاحبك، و أنت ما تعرفش علاش.",
         "tag2": "واش راك تخسر",
-        "t2": "الخسارة توجع ضوڨ مرتين ما يفرحك الربح.", "t2_size": 40,
+        "t2": "الخسارة توجع ضوڨ مرتين ما يفرحك الربح.", "t2_size": 46,
         "hi2": "ضوڨ مرتين",
         "b2": "على هادا ما تبيعش «واش راح تربح»، وري «واش راح تخسر».",
         "ill_size": 330, "ill_label": "LOSS AVERSION · KAHNEMAN",
         "tag3": "ثلاثة خسائر صامتة",
-        "t3": "كل وحدة تكلّفك زبون.", "t3_size": 42,
+        "t3": "كل وحدة تكلّفك زبون.", "t3_size": 48,
         "hi3": "زبون",
         "items3": [("زبون يقرا و ما يسمعش", "الفيديو يمشي بلا صوت، الرسالة تروح معاه."),
                    ("3 أيام باش تجاوب", "كل نهار تأخير، الزبون يعاود يشوف عند غيرك."),
                    ("صوت مسجّل بالتيليفون", "الضجة تضعّف الثقة قبل الكلمة الأولى.")],
         "tag4": "الإحساس",
-        "t4": "نفس المبلغ، إحساس مختلف.", "t4_size": 42,
+        "t4": "نفس المبلغ، إحساس مختلف.", "t4_size": 48,
         "hi4": "إحساس مختلف",
         "num_a": "100", "num_b": "50",
         "lab_a": "خسارة", "lab_b": "ربح",
         "b4": "ضياع 100 دج يوجع أكثر ما يفرحك ربح 100 دج. استعملها في صالحك.",
         "note4": "علاش التخفيض ما يشدش، و علاش الصوت يشد.",
-        "t5": "قبل ما تخسر زبون آخر، خود 30 ثانية.", "t5_size": 40,
+        "t5": "قبل ما تخسر زبون آخر، خود 30 ثانية.", "t5_size": 46,
         "hi5": "30 ثانية",
         "b5": "الخسارة ما تتصلّحش بالنية، تتصلّح بصوت.",
         "cta": "صوتك في 24 ساعة",
@@ -380,29 +421,31 @@ PUBS = [
     },
     {
         "id": "s3-fobo", "n": 5, "mark": "violet",
+        "kicker": "n° 03 — le bon choix",
+        "en": "fear of better.",
         "tag": "سلسلة البيع 03",
         "cover": "50 صوت، 50 سوم، و أنت ما زلت ما اخترتش.",
-        "cover_size": 48, "hi": "ما اخترتش",
+        "cover_size": 54, "hi": "ما اخترتش",
         "sub": "كي تكثر الاختيارات، الدماغ يوقف. الحل ماشي زيد الخيارات، قلّلهم.",
         "tag2": "FOBO",
-        "t2": "الخوف من حاجة أحسن يوقّف كلش.", "t2_size": 44,
+        "t2": "الخوف من حاجة أحسن يوقّف كلش.", "t2_size": 52,
         "hi2": "يوقّف كلش",
         "b2": "ماشي ما عندكش فلوس، ماشي ما عندكش وقت. عندك خوف من أنك تختار أقل من الأحسن.",
         "ill_size": 330, "ill_label": "FEAR OF BETTER OPTIONS",
         "tag3": "ثلاثة قرارات",
-        "t3": "و نكتبو، نقراو، نسلمو. ماشي 50 سؤال.", "t3_size": 40,
+        "t3": "و نكتبو، نقراو، نسلمو. ماشي 50 سؤال.", "t3_size": 46,
         "hi3": "ثلاثة قرارات",
         "items3": [("واش نوع الصوت؟", "إعلان، شرح، ولا ترحيب. تختار واحد."),
                    ("شحال الطول؟", "30 ثانية كافية. 60 كي تحتاج، تدفع الفرق."),
                    ("وقتاش تحبو؟", "24 ساعة، ولا 48 كي تكون القصة طويلة.")],
         "tag4": "القرار",
-        "t4": "قرار واحد واضح، ماشي 50 خيار مفتوح.", "t4_size": 38,
+        "t4": "قرار واحد واضح، ماشي 50 خيار مفتوح.", "t4_size": 44,
         "hi4": "قرار واحد",
         "num_a": "50", "num_b": "3",
         "lab_a": "خيار", "lab_b": "قرارات",
         "b4": "نوع، طول، وقت. تختار ثلاثة، و نبداو في نفس النهار.",
         "note4": "500 دج، تعديل مرتين، تسليم 24 ساعة.",
-        "t5": "ما تختارش بين 50، اختار واحد.", "t5_size": 44,
+        "t5": "ما تختارش بين 50، اختار واحد.", "t5_size": 52,
         "hi5": "اختار واحد",
         "b5": "3 قرارات، سوم وحد، 24 ساعة. ماشي كاطالوغ.",
         "cta": "خود الصوت تاعك",
