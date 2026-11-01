@@ -379,9 +379,9 @@ def build(spec, seed, rtl=True):
         size -= 2
 
     # titre ancré par le haut : toutes les slides démarrent à la même hauteur
-    while size > 56 and TITLE_TOP + (len(lines_n) - 1) * size * 1.22 > 902:
+    while size > 56 and TITLE_TOP + (len(lines_n) - 1) * size * 1.44 > 918:
         size -= 2
-    lead = size * spec.get("lead", 1.22)
+    lead = size * spec.get("lead", 1.44)
     lines = [list(map(tuple, toks)) for toks in lines_n]
     gaps = [size * 0.26] * len(lines)
     if rtl and spec.get("justify", True) and len(lines) > 1:
@@ -508,7 +508,7 @@ def cta(p):
 DZ = {
     "id": "dz", "n": 5, "seed": 11, "rtl": True,
     "s1": {
-        "kicker": "شكون احنا:", "size": 108,
+        "kicker": "شكون احنا:", "size": 88, "justify": False,
         "lines": [
             [("نصنعو", "r", None), ("أصوات", "b", "v"), ("تبيع،", "b", None)],
             [("بالدارجة", "r", None), ("تاع", "b", None),
@@ -517,43 +517,47 @@ DZ = {
              ("الآخر.", "r", None)],
         ],
         "stickers": [
-            dict(text="500 دج", x=250, y=STICK_Y, rot=-7, fill=VIO,
-                 icon="sound"),
-            dict(text="دارجة بلادنا", x=830, y=STICK_Y, rot=7,
-                 fill=ORANGE, icon="target"),
+            dict(text="دارجة بلادنا", x=140, y=515, rot=6, fill=VIO,
+                 icon="target", size=19),
+            dict(text="500 دج", x=925, y=515, rot=-5, fill=ORANGE,
+                 icon="sound", size=19),
+            dict(text="24 ساعة", x=254, y=760, rot=-4, fill=ORANGE,
+                 icon="spark", size=19),
         ],
         "body": "خمس مية دج، بالدارجة، و تسليم في 24 ساعة. تسمعها قبل ما تخلّص.",
         "marks": [],
     },
     "s2": {
-        "kicker": "علاه هكّاك:", "size": 108,
+        "kicker": "علاه هكّاك:", "size": 88, "justify": False,
         "lines": [
             [("دماغك", "b", None), ("ياخذ", "r", None)],
             [("أول", "b", "o"), ("سوم", "b", None), ("و", "r", None)],
             [("يوقف", "b", None), ("عليه.", "r", None)],
         ],
         "stickers": [
-            dict(text="المرجع", x=830, y=STICK_Y, rot=6, fill=ORANGE,
-                 icon="target"),
+            dict(text="المرجع", x=813, y=515, rot=6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="الأنكوراج", x=242, y=642, rot=-6, fill=VIO,
+                 icon="sound", size=19),
         ],
         "marks": [],
         "body": "كل سوم بعدو يتقاس بيه، ماشي بالسوق. بدّل بلاصة السوم، "
                 "ماشي السوم.",
     },
     "s3": {
-        "kicker": "واش تدير:", "size": 108,
+        "kicker": "واش تدير:", "size": 88, "justify": False,
         "lines": [
             [("ثلاثة", "b", "v"), ("حوايج،", "r", None)],
             [("و", "r", None), ("السوم", "b", "o"), ("يولي", "r", None)],
             [("يهدر", "b", None), ("وحدو.", "r", None)],
         ],
         "stickers": [
-            dict(text="بيّن المرجع", num="01", x=250, y=STICK_Y, rot=-5,
-                 fill=ORANGE, icon="target", size=19),
-            dict(text="فسّر السوم", num="02", x=540, y=STICK_Y, rot=3,
-                 fill=VIO, icon="sound", size=19),
-            dict(text="قارن بوضوح", num="03", x=830, y=STICK_Y, rot=-4,
-                 fill=ORANGE, icon="spark", size=19),
+            dict(text="بيّن المرجع", x=855, y=515, rot=6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="فسّر السوم", x=203, y=642, rot=-6, fill=VIO,
+                 icon="sound", size=19),
+            dict(text="قارن بوضوح", x=830, y=760, rot=-4, fill=ORANGE,
+                 icon="spark", size=19),
         ],
         "body": "خدّمهم بالترتيب، ما تخلطش ما بيناتهم: المرجع، التفسير، و من "
                 "بعد المقارنة.",
@@ -568,14 +572,16 @@ DZ = {
         "note": "3 000 دج سوم السوق، 500 دج تاعنا، و الفرق يبان من الأول.",
     },
     "s5": {
-        "kicker": "و من بعد؟", "size": 108,
+        "kicker": "و من بعد؟", "size": 88, "justify": False,
         "lines": [
             [("الترتيب", "b", "v"), ("يبيع", "r", None), ("أكثر", "b", None)],
             [("من", "r", None), ("أي", "r", None), ("تخفيض.", "r", None)],
         ],
         "stickers": [
-            dict(text="ما تنقصش السوم", x=268, y=700, rot=6, fill=ORANGE,
-                 icon="target"),
+            dict(text="ما تنقصش السوم", x=806, y=676, rot=6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="الترتيب هو الحل", x=250, y=642, rot=-6, fill=VIO,
+                 icon="spark", size=19),
         ],
         "marks": [],
     },
@@ -596,10 +602,12 @@ FR = {
             [("à la livraison.", "r", None)],
         ],
         "stickers": [
-            dict(text="500 DA", x=250, y=STICK_Y, rot=-7, fill=VIO,
-                 icon="sound"),
-            dict(text="darija algérienne", x=830, y=STICK_Y, rot=7,
-                 fill=ORANGE, icon="target"),
+            dict(text="darija algérienne", x=825, y=676, rot=6, fill=VIO,
+                 icon="target", size=19),
+            dict(text="500 DA", x=304, y=676, rot=-5, fill=ORANGE,
+                 icon="sound", size=19),
+            dict(text="24 h", x=822, y=906, rot=-4, fill=ORANGE,
+                 icon="spark", size=19),
         ],
         "body": "Cinq cents dinars, en darija, livrés en 24 h. Vous écoutez "
                 "avant de payer.",
@@ -613,8 +621,10 @@ FR = {
             [("chiffre.", "r", None)],
         ],
         "stickers": [
-            dict(text="ancrage", x=830, y=STICK_Y, rot=6, fill=ORANGE,
-                 icon="target"),
+            dict(text="ancrage", x=762, y=710, rot=6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="la référence", x=282, y=710, rot=-6, fill=VIO,
+                 icon="sound", size=19),
         ],
         "marks": [],
         "body": "Chaque prix se juge par rapport au précédent, pas par rapport "
@@ -628,12 +638,12 @@ FR = {
             [("devient", "b", None), ("évident.", "r", None)],
         ],
         "stickers": [
-            dict(text="la réf.", num="01", x=250, y=STICK_Y, rot=-5,
-                 fill=ORANGE, icon="target", size=18),
-            dict(text="le détail", num="02", x=540, y=STICK_Y, rot=3,
-                 fill=VIO, icon="sound", size=18),
-            dict(text="l’écart", num="03", x=830, y=STICK_Y, rot=-4,
-                 fill=ORANGE, icon="spark", size=18),
+            dict(text="la réf.", x=777, y=578, rot=6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="le détail", x=277, y=578, rot=-6, fill=VIO,
+                 icon="sound", size=19),
+            dict(text="l’écart", x=936, y=710, rot=-4, fill=ORANGE,
+                 icon="spark", size=19),
         ],
         "body": "Dans cet ordre, sans mélanger : la référence, l'explication, "
                 "puis la comparaison.",
@@ -655,8 +665,10 @@ FR = {
             [("qu’une remise.", "r", None)],
         ],
         "stickers": [
-            dict(text="ne baissez pas le prix", x=268, y=810, rot=-6,
-                 fill=ORANGE, icon="target", size=18),
+            dict(text="ne baissez pas le prix", x=296, y=578, rot=6, fill=ORANGE,
+                 icon="target", size=19),
+            dict(text="l’ordre gagne", x=748, y=578, rot=-6, fill=VIO,
+                 icon="spark", size=19),
         ],
         "marks": [],
     },
