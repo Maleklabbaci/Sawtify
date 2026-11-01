@@ -181,45 +181,61 @@ def scotch(base, cx, cy, w, h, rot=0.0, tone=(255, 255, 255), alpha=118,
 
 
 def torn_mask(w, h, seed=0, rough=13, sides=(True, True, False, False)):
-    """Masque de papier déchiré : bords irréguliers (l, r, t, b)."""
+    """Masque de papier déchiré : profil irrégulier LISSÉ, pas une scie.
+
+    On tire des points irréguliers le long du bord, on les lisse (moyenne
+    glissante) puis on floute le masque : ça donne une déchirure de papier,
+    avec des fibres, au lieu des dents de scie de la première version.
+    """
     mask = Image.new("L", (w, h), 255)
     d = ImageDraw.Draw(mask)
     rng = random.Random(seed)
+    amp_max = rough * 1.25
     for side, on in zip(("l", "r", "t", "b"), sides):
         if not on:
             continue
         span = h if side in ("l", "r") else w
-        step = max(4, int(9 * rough / 13))
-        pts = []
-        for k in range(0, span + step, step):
-            amp = rng.uniform(0, rough)
-            if side in ("l", "r"):
-                pts.append((k, amp))
-            else:
-                pts.append((k, amp))
-        for k, amp in pts:
+        step = 6
+        pts = [rng.uniform(0.0, 1.0) for _ in range(span // step + 4)]
+        # lissage : deux passes de moyenne glissante
+        for _ in range(2):
+            pts = [(pts[max(0, k - 1)] + pts[k] + pts[min(len(pts) - 1, k + 1)]) / 3
+                   for k in range(len(pts))]
+        # on garde les grandes variations (déchirure), on tue le bruit
+        prof = [amp_max * (0.25 + 0.75 * v) for v in pts]
+        for k, amp in enumerate(prof):
+            k0 = k * step
+            if k0 > span:
+                break
+            k1 = min(span, k0 + step)
             if side == "l":
-                d.polygon([(0, k), (amp, k + step / 2), (0, k + step)], fill=0)
+                d.rectangle([0, k0, int(amp), k1 + 1], fill=0)
             elif side == "r":
-                d.polygon([(w, k), (w - amp, k + step / 2), (w, k + step)], fill=0)
+                d.rectangle([int(w - amp), k0, w, k1 + 1], fill=0)
             elif side == "t":
-                d.polygon([(k, 0), (k + step / 2, amp), (k + step, 0)], fill=0)
+                d.rectangle([k0, 0, k1 + 1, int(amp)], fill=0)
             else:
-                d.polygon([(k, h), (k + step / 2, h - amp), (k + step, h)], fill=0)
+                d.rectangle([k0, int(h - amp), k1 + 1, h], fill=0)
+    mask = mask.filter(ImageFilter.GaussianBlur(max(1.0, rough * 0.22)))
     return mask
 
 
 def photo(base, name, box, rot=0.0, seed=1, duotone=None, torn=(True, True, False, False),
-          shadow=26, rough=15, contrast=1.12, sat=0.82, upscale=1.0):
-    """Colle une VRAIE photo découpée : pivot, bord déchiré, ombre."""
+          shadow=26, rough=15, contrast=1.12, sat=0.82, upscale=1.0,
+          zoom=1.0, focus=0.5, focus_y=0.5):
+    """Colle une VRAIE photo découpée : pivot, bord déchiré, ombre.
+
+    `zoom` > 1 resserre le cadre ; `focus` / `focus_y` (0-1) choisissent la
+    zone gardée : utile pour cadrer sur la capsule d'un micro.
+    """
     x0, y0, x1, y1 = box
     w, h = int((x1 - x0) * SS), int((y1 - y0) * SS)
     im = Image.open(PHOTOS / name).convert("RGB")
-    k = max(w / im.width, h / im.height) * upscale
+    k = max(w / im.width, h / im.height) * upscale * zoom
     im = im.resize((max(2, int(im.width * k)), max(2, int(im.height * k))), Image.LANCZOS)
-    # recadrage centre
-    left = (im.width - w) // 2
-    top = (im.height - h) // 2
+    # recadrage sur le point d'intérêt
+    left = int((im.width - w) * focus)
+    top = int((im.height - h) * focus_y)
     im = im.crop((left, top, left + w, top + h))
 
     if duotone:
