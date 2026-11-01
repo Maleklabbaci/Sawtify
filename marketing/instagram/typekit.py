@@ -51,17 +51,15 @@ def pua_path(name: str) -> Path:
         f = TTFont(str(src))
         order = f.getGlyphOrder()
         cmap = f["cmap"]
-        target = None
-        for t in cmap.tables:
-            if t.format == 4 and t.platformID == 3:
-                target = t
-                break
-        if target is None:
-            target = cmap.tables[0]
+        tables = [t for t in cmap.tables
+                  if (t.platformID, t.platEncID) in ((3, 1), (3, 10), (0, 3), (0, 4))]
+        if not tables:
+            tables = [cmap.tables[0]]
         for i, gname in enumerate(order):
             cp = 0xE000 + i
             if cp <= 0xF8FF:
-                target.cmap[cp] = gname
+                for t in tables:
+                    t.cmap[cp] = gname
         f.save(str(dst))
     _pua_cache[name] = dst
     return dst
