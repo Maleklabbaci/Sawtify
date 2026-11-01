@@ -167,7 +167,19 @@ def main():
             raise SystemExit(f"Carrousel {args.only} introuvable")
     only = {int(x) for x in args.slides.split(",")} if args.slides else None
 
+    # le style doit être le même que celui du calendrier (couvertures « hook »),
+    # sinon la déclinaison 1:1 repart sur les anciens gabarits décoratifs.
+    day_by_slug = {}
+    plan = SLIDES / "PLAN-PUBLICATION.csv"
+    if plan.exists():
+        import csv
+        for r in csv.DictReader(open(plan, encoding="utf-8")):
+            day_by_slug[r["slug"]] = int(r["jour"])
+
     for c in selection:
+        day = day_by_slug.get(c["slug"])
+        if day:
+            c = dict(c, style=gp.style_for_day(day))
         print(f"\n▶ {c['name']}")
         if "square" in formats:
             print("  · 1:1 (1080×1080)")

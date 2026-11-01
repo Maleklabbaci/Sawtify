@@ -31,7 +31,12 @@ from sawtify_ig import (AR_BOLD, AR_REG, AR_SEMI, LATIN_BOLD, LATIN_MED,
                         M, SS, W, ar_para, font, rrect, visual)
 
 R = W - M
-H_BOT = 1350
+
+
+def _v(y):
+    """Décale une cote « ancrée en bas » quand le canevas n'est pas 4:5
+    (déclinaison 1:1 = 1080 de haut) : la mise en page reste dans le cadre."""
+    return y + (ig.H - 1350)
 HI = (255, 178, 120)          # orange lisible sur violet
 VIOLET = (124, 45, 200)
 CREAM = (250, 246, 238)
@@ -117,7 +122,7 @@ def _reader(base, x0, y0, w, h=92, label="نموذج صوت · دارجة", seed
 def numeral(base, s, i, n):
     kicker, num, label, lines, promise = _hk(s)
     fx.halftone(base, W - 40, 200, 300, alpha=22)
-    fx.dotgrid(base, 52, (255, 255, 255), alpha=16, box=(0, 170, W, 1210))
+    fx.dotgrid(base, 52, (255, 255, 255), alpha=16, box=(0, 170, W, ig.H - 140))
     _kicker(base, kicker)
 
     y = _lines(base, lines, 292, 94, W - 2 * M)
@@ -134,22 +139,22 @@ def numeral(base, s, i, n):
         ImageDraw.Draw(base).text(((x_right - tw / 2) * SS, (cy + 26) * SS),
                                   visual(t), font=f, fill=(255, 255, 255), anchor="mm")
 
-    rrect(base, (M, 986, R, 987.4), 1, fill=(255, 255, 255, 56))
+    rrect(base, (M, _v(986), R, _v(987.4)), 1, fill=(255, 255, 255, 56))
     size = _fit(base, num, 430, 188) if num else 188
-    ImageDraw.Draw(base).text(((M + 2) * SS, 1156 * SS), num,
+    ImageDraw.Draw(base).text(((M + 2) * SS, _v(1156) * SS), num,
                               font=font(LATIN_BOLD, size), fill=(255, 255, 255), anchor="ls")
     if num:
-        rrect(base, (M + 8, 1186, M + 8 + 150, 1188), 1, fill=(*HI, 150))
-    ImageDraw.Draw(base).text(((M + 8) * SS, 1190 * SS), visual(label),
+        rrect(base, (M + 8, _v(1186), M + 8 + 150, _v(1188)), 1, fill=(*HI, 150))
+    ImageDraw.Draw(base).text(((M + 8) * SS, _v(1190) * SS), visual(label),
                               font=font(AR_BOLD, 30), fill=HI, anchor="la")
-    _reader(base, 590, 1002, R - 590, label="نموذج صوت · دارجة", seed=i + 2, dark=True)
+    _reader(base, 590, _v(1002), R - 590, label="نموذج صوت · دارجة", seed=i + 2, dark=True)
 
 
 # ── 2. STATEMENT ──────────────────────────────────────────────────────────
 def statement(base, s, i, n):
     kicker, num, label, lines, promise = _hk(s)
-    fx.halftone(base, 70, H_BOT - 80, 320, alpha=20)
-    fx.dotgrid(base, 54, (255, 255, 255), alpha=14, box=(0, 170, W, 1210))
+    fx.halftone(base, 70, ig.H - 80, 320, alpha=20)
+    fx.dotgrid(base, 54, (255, 255, 255), alpha=14, box=(0, 170, W, ig.H - 140))
     _kicker(base, kicker, center=True)
 
     mw = W - 2 * M - 70
@@ -157,7 +162,7 @@ def statement(base, s, i, n):
     y = _promise(base, promise, y + 34, size=26, align="center",
                  max_w=W - 2 * M - 150, x_right=W / 2 + (W - 2 * M - 150) / 2)
 
-    gy = max(y + 92, 986)
+    gy = max(y + 92, _v(986))
     rrect(base, (W / 2 - 214, gy, W / 2 + 214, gy + 76), 38,
           fill=(255, 255, 255, 32), outline=(255, 255, 255, 92), width=1.2)
     ImageDraw.Draw(base).text((W / 2 * SS, (gy + 37) * SS), visual("اسحب وشوف الحل"),
@@ -165,50 +170,53 @@ def statement(base, s, i, n):
     _reader(base, W / 2 - 210, gy + 108, 420, label="نموذج صوت · دارجة",
             seed=i + 3, dark=True)
     if num:
-        fx.sticker(base, M + 70, 1042, 62, num, label if len(label) <= 9 else "",
+        fx.sticker(base, M + 70, _v(1042), 62, num, label if len(label) <= 9 else "",
                    color=ORANGE, rot=-12)
 
 
 # ── 3. TICKET ─────────────────────────────────────────────────────────────
 def hookticket(base, s, i, n):
     kicker, num, label, lines, promise = _hk(s)
+    f = ig.H / 1350                    # 0.8 en 1:1 : tout le ticket se resserre
     base.alpha_composite(px.logo(int(92 * SS)), (int((W / 2 - 46) * SS), int(170 * SS)))
-    top, bottom = 300, 1180
+    top, bottom = 300 * f, 300 * f + 880 * f
     fx.ticket(base, (M - 6, top, R + 6, bottom), radius=40)
     d = ImageDraw.Draw(base)
 
     pad_r, pad_l = R - 50, M + 50
     mw = pad_r - pad_l
 
-    d.text((pad_r * SS, (top + 52) * SS), visual(kicker), font=font(AR_SEMI, 21),
+    d.text((pad_r * SS, (top + 52 * f) * SS), visual(kicker), font=font(AR_SEMI, round(21 * f)),
            fill=(148, 126, 174), anchor="rm")
-    d.text((pad_l * SS, (top + 52) * SS), f"SAWTIFY · N°{i:02d}", font=font(LATIN_BOLD, 15),
-           fill=(180, 160, 202), anchor="lm")
-    rrect(base, (pad_l - 10, top + 86, pad_r + 10, top + 87.2), 1, fill=(74, 40, 120, 36))
+    d.text((pad_l * SS, (top + 52 * f) * SS), f"SAWTIFY · N°{i:02d}",
+           font=font(LATIN_BOLD, round(15 * f)), fill=(180, 160, 202), anchor="lm")
+    rrect(base, (pad_l - 10, top + 86 * f, pad_r + 10, top + 87.4 * f), 1,
+          fill=(74, 40, 120, 36))
 
     # chiffre + libellé (sauf s'il est déjà dans l'accroche)
     dup = bool(num) and any(num in l.replace("**", "") for l in lines)
-    y = top + 118
+    y = top + 118 * f
     if not dup:
-        size = _fit(base, num, 300, 104)
-        d.text((pad_r * SS, (y + 96) * SS), num, font=font(LATIN_BOLD, size),
+        size = _fit(base, num, 300, round(104 * f))
+        d.text((pad_r * SS, (y + 96 * f) * SS), num, font=font(LATIN_BOLD, size),
                fill=(*VIOLET, 255), anchor="rm")
-        d.text((pad_r * SS, (y + 122) * SS), visual(label), font=font(AR_BOLD, 26),
+        d.text((pad_r * SS, (y + 122 * f) * SS), visual(label), font=font(AR_BOLD, round(26 * f)),
                fill=ORANGE, anchor="rm")
-        y += 186
+        y += 186 * f
 
-    cy = _lines(base, lines, y, 76, mw, x_right=pad_r, color=INK)
-    _promise(base, promise, cy + 26, size=24, color=(104, 86, 128), max_w=mw, x_right=pad_r)
+    cy = _lines(base, lines, y, round(76 * f), mw, x_right=pad_r, color=INK)
+    _promise(base, promise, cy + 26 * f, size=round(24 * f), color=(104, 86, 128),
+             max_w=mw, x_right=pad_r)
 
     # lecteur audio crème → violet (le produit, toujours visible)
-    by = bottom - 176
-    rrect(base, (pad_l, by, pad_r, by + 84), 24, fill=(*VIOLET, 255))
-    ig.play_badge(base, pad_r - 44, by + 42, 21)
-    d.text(((pad_r - 88) * SS, (by + 28) * SS), visual("نموذج صوت · 30 ثانية"),
-           font=font(AR_SEMI, 20), fill=(255, 255, 255), anchor="rm")
-    ig.waveform(base, pad_l + 28, by + 56, mw - 150, 20, bars=26, seed=i + 5)
-    d.text((pad_r * SS, (by + 110) * SS), visual("من 500 دج · بلا التزام"),
-           font=font(AR_REG, 19), fill=(150, 132, 172), anchor="rm")
+    by = bottom - 176 * f
+    rrect(base, (pad_l, by, pad_r, by + 84 * f), 24, fill=(*VIOLET, 255))
+    ig.play_badge(base, pad_r - 44, by + 42 * f, 21 * f)
+    d.text(((pad_r - 88) * SS, (by + 28 * f) * SS), visual("نموذج صوت · 30 ثانية"),
+           font=font(AR_SEMI, round(20 * f)), fill=(255, 255, 255), anchor="rm")
+    ig.waveform(base, pad_l + 28, by + 56 * f, mw - 150, 20 * f, bars=26, seed=i + 5)
+    d.text((pad_r * SS, (by + 112 * f) * SS), visual("من 500 دج · بلا التزام"),
+           font=font(AR_REG, round(19 * f)), fill=(150, 132, 172), anchor="rm")
 
 
 # ── 4. HOOKSPLIT ──────────────────────────────────────────────────────────
@@ -219,7 +227,7 @@ def hooksplit(base, s, i, n):
     y = _lines(base, lines, 262, 92, W - 2 * M)
     _promise(base, promise, y + 22, size=26, color=(230, 220, 250))
 
-    top, bottom = 690, 1210
+    top, bottom = _v(690), _v(690) + 520
     sh = Image.new("RGBA", (ig.CW, ig.CH), (0, 0, 0, 0))
     ImageDraw.Draw(sh).rounded_rectangle(
         [(M - 6) * SS, (top + 16) * SS, (R + 6) * SS, (bottom + 20) * SS],
