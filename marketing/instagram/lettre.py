@@ -50,6 +50,12 @@ WORD = "SpaceGrotesk-Bold.ttf"
 
 WEIGHT = {"b": BLACK, "m": BOLD, "r": REG}
 
+# grille fixe : toutes les slides partagent les mêmes lignes de base
+KICK_Y = 300.0     # kicker
+TITLE_TOP = 452.0  # ligne de base de la PREMIÈRE ligne de titre
+BODY_Y = 992.0     # paragraphe
+STICK_Y = 1096.0   # rangée de stickers
+
 _logo_cache: dict = {}
 
 
@@ -361,26 +367,22 @@ def finish(base, n, k, last=False):
 def build(spec, seed, rtl=True):
     base = paper(seed=seed)
     wordmark(base)
-    kicker_name = REG
-    tdraw(base, spec["kicker"], W / 2, 348, spec.get("ksize", 40), INK,
-          kicker_name, align="center")
-    y = 348 + spec.get("kgap", 130)
-    size = spec.get("size", 106)
-    # ajustement automatique : aucune ligne ne dépasse la marge
+    tdraw(base, spec["kicker"], W / 2, KICK_Y, spec.get("ksize", 40), INK,
+          REG, align="center")
+    size = spec.get("size", 100)
+    lines_n = spec["lines"]
+
     def line_w(sz):
         return max(sum(twidth(t, WEIGHT[w], sz) for t, w, _ in toks)
-                   + sz * 0.26 * (len(toks) - 1) for toks in spec["lines"])
+                   + sz * 0.26 * (len(toks) - 1) for toks in lines_n)
     while line_w(size) > 936 and size > 56:
         size -= 2
-    # remplit la hauteur quand les lignes sont courtes
-    cap = spec.get("maxsize", 124)
-    while size < cap:
-        h = (len(spec["lines"]) - 1) * size * 1.28 + size * 1.1
-        if h >= 560 or line_w(size + 4) > 936 or size + 4 > cap:
-            break
-        size += 4
-    lead = size * spec.get("lead", 1.28)
-    lines = [list(map(tuple, toks)) for toks in spec["lines"]]
+
+    # titre ancré par le haut : toutes les slides démarrent à la même hauteur
+    while size > 56 and TITLE_TOP + (len(lines_n) - 1) * size * 1.22 > 902:
+        size -= 2
+    lead = size * spec.get("lead", 1.22)
+    lines = [list(map(tuple, toks)) for toks in lines_n]
     gaps = [size * 0.26] * len(lines)
     if rtl and spec.get("justify", True) and len(lines) > 1:
         w_of = [sum(twidth(t, WEIGHT[w], size) for t, w, _ in toks)
@@ -389,6 +391,8 @@ def build(spec, seed, rtl=True):
         out = [justify(toks, size, target) for toks in lines]
         lines = [t for t, _ in out]
         gaps = [g for _, g in out]
+
+    y = TITLE_TOP
     for tokens, gp in zip(lines, gaps):
         hline(base, tokens, W / 2, y, size, rtl=rtl, gap=gp)
         y += lead
@@ -405,6 +409,8 @@ def build(spec, seed, rtl=True):
 # ── 01 · couverture ───────────────────────────────────────────────────────
 def cover(p):
     base, y = build(p["s1"], seed=p["seed"], rtl=p["rtl"])
+    if p["s1"].get("body"):
+        para(base, p["s1"]["body"], W / 2, BODY_Y, 26, MUT, REG, 790, 1.55)
     if p["s1"].get("mascot"):
         mascot(base, W / 2, p["s1"]["mascot"][0], p["s1"]["mascot"][1])
     finish(base, p["n"], 0)
@@ -413,7 +419,7 @@ def cover(p):
 
 def meca(p):
     base, y = build(p["s2"], seed=p["seed"] + 1, rtl=p["rtl"])
-    para(base, p["s2"]["body"], W / 2, y + 26, 26, MUT, REG, 790, 1.55)
+    para(base, p["s2"]["body"], W / 2, BODY_Y, 26, MUT, REG, 790, 1.55)
     finish(base, p["n"], 1)
     return base
 
@@ -421,17 +427,36 @@ def meca(p):
 def steps(p):
     base, y = build(p["s3"], seed=p["seed"] + 2, rtl=p["rtl"])
     if p["s3"].get("body"):
-        para(base, p["s3"]["body"], W / 2, y + 34, 25, MUT, REG, 800, 1.55)
+        para(base, p["s3"]["body"], W / 2, BODY_Y, 25, MUT, REG, 800, 1.55)
     finish(base, p["n"], 2)
     return base
+
+
+def _bar_chart(y):
+    """Deux barres proportionnelles 3 000 / 500 posées sur la grille."""
+    lay = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(lay)
+    x0, x1 = M, W - M
+    span = x1 - x0
+    rows = ((3000, (223, 210, 255)), (500, (255, 203, 180)))
+    for i, (val, col) in enumerate(rows):
+        yy = y + i * 54
+        w = span * val / 3000
+        dd.rounded_rectangle([x0 * SS, yy * SS, (x0 + w) * SS,
+                              (yy + 26) * SS], radius=13 * SS,
+                             fill=(*col, 255))
+        dd.text(((x0 + 10) * SS, (yy + 33) * SS), "", fill=(0, 0, 0, 0))
+    dd.line([x0 * SS, (y - 16) * SS, x1 * SS, (y - 16) * SS],
+            fill=(24, 16, 40, 30), width=int(1.2 * SS))
+    return lay
 
 
 def proof(p):
     s4 = p["s4"]
     base = paper(seed=p["seed"] + 3)
     wordmark(base)
-    tdraw(base, s4["kicker"], W / 2, 360, 42, INK, REG, align="center")
-    y = 604
+    tdraw(base, s4["kicker"], W / 2, KICK_Y, 42, INK, REG, align="center")
+    y = 700
     nsz = 120
     for txt, cx, col in ((s4["num_a"], W / 2 - 168, VIO_SOFT),
                          (s4["num_b"], W / 2 + 168, ORANGE_SOFT)):
@@ -451,18 +476,15 @@ def proof(p):
           align="center")
     tdraw(base, s4["lab_b"], W / 2 + 168, y + 62, 22, MUT, BLACK,
           align="center")
-    yy = para(base, s4["body"], W / 2, y + 176, 27, MUT, REG, 800, 1.55)
-    tdraw(base, s4["note"], W / 2, yy + 30, 22, INK, BOLD, align="center")
-    tri(base, 150, 600, 18, ORANGE, 180)
-    tri(base, 928, 940, 16, VIO, 0)
-    mascot(base, W / 2, 1108, 104)
+    para(base, s4["body"], W / 2, BODY_Y, 27, MUT, REG, 800, 1.55)
+    tdraw(base, s4["note"], W / 2, BODY_Y + 58, 22, INK, BOLD, align="center")
     finish(base, p["n"], 3)
     return base
 
 
 def cta(p):
     base, y = build(p["s5"], seed=p["seed"] + 4, rtl=p["rtl"])
-    top = y + 60
+    top = 966.0
     band = Image.new("RGBA", (int((W - 2 * M) * SS), int(186 * SS)),
                      (0, 0, 0, 0))
     ImageDraw.Draw(band).rounded_rectangle(
@@ -475,7 +497,7 @@ def cta(p):
     base.alpha_composite(band, (int(M * SS), int(top * SS)))
     tdraw(base, p["cta"], W / 2, top + 92, 38, CREAM, BLACK, align="center")
     latin(base, p["url"], W / 2, top + 152, 25, CREAM, WORD, "center", 0.4)
-    para(base, p["end_note"], W / 2, top + 258, 23, MUT, REG, 760, 1.5)
+    para(base, p["end_note"], W / 2, 1218, 23, MUT, REG, 760, 1.5)
     finish(base, p["n"], 4, last=True)
     return base
 
@@ -486,56 +508,56 @@ def cta(p):
 DZ = {
     "id": "dz", "n": 5, "seed": 11, "rtl": True,
     "s1": {
-        "kicker": "شكون احنا:", "size": 104, "maxsize": 106, "kgap": 148,
+        "kicker": "شكون احنا:", "size": 108,
         "lines": [
-            [("نصنعو", "r", None), ("أصوات", "b", "v")],
-            [("تبيع،", "b", None), ("بالدارجة", "r", None)],
-            [("تاع", "b", None), ("البلاد", "b", None), ("من", "r", None)],
-            [("الأول", "r", None), ("حتى", "r", None),
+            [("نصنعو", "r", None), ("أصوات", "b", "v"), ("تبيع،", "b", None)],
+            [("بالدارجة", "r", None), ("تاع", "b", None),
+             ("البلاد", "b", None)],
+            [("من", "r", None), ("الأول", "r", None), ("حتى", "r", None),
              ("الآخر.", "r", None)],
         ],
         "stickers": [
-            dict(text="500 دج", x=296, y=316, rot=-7, fill=VIO, icon="sound"),
-            dict(text="دارجة بلادنا", x=862, y=1105, rot=7, fill=ORANGE,
-                 icon="target"),
-            dict(text="24 ساعة", x=236, y=1105, rot=-5, fill=ORANGE,
-                 icon="spark"),
+            dict(text="500 دج", x=250, y=STICK_Y, rot=-7, fill=VIO,
+                 icon="sound"),
+            dict(text="دارجة بلادنا", x=830, y=STICK_Y, rot=7,
+                 fill=ORANGE, icon="target"),
         ],
-        "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
+        "body": "خمس مية دج، بالدارجة، و تسليم في 24 ساعة. تسمعها قبل ما تخلّص.",
+        "marks": [],
     },
     "s2": {
-        "kicker": "علاه هكّاك:", "size": 106, "kgap": 126,
+        "kicker": "علاه هكّاك:", "size": 108,
         "lines": [
             [("دماغك", "b", None), ("ياخذ", "r", None)],
             [("أول", "b", "o"), ("سوم", "b", None), ("و", "r", None)],
             [("يوقف", "b", None), ("عليه.", "r", None)],
         ],
         "stickers": [
-            dict(text="المرجع", x=876, y=1052, rot=6, fill=ORANGE,
+            dict(text="المرجع", x=830, y=STICK_Y, rot=6, fill=ORANGE,
                  icon="target"),
         ],
-        "marks": [(908, 452, 16, 0, ORANGE)],
+        "marks": [],
         "body": "كل سوم بعدو يتقاس بيه، ماشي بالسوق. بدّل بلاصة السوم، "
                 "ماشي السوم.",
     },
     "s3": {
-        "kicker": "واش تدير:", "size": 92, "kgap": 118,
+        "kicker": "واش تدير:", "size": 108,
         "lines": [
             [("ثلاثة", "b", "v"), ("حوايج،", "r", None)],
             [("و", "r", None), ("السوم", "b", "o"), ("يولي", "r", None)],
             [("يهدر", "b", None), ("وحدو.", "r", None)],
         ],
         "stickers": [
-            dict(text="بيّن المرجع", num="01", x=268, y=1088, rot=-5, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="فسّر السوم", num="02", x=562, y=1088, rot=3, fill=VIO,
-                 icon="sound", size=19),
-            dict(text="قارن بوضوح", num="03", x=858, y=1088, rot=-4, fill=ORANGE,
-                 icon="spark", size=19),
+            dict(text="بيّن المرجع", num="01", x=250, y=STICK_Y, rot=-5,
+                 fill=ORANGE, icon="target", size=19),
+            dict(text="فسّر السوم", num="02", x=540, y=STICK_Y, rot=3,
+                 fill=VIO, icon="sound", size=19),
+            dict(text="قارن بوضوح", num="03", x=830, y=STICK_Y, rot=-4,
+                 fill=ORANGE, icon="spark", size=19),
         ],
         "body": "خدّمهم بالترتيب، ما تخلطش ما بيناتهم: المرجع، التفسير، و من "
                 "بعد المقارنة.",
-        "marks": [(150, 470, 18, 180, VIO)],
+        "marks": [],
     },
     "s4": {
         "kicker": "الفرق:",
@@ -546,16 +568,16 @@ DZ = {
         "note": "3 000 دج سوم السوق، 500 دج تاعنا، و الفرق يبان من الأول.",
     },
     "s5": {
-        "kicker": "و من بعد؟", "size": 92, "kgap": 118, "maxsize": 118,
+        "kicker": "و من بعد؟", "size": 108,
         "lines": [
             [("الترتيب", "b", "v"), ("يبيع", "r", None), ("أكثر", "b", None)],
             [("من", "r", None), ("أي", "r", None), ("تخفيض.", "r", None)],
         ],
         "stickers": [
-            dict(text="ما تنقصش السوم", x=268, y=768, rot=6, fill=ORANGE,
+            dict(text="ما تنقصش السوم", x=268, y=700, rot=6, fill=ORANGE,
                  icon="target"),
         ],
-        "marks": [(164, 900, 18, 180, ORANGE)],
+        "marks": [],
     },
     "cta": "خود الصوت تاعك في 24 ساعة",
     "url": "sawtify.space",
@@ -565,7 +587,7 @@ DZ = {
 FR = {
     "id": "fr", "n": 5, "seed": 12, "rtl": False,
     "s1": {
-        "kicker": "Qui on est :", "ksize": 44, "size": 96,
+        "kicker": "Qui on est :", "ksize": 44, "size": 92,
         "lines": [
             [("On crée", "r", None)],
             [("des voix", "b", "v"), ("qui vendent,", "b", None)],
@@ -574,46 +596,48 @@ FR = {
             [("à la livraison.", "r", None)],
         ],
         "stickers": [
-            dict(text="500 DA", x=286, y=316, rot=-7, fill=VIO, icon="sound"),
-            dict(text="darija algérienne", x=888, y=436, rot=7, fill=ORANGE,
-                 icon="target", size=19),
-            dict(text="24 h", x=214, y=1096, rot=-5, fill=ORANGE, icon="spark"),
+            dict(text="500 DA", x=250, y=STICK_Y, rot=-7, fill=VIO,
+                 icon="sound"),
+            dict(text="darija algérienne", x=830, y=STICK_Y, rot=7,
+                 fill=ORANGE, icon="target"),
         ],
-        "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
+        "body": "Cinq cents dinars, en darija, livrés en 24 h. Vous écoutez "
+                "avant de payer.",
+        "marks": [],
     },
     "s2": {
-        "kicker": "Pourquoi :", "ksize": 44, "size": 96, "kgap": 126,
+        "kicker": "Pourquoi :", "ksize": 44, "size": 92,
         "lines": [
             [("Votre cerveau", "b", None)],
             [("retient", "r", None), ("le premier", "b", "o")],
             [("chiffre.", "r", None)],
         ],
         "stickers": [
-            dict(text="ancrage", x=838, y=812, rot=6, fill=ORANGE,
-                 icon="target", size=20),
+            dict(text="ancrage", x=830, y=STICK_Y, rot=6, fill=ORANGE,
+                 icon="target"),
         ],
-        "marks": [(908, 452, 16, 0, ORANGE)],
+        "marks": [],
         "body": "Chaque prix se juge par rapport au précédent, pas par rapport "
                 "au marché. Changez l'ordre, pas le prix.",
     },
     "s3": {
-        "kicker": "Quoi faire :", "ksize": 44, "size": 88, "kgap": 118,
+        "kicker": "Quoi faire :", "ksize": 44, "size": 92,
         "lines": [
             [("Trois", "b", "v"), ("gestes,", "r", None)],
             [("et le prix", "r", None)],
             [("devient", "b", None), ("évident.", "r", None)],
         ],
         "stickers": [
-            dict(text="la réf.", num="01", x=222, y=1092, rot=-5, fill=ORANGE,
-                 icon="target", size=18),
-            dict(text="le détail", num="02", x=544, y=1092, rot=3, fill=VIO,
-                 icon="sound", size=18),
-            dict(text="l’écart", num="03", x=856, y=1092, rot=-4,
+            dict(text="la réf.", num="01", x=250, y=STICK_Y, rot=-5,
+                 fill=ORANGE, icon="target", size=18),
+            dict(text="le détail", num="02", x=540, y=STICK_Y, rot=3,
+                 fill=VIO, icon="sound", size=18),
+            dict(text="l’écart", num="03", x=830, y=STICK_Y, rot=-4,
                  fill=ORANGE, icon="spark", size=18),
         ],
         "body": "Dans cet ordre, sans mélanger : la référence, l'explication, "
                 "puis la comparaison.",
-        "marks": [(150, 470, 18, 180, VIO)],
+        "marks": [],
     },
     "s4": {
         "kicker": "Le chiffre :",
@@ -624,17 +648,17 @@ FR = {
         "note": "3 000 DA le marché, 500 DA chez nous, et l’écart saute aux yeux.",
     },
     "s5": {
-        "kicker": "Et après ?", "ksize": 44, "size": 88, "kgap": 118,
+        "kicker": "Et après ?", "ksize": 44, "size": 92,
         "lines": [
             [("L’ordre", "b", "v"), ("vend", "r", None)],
             [("plus", "b", None)],
             [("qu’une remise.", "r", None)],
         ],
         "stickers": [
-            dict(text="ne baissez pas le prix", x=822, y=604, rot=-6,
+            dict(text="ne baissez pas le prix", x=268, y=810, rot=-6,
                  fill=ORANGE, icon="target", size=18),
         ],
-        "marks": [(164, 900, 18, 180, ORANGE)],
+        "marks": [],
     },
     "cta": "Votre voix en 24 h",
     "url": "sawtify.space",
