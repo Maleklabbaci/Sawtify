@@ -175,6 +175,73 @@ def para(base, text, cx, y, size, fill=MUT, name=REG, max_w=780, leading=1.55):
     return tk.paragraph(base, text, cx, y, size, fill, name, max_w, leading)
 
 
+# ── justification arabe (tatweel) ─────────────────────────────────────────
+TATWEEL = "\u0640"
+DUAL = set("بپتثجچحخسشصضطظعغفقكکگلمنهيىئس")
+
+
+def _is_ar(ch):
+    return "\u0600" <= ch <= "\u06FF"
+
+
+def _tat_slots(tok):
+    """Positions où le tatweel se soude vraiment (après une lettre double)."""
+    out = []
+    for i in range(len(tok) - 1):
+        if tok[i] in DUAL and _is_ar(tok[i + 1]):
+            out.append(i)
+    return out
+
+
+def _tat(tok, k, slots=None):
+    """Insère k tatweels répartis sur les points de soudure."""
+    slots = _tat_slots(tok) if slots is None else slots
+    if not slots or k <= 0:
+        return tok
+    per = [k // len(slots)] * len(slots)
+    for j in range(k % len(slots)):
+        per[j] += 1
+    out, si = "", 0
+    for i, ch in enumerate(tok):
+        out += ch
+        if i < len(tok) - 1 and tok[i] in DUAL and _is_ar(tok[i + 1]):
+            out += TATWEEL * per[si]
+            si += 1
+    return out
+
+
+def justify(tokens, size, target, gapk=0.26, cap=4, gapmax=0.30):
+    """Égalise la ligne : tatweel d'abord (kashida), puis l'interlettrage."""
+    toks = list(tokens)
+    names = [WEIGHT[w] for _, w, _ in toks]
+    base = [t for t, _, _ in toks]
+    slots = [_tat_slots(t) for t in base]
+    n_gap = max(len(toks) - 1, 1)
+    gap0 = size * gapk
+    ws = [twidth(t, n, size) for t, n in zip(base, names)]
+    natural = sum(ws) + gap0 * (len(toks) - 1)
+    extra = target - natural
+    if extra <= 1:
+        return toks, gap0
+
+    ks = [0] * len(toks)
+    rest = extra
+    guard = 0
+    while rest > 2 and guard < 300:
+        guard += 1
+        cand = [i for i in range(len(toks)) if ks[i] < cap and slots[i]]
+        if not cand:
+            break
+        i = min(cand, key=lambda i: (ks[i], -ws[i]))
+        ks[i] += 1
+        nw = twidth(_tat(base[i], ks[i], slots[i]), names[i], size)
+        rest -= nw - ws[i]
+        ws[i] = nw
+    add = min(max(rest, 0) / n_gap, size * gapmax) if len(toks) > 1 else 0.0
+    return [(_tat(base[i], ks[i], slots[i]), toks[i][1], toks[i][2])
+            for i in range(len(toks))], gap0 + add
+
+
 # ── stickers ──────────────────────────────────────────────────────────────
 def _icon(kind, size, color):
     im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -306,14 +373,24 @@ def build(spec, seed, rtl=True):
     while line_w(size) > 936 and size > 56:
         size -= 2
     # remplit la hauteur quand les lignes sont courtes
-    while size < 124:
+    cap = spec.get("maxsize", 124)
+    while size < cap:
         h = (len(spec["lines"]) - 1) * size * 1.28 + size * 1.1
-        if h >= 560 or line_w(size + 4) > 936:
+        if h >= 560 or line_w(size + 4) > 936 or size + 4 > cap:
             break
         size += 4
     lead = size * spec.get("lead", 1.28)
-    for tokens in spec["lines"]:
-        hline(base, tokens, W / 2, y, size, rtl=rtl)
+    lines = [list(map(tuple, toks)) for toks in spec["lines"]]
+    gaps = [size * 0.26] * len(lines)
+    if rtl and spec.get("justify", True) and len(lines) > 1:
+        w_of = [sum(twidth(t, WEIGHT[w], size) for t, w, _ in toks)
+                + size * 0.26 * (len(toks) - 1) for toks in lines]
+        target = min(max(w_of), 936)
+        out = [justify(toks, size, target) for toks in lines]
+        lines = [t for t, _ in out]
+        gaps = [g for _, g in out]
+    for tokens, gp in zip(lines, gaps):
+        hline(base, tokens, W / 2, y, size, rtl=rtl, gap=gp)
         y += lead
     for st in spec.get("stickers", ()):
         sticker(base, st["text"], st["x"], st["y"], st.get("rot", -6),
@@ -409,19 +486,19 @@ def cta(p):
 DZ = {
     "id": "dz", "n": 5, "seed": 11, "rtl": True,
     "s1": {
-        "kicker": "شكون احنا:", "size": 104,
+        "kicker": "شكون احنا:", "size": 104, "maxsize": 106, "kgap": 148,
         "lines": [
-            [("نصنعو", "r", None)],
-            [("أصوات", "b", "v"), ("تبيع،", "b", None)],
-            [("بالدارجة", "r", None)],
-            [("تاع البلاد", "b", None)],
-            [("من الأول حتى الآخر.", "r", None)],
+            [("نصنعو", "r", None), ("أصوات", "b", "v")],
+            [("تبيع،", "b", None), ("بالدارجة", "r", None)],
+            [("تاع", "b", None), ("البلاد", "b", None), ("من", "r", None)],
+            [("الأول", "r", None), ("حتى", "r", None),
+             ("الآخر.", "r", None)],
         ],
         "stickers": [
             dict(text="500 دج", x=296, y=316, rot=-7, fill=VIO, icon="sound"),
-            dict(text="دارجة بلادنا", x=892, y=436, rot=7, fill=ORANGE,
+            dict(text="دارجة بلادنا", x=862, y=1105, rot=7, fill=ORANGE,
                  icon="target"),
-            dict(text="24 ساعة", x=232, y=1096, rot=-5, fill=ORANGE,
+            dict(text="24 ساعة", x=236, y=1105, rot=-5, fill=ORANGE,
                  icon="spark"),
         ],
         "marks": [(150, 500, 20, 180, ORANGE), (952, 720, 16, 0, VIO)],
@@ -430,12 +507,11 @@ DZ = {
         "kicker": "علاه هكّاك:", "size": 106, "kgap": 126,
         "lines": [
             [("دماغك", "b", None), ("ياخذ", "r", None)],
-            [("أول", "b", "o"), ("سوم", "b", None)],
-            [("و", "r", None), ("يوقف", "b", None)],
-            [("عليه.", "r", None)],
+            [("أول", "b", "o"), ("سوم", "b", None), ("و", "r", None)],
+            [("يوقف", "b", None), ("عليه.", "r", None)],
         ],
         "stickers": [
-            dict(text="المرجع", x=838, y=812, rot=6, fill=ORANGE,
+            dict(text="المرجع", x=876, y=1052, rot=6, fill=ORANGE,
                  icon="target"),
         ],
         "marks": [(908, 452, 16, 0, ORANGE)],
@@ -447,7 +523,7 @@ DZ = {
         "lines": [
             [("ثلاثة", "b", "v"), ("حوايج،", "r", None)],
             [("و", "r", None), ("السوم", "b", "o"), ("يولي", "r", None)],
-            [("يهدر.", "b", None)],
+            [("يهدر", "b", None), ("وحدو.", "r", None)],
         ],
         "stickers": [
             dict(text="بيّن المرجع", num="01", x=268, y=1088, rot=-5, fill=ORANGE,
@@ -470,14 +546,13 @@ DZ = {
         "note": "3 000 دج سوم السوق، 500 دج تاعنا، و الفرق يبان من الأول.",
     },
     "s5": {
-        "kicker": "و من بعد؟", "size": 92, "kgap": 118,
+        "kicker": "و من بعد؟", "size": 92, "kgap": 118, "maxsize": 118,
         "lines": [
-            [("الترتيب", "b", "v"), ("يبيع", "r", None)],
-            [("أكثر", "b", None)],
-            [("من التخفيض.", "r", None)],
+            [("الترتيب", "b", "v"), ("يبيع", "r", None), ("أكثر", "b", None)],
+            [("من", "r", None), ("أي", "r", None), ("تخفيض.", "r", None)],
         ],
         "stickers": [
-            dict(text="ما تنقصش السوم", x=846, y=606, rot=6, fill=ORANGE,
+            dict(text="ما تنقصش السوم", x=268, y=768, rot=6, fill=ORANGE,
                  icon="target"),
         ],
         "marks": [(164, 900, 18, 180, ORANGE)],
