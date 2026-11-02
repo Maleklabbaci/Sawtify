@@ -25,7 +25,9 @@
 <header>
   <h1>Sawtify</h1>
   <div class="grp">
-    <span class="lbl">JOURS</span>
+    <span class="lbl">TEST</span>
+    <button class="tab" id="tPilot">J01 · iOS premium</button>
+    <span class="lbl" style="margin-left:10px">JOURS</span>
     <button class="tab" id="tJour">J01–J30</button>
     <span class="lbl" style="margin-left:10px">GABARITS</span>
     <button class="tab" id="tGab">1 · A · B</button>
@@ -38,17 +40,18 @@
 <main class="rail" id="rail"></main>
 <p class="hint" id="hint"></p>
 <script>
-var MODE = "jour", PICK = "J01", LANG = "dz", V = "";
+var MODE = "pilote", PICK = "J01", LANG = "dz", V = "";
 var JOURS = Array.from({length:30}, function(_, i){ return "J" + String(i + 1).padStart(2, "0"); });
 var GABS = [["1",""],["A","vA"],["B","vB"]];
 var LAB = {dz:["01","02","03","04","05"], fr:["01","02","03","04","05"]};
 function base(){
+  if (MODE === "pilote") return "pilote-J01/" + LANG + "/";
   if (MODE === "jour") return "jour-" + PICK + "/" + LANG + "/";
   return "lettre/" + (V ? V + "/" : "") + LANG + "/";
 }
 function drawPicks(){
   var p = document.getElementById("picks"); p.innerHTML = "";
-  var list = MODE === "jour" ? JOURS.map(function(j){return [j, j];}) : GABS;
+  var list = MODE === "jour" ? JOURS.map(function(j){return [j, j];}) : (MODE === "gab" ? GABS : []);
   list.forEach(function(kv){
     var b = document.createElement("button");
     b.textContent = kv[0];
@@ -64,18 +67,23 @@ function draw(){
     var f = document.createElement("figure");
     var im = document.createElement("img");
     im.src = base() + "0" + i + ".jpg?v=" + Date.now();
-    var c = document.createElement("figcaption"); c.textContent = "0" + i + " / 05";
+    var c = document.createElement("figcaption");
+    c.textContent = (MODE === "pilote" ? "iOS PREMIUM J01 · " : "") + "0" + i + " / 05";
     f.appendChild(im); f.appendChild(c); r.appendChild(f);
   }
+  document.getElementById("tPilot").className = "tab" + (MODE === "pilote" ? " on" : "");
   document.getElementById("tJour").className = "tab" + (MODE === "jour" ? " on" : "");
   document.getElementById("tGab").className = "tab" + (MODE === "gab" ? " on" : "");
   document.getElementById("ldz").className = LANG === "dz" ? "on" : "";
   document.getElementById("lfr").className = LANG === "fr" ? "on" : "";
-  document.getElementById("hint").textContent = MODE === "jour"
-    ? "carrousel " + PICK + " · " + (LANG === "dz" ? "darija" : "français")
-    : "gabarits · " + (LANG === "dz" ? "darija" : "français");
+  document.getElementById("hint").textContent = MODE === "pilote"
+    ? "nouveau test iOS premium J01 · " + (LANG === "dz" ? "darija" : "français")
+    : MODE === "jour"
+      ? "carrousel " + PICK + " · " + (LANG === "dz" ? "darija" : "français")
+      : "gabarits · " + (LANG === "dz" ? "darija" : "français");
   drawPicks();
 }
+document.getElementById("tPilot").onclick = function(){ MODE="pilote"; draw(); };
 document.getElementById("tJour").onclick = function(){ MODE="jour"; draw(); };
 document.getElementById("tGab").onclick = function(){ MODE="gab"; draw(); };
 document.getElementById("ldz").onclick = function(){ LANG="dz"; draw(); };

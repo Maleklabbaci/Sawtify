@@ -33,3 +33,6 @@ marketing/instagram/slides/workshop/**/*.png
 marketing/instagram/slides/jour-J[0-9][0-9]/
 marketing/instagram/slides/planche-J[0-9][0-9].jpg
 marketing/instagram/slides/planche-30-jours.jpg
+# J01 design pilot generated exports (kept separate from approved production slides)
+marketing/instagram/slides/pilote-J01/
+marketing/instagram/slides/planche-pilote-J01.jpg
