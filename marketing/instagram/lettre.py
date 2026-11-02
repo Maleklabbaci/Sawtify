@@ -113,12 +113,12 @@ def pill_size(text, size, icon, font=BLK):
     tw_ = twidth(text, font, size)
     ic = int(size * 1.15) if icon else 0
     gap = int(size * 0.42) if icon else 0
-    w = size * 1.9 + tw_ + ic + gap
+    w = size * 2.0 + tw_ + ic + gap
     h = size * 2.45
     return w, h
 
 
-def pill(base, text, cx, cy, rot=-6, size=26, fill=VIO_SOFT, fg=INK,
+def pill(base, text, cx, cy, rot=-6, size=30, fill=VIO_SOFT, fg=INK,
          icon="target", font=BLK):
     tw_ = twidth(text, font, size)
     ic = int(size * 1.15) if icon else 0
@@ -146,7 +146,7 @@ def pill(base, text, cx, cy, rot=-6, size=26, fill=VIO_SOFT, fg=INK,
                                 int((cy - card.height / 2 / SS) * SS)))
 
 
-def dart(base, cx, cy, size=26, color=VIO, rot=0):
+def dart(base, cx, cy, size=30, color=VIO, rot=0):
     ic = _icon("target", size, color)
     if rot:
         ic = ic.rotate(rot, expand=True, resample=Image.BICUBIC)
@@ -200,29 +200,88 @@ def hline(base, tokens, cx, y, size, gap=None, fonts=None, rtl=True):
             tdraw(mask, t, xt, y, size, 255, fonts[w], align="left")
             bb = mask.getbbox()
             if bb:
-                px, py = size * 0.16, size * 0.14
+                px, py = size * 0.12, size * 0.09
                 bx0, by0 = bb[0] / SS - px, bb[1] / SS - py
                 bw = (bb[2] - bb[0]) / SS + 2 * px
                 bh = (bb[3] - bb[1]) / SS + 2 * py
                 bar = Image.new("RGBA", (int(bw * SS), int(bh * SS)), (0, 0, 0, 0))
                 ImageDraw.Draw(bar).rectangle([0, 0, bar.width - 1, bar.height - 1],
-                                              fill=(*VIO_SOFT, 240))
-                bar = bar.rotate(-1.2, expand=True, resample=Image.BICUBIC)
+                                              fill=(*VIO_SOFT, 255))
+                bar = bar.rotate(-1.1, expand=True, resample=Image.BICUBIC)
                 base.alpha_composite(bar, (int((bx0 - (bar.width / SS - bw) / 2) * SS),
                                            int((by0 - (bar.height / SS - bh) / 2) * SS)))
-                marker(base, bx0 - size * 0.02, by0 - size * 0.30, size * 0.24, VIO)
+                dart(base, bx0 + bw * 0.06, by0 - size * 0.12, size * 0.26, VIO, 0)
+                tdraw(base, t, xt, y, size, (58, 22, 120), fonts[w], align="left")
+                continue
         tdraw(base, t, xt, y, size, INK, fonts[w], align="left")
     return cx - total / 2, cx + total / 2
+
+
+def lines_geo(lines, cx, top, size, lead=1.30, fonts=None, rtl=True):
+    """Bornes de chaque ligne, mesurées avant tout dessin."""
+    fonts = fonts or WEIGHT
+    gap = size * 0.22
+    geo = []
+    y = top
+    for toks in lines:
+        ws = [twidth(t, fonts[w], size) for t, w, _ in toks]
+        total = sum(ws) + gap * (len(toks) - 1)
+        geo.append((y, cx - total / 2, cx + total / 2))
+        y += size * lead
+    return geo
 
 
 def block(base, lines, cx, top, size, lead=1.30, fonts=None, rtl=True):
     y = top
     geo = []
     for toks in lines:
-        x0, x1 = hline(base, toks, cx, y, size, fonts=fonts, rtl=rtl)
+        x0, x1 = hline(base, toks, cx, y, size, gap=size * 0.22,
+                       fonts=fonts, rtl=rtl)
         geo.append((y, x0, x1))
         y += size * lead
     return y - size * lead, geo
+
+
+def _hit(a, b, pad=6):
+    return not (a[2] + pad < b[0] or a[0] - pad > b[2]
+                or a[3] + pad < b[1] or a[1] - pad > b[3])
+
+
+def place_pill(spec, geo, size, fonts, placed):
+    """Trouve une position de pastille collée au bout d'une ligne, hors du texte."""
+    idx, side = spec["anchor"]
+    idx = min(idx, len(geo) - 1)
+    fnt = fonts["b"]
+    psize = spec.get("size", 32)
+    while psize >= 24:
+        pw, ph = pill_size(spec["t"], psize, spec.get("icon", "target"), fnt)
+        ly, lx0, lx1 = geo[idx]
+        for dx in (max(spec.get("dx",24),30), 40, 52, 64, 78, 92):
+            for dy in (spec.get("dy", -6), -ph * 0.40, ph * 0.40, -ph * 0.72,
+                       ph * 0.72):
+                cx = (lx1 + dx + pw / 2) if side == "right" \
+                    else (lx0 - dx - pw / 2)
+                cy = ly + dy
+                rot = math.radians(abs(spec.get("rot", -6)))
+                bw = pw * math.cos(rot) + ph * math.sin(rot)
+                bh = pw * math.sin(rot) + ph * math.cos(rot)
+                box = (cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2)
+                if box[0] < 44 or box[2] > W - 44 or box[1] < 372 or box[3] > 1224:
+                    continue
+                # hors de toutes les lignes de texte
+                bad = False
+                for (gy, gx0, gx1) in geo:
+                    line_box = (gx0, gy - size * 0.98, gx1, gy + size * 0.44)
+                    if _hit(box, line_box, pad=22):
+                        bad = True
+                        break
+                if bad:
+                    continue
+                if any(_hit(box, q, pad=12) for q in placed):
+                    continue
+                return cx, cy, psize, box
+        psize -= 2
+    return None
 
 
 def kicker(base, text, y=300, size=58, font=BLK):
@@ -236,23 +295,42 @@ def slide(spec, seed=3, rtl=True):
     base = paper(seed=seed)
     wordmark(base)
     fonts = spec.get("fonts") or WEIGHT
+    size = spec.get("size", 118 if rtl else 90)
+    while size > 60 and max((g[2] - g[0]) for g in
+                            lines_geo(spec["lines"], W / 2, 0, size, 1.3, fonts, rtl)) > 812:
+        size -= 2
+    top = spec.get("top", 470)
+    lead = spec.get("lead", 1.30)
     kicker(base, spec["kicker"], spec.get("kick_y", 300), spec.get("kick_size", 58),
            fonts["b"] if spec.get("fonts") else BLK)
-    bot, geo = block(base, spec["lines"], W / 2, spec.get("top", 470),
-                     spec.get("size", 108 if rtl else 84), spec.get("lead", 1.30),
-                     fonts=fonts, rtl=rtl)
+
+    geo = lines_geo(spec["lines"], W / 2, top, size, lead, fonts, rtl)
+    placed = []
+    fallback_y = 1156
     for it in spec.get("pills", ()):
-        idx, side = it["anchor"]
-        idx = min(idx, len(geo) - 1)
-        ly, lx0, lx1 = geo[idx]
-        fnt = fonts["b"] if spec.get("fonts") else BLK
-        pw, ph = pill_size(it["t"], it.get("size", 26), it.get("icon", "target"), fnt)
-        dx = it.get("dx", 24)
-        cx = (lx1 + dx + pw / 2) if side == "right" else (lx0 - dx - pw / 2)
-        cx = min(max(cx, 40 + pw / 2), W - 40 - pw / 2)
-        cy = ly + it.get("dy", -6)
-        pill(base, it["t"], cx, cy, it.get("rot", -6), it.get("size", 26),
-             it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fnt)
+        it = dict(it)
+        if it.get("dy") in (54, 58, 62, 44, 46, 56):   # posé sous la ligne
+            it["dy"] = -14
+        hit = place_pill(it, geo, size, fonts, placed)
+        if not hit:
+            # repli : sous le bloc, côté gauche puis droit, sans toucher au texte
+            psize = it.get("size", 32)
+            pw, ph = pill_size(it["t"], psize, it.get("icon", "target"), fonts["b"])
+            for cx in (40 + 24 + pw / 2, W - 40 - 24 - pw / 2):
+                box = (cx - pw / 2, fallback_y - ph / 2, cx + pw / 2,
+                       fallback_y + ph / 2)
+                if box[3] < 1216 and not any(_hit(box, q, pad=10) for q in placed):
+                    placed.append(box)
+                    pill(base, it["t"], cx, fallback_y, it.get("rot", -6), psize,
+                         it.get("fill", VIO_SOFT), INK, it.get("icon", "target"),
+                         fonts["b"])
+                    break
+            continue
+        cx, cy, psize, box = hit
+        placed.append(box)
+        pill(base, it["t"], cx, cy, it.get("rot", -6), psize,
+             it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fonts["b"])
+    block(base, spec["lines"], W / 2, top, size, lead, fonts=fonts, rtl=rtl)
     for d in spec.get("darts", ()):
         dart(base, d[0], d[1], d[2], VIO, d[3] if len(d) > 3 else 0)
     return base
@@ -306,7 +384,7 @@ DZ = {"id": "dz", "seed": 3, "slides": [
          pills=[dict(t="500 دج", anchor=(1, "right"), dx=24, dy=-18, rot=6,
                      icon="spark"),
                 dict(t="sawtify.space", anchor=(2, "left"), dx=-4, dy=58, rot=-5,
-                     icon="target", size=22)],
+                     icon="target", size=26)],
          darts=[(560, 1080, 26)]),
 ]}
 
