@@ -246,12 +246,12 @@ def slide(spec, seed=3, rtl=True):
         idx = min(idx, len(geo) - 1)
         ly, lx0, lx1 = geo[idx]
         fnt = fonts["b"] if spec.get("fonts") else BLK
-        pw, ph = pill_size(it["t"], it.get("size", 24), it.get("icon", "target"), fnt)
+        pw, ph = pill_size(it["t"], it.get("size", 26), it.get("icon", "target"), fnt)
         dx = it.get("dx", 24)
         cx = (lx1 + dx + pw / 2) if side == "right" else (lx0 - dx - pw / 2)
         cx = min(max(cx, 40 + pw / 2), W - 40 - pw / 2)
         cy = ly + it.get("dy", -6)
-        pill(base, it["t"], cx, cy, it.get("rot", -6), it.get("size", 24),
+        pill(base, it["t"], cx, cy, it.get("rot", -6), it.get("size", 26),
              it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fnt)
     for d in spec.get("darts", ()):
         dart(base, d[0], d[1], d[2], VIO, d[3] if len(d) > 3 else 0)
@@ -267,7 +267,7 @@ DZ = {"id": "dz", "seed": 3, "slides": [
                 [("حتى", "r", None), ("التسليم.", "b", None)]],
          pills=[dict(t="دارجة بلادنا", anchor=(1, "right"), dx=26, dy=-26,
                      rot=6, icon="target"),
-                dict(t="500 دج · 30 ثانية", anchor=(0, "right"), dx=10, dy=52,
+                dict(t="500 دج · 30 ثانية", anchor=(0, "right"), dx=-4, dy=56,
                      rot=-4, icon="sound"),
                 dict(t="تسليم 24 ساعة", anchor=(4, "left"), dx=-6, dy=62,
                      rot=5, icon="spark")],
@@ -316,9 +316,9 @@ FR = {"id": "fr", "seed": 23, "rtl": False, "fonts": WEIGHT_LAT, "slides": [
                 [("des", "r", None), ("voix", "b", "mark"), ("qui", "r", None)],
                 [("vendent,", "b", None)],
                 [("en", "r", None), ("darija.", "b", None)]],
-         pills=[dict(t="500 DA · 30 sec", anchor=(0, "right"), dx=8, dy=44,
+         pills=[dict(t="500 DA · 30 sec", anchor=(0, "right"), dx=14, dy=42,
                      rot=7, icon="sound"),
-                dict(t="livré en 24 h", anchor=(3, "right"), dx=-2, dy=48,
+                dict(t="livré en 24 h", anchor=(3, "left"), dx=16, dy=44,
                      rot=-4, icon="spark")],
          darts=[(596, 1092, 26)]),
     dict(kicker="Le problème :",
@@ -335,7 +335,7 @@ FR = {"id": "fr", "seed": 23, "rtl": False, "fonts": WEIGHT_LAT, "slides": [
                 [("choisissez", "b", "mark")],
                 [("la", "r", None), ("voix.", "b", None)],
                 [("24 h.", "r", None)]],
-         pills=[dict(t="darja algérienne", anchor=(2, "left"), dx=-2, dy=46, rot=-6,
+         pills=[dict(t="darja algérienne", anchor=(0, "left"), dx=18, dy=44, rot=-6,
                      icon="target")],
          darts=[(596, 1080, 26)]),
     dict(kicker="L’écart :",
@@ -343,7 +343,7 @@ FR = {"id": "fr", "seed": 23, "rtl": False, "fonts": WEIGHT_LAT, "slides": [
                 [("chez", "r", None), ("nous,", "b", None)],
                 [("21", "b", None), ("jours", "r", None)],
                 [("en", "r", None), ("studio.", "b", None)]],
-         pills=[dict(t="sans attendre", anchor=(2, "right"), dx=18, dy=-58, rot=-6,
+         pills=[dict(t="sans attendre", anchor=(2, "right"), dx=16, dy=-54, rot=-6,
                      icon="target")],
          darts=[(340, 1030, 28)]),
     dict(kicker="Et après ?",
