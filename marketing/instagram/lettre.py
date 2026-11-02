@@ -297,51 +297,75 @@ def kicker(base, text, y=300, size=58, font=BLK):
 # ═══════════════════════════════════════════════════════════════════════════
 #  slides
 # ═══════════════════════════════════════════════════════════════════════════
-def footer(base, page, rtl=True):
+def footer(base, page, rtl=True, rule_y=1266, text_y=1296):
     """Pied de page : url à gauche, pagination à droite, en Space Grotesk."""
     d = ImageDraw.Draw(base)
     f = tk._pil(SG_B, 13)
     txt = "SAWTIFY.SPACE"
-    x = 46.0
-    for c in txt:
-        d.text((x * SS, 1296 * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
-        x += d.textlength(c, font=f) / SS + 3.0
-    d.line([46 * SS, 1266 * SS, (W - 46) * SS, 1266 * SS],
+    if rtl:
+        x = W - 46.0
+        for c in txt:
+            x -= d.textlength(c, font=f) / SS
+            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
+            x -= 3.0
+    else:
+        x = 46.0
+        for c in txt:
+            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
+            x += d.textlength(c, font=f) / SS + 3.0
+    d.line([46 * SS, rule_y * SS, (W - 46) * SS, rule_y * SS],
            fill=(150, 140, 172, 60), width=int(1.2 * SS))
     num = page
-    x = W - 46.0
-    for c in reversed(num):
-        x -= d.textlength(c, font=f) / SS
-        d.text((x * SS, 1296 * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
-        x -= 3.0
+    if rtl:
+        x = 46.0
+        for c in num:
+            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
+            x += d.textlength(c, font=f) / SS + 3.0
+    else:
+        x = W - 46.0
+        for c in reversed(num):
+            x -= d.textlength(c, font=f) / SS
+            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
+            x -= 3.0
+
+
+def _wid(spec, sz, lead, fonts, rtl):
+    return max((g[2] - g[0]) for g in
+               lines_geo(spec["lines"], W / 2, 0, sz, lead, fonts, rtl))
+
+
+def fit_size(spec, fonts, rtl, lead=1.26, cap=176):
+    """Plus grande taille qui tient : largeur utile + hauteur disponible."""
+    n = len(spec["lines"])
+    best = 60
+    for sz in range(60, cap + 1, 2):
+        if _wid(spec, sz, lead, fonts, rtl) > 830:
+            break
+        vis = (n - 1) * sz * lead + 1.20 * sz
+        if vis <= 838:
+            best = sz
+    return best
+
+
+TITLE_TOP = 452.0
+
+
+def block_top(spec, sz, lead):
+    """Le bloc démarre TOUJOURS à la même hauteur : c'est la grille."""
+    return TITLE_TOP
 
 
 def slide(spec, seed=3, rtl=True, fonts=None, page="", pill_font=None,
-          size_default=96):
+          size_default=96, shared_size=None):
     base = paper(seed=seed)
     wordmark(base)
     fonts = fonts or WEIGHT
     pf = pill_font or fonts["b"]
-    size = spec.get("size", size_default)
-    top = spec.get("top", 452)
     lead = spec.get("lead", 1.26)
-    n = len(spec["lines"])
+    size = shared_size or fit_size(spec, fonts, rtl, lead)
+    top = block_top(spec, size, lead)
     kicker(base, spec["kicker"], spec.get("kick_y", 300),
            spec.get("kick_size", 56), fonts["b"])
-
-    def wid(sz):
-        return max((g[2] - g[0]) for g in lines_geo(spec["lines"], W / 2, 0,
-                                                     sz, lead, fonts, rtl))
-
-    # on cherche la plus grande taille qui tienne : sous l'accroche et
-    # au-dessus du pied de page, sans jamais dépasser la largeur utile
-    best = (size, top)
-    for sz in range(60, 180, 2):
-        ty = max(top, 356 + 0.94 * sz)
-        bottom = ty + (n - 1) * sz * lead + 0.46 * sz
-        if wid(sz) <= 830 and bottom <= 1180:
-            best = (sz, ty)
-    size, top = best
 
     geo = lines_geo(spec["lines"], W / 2, top, size, lead, fonts, rtl)
     placed = []
@@ -402,8 +426,7 @@ DZ = {"id": "dz", "seed": 3, "fonts": WEIGHT, "pill_font": AMR_B, "rtl": True,
     dict(kicker="السوم:",
          lines=[[("20", "b", "mark"), ("نقطة", "r", None)],
                 [("للصوت", "b", None), ("الواحد،", "r", None)],
-                [("يعني", "r", None), ("100 دج", "b", None)],
-                [("تقريبا.", "r", None)]],
+                [("يعني", "r", None), ("100 دج", "b", None)]],
          pills=[dict(t="500 دج = 5 أصوات", anchor=(1, "left"), icon="spark",
                      size=23, rot=-5)]),
     dict(kicker="ابدا درك:",
@@ -446,9 +469,8 @@ FR = {"id": "fr", "seed": 23, "fonts": WEIGHT_LAT, "pill_font": SG_B,
                      size=23, rot=5)]),
     dict(kicker="Le prix :",
          lines=[[("20", "b", "mark"), ("points", "r", None)],
-                [("= une voix,", "b", None)],
-                [("environ", "r", None), ("100", "b", None)],
-                [("DA.", "b", None)]],
+                [("=", "r", None), ("une", "b", None), ("voix,", "b", None)],
+                [("environ", "r", None), ("100 DA.", "b", None)]],
          pills=[dict(t="500 DA = 5 voix", anchor=(1, "left"), icon="spark",
                      size=21, rot=-5)]),
     dict(kicker="Commencez :",
@@ -467,11 +489,17 @@ PUBS = [DZ, FR]
 def render(pub):
     d = OUT / pub["id"]
     d.mkdir(parents=True, exist_ok=True)
+    fonts = pub.get("fonts") or WEIGHT
+    rtl = pub.get("rtl", True)
+    # une seule taille de titre pour tout le carrousel : c'est ce qui fait
+    # la cohérence d'une slide à l'autre
+    shared = min(fit_size(sp, fonts, rtl) for sp in pub["slides"])
+    print("  · taille de titre partagée :", shared, "px")
     for i, spec in enumerate(pub["slides"]):
-        img = slide(spec, seed=pub["seed"] + i, rtl=pub.get("rtl", True),
-                    fonts=pub.get("fonts"), page=f"{i + 1:02d} / 05",
-                    pill_font=pub.get("pill_font"),
-                    size_default=pub.get("size", 96)).convert("RGB").resize(
+        img = slide(spec, seed=pub["seed"] + i, rtl=rtl, fonts=pub.get("fonts"),
+                    page=f"{i + 1:02d} / 05", pill_font=pub.get("pill_font"),
+                    size_default=pub.get("size", 96),
+                    shared_size=shared).convert("RGB").resize(
             (W, H), Image.LANCZOS)
         img.save(d / f"{i + 1:02d}.jpg", quality=95, optimize=True, subsampling=1)
         print("  ✓", pub["id"], f"{i + 1:02d}")
