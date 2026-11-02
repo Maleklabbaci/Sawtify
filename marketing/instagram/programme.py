@@ -8,6 +8,8 @@ jamais 100 % فصحى : « وخّد » et non « خد », « دير » et non «
 غادي/برشا/بوريك ».
 Compositions : « 1 » lettre · « A » affiche · « B » carte pleine.
 """
+import re
+
 import lettre as L
 
 
@@ -235,4 +237,340 @@ DAYS = [
                                       [B("à l'oreille.")]],
               pills=[pl("sawtify.space", "spark", 21, -5, "lat")]),
      ]},
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  J06 → J30 · copie compacte : «ligne 1 / ligne 2 / ligne 3», *mot* = surligné
+# ═══════════════════════════════════════════════════════════════════════════
+def _lines(text):
+    out = []
+    for ln in text.split("/"):
+        toks = []
+        words = re.finditer(r"\*([^*]+)\*([.,!?؟،؛:]*)|([^\s*]+)", ln.strip())
+        for i, match in enumerate(words):
+            if match.group(1) is not None:
+                toks.append((match.group(1) + match.group(2), "b", "mark"))
+            else:
+                word = match.group(3)
+                toks.append((word, "b" if i % 2 == 0 else "r", None))
+        if toks:
+            out.append(toks)
+    return out
+
+
+def SL(kicker, text, pills=()):
+    return dict(kicker=kicker, lines=_lines(text), pills=list(pills))
+
+
+def P(t, icon="target", size=24, rot=-5, font=None):
+    return pl(t, icon, size, rot, font)
+
+
+def DD(n, comp, theme, dz, fr):
+    return {"n": n, "comp": comp, "theme": theme, "dz": dz, "fr": fr}
+
+
+DAYS += [
+    DD(6, "B", "Le paiement",
+       [SL("الدفع،", "خلّص / بالذهبية / ولا CIB.", [P("BaridiMob", "target", 22, -6, "lat")]),
+        SL("بلا كارت،", "الدفع يمرّ / من التيليفون / مباشرة.", [P("تليفون", "sound", 25, 5)]),
+        SL("الأمان،", "كل عملية / تدوز / عبر *SATIM*.", [P("SATIM", "spark", 24, -5, "lat")]),
+        SL("الرصيد،", "النقاط تدخل / للحساب / *فيسع*.", [P("فيسع", "target", 25, 5)]),
+        SL("ابدا،", "سجّل / و اختار / طريقة الدفع.", [P("بلا التزام", "target", 24, -5)])],
+       [SL("Le paiement", "Payez / par Edahabia / ou CIB.", [P("BaridiMob", "target", 21, -6, "lat")]),
+        SL("Sans carte", "Le paiement passe / par / le téléphone.", [P("téléphone", "sound", 22, 5)]),
+        SL("La sécurité", "Chaque paiement / passe / par *SATIM*.", [P("SATIM", "spark", 22, -5, "lat")]),
+        SL("Le solde", "Les points arrivent / sur le compte / tout de suite.", [P("immédiat", "target", 22, 5)]),
+        SL("Commencez", "Inscrivez-vous / et choisissez / votre paiement.", [P("sans engagement", "target", 21, -5)])]),
+
+    DD(7, "1", "Pack Starter",
+       [SL("باك البداية،", "500 دج / 100 نقطة / *5* أصوات.", [P("500 دج", "spark", 25, 4)]),
+        SL("الحساب،", "كل صوت / يكلّفك / *100* دج.", [P("≈ 100 دج", "target", 24, -5)]),
+        SL("لمن؟", "للي بدا / يحوّس / على صوت.", [P("حسابات جديدة", "target", 22, 5)]),
+        SL("التجربة،", "جرّب *5* أصوات / قبل ما / تزيد.", [P("5 أصوات", "sound", 24, -5)]),
+        SL("دير،", "اختار الباك / من / sawtify.space.", [P("sawtify.space", "spark", 22, 5, "lat")])],
+       [SL("Pack Starter", "500 DA / 100 points / *5* voix.", [P("500 DA", "spark", 22, 4, "lat")]),
+        SL("Le calcul", "Chaque voix / coûte / *100* DA.", [P("≈ 100 DA", "target", 22, -5)]),
+        SL("Pour qui", "Pour ceux / qui démarrent / la vidéo.", [P("nouveaux comptes", "target", 20, 5)]),
+        SL("Le test", "Testez *5* voix / avant / de recharger.", [P("5 voix", "sound", 22, -5)]),
+        SL("Lancez", "Choisissez le pack / sur / sawtify.space.", [P("sawtify.space", "spark", 21, 5, "lat")])]),
+
+    DD(8, "A", "Pack Pro",
+       [SL("باك الاحتراف،", "1000 دج / 220 نقطة / *+10* % زيادة.", [P("باك الاحتراف", "target", 24, -5)]),
+        SL("الحساب،", "الصوت / يولي / *91* دج.", [P("≈ 91 دج", "spark", 24, 5)]),
+        SL("الزيادة،", "*+10* % / نقاط زيادة / على الباك.", [P("+10 %", "spark", 22, -5, "lat")]),
+        SL("لمن؟", "للي يخدم / بزاف / بالفيديو.", [P("للاحتراف", "target", 24, 5)]),
+        SL("دير،", "زيد للباك / و اربح / *220* نقطة.", [P("الترقية", "target", 23, -5)])],
+       [SL("Pack Pro", "1000 DA / 220 points / *+10* % offerts.", [P("pack Pro", "target", 21, -5, "lat")]),
+        SL("Le calcul", "La voix / revient / à *91* DA.", [P("≈ 91 DA", "spark", 22, 5)]),
+        SL("Le bonus", "*+10* % / de points / en plus.", [P("+10 %", "spark", 21, -5, "lat")]),
+        SL("Pour qui", "Pour ceux / qui publient / souvent.", [P("usage pro", "target", 21, 5)]),
+        SL("Passez au Pro", "Montez de pack / et prenez / *220* points.", [P("mise à niveau", "target", 20, -5)])]),
+
+    DD(9, "B", "Pack Studio",
+       [SL("الباك الكبير،", "2500 دج / 600 نقطة / *+20* % زيادة.", [P("باك الاستوديو", "target", 23, -5)]),
+        SL("الحساب،", "الصوت / يولي / *83* دج.", [P("≈ 83 دج", "spark", 24, 5)]),
+        SL("الزيادة،", "*+20* % / على كل / تعبئة.", [P("+20 %", "spark", 22, -5, "lat")]),
+        SL("لمن؟", "للفريق / اللي ينتج / كل يوم.", [P("للفرق", "target", 24, 5)]),
+        SL("دير،", "اختار الباك / و / ابدا.", [P("sawtify.space", "spark", 22, -5, "lat")])],
+       [SL("Pack Studio", "2500 DA / 600 points / *+20* % offerts.", [P("pack Studio", "target", 20, -5, "lat")]),
+        SL("Le calcul", "La voix / revient / à *83* DA.", [P("≈ 83 DA", "spark", 22, 5)]),
+        SL("Le bonus", "*+20* % / à chaque / recharge.", [P("+20 %", "spark", 21, -5, "lat")]),
+        SL("Pour qui", "Pour les équipes / qui produisent / chaque jour.", [P("équipes", "target", 21, 5)]),
+        SL("Lancez", "Choisissez le pack / et / commencez.", [P("sawtify.space", "spark", 21, -5, "lat")])]),
+
+    DD(10, "1", "Pack Business",
+       [SL("باك الشركات،", "5000 دج / 1350 نقطة / *+35* % زيادة.", [P("باك الشركات", "target", 23, -5)]),
+        SL("الحساب،", "الصوت / يولي / *75* دج.", [P("≈ 75 دج", "spark", 24, 5)]),
+        SL("الكمية،", "1350 نقطة / = *67* صوت.", [P("67 صوت", "sound", 24, -5)]),
+        SL("لمن؟", "للقنوات / و الوكالات / و المتاجر.", [P("للشركات", "target", 23, 5)]),
+        SL("دير،", "تواصل معنا / و نركّبو / الباك.", [P("sawtify.space", "spark", 22, -5, "lat")])],
+       [SL("Pack Business", "5000 DA / 1350 points / *+35* % offerts.", [P("pack Business", "target", 19, -5, "lat")]),
+        SL("Le calcul", "La voix / revient / à *75* DA.", [P("≈ 75 DA", "spark", 22, 5)]),
+        SL("Le volume", "1350 points / = *67* voix.", [P("67 voix", "sound", 22, -5)]),
+        SL("Pour qui", "Pour les chaînes, / agences / et boutiques.", [P("entreprises", "target", 20, 5)]),
+        SL("Parlons-en", "Écrivez-nous / et on monte / le pack.", [P("sawtify.space", "spark", 21, -5, "lat")])]),
+
+    DD(11, "A", "50 points offerts",
+       [SL("الهدية،", "*50* نقطة / مجانية / كي تسجّل.", [P("مجاناً", "spark", 25, -5)]),
+        SL("واش تدير بها؟", "2 أصوات / كاملة / بلا خلاص.", [P("2 أصوات", "sound", 24, 5)]),
+        SL("بلا كارت،", "التسجيل / بلا / كارط بانكي.", [P("بلا كارت", "target", 24, -5)]),
+        SL("فيسع،", "النقاط / في الحساب / *فيسع*.", [P("فيسع", "spark", 24, 5)]),
+        SL("ابدا،", "سجّل / و جرّب / درك.", [P("sawtify.space", "target", 22, -5, "lat")])],
+       [SL("Le cadeau", "*50* points / offerts / à l'inscription.", [P("offerts", "spark", 22, -5)]),
+        SL("À quoi ça sert", "2 voix / complètes / sans payer.", [P("2 voix", "sound", 22, 5)]),
+        SL("Sans carte", "Inscription / sans / carte bancaire.", [P("sans carte", "target", 21, -5)]),
+        SL("Tout de suite", "Les points / sont là / immédiatement.", [P("immédiat", "spark", 21, 5)]),
+        SL("Commencez", "Inscrivez-vous / et testez / maintenant.", [P("sawtify.space", "target", 21, -5, "lat")])]),
+
+    DD(12, "B", "Parrainage",
+       [SL("الدعوة،", "دعوة صاحبك / تربح / *50* نقطة.", [P("+50 نقطة", "spark", 24, -5)]),
+        SL("الحد،", "حتى / *20* صاحب / في الحساب.", [P("20 صاحب", "target", 23, 5)]),
+        SL("الشرط،", "الحساب / لازم / يكون جديد.", [P("3 أيام", "target", 23, -5)]),
+        SL("بلا خلاص،", "الدعوة / مجانية / للجميع.", [P("مجاناً", "spark", 24, 5)]),
+        SL("ابدا،", "شارك الكود / و اربح / نقاط.", [P("الكود", "target", 24, -5)])],
+       [SL("L'invitation", "Invitez un ami / gagnez / *50* points.", [P("+50 points", "spark", 21, -5)]),
+        SL("La limite", "Jusqu'à / *20* filleuls / par compte.", [P("20 filleuls", "target", 21, 5)]),
+        SL("La condition", "Le compte / doit être / récent.", [P("3 jours", "target", 21, -5)]),
+        SL("Gratuit", "L'invitation / est ouverte / à tous.", [P("gratuit", "spark", 22, 5)]),
+        SL("Lancez", "Partagez le code / et gagnez / des points.", [P("code", "target", 21, -5)])]),
+]
+
+DAYS += [
+    DD(13, "1", "Cashback 20 %",
+       [SL("الكاش باك،", "*20* % / ترجعلك / على الرصيد.", [P("20 %", "spark", 24, -5, "lat")]),
+        SL("المدة،", "*7* أيام / من بعد / التعبئة.", [P("7 أيام", "target", 24, 5)]),
+        SL("كيفاش؟", "عبّي، / اخدم، / و تربح.", [P("تلقائي", "spark", 24, -5)]),
+        SL("بلا تعقيد،", "بلا كود / بلا / خطوات.", [P("بلا كود", "target", 24, 5)]),
+        SL("دير،", "عبّي الرصيد / و ابدا / تستعمل.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Le cashback", "*20* % / reviennent / sur le solde.", [P("20 %", "spark", 21, -5, "lat")]),
+        SL("La période", "*7* jours / après / la recharge.", [P("7 jours", "target", 21, 5)]),
+        SL("Comment ?", "Rechargez, / utilisez, / récupérez.", [P("automatique", "spark", 20, -5)]),
+        SL("Sans démarche", "Pas de code / ni / d'étapes.", [P("sans code", "target", 21, 5)]),
+        SL("Rechargez", "Ajoutez du solde / et commencez / à l'utiliser.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(14, "A", "Première recharge +50 %",
+       [SL("أول تعبئة،", "*+50* % / نقاط / زيادة.", [P("+50 %", "spark", 24, -5, "lat")]),
+        SL("مثال،", "500 دج / تولّي / *150* نقطة.", [P("500 دج", "target", 24, 5)]),
+        SL("مرة وحدة،", "الزيادة / على أول / تعبئة.", [P("مرة واحدة", "spark", 24, -5)]),
+        SL("للحسابات،", "العرض / للجدد / برك.", [P("حساب جديد", "target", 22, 5)]),
+        SL("دير،", "سجّل / و عبّي / رصيدك.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Première recharge", "*+50* % / de points / en plus.", [P("+50 %", "spark", 20, -5, "lat")]),
+        SL("Un exemple", "500 DA / deviennent / *150* points.", [P("500 DA", "target", 21, 5, "lat")]),
+        SL("Une fois", "Le bonus / sur la première / recharge.", [P("une fois", "spark", 21, -5)]),
+        SL("Pour les nouveaux", "L'offre / est réservée / aux nouveaux comptes.", [P("nouveau compte", "target", 19, 5)]),
+        SL("Commencez", "Inscrivez-vous / et rechargez / votre solde.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(15, "B", "Agent vocal",
+       [SL("Agent vocal،", "*8900* دج / يهدر مع / زبونك.", [P("8900 دج", "spark", 23, -5)]),
+        SL("واش يدير؟", "يجاوب / على الأسئلة / و يوجّه.", [P("مساعدة صوتية", "target", 22, 5)]),
+        SL("النسخة الكاملة،", "*12000* دج / لمشروعك / كامل.", [P("12000 دج", "spark", 22, -5)]),
+        SL("اللغة،", "يهدر / بالدارجة / الجزايرية.", [P("دارجة", "target", 24, 5)]),
+        SL("التفاصيل،", "شوفهم / في / sawtify.space.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Agent vocal", "*8 900* DA / pour parler / à vos clients.", [P("8 900 DA", "spark", 19, -5, "lat")]),
+        SL("Son rôle", "Répondre / aux questions / et orienter.", [P("assistant vocal", "target", 18, 5)]),
+        SL("Version complète", "*12 000* DA / pour un projet / complet.", [P("12 000 DA", "spark", 18, -5, "lat")]),
+        SL("La langue", "Il parle / darija / algérienne.", [P("darija", "target", 21, 5)]),
+        SL("Les détails", "Retrouvez-les / sur / sawtify.space.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(16, "A", "API développeur",
+       [SL("API،", "ركّب الصوت / في / أبليكيشنك.", [P("API", "spark", 23, -5, "lat")]),
+        SL("الدوكيمون،", "الشرح كامل / موجود / في الموقع.", [P("Developer API", "target", 18, 5, "lat")]),
+        SL("الاستعمال،", "كل طلب / يرجّعلك / ملف صوتي.", [P("ملف صوتي", "spark", 23, -5)]),
+        SL("لمن؟", "للديفلوبورز / و / الوكالات.", [P("للمطوّرين", "target", 22, 5)]),
+        SL("دير،", "اقرا الـ API / و ابدا / تربط.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("API", "Intégrez la voix / dans / votre application.", [P("API", "spark", 22, -5, "lat")]),
+        SL("La documentation", "La doc complète / est en ligne / pour démarrer.", [P("Developer API", "target", 17, 5, "lat")]),
+        SL("Le résultat", "Chaque requête / renvoie / un fichier audio.", [P("audio", "spark", 22, -5)]),
+        SL("Pour qui ?", "Pour les développeurs / et / les agences.", [P("développeurs", "target", 20, 5)]),
+        SL("À vous", "Lisez la doc / puis / intégrez.", [P("sawtify.space/api/v1/developer", "spark", 15, -5, "lat")])]),
+
+    DD(17, "B", "MCP",
+       [SL("MCP،", "وصّل Sawtify / بأدواتك / مباشرة.", [P("MCP", "spark", 24, -5, "lat")]),
+        SL("العنوان،", "الرابط / موجود / في الموقع.", [P("sawtify.space/mcp", "target", 17, 5, "lat")]),
+        SL("واش تدير؟", "تولّد صوت / من داخل / أدواتك.", [P("توليد صوت", "spark", 23, -5)]),
+        SL("لمن؟", "للفرق / اللي تخدم / بالـ AI.", [P("فرق AI", "target", 23, 5, "lat")]),
+        SL("دير،", "جرّب الـ MCP / اليوم.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("MCP", "Connectez Sawtify / à vos outils / directement.", [P("MCP", "spark", 22, -5, "lat")]),
+        SL("Le lien", "Retrouvez l'adresse / sur / le site.", [P("sawtify.space/mcp", "target", 16, 5, "lat")]),
+        SL("À quoi ça sert ?", "Générez une voix / depuis / vos outils.", [P("génération audio", "spark", 18, -5)]),
+        SL("Pour qui ?", "Pour les équipes / qui travaillent / avec l'IA.", [P("équipes IA", "target", 20, 5)]),
+        SL("Testez", "Découvrez le MCP / dès / aujourd'hui.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(18, "1", "Jusqu'à 1 200 caractères",
+       [SL("النص،", "*1200* حرف / في المرة / الوحدة.", [P("1200 حرف", "spark", 23, -5)]),
+        SL("للنصوص الكبار،", "حتى *5000* حرف / كي تفوت / 1000 نقطة.", [P("5000 حرف", "target", 22, 5)]),
+        SL("شحال يدير؟", "فيديو كامل / بصوت / واحد.", [P("فيديو كامل", "spark", 23, -5)]),
+        SL("النص يبقى،", "الكلام / كيما / كتبتو.", [P("كما كتبتو", "target", 23, 5)]),
+        SL("دير،", "الصق النص / و حمّل / الصوت.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Le texte", "*1 200* caractères / par génération / au maximum.", [P("1 200 caractères", "spark", 17, -5)]),
+        SL("Les textes longs", "Jusqu'à *5 000* / au-delà de / 1 000 points.", [P("5 000 caractères", "target", 17, 5)]),
+        SL("Une voix", "Pour une vidéo / entière / d'une traite.", [P("vidéo complète", "spark", 19, -5)]),
+        SL("Le texte reste", "Vos mots / comme / vous les avez écrits.", [P("à votre façon", "target", 18, 5)]),
+        SL("À vous", "Collez le texte / et téléchargez / la voix.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(19, "A", "Environ 30 secondes",
+       [SL("السرعة،", "حوالي *30* ثانية / باش يخرج / الصوت.", [P("حوالي 30 ثانية", "spark", 19, -5)]),
+        SL("بلا انتظار،", "حمّل / و كمّل / خدمتك.", [P("تحميل مباشر", "target", 20, 5)]),
+        SL("الجودة،", "صوت ستوديو / بلا / ستوديو.", [P("صوت ستوديو", "spark", 21, -5)]),
+        SL("العادة،", "ولّي / تنشر / كل يوم.", [P("كل يوم", "target", 22, 5)]),
+        SL("دير،", "جرّبها / و شوف / وحدك.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("La vitesse", "Environ *30* secondes / pour générer / la voix.", [P("≈ 30 secondes", "spark", 18, -5)]),
+        SL("Sans attente", "Téléchargez / et continuez / votre travail.", [P("direct", "target", 21, 5)]),
+        SL("Le rendu", "Une voix studio / sans / studio.", [P("voix studio", "spark", 19, -5)]),
+        SL("Le rythme", "Publiez / tous les / jours.", [P("chaque jour", "target", 20, 5)]),
+        SL("Testez", "Essayez / et voyez / par vous-même.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(20, "B", "Boutique en ligne",
+       [SL("البوتيك،", "فيديو تاع / المنتج / بالصوت.", [P("منتج", "spark", 23, -5)]),
+        SL("واش تقول؟", "السعر، / المقاس، / و التوصيل.", [P("3 معلومات", "target", 22, 5)]),
+        SL("الزبون،", "يفهم / بلا ما / يقرا.", [P("بلا كتابة", "spark", 23, -5)]),
+        SL("الثبات،", "نفس الصوت / في كل / فيديو.", [P("نفس الصوت", "target", 22, 5)]),
+        SL("دير،", "صوّر المنتج / و زيد / الصوت.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("La boutique", "Une vidéo produit / avec / une voix.", [P("produit", "spark", 21, -5)]),
+        SL("Quoi dire ?", "Le prix, / la taille / et la livraison.", [P("3 infos", "target", 21, 5)]),
+        SL("Le client", "Comprend / sans / lire.", [P("sans texte", "spark", 21, -5)]),
+        SL("La cohérence", "La même voix / sur chaque / vidéo.", [P("même voix", "target", 20, 5)]),
+        SL("À vous", "Filmez le produit / et ajoutez / la voix.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(21, "1", "Restaurant et livraison",
+       [SL("الريستو،", "القائمة / بالصوت / في الفيديو.", [P("القائمة", "spark", 23, -5)]),
+        SL("الطلبات،", "شرح / التوصيل / بلا كتابة.", [P("توصيل", "target", 23, 5)]),
+        SL("الدارجة،", "الزبون / يسمع / كيفك.", [P("دارجة", "spark", 24, -5)]),
+        SL("العرض،", "عرض اليوم / يتسمع / مرة وحدة.", [P("عرض اليوم", "target", 21, 5)]),
+        SL("دير،", "سجّل العرض / و / انشر.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Le restaurant", "Le menu / en voix / dans la vidéo.", [P("menu", "spark", 21, -5)]),
+        SL("Les commandes", "Expliquez / la livraison / à l'oral.", [P("livraison", "target", 19, 5)]),
+        SL("La darija", "Le client / entend / votre façon de parler.", [P("darija", "spark", 19, -5)]),
+        SL("L'offre", "Le plat du jour / s'écoute / en un instant.", [P("offre du jour", "target", 19, 5)]),
+        SL("Publiez", "Enregistrez l'offre / et / publiez.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(22, "A", "Formation et e-learning",
+       [SL("الفورماسيون،", "شرح / بالصوت / للدروس.", [P("درس", "spark", 24, -5)]),
+        SL("السرعة،", "بدّل النص / و خلّي / نفس الصوت.", [P("نفس الصوت", "target", 21, 5)]),
+        SL("الوقت،", "ما تعاودش / التسجيل / كل مرة.", [P("بلا إعادة", "spark", 22, -5)]),
+        SL("اللغة،", "دارجة / تاع / الدار.", [P("دارجة", "target", 24, 5)]),
+        SL("دير،", "صوّت الدروس / و اربح / وقت.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("La formation", "Expliquez / vos cours / à l'oral.", [P("un cours", "spark", 20, -5)]),
+        SL("La cohérence", "Changez le texte / gardez / la même voix.", [P("même voix", "target", 18, 5)]),
+        SL("Le temps", "Évitez / de tout réenregistrer / à chaque fois.", [P("sans reprise", "spark", 18, -5)]),
+        SL("La langue", "Une darija / de / chez nous.", [P("darija DZ", "target", 20, 5)]),
+        SL("Gagnez du temps", "Donnez une voix / à vos / leçons.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(23, "B", "Publicité TikTok",
+       [SL("التيك توك،", "صوت يوقّف / السكرول / فيسع.", [P("pub", "spark", 23, -5, "lat")]),
+        SL("أول 3 ثواني،", "الصوت / هو / اللي يشد.", [P("3 ثواني", "target", 22, 5)]),
+        SL("الجملة،", "جملة وحدة / و فكرة / وحدة.", [P("فكرة واحدة", "spark", 21, -5)]),
+        SL("السرعة،", "خمسة فيديوهات / في / نهار.", [P("5 فيديوهات", "target", 21, 5)]),
+        SL("دير،", "جرّب صوت / في فيديو / اليوم.", [P("sawtify.space", "spark", 20, -5, "lat")])],
+       [SL("TikTok", "Une voix off / qui arrête / le scroll.", [P("publicité", "spark", 20, -5)]),
+        SL("Les 3 secondes", "C'est la voix / qui / accroche.", [P("3 secondes", "target", 19, 5)]),
+        SL("Le message", "Une phrase / et une / idée.", [P("une idée", "spark", 21, -5)]),
+        SL("Le rythme", "Cinq vidéos / en / une journée.", [P("5 vidéos", "target", 21, 5)]),
+        SL("Testez", "Ajoutez une voix / à la vidéo / du jour.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(24, "A", "YouTube",
+       [SL("اليوتيوب،", "فيديو طويل / بصوت / واحد.", [P("يوتيوب", "spark", 22, -5)]),
+        SL("التعليق،", "نص / يتقرا / بصوت طبيعي.", [P("تعليق صوتي", "target", 21, 5)]),
+        SL("التوقيت،", "حمّل / و ركّب / في المونتاج.", [P("مونتاج", "spark", 22, -5)]),
+        SL("الثبات،", "نفس الصوت / من الأول / للآخر.", [P("نفس الصوت", "target", 21, 5)]),
+        SL("دير،", "اكتب، / الصق، / و حمّل.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("YouTube", "Une longue vidéo / avec / une seule voix.", [P("YouTube", "spark", 19, -5, "lat")]),
+        SL("La narration", "Votre texte / lu / naturellement.", [P("voix off", "target", 20, 5)]),
+        SL("Le montage", "Téléchargez / puis montez / votre fichier.", [P("audio", "spark", 22, -5)]),
+        SL("La constance", "La même voix / du début / à la fin.", [P("même voix", "target", 20, 5)]),
+        SL("À vous", "Écrivez, / collez, / téléchargez.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(25, "B", "Sans micro ni studio",
+       [SL("بلا ميكرو،", "ما تحتاجش / ميكرو / ولا كارت سون.", [P("بلا ميكرو", "spark", 22, -5)]),
+        SL("بلا ستوديو،", "الدار / تولّي / ستوديو.", [P("ستوديو", "target", 23, 5)]),
+        SL("بلا مونتاج،", "الملف / يخرج / واجد.", [P("ملف صوتي", "spark", 22, -5)]),
+        SL("بلا فريق،", "خدمة / وحدك / كاملة.", [P("وحدك", "target", 24, 5)]),
+        SL("دير،", "جرّب / بلا ما تشري / حاجة.", [P("sawtify.space", "spark", 20, -5, "lat")])],
+       [SL("Sans micro", "Pas besoin / de micro / ni de carte son.", [P("sans micro", "spark", 19, -5)]),
+        SL("Sans studio", "Votre chambre / devient / votre studio.", [P("studio", "target", 19, 5)]),
+        SL("Sans montage", "Le fichier / sort / prêt à monter.", [P("audio prêt", "spark", 19, -5)]),
+        SL("Sans équipe", "Vous produisez / seul, / du début à la fin.", [P("en solo", "target", 19, 5)]),
+        SL("Testez", "Faites un essai / sans acheter / de matériel.", [P("sawtify.space", "spark", 19, -5, "lat")])]),
+
+    DD(26, "1", "Une voix, une marque",
+       [SL("الصوت،", "نفس الصوت / في كل / الفيديوهات.", [P("نفس الصوت", "spark", 22, -5)]),
+        SL("العلامة،", "الصوت / يولي / تاع البراند.", [P("براند", "target", 23, 5)]),
+        SL("المعرفة،", "الزبون / يعرفك / من الصوت.", [P("من الصوت", "spark", 22, -5)]),
+        SL("التغيير،", "بدّل / كي تحب / بلا مشكل.", [P("مرونة", "target", 23, 5)]),
+        SL("دير،", "اختار صوتك / و ثبت / عليه.", [P("30 صوت", "spark", 22, -5)])],
+       [SL("La voix", "La même voix / sur toutes / vos vidéos.", [P("même voix", "spark", 19, -5)]),
+        SL("La marque", "La voix / devient / votre signature.", [P("signature", "target", 19, 5)]),
+        SL("La mémoire", "On vous reconnaît / à / la voix.", [P("à la voix", "spark", 20, -5)]),
+        SL("La liberté", "Changez / quand vous voulez / de voix.", [P("flexible", "target", 19, 5)]),
+        SL("Choisissez", "Trouvez votre voix / parmi / 30 voix.", [P("30 voix", "spark", 20, -5)])]),
+
+    DD(27, "A", "FAQ — changer de voix",
+       [SL("سؤال،", "نقدر نبدّل / الصوت / من بعد؟", [P("سؤال متكرر", "spark", 20, -5)]),
+        SL("الجواب،", "ايه، / اختار صوت / آخر.", [P("30 صوت", "target", 22, 5)]),
+        SL("وقتاش؟", "قبل / ما تبدا / التوليد.", [P("قبل التوليد", "spark", 21, -5)]),
+        SL("جرّب،", "سمع / و قارن / الأصوات.", [P("اختيارك", "target", 22, 5)]),
+        SL("دير،", "اختار الصوت / اللي / يعجبك.", [P("sawtify.space", "spark", 20, -5, "lat")])],
+       [SL("La question", "Peut-on changer / de voix / ensuite ?", [P("FAQ", "spark", 22, -5, "lat")]),
+        SL("La réponse", "Oui, / choisissez / une autre voix.", [P("30 voix", "target", 21, 5)]),
+        SL("À quel moment ?", "Avant / de lancer / la génération.", [P("avant génération", "spark", 17, -5)]),
+        SL("Comparez", "Écoutez / puis comparez / les voix.", [P("à vous", "target", 21, 5)]),
+        SL("Choisissez", "Gardez la voix / qui vous / ressemble.", [P("sawtify.space", "spark", 19, -5, "lat")])]),
+
+    DD(28, "B", "Studio vs Sawtify",
+       [SL("الستوديو،", "تسجيل / ووقت / و تنظيم.", [P("ستوديو", "spark", 22, -5)]),
+        SL("Sawtify،", "ولّد الصوت / وحمّل / الملف.", [P("حوالي 30 ثانية", "target", 18, 5)]),
+        SL("الثمن،", "من 75 دج / مع باك / الشركات.", [P("من 75 دج", "spark", 20, -5)]),
+        SL("اللغة،", "دارجة / جزايرية / في 30 صوت.", [P("30 صوت", "target", 21, 5)]),
+        SL("دير،", "قارن / و / قرّر.", [P("sawtify.space", "spark", 20, -5, "lat")])],
+       [SL("Le studio", "Une séance / à organiser / et enregistrer.", [P("studio", "spark", 19, -5)]),
+        SL("Sawtify", "Générez la voix / et téléchargez / le fichier.", [P("≈ 30 secondes", "target", 17, 5)]),
+        SL("Le prix", "Dès 75 DA / avec le pack / Business.", [P("dès 75 DA", "spark", 18, -5)]),
+        SL("La langue", "30 voix / en darija / algérienne.", [P("30 voix", "target", 19, 5)]),
+        SL("À vous", "Comparez / et / décidez.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(29, "1", "Les chiffres",
+       [SL("الأرقام،", "*30* صوت / حوالي 30 ثانية / و *75* دج.", [P("باك الشركات", "spark", 21, -5)]),
+        SL("التوليد،", "*20* نقطة / للصوت / الواحد.", [P("20 نقطة", "target", 23, 5)]),
+        SL("البداية،", "*50* نقطة / مجانية / في التسجيل.", [P("50 نقطة", "spark", 22, -5)]),
+        SL("الثبات،", "نفس الصوت / من أول / فيديو للآخر.", [P("نفس الصوت", "target", 21, 5)]),
+        SL("دير،", "احسبها / و / ابدا.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Les chiffres", "*30* voix / ≈ 30 secondes / et *75* DA.", [P("pack Business", "spark", 18, -5, "lat")]),
+        SL("La génération", "*20* points / pour une / voix.", [P("20 points", "target", 20, 5)]),
+        SL("Le départ", "*50* points / offerts / à l'inscription.", [P("50 points", "spark", 20, -5)]),
+        SL("La constance", "La même voix / du premier / au dernier post.", [P("même voix", "target", 18, 5)]),
+        SL("Lancez-vous", "Faites le calcul / et / commencez.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
+
+    DD(30, "A", "Récapitulatif et appel à l'action",
+       [SL("الخلاصة،", "نص، / صوت، / تحميل.", [P("3 خطوات", "spark", 23, -5)]),
+        SL("الخطوات،", "كوبي، / اختار، / حمّل.", [P("بلا ميكرو", "target", 23, 5)]),
+        SL("الثمن،", "من *75* دج / للصوت / الواحد.", [P("باك الشركات", "spark", 21, -5)]),
+        SL("ابدا درك،", "*50* نقطة / مجانية / في الحساب.", [P("50 نقطة", "target", 23, 5)]),
+        SL("دير درك،", "دير أول / صوت / اليوم.", [P("sawtify.space", "spark", 21, -5, "lat")])],
+       [SL("Le récap", "Un texte, / une voix, / un fichier.", [P("3 étapes", "spark", 22, -5)]),
+        SL("Le parcours", "Copiez, / choisissez, / téléchargez.", [P("sans micro", "target", 20, 5)]),
+        SL("Le prix", "Dès *75* DA / par / voix.", [P("pack Business", "spark", 18, -5, "lat")]),
+        SL("Commencez", "*50* points / offerts / sur le compte.", [P("50 points", "target", 20, 5)]),
+        SL("À vous", "Créez votre première / voix / aujourd'hui.", [P("sawtify.space", "spark", 20, -5, "lat")])]),
 ]

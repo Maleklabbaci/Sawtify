@@ -26,7 +26,7 @@
   <h1>Sawtify</h1>
   <div class="grp">
     <span class="lbl">JOURS</span>
-    <button class="tab" id="tJour">J01–J05</button>
+    <button class="tab" id="tJour">J01–J30</button>
     <span class="lbl" style="margin-left:10px">GABARITS</span>
     <button class="tab" id="tGab">1 · A · B</button>
     <span class="lbl" style="margin-left:12px">LANGUE</span>
@@ -39,7 +39,7 @@
 <p class="hint" id="hint"></p>
 <script>
 var MODE = "jour", PICK = "J01", LANG = "dz", V = "";
-var JOURS = ["J01","J02","J03","J04","J05"];
+var JOURS = Array.from({length:30}, function(_, i){ return "J" + String(i + 1).padStart(2, "0"); });
 var GABS = [["1",""],["A","vA"],["B","vB"]];
 var LAB = {dz:["01","02","03","04","05"], fr:["01","02","03","04","05"]};
 function base(){

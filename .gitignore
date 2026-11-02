@@ -29,3 +29,7 @@ marketing/instagram/slides/workshop/**/*.png
 # packs de livraison : régénérés par export_collage.py (46 Mo, pas versionnés)
 marketing/instagram/exports/
 marketing/instagram/slides/workshop/**/*.png
+# 30-day Instagram exports are generated from programme.py and delivered through Drive
+marketing/instagram/slides/jour-J[0-9][0-9]/
+marketing/instagram/slides/planche-J[0-9][0-9].jpg
+marketing/instagram/slides/planche-30-jours.jpg
