@@ -1,50 +1,47 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
-<meta http-equiv="Cache-Control" content="no-store">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Cache-Control" content="no-store">
-<title>Sawtify — carrousel</title>
+<title>Sawtify — carrousel lettre</title>
 <style>
-  :root{--cream:#F4F1E9;--ink:#140D21;--vio:#6D27EA;--org:#FD6029;--mut:#8C82A6}
+  :root{--paper:#F2F1ED;--ink:#111113;--vio:#6D27EA;--mut:#8C82A6}
   *{box-sizing:border-box}
-  body{margin:0;background:#140D21;color:var(--cream);
+  html,body{margin:0;height:100%}
+  body{background:#111113;color:#F2F1ED;
        font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;
-         padding:12px 16px;background:rgba(20,13,33,.94);backdrop-filter:blur(8px);
-         border-bottom:1px solid #2b2140}
-  h1{font-size:12px;letter-spacing:.24em;text-transform:uppercase;margin:0;color:var(--org)}
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;
+         background:rgba(17,17,19,.96);border-bottom:1px solid #2a2436;position:sticky;top:0;z-index:5}
+  h1{font-size:11px;letter-spacing:.24em;text-transform:uppercase;margin:0;color:#B39BFF}
   .tabs{margin-left:auto;display:flex;gap:8px}
   button{background:transparent;border:1px solid #3a3054;color:#cfc7e6;border-radius:99px;
-         padding:7px 16px;font:inherit;font-size:12px;letter-spacing:.14em;cursor:pointer}
-  button.on{background:var(--cream);color:var(--ink);border-color:var(--cream)}
-  .wrap{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;
-        padding:16px;scrollbar-width:thin}
-  figure{margin:0;flex:0 0 auto;scroll-snap-align:center;width:min(86vw,420px)}
-  img{width:100%;display:block;border-radius:8px;background:#1c1730}
-  figcaption{font-size:11px;letter-spacing:.16em;color:var(--mut);padding:8px 2px}
-  .hint{padding:0 16px 22px;font-size:12px;color:var(--mut)}
+         padding:6px 15px;font:inherit;font-size:12px;letter-spacing:.12em;cursor:pointer}
+  button.on{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+  .rail{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:14px;
+        scrollbar-width:thin}
+  figure{margin:0;flex:0 0 auto;scroll-snap-align:center;width:min(88vw,430px)}
+  img{width:100%;display:block;border-radius:10px;background:#1c1730}
+  figcaption{font-size:11px;letter-spacing:.14em;color:var(--mut);padding:7px 2px}
+  .hint{padding:0 14px 20px;font-size:12px;color:var(--mut)}
 </style></head>
 <body>
 <header>
-  <h1>Sawtify — gabarit lettre</h1>
+  <h1>Sawtify — carrousel</h1>
   <div class="tabs"><button id="dz" class="on">Darija</button><button id="fr">Français</button></div>
 </header>
-<main class="wrap" id="wrap"></main>
-<p class="hint">Glisse horizontalement · 5 slides</p>
+<main class="rail" id="rail"></main>
+<p class="hint">Glisse horizontalement · 5 slides · 1080 × 1350</p>
 <script>
 var lang="dz";
-var V=Date.now();
-var L={dz:["01 · المشكل","02 · علاش","03 · واش تدير","04 · الفرق","05 · و من بعد"],
-       fr:["01 · Le problème","02 · Pourquoi","03 · Quoi faire","04 · L'écart","05 · Et après"]};
+var L={dz:["01 · شكون احنا","02 · المشكل","03 · واش تدير","04 · الفرق","05 · و من بعد"],
+       fr:["01 · Qui on est","02 · Le problème","03 · Quoi faire","04 · L'écart","05 · Et après"]};
 function draw(){
-  var w=document.getElementById("wrap"); w.innerHTML="";
+  var r=document.getElementById("rail"); r.innerHTML="";
   for(var i=1;i<=5;i++){
     var f=document.createElement("figure");
     var im=document.createElement("img");
     im.src=lang+"/0"+i+".jpg?v="+Date.now();
     var c=document.createElement("figcaption");
     c.textContent=L[lang][i-1];
-    f.appendChild(im); f.appendChild(c); w.appendChild(f);
+    f.appendChild(im); f.appendChild(c); r.appendChild(f);
   }
   document.getElementById("dz").className = lang=="dz"?"on":"";
   document.getElementById("fr").className = lang=="fr"?"on":"";
