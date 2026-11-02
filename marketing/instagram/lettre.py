@@ -325,7 +325,8 @@ def footer(base, page, rtl=True, rule_y=1266, text_y=1296):
 
 
 def _wid(spec, sz, lead, fonts, rtl):
-    return max((g[2] - g[0]) for g in
+    # attention : lines_geo renvoie (y, x0, x1) → la largeur est x1 - x0
+    return max((g[2] - g[1]) for g in
                lines_geo(spec["lines"], W / 2, 0, sz, lead, fonts, rtl))
 
 
