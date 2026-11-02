@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sawtify — carrousels</title>
+<style>
+  :root{--cream:#F2F1ED;--ink:#111113;--vio:#6D27EA;--mut:#9A90B2}
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:#0E0B14;color:var(--cream);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:9;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+         padding:10px 14px;background:rgba(14,11,20,.96);border-bottom:1px solid #241b34}
+  h1{font-size:11px;letter-spacing:.24em;text-transform:uppercase;margin:0 12px 0 0;color:#B39BFF}
+  .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .lbl{font-size:10px;letter-spacing:.16em;color:#6e6288;margin-right:2px}
+  button{background:transparent;border:1px solid #372c50;color:#cfc7e6;border-radius:99px;
+         padding:6px 13px;font:inherit;font-size:12px;letter-spacing:.08em;cursor:pointer}
+  button.on{background:var(--cream);color:var(--ink);border-color:var(--cream)}
+  button.tab.on{background:var(--vio);color:#fff;border-color:var(--vio)}
+  .rail{display:flex;gap:12px;overflow-x:auto;padding:14px;scrollbar-width:thin}
+  figure{margin:0;flex:0 0 auto;width:min(84vw,360px)}
+  img{width:100%;display:block;border-radius:8px;background:#1b1526}
+  figcaption{font-size:10.5px;letter-spacing:.13em;color:var(--mut);padding:6px 2px}
+  .hint{padding:0 14px 20px;font-size:12px;color:#7d7196}
+</style></head>
+<body>
+<header>
+  <h1>Sawtify</h1>
+  <div class="grp">
+    <span class="lbl">JOURS</span>
+    <button class="tab" id="tJour">J01–J05</button>
+    <span class="lbl" style="margin-left:10px">GABARITS</span>
+    <button class="tab" id="tGab">1 · A · B</button>
+    <span class="lbl" style="margin-left:12px">LANGUE</span>
+    <button id="ldz" class="on">Darija</button>
+    <button id="lfr">Français</button>
+    <span class="grp" id="picks"></span>
+  </div>
+</header>
+<main class="rail" id="rail"></main>
+<p class="hint" id="hint"></p>
+<script>
+var MODE = "jour", PICK = "J01", LANG = "dz", V = "";
+var JOURS = ["J01","J02","J03","J04","J05"];
+var GABS = [["1",""],["A","vA"],["B","vB"]];
+var LAB = {dz:["01","02","03","04","05"], fr:["01","02","03","04","05"]};
+function base(){
+  if (MODE === "jour") return "jour-" + PICK + "/" + LANG + "/";
+  return "lettre/" + (V ? V + "/" : "") + LANG + "/";
+}
+function drawPicks(){
+  var p = document.getElementById("picks"); p.innerHTML = "";
+  var list = MODE === "jour" ? JOURS.map(function(j){return [j, j];}) : GABS;
+  list.forEach(function(kv){
+    var b = document.createElement("button");
+    b.textContent = kv[0];
+    var val = MODE === "jour" ? kv[1] : kv[1];
+    if ((MODE === "jour" && PICK === val) || (MODE === "gab" && V === val)) b.className = "on";
+    b.onclick = function(){ if (MODE === "jour") PICK = val; else V = val; draw(); };
+    p.appendChild(b);
+  });
+}
+function draw(){
+  var r = document.getElementById("rail"); r.innerHTML = "";
+  for (var i = 1; i <= 5; i++){
+    var f = document.createElement("figure");
+    var im = document.createElement("img");
+    im.src = base() + "0" + i + ".jpg?v=" + Date.now();
+    var c = document.createElement("figcaption"); c.textContent = "0" + i + " / 05";
+    f.appendChild(im); f.appendChild(c); r.appendChild(f);
+  }
+  document.getElementById("tJour").className = "tab" + (MODE === "jour" ? " on" : "");
+  document.getElementById("tGab").className = "tab" + (MODE === "gab" ? " on" : "");
+  document.getElementById("ldz").className = LANG === "dz" ? "on" : "";
+  document.getElementById("lfr").className = LANG === "fr" ? "on" : "";
+  document.getElementById("hint").textContent = MODE === "jour"
+    ? "carrousel " + PICK + " · " + (LANG === "dz" ? "darija" : "français")
+    : "gabarits · " + (LANG === "dz" ? "darija" : "français");
+  drawPicks();
+}
+document.getElementById("tJour").onclick = function(){ MODE="jour"; draw(); };
+document.getElementById("tGab").onclick = function(){ MODE="gab"; draw(); };
+document.getElementById("ldz").onclick = function(){ LANG="dz"; draw(); };
+document.getElementById("lfr").onclick = function(){ LANG="fr"; draw(); };
+draw();
+</script>
+</body></html>

@@ -364,28 +364,41 @@ def slide(spec, seed=3, rtl=True, fonts=None, page="", pill_font=None,
 
     geo = lines_geo(spec["lines"], W / 2, top, size, lead, fonts, rtl)
     placed = []
+    misses = []
     for it in spec.get("pills", ()):
         it = dict(it)
         fnt = PILL_FONT[it.get("font", "ar")] if it.get("font") else pf
         hit = place_pill(it, geo, size, {"b": fnt}, placed)
         if not hit:
-            psize = it.get("size", 30)
-            pw, ph = pill_size(it["t"], psize, it.get("icon", "target"), fnt)
-            last = geo[-1][0] + size * 0.98
-            y = min(max(last + ph * 0.75, 1000), 1160)
-            for cx in (46 + 22 + pw / 2, W - 46 - 22 - pw / 2):
-                box = (cx - pw / 2, y - ph / 2, cx + pw / 2, y + ph / 2)
-                if box[3] < 1216 and not any(_hit(box, q, pad=10) for q in placed):
-                    placed.append(box)
-                    pill(base, it["t"], cx, y, it.get("rot", -6), psize,
-                         it.get("fill", VIO_SOFT), INK, it.get("icon", "target"),
-                         fnt)
-                    break
+            misses.append((it, fnt))
             continue
         cx, cy, psize, box = hit
         placed.append(box)
         pill(base, it["t"], cx, cy, it.get("rot", -6), psize,
              it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fnt)
+
+    if misses:
+        # repli : rang unique centré sous le bloc, jamais aux coins
+        rows, total = [], 0.0
+        for it, fnt in misses:
+            ps = it.get("size", 26)
+            while ps > 20:
+                pw, ph = pill_size(it["t"], ps, it.get("icon", "target"), fnt)
+                if pw - 0.5 * ps <= 470:
+                    break
+                ps -= 1
+            pw, ph = pill_size(it["t"], ps, it.get("icon", "target"), fnt)
+            rw = pw - 0.5 * ps
+            rows.append((it, fnt, ps, rw, ph))
+            total += rw
+        total += 24 * (len(rows) - 1)
+        y = min(geo[-1][0] + size * 0.98 + 96, 1128)
+        x = W / 2 - total / 2
+        for i, (it, fnt, ps, rw, ph) in enumerate(rows):
+            pill(base, it["t"], x + rw / 2, y, it.get("rot", -4 if i % 2 == 0 else 3),
+                 ps, it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fnt)
+            x += rw + 24
+
     block(base, spec["lines"], W / 2, top, size, lead, fonts=fonts, rtl=rtl)
     for d in spec.get("darts", ()):
         dart(base, d[0], d[1], d[2], VIO, d[3] if len(d) > 3 else 0)
