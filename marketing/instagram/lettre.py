@@ -34,15 +34,20 @@ MUT = (96, 90, 110)
 VIO = (109, 39, 234)
 VIO_SOFT = (211, 195, 255)
 ORANGE = (253, 96, 41)
+ORANGE_SOFT = (255, 206, 186)
 
-REG = "NotoSansArabic-Regular.ttf"
-MED = "NotoSansArabic-SemiBold.ttf"
-BLK = "NotoSansArabic-Black.ttf"
-WORD = "SpaceGrotesk-Bold.ttf"
+# arabe : naskh Amiri (regular + bold) · latin : Space Grotesk
+AMR_R = "Amiri-Regular.ttf"
+AMR_B = "Amiri-Bold.ttf"
+SG_R = "SpaceGrotesk-Regular.ttf"
+SG_M = "SpaceGrotesk-Medium.ttf"
+SG_B = "SpaceGrotesk-Bold.ttf"
 
-WEIGHT = {"r": REG, "m": MED, "b": BLK}
-WEIGHT_LAT = {"r": "SpaceGrotesk-Regular.ttf", "m": "SpaceGrotesk-Medium.ttf",
-              "b": "SpaceGrotesk-Bold.ttf"}
+WEIGHT = {"r": AMR_R, "m": AMR_B, "b": AMR_B}
+WEIGHT_LAT = {"r": SG_R, "m": SG_M, "b": SG_B}
+PILL_FONT = {"ar": AMR_B, "lat": SG_B}
+WORD = SG_B
+BLK = AMR_B
 
 _logo: dict = {}
 
@@ -109,7 +114,7 @@ def _icon(kind, size, color):
     return im
 
 
-def pill_size(text, size, icon, font=BLK):
+def pill_size(text, size, icon, font=AMR_B):
     tw_ = twidth(text, font, size)
     ic = int(size * 1.15) if icon else 0
     gap = int(size * 0.42) if icon else 0
@@ -119,7 +124,7 @@ def pill_size(text, size, icon, font=BLK):
 
 
 def pill(base, text, cx, cy, rot=-6, size=30, fill=VIO_SOFT, fg=INK,
-         icon="target", font=BLK):
+         icon="target", font=AMR_B):
     tw_ = twidth(text, font, size)
     ic = int(size * 1.15) if icon else 0
     gap = int(size * 0.42) if icon else 0
@@ -200,7 +205,7 @@ def hline(base, tokens, cx, y, size, gap=None, fonts=None, rtl=True):
             tdraw(mask, t, xt, y, size, 255, fonts[w], align="left")
             bb = mask.getbbox()
             if bb:
-                px, py = size * 0.12, size * 0.09
+                px, py = size * 0.13, size * 0.15
                 bx0, by0 = bb[0] / SS - px, bb[1] / SS - py
                 bw = (bb[2] - bb[0]) / SS + 2 * px
                 bh = (bb[3] - bb[1]) / SS + 2 * py
@@ -210,7 +215,8 @@ def hline(base, tokens, cx, y, size, gap=None, fonts=None, rtl=True):
                 bar = bar.rotate(-1.1, expand=True, resample=Image.BICUBIC)
                 base.alpha_composite(bar, (int((bx0 - (bar.width / SS - bw) / 2) * SS),
                                            int((by0 - (bar.height / SS - bh) / 2) * SS)))
-                dart(base, bx0 + bw * 0.06, by0 - size * 0.12, size * 0.26, VIO, 0)
+                marker(base, bx0 + size * 0.02, by0 - size * 0.13,
+                       size * 0.19, VIO)
                 tdraw(base, t, xt, y, size, (58, 22, 120), fonts[w], align="left")
                 continue
         tdraw(base, t, xt, y, size, INK, fonts[w], align="left")
@@ -291,146 +297,168 @@ def kicker(base, text, y=300, size=58, font=BLK):
 # ═══════════════════════════════════════════════════════════════════════════
 #  slides
 # ═══════════════════════════════════════════════════════════════════════════
-def slide(spec, seed=3, rtl=True):
+def footer(base, page, rtl=True):
+    """Pied de page : url à gauche, pagination à droite, en Space Grotesk."""
+    d = ImageDraw.Draw(base)
+    f = tk._pil(SG_B, 13)
+    txt = "SAWTIFY.SPACE"
+    x = 46.0
+    for c in txt:
+        d.text((x * SS, 1296 * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
+        x += d.textlength(c, font=f) / SS + 3.0
+    d.line([46 * SS, 1266 * SS, (W - 46) * SS, 1266 * SS],
+           fill=(150, 140, 172, 60), width=int(1.2 * SS))
+    num = page
+    x = W - 46.0
+    for c in reversed(num):
+        x -= d.textlength(c, font=f) / SS
+        d.text((x * SS, 1296 * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
+        x -= 3.0
+
+
+def slide(spec, seed=3, rtl=True, fonts=None, page="", pill_font=None,
+          size_default=96):
     base = paper(seed=seed)
     wordmark(base)
-    fonts = spec.get("fonts") or WEIGHT
-    size = spec.get("size", 118 if rtl else 90)
-    while size > 60 and max((g[2] - g[0]) for g in
-                            lines_geo(spec["lines"], W / 2, 0, size, 1.3, fonts, rtl)) > 812:
-        size -= 2
-    top = spec.get("top", 470)
-    lead = spec.get("lead", 1.30)
-    kicker(base, spec["kicker"], spec.get("kick_y", 300), spec.get("kick_size", 58),
-           fonts["b"] if spec.get("fonts") else BLK)
+    fonts = fonts or WEIGHT
+    pf = pill_font or fonts["b"]
+    size = spec.get("size", size_default)
+    top = spec.get("top", 452)
+    lead = spec.get("lead", 1.26)
+    n = len(spec["lines"])
+    kicker(base, spec["kicker"], spec.get("kick_y", 300),
+           spec.get("kick_size", 56), fonts["b"])
+
+    def wid(sz):
+        return max((g[2] - g[0]) for g in lines_geo(spec["lines"], W / 2, 0,
+                                                     sz, lead, fonts, rtl))
+
+    # on cherche la plus grande taille qui tienne : sous l'accroche et
+    # au-dessus du pied de page, sans jamais dépasser la largeur utile
+    best = (size, top)
+    for sz in range(60, 180, 2):
+        ty = max(top, 356 + 0.94 * sz)
+        bottom = ty + (n - 1) * sz * lead + 0.46 * sz
+        if wid(sz) <= 830 and bottom <= 1180:
+            best = (sz, ty)
+    size, top = best
 
     geo = lines_geo(spec["lines"], W / 2, top, size, lead, fonts, rtl)
     placed = []
-    fallback_y = 1156
     for it in spec.get("pills", ()):
         it = dict(it)
-        if it.get("dy") in (54, 58, 62, 44, 46, 56):   # posé sous la ligne
-            it["dy"] = -14
-        hit = place_pill(it, geo, size, fonts, placed)
+        fnt = PILL_FONT[it.get("font", "ar")] if it.get("font") else pf
+        hit = place_pill(it, geo, size, {"b": fnt}, placed)
         if not hit:
-            # repli : sous le bloc, côté gauche puis droit, sans toucher au texte
-            psize = it.get("size", 32)
-            pw, ph = pill_size(it["t"], psize, it.get("icon", "target"), fonts["b"])
-            for cx in (40 + 24 + pw / 2, W - 40 - 24 - pw / 2):
-                box = (cx - pw / 2, fallback_y - ph / 2, cx + pw / 2,
-                       fallback_y + ph / 2)
+            psize = it.get("size", 30)
+            pw, ph = pill_size(it["t"], psize, it.get("icon", "target"), fnt)
+            last = geo[-1][0] + size * 0.98
+            y = min(max(last + ph * 0.75, 1000), 1160)
+            for cx in (46 + 22 + pw / 2, W - 46 - 22 - pw / 2):
+                box = (cx - pw / 2, y - ph / 2, cx + pw / 2, y + ph / 2)
                 if box[3] < 1216 and not any(_hit(box, q, pad=10) for q in placed):
                     placed.append(box)
-                    pill(base, it["t"], cx, fallback_y, it.get("rot", -6), psize,
+                    pill(base, it["t"], cx, y, it.get("rot", -6), psize,
                          it.get("fill", VIO_SOFT), INK, it.get("icon", "target"),
-                         fonts["b"])
+                         fnt)
                     break
             continue
         cx, cy, psize, box = hit
         placed.append(box)
         pill(base, it["t"], cx, cy, it.get("rot", -6), psize,
-             it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fonts["b"])
+             it.get("fill", VIO_SOFT), INK, it.get("icon", "target"), fnt)
     block(base, spec["lines"], W / 2, top, size, lead, fonts=fonts, rtl=rtl)
     for d in spec.get("darts", ()):
         dart(base, d[0], d[1], d[2], VIO, d[3] if len(d) > 3 else 0)
+    footer(base, page, rtl)
     return base
 
 
-DZ = {"id": "dz", "seed": 3, "slides": [
-    dict(kicker="شكون احنا:",
-         lines=[[("نصنعو", "r", None)],
-                [("أصوات", "b", "mark"), ("تبيع", "r", None)],
-                [("بالدارجة،", "b", None)],
-                [("من", "r", None), ("الفكرة", "b", None)],
-                [("حتى", "r", None), ("التسليم.", "b", None)]],
-         pills=[dict(t="دارجة بلادنا", anchor=(1, "right"), dx=26, dy=-26,
-                     rot=6, icon="target"),
-                dict(t="500 دج · 30 ثانية", anchor=(0, "right"), dx=-4, dy=56,
-                     rot=-4, icon="sound"),
-                dict(t="تسليم 24 ساعة", anchor=(4, "left"), dx=-6, dy=62,
-                     rot=5, icon="spark")],
-         darts=[(600, 1104, 34), (296, 690, 30, 10)]),
+DZ = {"id": "dz", "seed": 3, "fonts": WEIGHT, "pill_font": AMR_B, "rtl": True,
+      "size": 126, "slides": [
     dict(kicker="المشكل:",
-         lines=[[("فيديو", "r", None)],
-                [("بلا", "r", None), ("صوت", "b", "mark")],
+         lines=[[("فيديو", "r", None), ("بلا", "r", None)],
+                [("صوت،", "b", "mark")],
                 [("ما", "b", None), ("يوقّف", "r", None)],
                 [("حتى", "r", None), ("واحد.", "b", None)]],
-         pills=[dict(t="3 ثواني", anchor=(1, "right"), dx=24, dy=-22, rot=6,
-                     icon="target"),
-                dict(t="الزبون يفوت", anchor=(3, "left"), dx=-4, dy=54, rot=-5,
-                     icon="sound")],
-         darts=[(320, 1020, 30)]),
+         pills=[dict(t="3 ثواني", anchor=(1, "right"), icon="target", size=28),
+                dict(t="الزبون يفوت", anchor=(2, "left"), icon="sound", size=26,
+                     rot=5)]),
+    dict(kicker="الحل:",
+         lines=[[("صوت", "r", None), ("استوديو،", "b", None)],
+                [("بالدارجة،", "r", None)],
+                [("في", "r", None), ("30", "b", "mark"), ("ثانية.", "b", None)]],
+         pills=[dict(t="بلا ميكرو", anchor=(0, "left"), icon="sound", size=27,
+                     rot=-6),
+                dict(t="بلا مونتاج", anchor=(1, "right"), icon="spark", size=27,
+                     rot=6)]),
     dict(kicker="واش تدير:",
-         lines=[[("ابعت", "b", None)],
-                [("السكريبت،", "r", None)],
-                [("ختر", "b", "mark")],
-                [("الصوت،", "r", None)],
-                [("خود", "r", None), ("في 24 ساعة.", "b", None)]],
-         pills=[dict(t="دارجة جزايرية", anchor=(2, "left"), dx=-2, dy=46, rot=-6,
-                     icon="target")],
-         darts=[(600, 1096, 34), (326, 748, 30, -8)]),
-    dict(kicker="الفرق:",
-         lines=[[("24", "b", "mark"), ("ساعة", "r", None)],
-                [("عندنا،", "b", None)],
-                [("21", "b", None), ("يوم", "r", None)],
-                [("في", "r", None), ("الاستوديو.", "b", None)]],
-         pills=[dict(t="بلا انتظار", anchor=(2, "right"), dx=22, dy=-20, rot=-6,
-                     icon="target")],
-         darts=[(340, 1040, 34), (604, 700, 30)]),
-    dict(kicker="و من بعد؟",
-         lines=[[("خود", "r", None)],
-                [("الصوت", "b", "mark")],
-                [("تاعك", "r", None), ("درك.", "b", None)]],
-         pills=[dict(t="500 دج", anchor=(1, "right"), dx=24, dy=-18, rot=6,
-                     icon="spark"),
-                dict(t="sawtify.space", anchor=(2, "left"), dx=-4, dy=58, rot=-5,
-                     icon="target", size=26)],
-         darts=[(560, 1080, 26)]),
+         lines=[[("انسخ", "b", None), ("النص،", "r", None)],
+                [("اختار", "r", None), ("الصوت،", "b", "mark")],
+                [("نزّل", "r", None), ("الملف.", "b", None)]],
+         pills=[dict(t="30 صوت", anchor=(0, "right"), icon="sound", size=27),
+                dict(t="دارجة جزايرية", anchor=(1, "left"), icon="target",
+                     size=24, rot=5)]),
+    dict(kicker="السوم:",
+         lines=[[("20", "b", "mark"), ("نقطة", "r", None)],
+                [("للصوت", "b", None), ("الواحد،", "r", None)],
+                [("يعني", "r", None), ("100 دج", "b", None)],
+                [("تقريبا.", "r", None)]],
+         pills=[dict(t="500 دج = 5 أصوات", anchor=(1, "left"), icon="spark",
+                     size=23, rot=-5)]),
+    dict(kicker="ابدا درك:",
+         lines=[[("50", "b", "mark"), ("نقطة", "r", None)],
+                [("مجانية", "b", None), ("كي", "r", None)],
+                [("تسجّل.", "b", None)]],
+         pills=[dict(t="بلا اشتراك", anchor=(0, "right"), icon="target",
+                     size=26, rot=6),
+                dict(t="sawtify.space", anchor=(2, "left"), icon="spark",
+                     size=24, rot=-5, font="lat")]),
 ]}
 
-FR = {"id": "fr", "seed": 23, "rtl": False, "fonts": WEIGHT_LAT, "slides": [
-    dict(kicker="Qui on est :",
-         lines=[[("On", "r", None), ("crée", "r", None)],
-                [("des", "r", None), ("voix", "b", "mark"), ("qui", "r", None)],
-                [("vendent,", "b", None)],
-                [("en", "r", None), ("darija.", "b", None)]],
-         pills=[dict(t="500 DA · 30 sec", anchor=(0, "right"), dx=14, dy=42,
-                     rot=7, icon="sound"),
-                dict(t="livré en 24 h", anchor=(3, "left"), dx=16, dy=44,
-                     rot=-4, icon="spark")],
-         darts=[(596, 1092, 26)]),
+FR = {"id": "fr", "seed": 23, "fonts": WEIGHT_LAT, "pill_font": SG_B,
+      "rtl": False, "size": 88, "slides": [
     dict(kicker="Le problème :",
          lines=[[("Une", "r", None), ("vidéo", "r", None)],
-                [("sans", "r", None), ("son", "b", "mark")],
+                [("sans", "r", None), ("son,", "b", "mark")],
                 [("n’arrête", "b", None)],
                 [("personne.", "r", None)]],
-         pills=[dict(t="3 secondes", anchor=(1, "right"), dx=22, dy=-20, rot=6,
-                     icon="target")],
-         darts=[(320, 1020, 30)]),
+         pills=[dict(t="3 secondes", anchor=(1, "right"), icon="target",
+                     size=24),
+                dict(t="le client passe", anchor=(2, "left"), icon="sound",
+                     size=22, rot=5)]),
+    dict(kicker="La solution :",
+         lines=[[("Une", "r", None), ("voix", "b", None)],
+                [("studio,", "r", None), ("en", "r", None)],
+                [("darija,", "b", "mark")],
+                [("en 30 s.", "b", None)]],
+         pills=[dict(t="sans micro", anchor=(0, "left"), icon="sound",
+                     size=23, rot=-6),
+                dict(t="sans montage", anchor=(2, "right"), icon="spark",
+                     size=23, rot=6)]),
     dict(kicker="Quoi faire :",
-         lines=[[("Envoyez", "b", None)],
-                [("le", "r", None), ("script,", "b", None)],
-                [("choisissez", "b", "mark")],
-                [("la", "r", None), ("voix.", "b", None)],
-                [("24 h.", "r", None)]],
-         pills=[dict(t="darja algérienne", anchor=(0, "left"), dx=18, dy=44, rot=-6,
-                     icon="target")],
-         darts=[(596, 1080, 26)]),
-    dict(kicker="L’écart :",
-         lines=[[("24", "b", "mark"), ("heures", "r", None)],
-                [("chez", "r", None), ("nous,", "b", None)],
-                [("21", "b", None), ("jours", "r", None)],
-                [("en", "r", None), ("studio.", "b", None)]],
-         pills=[dict(t="sans attendre", anchor=(2, "right"), dx=16, dy=-54, rot=-6,
-                     icon="target")],
-         darts=[(340, 1030, 28)]),
-    dict(kicker="Et après ?",
-         lines=[[("Prenez", "r", None)],
-                [("votre", "b", "mark")],
-                [("voix", "r", None), ("maintenant.", "b", None)]],
-         pills=[dict(t="500 DA", anchor=(1, "right"), dx=24, dy=-18, rot=6,
-                     icon="spark")],
-         darts=[(560, 1080, 26)]),
+         lines=[[("Copiez", "b", None), ("le", "r", None)],
+                [("texte,", "r", None), ("choisissez", "r", None)],
+                [("la", "b", None), ("voix,", "b", "mark")],
+                [("téléchargez.", "r", None)]],
+         pills=[dict(t="30 voix", anchor=(0, "right"), icon="sound", size=24),
+                dict(t="darija DZ", anchor=(2, "left"), icon="target",
+                     size=23, rot=5)]),
+    dict(kicker="Le prix :",
+         lines=[[("20", "b", "mark"), ("points", "r", None)],
+                [("= une voix,", "b", None)],
+                [("environ", "r", None), ("100", "b", None)],
+                [("DA.", "b", None)]],
+         pills=[dict(t="500 DA = 5 voix", anchor=(1, "left"), icon="spark",
+                     size=21, rot=-5)]),
+    dict(kicker="Commencez :",
+         lines=[[("50", "b", "mark"), ("points", "r", None)],
+                [("offerts", "b", None), ("dès", "r", None)],
+                [("l’inscription.", "b", None)]],
+         pills=[dict(t="sans abonnement", anchor=(0, "right"), icon="target",
+                     size=22, rot=6),
+                dict(t="sawtify.space", anchor=(2, "left"), icon="spark",
+                     size=22, rot=-5)]),
 ]}
 
 PUBS = [DZ, FR]
@@ -440,8 +468,10 @@ def render(pub):
     d = OUT / pub["id"]
     d.mkdir(parents=True, exist_ok=True)
     for i, spec in enumerate(pub["slides"]):
-        img = slide(spec, seed=pub["seed"] + i,
-                    rtl=pub.get("rtl", True)).convert("RGB").resize(
+        img = slide(spec, seed=pub["seed"] + i, rtl=pub.get("rtl", True),
+                    fonts=pub.get("fonts"), page=f"{i + 1:02d} / 05",
+                    pill_font=pub.get("pill_font"),
+                    size_default=pub.get("size", 96)).convert("RGB").resize(
             (W, H), Image.LANCZOS)
         img.save(d / f"{i + 1:02d}.jpg", quality=95, optimize=True, subsampling=1)
         print("  ✓", pub["id"], f"{i + 1:02d}")
