@@ -371,221 +371,252 @@ def finish(base, n, k, last=False):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  système « numéroté » — une grille, deux fonds, dossier de 5 slides
+#  deux gabarits : « page » (magazine naskh) et « billet » (fiche perforée)
 # ═══════════════════════════════════════════════════════════════════════════
-PAD = 84
-BADGE_Y = 132      # ligne de base du badge de pagination
-NUM_Y = 496        # ligne de base du grand numéro
-NUM_SIZE = 248
-LAB_Y = 360        # micro-label (au-dessus du numéro)
-T1 = 646           # ligne de base de la 1re ligne de titre
-BODY_Y = 1030
-RULE_Y = 1206
-FOOT_Y = 1254
+M = 84
+VIOF = (109, 39, 234)
+ORGF = (253, 96, 41)
+CREMF = (244, 241, 233)
+INKF = (20, 13, 33)
+
+AMIRI = "Amiri-Bold.ttf"
+AMIRI_R = "Amiri-Regular.ttf"
+LALEZAR = "Lalezar-Regular.ttf"
+ALEX = "Alexandria-Bold.ttf"
+KUFI = "NotoKufi-Black.ttf"
+SERIF_I = "InstrumentSerif-Italic.ttf"
+PLAY_B = "Playfair-Bold.ttf"
+PLAY_I = "Playfair-BoldItalic.ttf"
+ANTON_F = "Anton-Regular.ttf"
+SG = "SpaceGrotesk-Bold.ttf"
+SGR = "SpaceGrotesk-Regular.ttf"
+PLEX = "IBMPlexSansArabic-Regular.ttf"
 
 
-def mix(a, b, t):
-    return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
-
-
-def plate(bg, grain=0.05):
+def grain(bg=CREMF, amount=0.05, seed=9):
     import random
-    rnd = random.Random(5)
+    rnd = random.Random(seed)
     im = Image.new("RGB", (W * SS, H * SS), bg)
     n = Image.new("L", (W // 2, H // 2))
     n.putdata([rnd.randint(118, 138) for _ in range(W // 2 * H // 2)])
     g = Image.merge("RGB", [n] * 3).resize((W * SS, H * SS), Image.BILINEAR)
-    return Image.blend(im, g, grain).convert("RGBA")
+    return Image.blend(im, g, amount).convert("RGBA")
 
 
-def _theme(bg):
-    if bg == "cream":
-        return dict(bg=CREAM, fg=INK, sub=mix(CREAM, INK, 0.60),
-                    soft=mix(CREAM, VIO_SOFT, 0.75), accent=VIO,
-                    num=mix(CREAM, VIO, 0.34), badge_bg=VIO_SOFT,
-                    badge_fg=VIO_D, rule=mix(CREAM, INK, 0.20),
-                    card=VIO)
-    if bg == "violet":
-        return dict(bg=VIO, fg=CREAM, sub=mix(VIO, CREAM, 0.70),
-                    soft=mix(VIO, CREAM, 0.16), accent=ORANGE_SOFT,
-                    num=mix(VIO, CREAM, 0.30), badge_bg=CREAM,
-                    badge_fg=VIO_D, rule=mix(VIO, CREAM, 0.28), card=CREAM)
-    return dict(bg=INK, fg=CREAM, sub=mix(INK, CREAM, 0.66),
-                soft=mix(INK, VIO_SOFT, 0.40), accent=ORANGE,
-                num=mix(INK, VIO_SOFT, 0.34), badge_bg=CREAM,
-                badge_fg=INK, rule=mix(INK, CREAM, 0.24), card=CREAM)
-
-
-def badge(im, text, th):
+def lat(im, text, x, y, size, col, name=SG, align="left", track=2.4):
     d = ImageDraw.Draw(im)
-    size, track = 14.0, 2.9
-    f = tk._pil(WORD, size)
+    f = tk._pil(name, size)
     total = sum(d.textlength(c, font=f) / SS for c in text) + track * (len(text) - 1)
-    w, h = total + size * 3.0, size * 2.7
-    x0, y0 = W / 2 - w / 2, BADGE_Y - h * 0.70
+    px = x - total if align == "right" else (x - total / 2 if align == "center" else x)
+    for c in text:
+        d.text((px * SS, y * SS), c, font=f, fill=col, anchor="ls")
+        px += d.textlength(c, font=f) / SS + track
+    return total
+
+
+def hr(im, y, x0=M, x1=W - M, col=INKF, a=80, wd=1.4):
+    ImageDraw.Draw(im).line([x0 * SS, y * SS, x1 * SS, y * SS],
+                            fill=(*col, a), width=int(wd * SS))
+
+
+def mark(im, cx, cy, w):
+    src = Image.open(LOGO).convert("RGBA")
+    h = int(round(src.height * w / src.width))
+    src = src.resize((w, h), Image.LANCZOS)
+    im.alpha_composite(src, (int((cx - w / 2) * SS), int((cy - h / 2) * SS)))
+
+
+def disk(im, cx, cy, r, fill):
     lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    ImageDraw.Draw(lay).rounded_rectangle(
-        [x0 * SS, y0 * SS, (x0 + w) * SS, (y0 + h) * SS],
-        radius=h / 2 * SS, fill=(*th["badge_bg"], 255))
+    ImageDraw.Draw(lay).ellipse([(cx - r) * SS, (cy - r) * SS,
+                                 (cx + r) * SS, (cy + r) * SS], fill=(*fill, 255))
     im.alpha_composite(lay)
-    latin(im, text, W / 2, y0 + h * 0.685, size, th["badge_fg"], WORD, "center", track)
 
 
-def brand(im, th):
-    """Wordmark en haut à gauche (la mascotte vit dans le pied de page)."""
-    latin(im, "sawtify", PAD, BADGE_Y - 2, 21, th["accent"], WORD, "left", 5.4)
+# ── égalisation des lignes arabes (kashida) ──────────────────────────────
+def _tatk(word, k):
+    slots = _tat_slots(word)
+    if not slots or k <= 0:
+        return None
+    return _tat(word, k, slots)
 
 
-def big_num(im, num, th):
-    latin(im, num, PAD - 6, NUM_Y, NUM_SIZE, th["num"], WORD, "left", -NUM_SIZE * 0.045)
+def stretch(words, size, target, name, gapk=0.22, gapmax=0.40, tatmax=1):
+    """Égalise les lignes : un peu d'interlettrage, au pire un tatweel par mot."""
+    gap0 = size * gapk
+    ws = [twidth(w, name, size) for w in words]
+    n = len(words)
+    extra = target - (sum(ws) + gap0 * (n - 1))
+    if extra <= 2:
+        return list(words), gap0
+    # 1. d'abord l'interlettrage (invisible), plafonné
+    add = min(extra / max(n - 1, 1), size * (gapmax - gapk))
+    gap = gap0 + add
+    extra -= add * max(n - 1, 1)
+    # 2. le reste en kashida, très parcimonieusement
+    out = list(words)
+    if extra > 2 and tatmax:
+        order = sorted(range(n), key=lambda i: ws[i])
+        for step in range(tatmax):
+            if extra <= 2:
+                break
+            for i in order:
+                cand = _tatk(out[i], step + 1)
+                if cand is None:
+                    continue
+                nw = twidth(cand, name, size)
+                if nw - ws[i] <= extra + 40:
+                    extra -= nw - ws[i]
+                    ws[i] = nw
+                    out[i] = cand
+                    break
+    return out, gap
 
 
-def label(im, text, th, arabic=False, y=LAB_Y):
-    if arabic:
-        tdraw(im, text, W - PAD, y, 30, th["accent"], BOLD, align="right")
-    else:
-        latin(im, text.upper(), W - PAD, y, 15, th["accent"], WORD, "right", 5.2)
-
-
-def fit_title(lines, maxw=900, size=84, floor=48, name=BLACK):
-    while max(twidth(t, name, size) for t in lines) > maxw and size > floor:
+def headline(im, lines, size, y0, target, col=INKF, name=AMIRI, lead=1.30,
+             gapk=0.22, rtl=True, maxw=910):
+    while size > 40:
+        gp = size * gapk
+        wid = max(sum(twidth(w, name, size) for w in ln) + gp * (len(ln) - 1)
+                  for ln in lines)
+        if wid <= maxw:
+            break
         size -= 2
-    return size
-
-
-def title(im, lines, th, top=T1, size=None, lead=1.34, col=None):
-    size = size or fit_title(lines)
-    y = top
-    for ln in lines:
-        tdraw(im, ln, W / 2, y, size, col or th["fg"], BLACK, align="center")
+    y = y0
+    for words in lines:
+        w2, gap = stretch(words, size, target, name, gapk)
+        widths = [twidth(w, name, size) for w in w2]
+        total = sum(widths) + gap * (len(w2) - 1)
+        if rtl:
+            x = W - M
+            for w, wd in zip(w2, widths):
+                tdraw(im, w, x, y, size, col, name, align="right")
+                x -= wd + gap
+        else:
+            x = M
+            for w, wd in zip(w2, widths):
+                tdraw(im, w, x, y, size, col, name, align="left")
+                x += wd + gap
         y += size * lead
     return y - size * lead
 
 
-def body(im, text, th, y=BODY_Y, size=27, maxw=780):
-    para(im, text, W / 2, y, size, th["sub"], REG, maxw, 1.58)
+def target_of(lines, size, name, gapk=0.24):
+    gap = size * gapk
+    return max(sum(twidth(w, name, size) for w in ln) + gap * (len(ln) - 1)
+               for ln in lines)
 
 
-def rule(im, th, y=RULE_Y, x0=PAD, x1=W - PAD):
-    ImageDraw.Draw(im).line([x0 * SS, y * SS, x1 * SS, y * SS],
-                            fill=(*th["rule"], 255), width=int(1.3 * SS))
+def arc_body(im, text, y, size=29, col=(78, 66, 104), maxw=790, rtl=True):
+    return tk.paragraph(im, text, W - M if rtl else M, y, size, col, PLEX,
+                        maxw, 1.62, align="right" if rtl else "left")
 
 
-def footer(im, th, page="", seal=True):
-    """Filet + url + sceau mascotte (remplace la flèche « swipe »)."""
-    rule(im, th)
-    latin(im, "SAWTIFY.SPACE", PAD, FOOT_Y, 11.5, th["sub"], WORD, "left", 3.4)
-    if page:
-        latin(im, page, W / 2, FOOT_Y, 11.5, th["sub"], WORD, "center", 3.0)
-    if seal:
-        r = 27
-        cx, cy = W - PAD - r + 6, FOOT_Y - 24
-        dark = th["bg"] != CREAM
-        if not dark:
-            disc(im, cx, cy, r, VIO)
-        img = logo(int(r * 1.5))
-        im.alpha_composite(img, (int((cx - img.width / 2 / SS) * SS),
-                                 int((cy - img.height / 2 / SS) * SS)))
+# ── gabarit « page » ─────────────────────────────────────────────────────
+def header(im, num, date, col=INKF, sub=MUT):
+    lat(im, "SAWTIFY", M, 108, 13, col, SG, "left", 5.6)
+    lat(im, date, W - M, 106, 22, sub, SERIF_I, "right", 0.4)
+    hr(im, 150, M, W - M, col, 90)
 
 
-def disc(im, cx, cy, r, fill):
-    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    ImageDraw.Draw(lay).ellipse([(cx - r) * SS, (cy - r) * SS,
-                                 (cx + r) * SS, (cy + r) * SS],
-                                fill=(*fill, 255))
-    im.alpha_composite(lay)
+def foot(im, page, col=INKF, sub=MUT, logo_size=0):
+    if logo_size:
+        mark(im, W - M - logo_size / 2, 1268, logo_size)
+    lat(im, "sawtify.space", M, 1274, 15, col, SG, "left", 1.4)
+    lat(im, page, W - M - (logo_size + 26 if logo_size else 0), 1274, 12,
+        sub, SG, "right", 3.2)
 
 
-def rows(im, items, th, y0=760, step=162, num_size=19):
-    """Liste numérotée : pastille à droite, texte à gauche, filet de séparation."""
-    for i, (num, head, note) in enumerate(items):
-        cy = y0 + i * step
-        if i:
-            rule(im, th, cy - 68)
-        cx = W - PAD - 33
-        disc(im, cx, cy, 33, th["soft"])
-        latin(im, num, cx, cy + 7, num_size, th["fg"], WORD, "center", 1.2)
-        xr = cx - 33 - 26
-        tdraw(im, head, xr, cy + 6, 38, th["fg"], BOLD, align="right")
-        if note:
-            tdraw(im, note, xr, cy + 46, 22, th["sub"], REG, align="right")
+def photo_band(im, path, top=1000, height=300, tint=(26, 14, 42, 122)):
+    ph = Image.new("RGBA", (W * SS, int(height * SS)), (0, 0, 0, 0))
+    src = tk_pair(path, W, height)
+    ph.alpha_composite(src, (0, 0))
+    im.alpha_composite(ph, (0, int(top * SS)))
+    ov = Image.new("RGBA", (W * SS, int(height * SS)), tint)
+    im.alpha_composite(ov, (0, int(top * SS)))
 
 
-def cta(im, p, th, top=1024):
-    """Bouton plein + url, posé sur la grille basse."""
-    x0, x1, h = PAD, W - PAD, 126
-    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    ImageDraw.Draw(lay).rounded_rectangle([x0 * SS, top * SS, x1 * SS, (top + h) * SS],
-                                          radius=h / 2 * SS, fill=(*ORANGE, 255))
-    im.alpha_composite(lay)
-    tdraw(im, p["cta"], W / 2, top + h * 0.60, 38, CREAM, BLACK, align="center")
+def tk_pair(path, w, h):
+    src = Image.open(ROOT / path).convert("RGB")
+    s = max(w / src.width, h / src.height)
+    src = src.resize((int(src.width * s) + 1, int(src.height * s) + 1), Image.LANCZOS)
+    left = (src.width - w) // 2
+    top = int(max(0, (src.height - h) * 0.35))
+    out = src.crop((left, top, left + w, top + h))
+    return out.resize((w * SS, h * SS), Image.LANCZOS).convert("RGBA")
 
 
-# ── slides ────────────────────────────────────────────────────────────────
-def s01(p, th):
-    im = plate(th["bg"])
-    badge(im, "01 / 05", th)
-    brand(im, th)
-    big_num(im, "01", th)
-    label(im, p["lab1"], th, p["rtl"])
-    title(im, p["t1"], th)
-    body(im, p["b1"], th)
-    footer(im, th)
+def page(p, spec, num, date, page_no):
+    im = grain()
+    header(im, num, date)
+    y = headline(im, spec["lines"], spec["size"], spec["top"], spec["target"],
+                 spec.get("col", INKF), spec.get("font", AMIRI),
+                 spec.get("lead", 1.30), spec.get("gapk", 0.24))
+    yy = y + spec.get("sub_dy", 78)
+    if spec.get("sub"):
+        lat(im, spec["sub"], W - M, yy, 34, (122, 110, 150), SERIF_I, "right", 0.4)
+    if spec.get("body"):
+        by = spec.get("body_y", 0) or (yy + 74)
+        hr(im, by - 46, M, W - M, INKF, 60)
+        arc_body(im, spec["body"], by, spec.get("body_size", 29))
+    if spec.get("photo"):
+        photo_band(im, spec["photo"], spec.get("band_top", 1000),
+                   spec.get("band_h", 300))
+    for fn in spec.get("extra", ()):
+        fn(im)
+    foot(im, page_no, spec.get("foot_col", INKF), logo_size=spec.get("logo", 0))
     return im
 
 
-def s02(p, th):
-    im = plate(th["bg"])
-    badge(im, "02 / 05", th)
-    brand(im, th)
-    big_num(im, "02", th)
-    label(im, p["lab2"], th, p["rtl"])
-    title(im, p["t2"], th)
-    body(im, p["b2"], th)
-    footer(im, th)
-    return im
+# ── gabarit « billet » ───────────────────────────────────────────────────
+def dashed(im, inset=40, col=INKF, a=110, dash=15, gap=12, wd=1.6, r=20):
+    d = ImageDraw.Draw(im)
+    x0, y0, x1, y1 = inset, inset, W - inset, H - inset
+    step = dash + gap
+    for x in range(x0, int(x1), step):
+        d.line([x * SS, y0 * SS, min(x + dash, x1) * SS, y0 * SS], fill=(*col, a), width=int(wd * SS))
+        d.line([x * SS, y1 * SS, min(x + dash, x1) * SS, y1 * SS], fill=(*col, a), width=int(wd * SS))
+    for y in range(y0, int(y1), step):
+        d.line([x0 * SS, y * SS, x0 * SS, min(y + dash, y1) * SS], fill=(*col, a), width=int(wd * SS))
+        d.line([x1 * SS, y * SS, x1 * SS, min(y + dash, y1) * SS], fill=(*col, a), width=int(wd * SS))
 
 
-def s03(p, th):
-    im = plate(th["bg"])
-    badge(im, "03 / 05", th)
-    brand(im, th)
-    big_num(im, "03", th)
-    label(im, p["lab3"], th, p["rtl"])
-    title(im, p["t3"], th, top=606, size=fit_title(p["t3"], 880, 68), lead=1.30)
-    rows(im, p["steps"], th, y0=800, step=150)
-    footer(im, th)
-    return im
+def perfo(im, y, col=INKF, a=95):
+    d = ImageDraw.Draw(im)
+    for x in range(M, W - M, 18):
+        d.line([x * SS, y * SS, (x + 9) * SS, y * SS], fill=(*col, a), width=int(1.6 * SS))
+    for cx in (M - 6, W - M + 6):
+        d.ellipse([(cx - 14) * SS, (y - 14) * SS, (cx + 14) * SS, (y + 14) * SS],
+                  fill=(*CREMF, 255))
 
 
-def s04(p, th):
-    im = plate(th["bg"])
-    badge(im, "04 / 05", th)
-    brand(im, th)
-    big_num(im, "04", th)
-    label(im, p["lab4"], th, p["rtl"])
-    cy = 752
-    for txt, lab, cx, fill in ((p["a"], p["la"], W / 2 - 132, mix(th["bg"], VIO_SOFT, 0.92)),
-                               (p["b"], p["lb"], W / 2 + 132, mix(th["bg"], ORANGE_SOFT, 0.92))):
-        disc(im, cx, cy, 112, fill)
-        tdraw(im, txt, cx, cy + 40, 96, INK, BLACK, align="center")
-        tdraw(im, lab, cx, cy + 158, 23, th["sub"], BOLD, align="center")
-    body(im, p["b4"], th, y=1046, size=26)
-    footer(im, th)
-    return im
+def stamp(im, cx, cy, r, l1, l2, col=ORGF, font=KUFI, rot=-8):
+    size = int(2 * r) + 10
+    s = Image.new("RGBA", (size * SS, size * SS), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(s)
+    sd.ellipse([5, 5, s.width - 6, s.height - 6], outline=(*col, 255), width=int(4 * SS))
+    d1 = size / 2 + (2 if l2 else 22)
+    if l1:
+        tdraw(s, l1, size / 2, d1, 30, col, font, align="center")
+    if l2:
+        tdraw(s, l2, size / 2, size / 2 + 42, 30, col, font, align="center")
+    im.alpha_composite(s.rotate(rot, expand=True, resample=Image.BICUBIC),
+                       (int((cx - size / 2) * SS), int((cy - size / 2) * SS)))
 
 
-def s05(p, th):
-    im = plate(th["bg"])
-    badge(im, "05 / 05", th)
-    brand(im, th)
-    big_num(im, "05", th)
-    label(im, p["lab5"], th, p["rtl"])
-    title(im, p["t5"], th, size=fit_title(p["t5"], 880, 78))
-    cta(im, p, th, top=878)
-    latin(im, p["url"], W / 2, 1058, 22, th["fg"], WORD, "center", 1.0)
-    para(im, p["note"], W / 2, 1104, 21, th["sub"], REG, 700, 1.45)
-    footer(im, th)
+def billet(p, spec, num, date, page_no):
+    im = grain()
+    dashed(im)
+    lat(im, "SAWTIFY", M, 122, 12, INKF, SG, "left", 5.0)
+    lat(im, date, W - M, 120, 10, (122, 110, 150), SG, "right", 3.6)
+    y = headline(im, spec["lines"], spec["size"], spec["top"], spec["target"],
+                 spec.get("col", INKF), spec.get("font", AMIRI),
+                 spec.get("lead", 1.30), spec.get("gapk", 0.24))
+    if spec.get("sub"):
+        lat(im, spec["sub"], W - M, y + 82, 30, (122, 110, 150), SERIF_I, "right", 0.4)
+    for fn in spec.get("extra", ()):
+        fn(im)
+    foot(im, page_no, INKF, logo_size=spec.get("logo", 0))
     return im
 
 
@@ -593,56 +624,188 @@ def s05(p, th):
 #  copy
 # ═══════════════════════════════════════════════════════════════════════════
 DZ = {
-    "id": "dz", "rtl": True, "theme3": "cream",
-    "lab1": "المشكل", "lab2": "علاش", "lab3": "واش تدير", "lab4": "الفرق",
-    "lab5": "و من بعد",
-    "t1": ["كل نهار", "بلا صوت،", "نهار ضايع."],
-    "t2": ["اللي ما يسمعش،", "ما يبيعش."],
-    "t3": ["ثلاثة خطوات", "و السوم يهدر."],
-    "t5": ["ما تبقاش تستنى،", "ابدا درك."],
+    "id": "dz", "rtl": True, "date": "n° 01 — novembre 2026",
+    "t1": [["كل", "نهار"], ["بلا", "صوت،"], ["نهار", "ضايع."]],
+    "sub1": "the voice that sells",
     "b1": "الفيديو مليح، بصح بلا صوت ما يوقّف حتى واحد.",
+    "t2": [["اللي", "ما", "يسمعش"], ["ما", "يبيعش."]],
+    "sub2": "trois secondes, c’est tout",
     "b2": "ثلاث ثواني بلا صوت، و الزبون يفوت و ما يرجعش.",
-    "b4": "الاستوديو يخليك تستنى، احنا نسلّموك قبل ما يبرد الخبر.",
+    "t3": [["ثلاث", "خطوات"], ["و", "السوم", "يهدر"]],
     "steps": [("01", "ابعت السكريبت", "نص جاهز و لا فكرة، تكفي."),
               ("02", "ختر الصوت", "رجال، نسا، و نبرة على ذوقك."),
               ("03", "خود الملف", "24 ساعة و الملف في يدك.")],
-    "a": "24", "b": "21", "la": "ساعة تاعنا", "lb": "يوم استوديو",
+    "t4": [["24", "ساعة"], ["و", "لا", "21", "يوم"]],
+    "sub4": "le studio attend, nous livrons",
+    "b4": "الاستوديو يخليك تستنى، احنا نسلّموك قبل ما يبرد الخبر.",
+    "t5": [["ما", "تبقاش"], ["تستنى،", "ابدا", "درك."]],
+    "sub5": "500 DA · 24 h · darja",
     "cta": "خود الصوت تاعك درك",
     "url": "sawtify.space",
-    "note": "صوت واحد، دارجة جزايرية، 500 دج، في 24 ساعة.",
 }
 
 FR = {
-    "id": "fr", "rtl": False, "theme3": "cream",
-    "lab1": "Le problème", "lab2": "Pourquoi", "lab3": "Quoi faire",
-    "lab4": "L’écart", "lab5": "Et après",
-    "t1": ["Chaque jour", "sans voix,", "est perdu."],
-    "t2": ["Ce qu’on n’écoute pas,", "ne se vend pas."],
-    "t3": ["Trois étapes,", "et le prix parle."],
-    "t5": ["N’attendez plus,", "commencez maintenant."],
+    "id": "fr", "rtl": False, "date": "n° 01 — novembre 2026",
+    "t1": [["Chaque", "jour"], ["sans", "voix,"], ["est", "perdu."]],
+    "sub1": "the voice that sells",
     "b1": "La vidéo est bonne, mais sans son personne ne s’arrête.",
+    "t2": [["Ce", "qu’on", "n’écoute"], ["pas", "ne", "se", "vend."]],
+    "sub2": "trois secondes, c’est tout",
     "b2": "Trois secondes sans son : le client passe et ne revient pas.",
-    "b4": "Le studio vous fait attendre ; nous livrons avant que la nouvelle refroidisse.",
+    "t3": [["Trois", "étapes"], ["et", "le", "prix", "parle."]],
     "steps": [("01", "Envoyez le script", "Un texte prêt ou juste une idée."),
               ("02", "Choisissez la voix", "Homme, femme, le ton que vous voulez."),
               ("03", "Recevez le fichier", "24 heures, prêt à publier.")],
-    "a": "24", "b": "21", "la": "heures chez nous", "lb": "jours en studio",
+    "t4": [["24", "heures"], ["et", "pas", "21", "jours"]],
+    "sub4": "le studio attend, nous livrons",
+    "b4": "Le studio vous fait attendre ; nous livrons avant que la nouvelle refroidisse.",
+    "t5": [["N’attendez", "plus,"], ["commencez", "maintenant."]],
+    "sub5": "500 DA · 24 h · darija",
     "cta": "Prenez votre voix maintenant",
     "url": "sawtify.space",
-    "note": "Une voix, darija algérienne, 500 DA, livrée en 24 h.",
 }
 
+
+# ── slides ───────────────────────────────────────────────────────────────
+def cta_band(im, text, top, h=132, col=ORGF, fg=CREMF, size=40, name=AMIRI,
+             track=None):
+    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(lay).rectangle([M * SS, top * SS, (W - M) * SS, (top + h) * SS],
+                                  fill=(*col, 255))
+    im.alpha_composite(lay)
+    tdraw(im, text, W / 2, top + h * 0.66, size, fg, name, align="center")
+
+
+def s1(p):
+    im = grain()
+    header(im, "01", p["date"])
+    spec = dict(lines=p["t1"], size=118, top=368, target=900, lead=1.26)
+    y = headline(im, spec["lines"], spec["size"], spec["top"], spec["target"],
+                 name=p["font"], rtl=p["rtl"])
+    lat(im, p["sub1"], W - M, y + 86, 34, (120, 108, 148), SERIF_I, "right", 0.4)
+    hr(im, y + 122, M, W - M, INKF, 60)
+    arc_body(im, p["b1"], y + 190, 29, rtl=p["rtl"])
+
+    # bande photo + CTA
+    photo_band(im, "photos/studio-voice.jpg", 1000, 300, (24, 12, 40, 132))
+    lat(im, "500 DA", M, 1098, 40, CREMF, ANTON_F, "left", 1.0)
+    tdraw(im, p["cta"], W - M, 1090, p.get("cta_size", 40), CREMF, p["font"],
+          align="right")
+    lat(im, p["url"], M, 1266, 15, CREMF, SG, "left", 1.4)
+    lat(im, "01 / 05", W - M, 1266, 12, (222, 214, 234), SG, "right", 3.2)
+    return im
+
+
+def s2(p):
+    im = grain(seed=11)
+    header(im, "02", p["date"])
+    y = headline(im, p["t2"], 128, 392, 900, name=p["font"], rtl=p["rtl"])
+    lat(im, p["sub2"], W - M, y + 92, 34, (120, 108, 148), SERIF_I, "right", 0.4)
+    hr(im, y + 128, M, W - M, INKF, 60)
+    arc_body(im, p["b2"], y + 200, 29, rtl=p["rtl"])
+
+    # le chiffre qui arrête le scroll
+    disk(im, W - 200, 1140, 132, VIOF)
+    lat(im, "3", W - 200, 1178, 132, CREMF, ANTON_F, "center", 0.0)
+    tdraw(im, p["bignum_lab"], W - 200, 1244, 27, CREMF, p["font"], align="center")
+    disk(im, M + 58, 1128, 58, VIOF)
+    mark(im, M + 58, 1128, 78)
+    foot(im, "02 / 05")
+    return im
+
+
+def s3(p):
+    im = grain(seed=13)
+    dashed(im)
+    lat(im, "SAWTIFY", M, 122, 12, INKF, SG, "left", 5.0)
+    lat(im, "billet n°03", W - M, 120, 20, (120, 108, 148), SERIF_I, "right", 0.4)
+
+    y = headline(im, p["t3"], 104, 214, 880, name=p["font"], rtl=p["rtl"])
+    perfo(im, 470)
+
+    cy = 566
+    for i, (num, head, note) in enumerate(p["steps"]):
+        if i:
+            hr(im, cy - 62, M + 6, W - M - 6, INKF, 55)
+        lat(im, num, W - M - 8, cy + 8, 30, (150, 138, 176), ANTON_F, "right", 1.0)
+        tdraw(im, head, W - M - 78, cy + 8, 40, INKF, p["font"], align="right")
+        tdraw(im, note, W - M - 78, cy + 58, 24, (110, 98, 138), PLEX, align="right")
+        cy += 158
+
+    perfo(im, 1112)
+    lat(im, "sawtify.space", M, 1200, 17, INKF, SG, "left", 1.2)
+    lat(im, "03 / 05", W - M, 1200, 12, (150, 138, 176), SG, "right", 3.2)
+    stamp(im, W - 210, 1210, 84, p["stamp"][0], p["stamp"][1], ORGF, KUFI, -7)
+    return im
+
+
+def s4(p):
+    im = grain(seed=15)
+    dashed(im)
+    lat(im, "SAWTIFY", M, 122, 12, INKF, SG, "left", 5.0)
+    lat(im, "billet n°04", W - M, 120, 20, (120, 108, 148), SERIF_I, "right", 0.4)
+
+    y = headline(im, p["t4"], 92, 210, 860, name=p["font"], rtl=p["rtl"])
+    perfo(im, 432)
+
+    lat(im, "24", M + 4, 660, 196, INKF, ANTON_F, "left", 0.0)
+    lat(im, "21", W - M - 4, 660, 196, ORGF, ANTON_F, "right", 0.0)
+    lat(im, "vs", W / 2, 610, 40, (150, 138, 176), PLAY_I, "center", 0.0)
+    tdraw(im, p["lab_a"], M + 10, 722, 27, (110, 98, 138), p["font"], align="left")
+    tdraw(im, p["lab_b"], W - M - 10, 722, 27, (110, 98, 138), p["font"], align="right")
+    hr(im, 776, M + 6, W - M - 6, INKF, 55)
+
+    arc_body(im, p["b4"], 852, 28, maxw=760, rtl=p["rtl"])
+    lat(im, p["sub4"], W / 2, 972, 30, (120, 108, 148), SERIF_I, "center", 0.4)
+    hr(im, 1016, M + 6, W - M - 6, INKF, 55)
+
+    lat(im, "500 DA", M + 6, 1120, 54, INKF, ANTON_F, "left", 1.0)
+    tdraw(im, p["delai"], W - M - 6, 1108, 34, INKF, p["font"], align="right")
+    lat(im, "sawtify.space", M, 1200, 15, (120, 108, 148), SG, "left", 1.4)
+    lat(im, "04 / 05", W - M, 1200, 12, (150, 138, 176), SG, "right", 3.2)
+    stamp(im, W - 176, 1178, 62, p.get("stamp_short", "24 h"), "", ORGF, KUFI, 10)
+    return im
+
+
+def s5(p):
+    im = grain(seed=17)
+    header(im, "05", p["date"])
+    y = headline(im, p["t5"], 132, 388, 880, name=p["font"], rtl=p["rtl"])
+    lat(im, p["sub5"], W - M, y + 96, 32, (120, 108, 148), SERIF_I, "right", 0.4)
+
+    cta_band(im, p["cta"], 848, 138, ORGF, CREMF, p.get("cta_size", 42), p["font"])
+    lat(im, p["url"], W / 2, 1064, 24, INKF, SG, "center", 1.6)
+
+    disk(im, W - M - 58, 1168, 58, VIOF)
+    mark(im, W - M - 58, 1168, 78)
+    foot(im, "05 / 05")
+    return im
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+DZ["font"] = AMIRI
+DZ["delai"] = "24 ساعة"
+DZ["stamp"] = ("خود الصوت", "تاعك درك")
+DZ["bignum_lab"] = "ثواني"
+DZ["lab_a"] = "ساعة تاعنا"
+DZ["lab_b"] = "يوم استوديو"
+FR["font"] = PLAY_B
+FR["delai"] = "24 heures"
+FR["stamp"] = ("Prenez", "votre voix")
+FR["bignum_lab"] = "secondes"
+FR["cta_size"] = 34
+FR["lab_a"] = "heures chez nous"
+FR["lab_b"] = "jours en studio"
+
 PUBS = [DZ, FR]
-THEMES = ["cream", "violet", "cream", "cream", "ink"]
-SLIDES = [s01, s02, s03, s04, s05]
+SLIDES = [s1, s2, s3, s4, s5]
 
 
 def render(pub):
     d = OUT / pub["id"]
     d.mkdir(parents=True, exist_ok=True)
     for i, fn in enumerate(SLIDES):
-        th = _theme(THEMES[i])
-        img = fn(pub, th).convert("RGB").resize((W, H), Image.LANCZOS)
+        img = fn(pub).convert("RGB").resize((W, H), Image.LANCZOS)
         img.save(d / f"{i + 1:02d}.jpg", quality=95, optimize=True, subsampling=1)
         print("  ✓", pub["id"], f"{i + 1:02d}")
 
