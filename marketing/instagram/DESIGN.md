@@ -226,8 +226,9 @@ crème et lavande des autres images.
   pour le reste du mois.
 - La photo du téléphone et celle du carnet ont une résolution modeste; garder
   leur recadrage mesuré.
-- Les JPG du pilote ne sont pas encore livrés dans Google Drive. Les exportations
-  de production y restent distinctes; la livraison du pilote attend validation.
+- Le pilote J01 est déposé dans un sous-dossier Drive séparé, en validation.
+  Il ne remplace pas les exports de production et aucun autre jour n'est publié
+  dans cette direction.
 
 ## Périmètre technique
 
