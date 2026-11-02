@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sawtify — carrousels</title>
 <style>
-  :root{--cream:#F2F1ED;--ink:#111113;--vio:#6D27EA;--mut:#9A90B2;--org:#FD6029}
+  :root{--cream:#F2F1ED;--ink:#111113;--vio:#6D27EA;--mut:#9A90B2}
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:#0E0B14;color:var(--cream);
@@ -29,47 +29,46 @@
 <header>
   <h1>Sawtify · carrousels</h1>
   <div class="grp">
-    <span class="lbl">GABARIT</span>
+    <span class="lbl">COMPOSITION</span>
     <button class="v" id="v1">1</button>
-    <button class="v" id="vA">A</button>
-    <button class="v" id="vB">B</button>
-    <button class="v" id="vC">C</button>
+    <button class="v" id="v2">2</button>
+    <button class="v" id="v3">3</button>
     <span class="lbl" style="margin-left:12px">LANGUE</span>
     <button id="ldz" class="on">Darija</button>
     <button id="lfr">Français</button>
   </div>
 </header>
 <main class="rail" id="rail"></main>
-<p class="hint" id="hint">Glisse horizontalement · 5 slides · 1080 × 1350</p>
+<p class="hint" id="hint"></p>
 <script>
-var V = "v1", LANG = "dz";
-var LAB = {dz:["01 · المشكل","02 · علاش","03 · واش تدير","04 · السوم","05 · ابدا درك"],
+var V = "", LANG = "dz";
+var LAB = {dz:["01 · المشكل","02 · الحل","03 · واش تدير","04 · السوم","05 · ابدا درك"],
            fr:["01 · Le problème","02 · La solution","03 · Quoi faire","04 · Le prix","05 · Commencez"]};
-var NAME = {v1:"Gabarit 1 · lettre (Amiri + Space Grotesk)", vA:"Gabarit A · magazine 2 colonnes",
-            vB:"Gabarit B · carte pleine", vC:"Gabarit C · lignes décalées"};
-function base(){ return V === "v1" ? "" : V + "/"; }
+var NAME = {"":"1 · lettre — bloc haut, pastilles autour des lignes",
+            "v2":"2 · lettre basse — bloc ancré en bas, ciel calme",
+            "v3":"3 · lettre légende — filet éditorial, accroche en marge, pastilles en ligne"};
 function draw(){
   var r = document.getElementById("rail"); r.innerHTML = "";
   for (var i = 1; i <= 5; i++){
     var f = document.createElement("figure");
     var im = document.createElement("img");
-    im.src = base() + LANG + "/0" + i + ".jpg?v=" + Date.now();
+    im.src = (V ? V + "/" : "") + LANG + "/0" + i + ".jpg?v=" + Date.now();
     var c = document.createElement("figcaption");
     c.textContent = LAB[LANG][i-1];
     f.appendChild(im); f.appendChild(c); r.appendChild(f);
   }
-  ["v1","vA","vB","vC"].forEach(function(k){
-    document.getElementById(k).className = "v" + (V === k ? " on" : "");
+  ["v1","v2","v3"].forEach(function(k){
+    var key = k === "v1" ? "" : k;
+    document.getElementById(k).className = "v" + (V === key ? " on" : "");
   });
   document.getElementById("ldz").className = LANG === "dz" ? "on" : "";
   document.getElementById("lfr").className = LANG === "fr" ? "on" : "";
-  document.getElementById("hint").textContent =
-     NAME[V] + " · " + (LANG === "dz" ? "darija" : "français") + " · glisse horizontalement";
+  document.getElementById("hint").textContent = NAME[V] + " · " +
+    (LANG === "dz" ? "darija" : "français") + " · glisse horizontalement";
 }
-document.getElementById("v1").onclick = function(){ V="v1"; draw(); };
-document.getElementById("vA").onclick = function(){ V="vA"; draw(); };
-document.getElementById("vB").onclick = function(){ V="vB"; draw(); };
-document.getElementById("vC").onclick = function(){ V="vC"; draw(); };
+document.getElementById("v1").onclick = function(){ V="";   draw(); };
+document.getElementById("v2").onclick = function(){ V="v2"; draw(); };
+document.getElementById("v3").onclick = function(){ V="v3"; draw(); };
 document.getElementById("ldz").onclick = function(){ LANG="dz"; draw(); };
 document.getElementById("lfr").onclick = function(){ LANG="fr"; draw(); };
 draw();
