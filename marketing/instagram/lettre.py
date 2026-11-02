@@ -297,36 +297,31 @@ def kicker(base, text, y=300, size=58, font=BLK):
 # ═══════════════════════════════════════════════════════════════════════════
 #  slides
 # ═══════════════════════════════════════════════════════════════════════════
+def _tracked(d, txt, x, y, font, fill, tracking):
+    """Texte lettré à la main, toujours dessiné de gauche à droite."""
+    for c in txt:
+        d.text((x * SS, y * SS), c, font=font, fill=fill, anchor="ls")
+        x += d.textlength(c, font=font) / SS + tracking
+    return x
+
+
+def _tracked_w(d, txt, font, tracking):
+    return sum(d.textlength(c, font=font) / SS for c in txt) + tracking * (len(txt) - 1)
+
+
 def footer(base, page, rtl=True, rule_y=1266, text_y=1296):
-    """Pied de page : url à gauche, pagination à droite, en Space Grotesk."""
+    """Pied de page miroir : url + pagination aux deux extrémités."""
     d = ImageDraw.Draw(base)
     f = tk._pil(SG_B, 13)
-    txt = "SAWTIFY.SPACE"
-    if rtl:
-        x = W - 46.0
-        for c in txt:
-            x -= d.textlength(c, font=f) / SS
-            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
-            x -= 3.0
-    else:
-        x = 46.0
-        for c in txt:
-            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
-            x += d.textlength(c, font=f) / SS + 3.0
+    url, tr = "SAWTIFY.SPACE", 3.0
+    w = _tracked_w(d, url, f, tr)
+    _tracked(d, url, (W - 46 - w) if rtl else 46, text_y, f, (*MUT, 255), tr)
+
+    wp = _tracked_w(d, page, f, tr)
+    _tracked(d, page, 46 if rtl else (W - 46 - wp), text_y, f, (*MUT, 255), tr)
+
     d.line([46 * SS, rule_y * SS, (W - 46) * SS, rule_y * SS],
            fill=(150, 140, 172, 60), width=int(1.2 * SS))
-    num = page
-    if rtl:
-        x = 46.0
-        for c in num:
-            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
-            x += d.textlength(c, font=f) / SS + 3.0
-    else:
-        x = W - 46.0
-        for c in reversed(num):
-            x -= d.textlength(c, font=f) / SS
-            d.text((x * SS, text_y * SS), c, font=f, fill=(*MUT, 255), anchor="ls")
-            x -= 3.0
 
 
 def _wid(spec, sz, lead, fonts, rtl):

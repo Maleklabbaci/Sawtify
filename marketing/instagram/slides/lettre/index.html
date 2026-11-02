@@ -1,53 +1,77 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sawtify — carrousel lettre</title>
+<title>Sawtify — carrousels</title>
 <style>
-  :root{--paper:#F2F1ED;--ink:#111113;--vio:#6D27EA;--mut:#8C82A6}
+  :root{--cream:#F2F1ED;--ink:#111113;--vio:#6D27EA;--mut:#9A90B2;--org:#FD6029}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
-  body{background:#111113;color:#F2F1ED;
+  html,body{margin:0}
+  body{background:#0E0B14;color:var(--cream);
        font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  header{display:flex;align-items:center;gap:10px;padding:10px 14px;
-         background:rgba(17,17,19,.96);border-bottom:1px solid #2a2436;position:sticky;top:0;z-index:5}
+  header{position:sticky;top:0;z-index:9;display:flex;flex-wrap:wrap;gap:10px;
+         align-items:center;padding:10px 14px;background:rgba(14,11,20,.96);
+         border-bottom:1px solid #241b34;backdrop-filter:blur(8px)}
   h1{font-size:11px;letter-spacing:.24em;text-transform:uppercase;margin:0;color:#B39BFF}
-  .tabs{margin-left:auto;display:flex;gap:8px}
-  button{background:transparent;border:1px solid #3a3054;color:#cfc7e6;border-radius:99px;
-         padding:6px 15px;font:inherit;font-size:12px;letter-spacing:.12em;cursor:pointer}
-  button.on{background:var(--paper);color:var(--ink);border-color:var(--paper)}
-  .rail{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:14px;
-        scrollbar-width:thin}
-  figure{margin:0;flex:0 0 auto;scroll-snap-align:center;width:min(88vw,430px)}
-  img{width:100%;display:block;border-radius:10px;background:#1c1730}
-  figcaption{font-size:11px;letter-spacing:.14em;color:var(--mut);padding:7px 2px}
-  .hint{padding:0 14px 20px;font-size:12px;color:var(--mut)}
+  .grp{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+  .lbl{font-size:10px;letter-spacing:.16em;color:#6e6288;align-self:center;margin-right:2px}
+  button{background:transparent;border:1px solid #372c50;color:#cfc7e6;border-radius:99px;
+         padding:6px 14px;font:inherit;font-size:12px;letter-spacing:.1em;cursor:pointer}
+  button.on{background:var(--cream);color:var(--ink);border-color:var(--cream)}
+  button.v.on{background:var(--vio);color:#fff;border-color:var(--vio)}
+  .rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;
+        padding:14px;scrollbar-width:thin}
+  figure{margin:0;flex:0 0 auto;scroll-snap-align:center;width:min(84vw,360px)}
+  img{width:100%;display:block;border-radius:8px;background:#1b1526}
+  figcaption{font-size:10.5px;letter-spacing:.14em;color:var(--mut);padding:6px 2px}
+  .hint{padding:0 14px 18px;font-size:12px;color:#7d7196}
 </style></head>
 <body>
 <header>
-  <h1>Sawtify — carrousel</h1>
-  <div class="tabs"><button id="dz" class="on">Darija</button><button id="fr">Français</button></div>
+  <h1>Sawtify · carrousels</h1>
+  <div class="grp">
+    <span class="lbl">GABARIT</span>
+    <button class="v" id="v1">1</button>
+    <button class="v" id="vA">A</button>
+    <button class="v" id="vB">B</button>
+    <button class="v" id="vC">C</button>
+    <span class="lbl" style="margin-left:12px">LANGUE</span>
+    <button id="ldz" class="on">Darija</button>
+    <button id="lfr">Français</button>
+  </div>
 </header>
 <main class="rail" id="rail"></main>
-<p class="hint">Glisse horizontalement · 5 slides · 1080 × 1350</p>
+<p class="hint" id="hint">Glisse horizontalement · 5 slides · 1080 × 1350</p>
 <script>
-var lang="dz";
-var L={dz:["01 · شكون احنا","02 · المشكل","03 · واش تدير","04 · الفرق","05 · و من بعد"],
-       fr:["01 · Qui on est","02 · Le problème","03 · Quoi faire","04 · L'écart","05 · Et après"]};
+var V = "v1", LANG = "dz";
+var LAB = {dz:["01 · المشكل","02 · علاش","03 · واش تدير","04 · السوم","05 · ابدا درك"],
+           fr:["01 · Le problème","02 · La solution","03 · Quoi faire","04 · Le prix","05 · Commencez"]};
+var NAME = {v1:"Gabarit 1 · lettre (Amiri + Space Grotesk)", vA:"Gabarit A · magazine 2 colonnes",
+            vB:"Gabarit B · carte pleine", vC:"Gabarit C · lignes décalées"};
+function base(){ return V === "v1" ? "" : V + "/"; }
 function draw(){
-  var r=document.getElementById("rail"); r.innerHTML="";
-  for(var i=1;i<=5;i++){
-    var f=document.createElement("figure");
-    var im=document.createElement("img");
-    im.src=lang+"/0"+i+".jpg?v="+Date.now();
-    var c=document.createElement("figcaption");
-    c.textContent=L[lang][i-1];
+  var r = document.getElementById("rail"); r.innerHTML = "";
+  for (var i = 1; i <= 5; i++){
+    var f = document.createElement("figure");
+    var im = document.createElement("img");
+    im.src = base() + LANG + "/0" + i + ".jpg?v=" + Date.now();
+    var c = document.createElement("figcaption");
+    c.textContent = LAB[LANG][i-1];
     f.appendChild(im); f.appendChild(c); r.appendChild(f);
   }
-  document.getElementById("dz").className = lang=="dz"?"on":"";
-  document.getElementById("fr").className = lang=="fr"?"on":"";
+  ["v1","vA","vB","vC"].forEach(function(k){
+    document.getElementById(k).className = "v" + (V === k ? " on" : "");
+  });
+  document.getElementById("ldz").className = LANG === "dz" ? "on" : "";
+  document.getElementById("lfr").className = LANG === "fr" ? "on" : "";
+  document.getElementById("hint").textContent =
+     NAME[V] + " · " + (LANG === "dz" ? "darija" : "français") + " · glisse horizontalement";
 }
-document.getElementById("dz").onclick=function(){lang="dz";draw();};
-document.getElementById("fr").onclick=function(){lang="fr";draw();};
+document.getElementById("v1").onclick = function(){ V="v1"; draw(); };
+document.getElementById("vA").onclick = function(){ V="vA"; draw(); };
+document.getElementById("vB").onclick = function(){ V="vB"; draw(); };
+document.getElementById("vC").onclick = function(){ V="vC"; draw(); };
+document.getElementById("ldz").onclick = function(){ LANG="dz"; draw(); };
+document.getElementById("lfr").onclick = function(){ LANG="fr"; draw(); };
 draw();
 </script>
 </body></html>
