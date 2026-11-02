@@ -1,61 +1,56 @@
 <!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sawtify — carrousel « numéroté »</title>
+<html lang="fr"><head><meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-store">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Sawtify — carrousel</title>
 <style>
-  :root{--cream:#F4F1E9;--ink:#141022;--vio:#6D27EA;--mut:#8C82A6;--orange:#FD6029}
+  :root{--cream:#F4F1E9;--ink:#140D21;--vio:#6D27EA;--org:#FD6029;--mut:#8C82A6}
   *{box-sizing:border-box}
-  body{margin:0;background:#141022;color:var(--cream);
-       font-family:"Space Grotesk",system-ui,-apple-system,sans-serif}
-  header{padding:24px 20px 8px;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
-  h1{font-size:15px;letter-spacing:.22em;text-transform:uppercase;margin:0;color:var(--orange)}
-  .tabs{display:flex;gap:8px;margin-left:auto}
-  button{background:transparent;border:1px solid #37304e;color:#cfc7e6;border-radius:99px;
-         padding:7px 16px;font:inherit;font-size:12px;letter-spacing:.16em;cursor:pointer}
+  body{margin:0;background:#140D21;color:var(--cream);
+       font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;
+         padding:12px 16px;background:rgba(20,13,33,.94);backdrop-filter:blur(8px);
+         border-bottom:1px solid #2b2140}
+  h1{font-size:12px;letter-spacing:.24em;text-transform:uppercase;margin:0;color:var(--org)}
+  .tabs{margin-left:auto;display:flex;gap:8px}
+  button{background:transparent;border:1px solid #3a3054;color:#cfc7e6;border-radius:99px;
+         padding:7px 16px;font:inherit;font-size:12px;letter-spacing:.14em;cursor:pointer}
   button.on{background:var(--cream);color:var(--ink);border-color:var(--cream)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-        gap:14px;padding:18px 20px 46px}
-  figure{margin:0;background:#1c1730;border-radius:10px;overflow:hidden}
-  img{display:block;width:100%;height:auto}
-  figcaption{font-size:11px;letter-spacing:.18em;color:var(--mut);padding:9px 12px}
-</style>
-</head>
+  .wrap{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;
+        padding:16px;scrollbar-width:thin}
+  figure{margin:0;flex:0 0 auto;scroll-snap-align:center;width:min(86vw,420px)}
+  img{width:100%;display:block;border-radius:8px;background:#1c1730}
+  figcaption{font-size:11px;letter-spacing:.16em;color:var(--mut);padding:8px 2px}
+  .hint{padding:0 16px 22px;font-size:12px;color:var(--mut)}
+</style></head>
 <body>
 <header>
-  <h1>Sawtify · carrousel numéroté</h1>
-  <div class="tabs">
-    <button id="b-dz" class="on">Darija</button>
-    <button id="b-fr">Français</button>
-  </div>
+  <h1>Sawtify — gabarit lettre</h1>
+  <div class="tabs"><button id="dz" class="on">Darija</button><button id="fr">Français</button></div>
 </header>
-<main class="grid" id="grid"></main>
+<main class="wrap" id="wrap"></main>
+<p class="hint">Glisse horizontalement · 5 slides</p>
 <script>
-const N = 5;
-let lang = "dz";
-const labels = {
-  dz: ["01 · المشكل","02 · علاش","03 · واش تدير","04 · الفرق","05 · و من بعد"],
-  fr: ["01 · Le problème","02 · Pourquoi","03 · Quoi faire","04 · L'écart","05 · Et après"]
-};
+var lang="dz";
+var V=Date.now();
+var L={dz:["01 · المشكل","02 · علاش","03 · واش تدير","04 · الفرق","05 · و من بعد"],
+       fr:["01 · Le problème","02 · Pourquoi","03 · Quoi faire","04 · L'écart","05 · Et après"]};
 function draw(){
-  const g = document.getElementById("grid");
-  g.innerHTML = "";
-  for(let i=1;i<=N;i++){
-    const f = document.createElement("figure");
-    const im = document.createElement("img");
-    im.src = `${lang}/${String(i).padStart(2,"0")}.jpg?v=18`;
-    im.loading = "lazy";
-    const c = document.createElement("figcaption");
-    c.textContent = labels[lang][i-1];
-    f.append(im,c); g.append(f);
+  var w=document.getElementById("wrap"); w.innerHTML="";
+  for(var i=1;i<=5;i++){
+    var f=document.createElement("figure");
+    var im=document.createElement("img");
+    im.src=lang+"/0"+i+".jpg?v="+Date.now();
+    var c=document.createElement("figcaption");
+    c.textContent=L[lang][i-1];
+    f.appendChild(im); f.appendChild(c); w.appendChild(f);
   }
-  document.getElementById("b-dz").classList.toggle("on", lang==="dz");
-  document.getElementById("b-fr").classList.toggle("on", lang==="fr");
+  document.getElementById("dz").className = lang=="dz"?"on":"";
+  document.getElementById("fr").className = lang=="fr"?"on":"";
 }
-document.getElementById("b-dz").onclick = ()=>{lang="dz";draw();};
-document.getElementById("b-fr").onclick = ()=>{lang="fr";draw();};
+document.getElementById("dz").onclick=function(){lang="dz";draw();};
+document.getElementById("fr").onclick=function(){lang="fr";draw();};
 draw();
 </script>
-</body>
-</html>
+</body></html>
